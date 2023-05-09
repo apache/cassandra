@@ -35,16 +35,6 @@ public class CASAddTest extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(CASAddTest.class);
 
-    /**
-     * The {@code cas_contention_timeout} used during the tests
-     */
-    private static final long CONTENTION_TIMEOUT = 1000L;
-
-    /**
-     * The {@code write_request_timeout} used during the tests
-     */
-    private static final long REQUEST_TIMEOUT = 1000L;
-
     @Test
     public void testAddition() throws Throwable
     {

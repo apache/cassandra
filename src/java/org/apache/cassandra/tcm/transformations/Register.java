@@ -129,9 +129,9 @@ public class Register implements Transformation
         if (force || localHostId == null)
         {
             NodeId nodeId = register(NodeAddresses.current());
-            localHostId = nodeId.uuid;
+            localHostId = nodeId.toUUID();
             SystemKeyspace.setLocalHostId(localHostId);
-            logger.info("New node ID obtained {}, (Note: This should happen exactly once per node)", nodeId.uuid);
+            logger.info("New node ID obtained {}, (Note: This should happen exactly once per node)", localHostId);
             return nodeId;
         }
         else
@@ -148,9 +148,9 @@ public class Register implements Transformation
             {
                 if (dir.hostId(nodeId).equals(localHostId))
                 {
-                    SystemKeyspace.setLocalHostId(nodeId.uuid);
+                    SystemKeyspace.setLocalHostId(nodeId.toUUID());
                     logger.info("Updated local HostId from pre-upgrade version {} to the one which was pre-registered " +
-                                "during initial cluster metadata conversion {}", localHostId, nodeId.uuid);
+                                "during initial cluster metadata conversion {}", localHostId, nodeId.toUUID());
                 }
                 else
                 {

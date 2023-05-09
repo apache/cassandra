@@ -16,16 +16,30 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm.membership;
-public enum NodeState
-{
-    REGISTERED,
-    BOOTSTRAPPING,
-    BOOT_REPLACING,
-    JOINED,
-    LEAVING,
-    LEFT,
-    MOVING;
+package org.apache.cassandra.tcm.sequences;
 
-    // TODO: probably we can make these states even more nuanced, and track which step each node is on to have a simpler representation of transition states
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
+
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.PlacementDeltas;
+
+public interface LeaveStreams
+{
+    void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave) throws ExecutionException, InterruptedException;
+    Kind kind();
+    String status();
+
+    enum Kind
+    {
+        UNBOOTSTRAP(UnbootstrapStreams::new),
+        REMOVENODE(RemoveNodeStreams::new);
+
+        public final Supplier<LeaveStreams> supplier;
+
+        Kind(Supplier<LeaveStreams> streamsSupplier)
+        {
+            this.supplier = streamsSupplier;
+        }
+    }
 }

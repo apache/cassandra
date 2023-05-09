@@ -77,6 +77,11 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
         return state.get(nodeId);
     }
 
+    public boolean isEmpty()
+    {
+        return state.isEmpty();
+    }
+
     public InProgressSequences with(NodeId nodeId, InProgressSequence<?> sequence)
     {
         ImmutableMap.Builder<NodeId, InProgressSequence<?>> builder = ImmutableMap.builder();
@@ -142,6 +147,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
         MOVE(Move.serializer),
         REPLACE(BootstrapAndReplace.serializer),
         LEAVE(UnbootstrapAndLeave.serializer),
+        REMOVE(UnbootstrapAndLeave.serializer)
         ;
 
         public final AsymmetricMetadataSerializer<InProgressSequence<?>, ? extends InProgressSequence<?>> serializer;

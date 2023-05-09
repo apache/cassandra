@@ -205,7 +205,7 @@ public class TokenMap implements MetadataValue<TokenMap>
     {
         StringBuilder b = new StringBuilder();
         for (Map.Entry<Token, NodeId> entry : map.entrySet())
-            b.append('[').append(entry.getKey()).append("] => ").append(entry.getValue().uuid).append(";\n");
+            b.append('[').append(entry.getKey()).append("] => ").append(entry.getValue().toUUID()).append(";\n");
         return b.toString();
     }
 

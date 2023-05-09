@@ -64,10 +64,12 @@ public class ExistingClusterSUT implements Configuration.SutConfiguration
             @Override
             public Object[][] execute(String s, SystemUnderTest.ConsistencyLevel consistencyLevel, Object... objects)
             {
-                RuntimeException lastEx = null;
+                Exception lastEx = null;
                 for (int i = 0; i < 20; i++)
                 {
                     toQuery++;
+                    if (cluster.size() == 0)
+                        continue;
                     int coordinator = (toQuery % cluster.size()) + 1;
                     if (clusterState.isDown(coordinator))
                         continue;
@@ -75,13 +77,13 @@ public class ExistingClusterSUT implements Configuration.SutConfiguration
                     {
                         return cluster.coordinator(coordinator).execute(s, org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM, objects);
                     }
-                    catch (RuntimeException e)
+                    catch (Exception e)
                     {
                         lastEx = e;
                         Uninterruptibles.sleepUninterruptibly(50, TimeUnit.MILLISECONDS);
                     }
                 }
-                throw lastEx;
+                throw new RuntimeException(lastEx);
             }
 
             @Override

@@ -64,7 +64,7 @@ public class ProgressBarrierTest extends CMSTestBase
 {
     static
     {
-        System.setProperty(CassandraRelevantProperties.PROGRESS_BARRIER_BACKOFF_MILLIS.getKey(), "5");
+        System.setProperty(CassandraRelevantProperties.TCM_PROGRESS_BARRIER_BACKOFF_MILLIS.getKey(), "5");
     }
 
     @Test
@@ -229,7 +229,7 @@ public class ProgressBarrierTest extends CMSTestBase
     @Test
     public void testProgressBarrierDegradingConsistency() throws Throwable
     {
-        System.setProperty(CassandraRelevantProperties.PROGRESS_BARRIER_TIMEOUT_MILLIS.getKey(), "5");
+        System.setProperty(CassandraRelevantProperties.TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS.getKey(), "5");
         PlacementSimulator.ReplicationFactor rf = new PlacementSimulator.NtsReplicationFactor(5, 5);
         PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
 

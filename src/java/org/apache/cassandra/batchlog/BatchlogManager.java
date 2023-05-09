@@ -493,7 +493,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 if (replica == selfReplica || replicaPlan.liveAndDown().contains(replica))
                     continue;
 
-                UUID hostId = metadata.directory.peerId(replica.endpoint()).uuid;
+                UUID hostId = metadata.directory.peerId(replica.endpoint()).toUUID();
                 if (null != hostId)
                 {
                     HintsService.instance.write(hostId, Hint.create(mutation, writtenAt));

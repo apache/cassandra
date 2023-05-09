@@ -30,22 +30,22 @@ public enum ApplicationState
     // never remove a state here, ordering matters.
     @Deprecated STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
     LOAD,
-    @Deprecated SCHEMA(false),
-    @Deprecated DC(true),
-    @Deprecated RACK(true),
-    @Deprecated RELEASE_VERSION(true),
+    @Deprecated SCHEMA, // derived from ClusterMetadata
+    @Deprecated DC, // derived from ClusterMetadata
+    @Deprecated RACK, // derived from ClusterMetadata
+    @Deprecated RELEASE_VERSION, // derived from ClusterMetadata
     @Deprecated REMOVAL_COORDINATOR,
-    @Deprecated INTERNAL_IP(true), //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
-    @Deprecated RPC_ADDRESS(true), // ^ Same
+    @Deprecated INTERNAL_IP, //derived from ClusterMetadata, Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+    @Deprecated RPC_ADDRESS, // ^ Same
     X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
-    NET_VERSION(true),
-    @Deprecated HOST_ID(true),
-    @Deprecated TOKENS(true),
+    NET_VERSION, // derived from ClusterMetadata
+    @Deprecated HOST_ID, // derived from ClusterMetadata
+    @Deprecated TOKENS, // derived from ClusterMetadata
     RPC_READY,
     // pad to allow adding new states to existing cluster
-    @Deprecated INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
-    @Deprecated NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
+    @Deprecated INTERNAL_ADDRESS_AND_PORT, //derived from ClusterMetadata, Replacement for INTERNAL_IP with up to two ports
+    @Deprecated NATIVE_ADDRESS_AND_PORT, //derived from ClusterMetadata, Replacement for RPC_ADDRESS
     STATUS_WITH_PORT, //Replacement for STATUS
     /**
      * The set of sstable versions on this node. This will usually be only the "current" sstable format (the one with
@@ -69,16 +69,4 @@ public enum ApplicationState
     X8,
     X9,
     X10;
-
-    public final boolean derivedFromState;
-
-    ApplicationState()
-    {
-        this(false);
-    }
-
-    ApplicationState(boolean derivedFromState )
-    {
-        this.derivedFromState = derivedFromState;
-    }
 }

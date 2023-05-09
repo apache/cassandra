@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -48,6 +49,8 @@ public final class ReplicationParams
     private static final ReplicationParams META = new ReplicationParams(MetaStrategy.class, ImmutableMap.of());;
 
     public static final Serializer serializer = new Serializer();
+    public static final MessageSerializer messageSerializer = new MessageSerializer();
+
     public static final String CLASS = "class";
 
     public final Class<? extends AbstractReplicationStrategy> klass;
@@ -184,7 +187,7 @@ public final class ReplicationParams
         public void serialize(ReplicationParams t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.klass.getCanonicalName());
-            out.writeInt(t.options.size());
+            out.writeUnsignedVInt32(t.options.size());
             for (Map.Entry<String, String> option : t.options.entrySet())
             {
                 out.writeUTF(option.getKey());
@@ -195,9 +198,9 @@ public final class ReplicationParams
         public ReplicationParams deserialize(DataInputPlus in, Version version) throws IOException
         {
             String klassName = in.readUTF();
-            int size = in.readInt();
+            int size = in.readUnsignedVInt32();
             Map<String, String> options = new HashMap<>(size);
-            for (int i=0; i<size; i++)
+            for (int i = 0; i < size; i++)
                 options.put(in.readUTF(), in.readUTF());
             return new ReplicationParams(FBUtilities.classForName(klassName, "ReplicationStrategy"), options);
         }
@@ -205,7 +208,43 @@ public final class ReplicationParams
         public long serializedSize(ReplicationParams t, Version version)
         {
             long size = sizeof(t.klass.getCanonicalName());
-            size += TypeSizes.INT_SIZE;
+            size += TypeSizes.sizeofUnsignedVInt(t.options.size());
+            for (Map.Entry<String, String> option : t.options.entrySet())
+            {
+                size += sizeof(option.getKey());
+                size += sizeof(option.getValue());
+            }
+            return size;
+        }
+    }
+
+    public static class MessageSerializer implements IVersionedSerializer<ReplicationParams>
+    {
+        public void serialize(ReplicationParams t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeUTF(t.klass.getCanonicalName());
+            out.writeUnsignedVInt32(t.options.size());
+            for (Map.Entry<String, String> option : t.options.entrySet())
+            {
+                out.writeUTF(option.getKey());
+                out.writeUTF(option.getValue());
+            }
+        }
+
+        public ReplicationParams deserialize(DataInputPlus in, int version) throws IOException
+        {
+            String klassName = in.readUTF();
+            int size = in.readUnsignedVInt32();
+            Map<String, String> options = new HashMap<>(size);
+            for (int i=0; i<size; i++)
+                options.put(in.readUTF(), in.readUTF());
+            return new ReplicationParams(FBUtilities.classForName(klassName, "ReplicationStrategy"), options);
+        }
+
+        public long serializedSize(ReplicationParams t, int version)
+        {
+            long size = sizeof(t.klass.getCanonicalName());
+            size += TypeSizes.sizeofUnsignedVInt(t.options.size());
             for (Map.Entry<String, String> option : t.options.entrySet())
             {
                 size += sizeof(option.getKey());

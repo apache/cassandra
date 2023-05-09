@@ -98,7 +98,7 @@ public class PeersTable extends AbstractVirtualTable
             result.row(addr.getAddress(), addr.getPort())
                   .column(DATA_CENTER, metadata.directory.location(peer).datacenter)
                   .column(RACK, metadata.directory.location(peer).rack)
-                  .column(HOST_ID, peer.uuid)
+                  .column(HOST_ID, peer.toUUID())
                   .column(PREFERRED_IP, addresses.broadcastAddress.getAddress())
                   .column(PREFERRED_PORT, addresses.broadcastAddress.getPort())
                   .column(NATIVE_ADDRESS, addresses.nativeAddress.getAddress())
@@ -170,7 +170,7 @@ public class PeersTable extends AbstractVirtualTable
                                            addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort(),
                                            addresses.nativeAddress.getAddress(), addresses.nativeAddress.getPort(),
                                            location.datacenter, location.rack,
-                                           nodeId.uuid,
+                                           nodeId.toUUID(),
                                            next.directory.version(nodeId).cassandraVersion.toString(),
                                            next.schema.getVersion(),
                                            tokens);
@@ -178,7 +178,7 @@ public class PeersTable extends AbstractVirtualTable
             QueryProcessor.executeInternal(String.format(legacy_peers_query, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
                                            addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getAddress(), addresses.nativeAddress.getAddress(),
                                            location.datacenter, location.rack,
-                                           nodeId.uuid,
+                                           nodeId.toUUID(),
                                            next.directory.version(nodeId).cassandraVersion.toString(),
                                            next.schema.getVersion(),
                                            tokens);

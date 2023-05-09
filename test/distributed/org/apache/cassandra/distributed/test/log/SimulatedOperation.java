@@ -33,6 +33,7 @@ import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -475,7 +476,8 @@ public abstract class SimulatedOperation
         {
             ClusterMetadata metadata = sut.service.commit(new PrepareLeave(toRemove.nodeId(),
                                                                            true,
-                                                                           sut.service.placementProvider()));
+                                                                           sut.service.placementProvider(),
+                                                                           LeaveStreams.Kind.UNBOOTSTRAP));
             UnbootstrapAndLeave plan = (UnbootstrapAndLeave) metadata.inProgressSequences.get(toRemove.nodeId());
             return Optional.of(plan);
         }

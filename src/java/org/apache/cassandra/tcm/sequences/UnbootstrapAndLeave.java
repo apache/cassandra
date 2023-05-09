@@ -19,29 +19,15 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.batchlog.BatchlogManager;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.RangesByEndpoint;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.SystemStrategy;
-import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -49,13 +35,10 @@ import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
-import org.apache.cassandra.tcm.ownership.MovementMap;
-import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLeave>
@@ -70,13 +53,15 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
     public final PrepareLeave.StartLeave startLeave;
     public final PrepareLeave.MidLeave midLeave;
     public final PrepareLeave.FinishLeave finishLeave;
+    private final LeaveStreams streams;
 
     public UnbootstrapAndLeave(Epoch latestModification,
                                LockedRanges.Key lockKey,
                                Transformation.Kind next,
                                PrepareLeave.StartLeave startLeave,
                                PrepareLeave.MidLeave midLeave,
-                               PrepareLeave.FinishLeave finishLeave)
+                               PrepareLeave.FinishLeave finishLeave,
+                               LeaveStreams streams)
     {
         this.latestModification = latestModification;
         this.lockKey = lockKey;
@@ -84,12 +69,13 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         this.startLeave = startLeave;
         this.midLeave = midLeave;
         this.finishLeave = finishLeave;
+        this.streams = streams;
     }
 
     public UnbootstrapAndLeave advance(Epoch waitFor, Transformation.Kind next)
     {
         return new UnbootstrapAndLeave(waitFor, lockKey, next,
-                                       startLeave, midLeave, finishLeave);
+                                       startLeave, midLeave, finishLeave, streams);
     }
 
     public Transformation.Kind nextStep()
@@ -99,12 +85,25 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
 
     public InProgressSequences.Kind kind()
     {
-        return InProgressSequences.Kind.LEAVE;
+        switch (streams.kind())
+        {
+            case UNBOOTSTRAP:
+                return InProgressSequences.Kind.LEAVE;
+            case REMOVENODE:
+                return InProgressSequences.Kind.REMOVE;
+            default:
+                throw new IllegalStateException("Invalid stream kind: "+streams.kind());
+        }
     }
 
     public ProgressBarrier barrier()
     {
-        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey));
+        ClusterMetadata metadata = ClusterMetadata.current();
+        LockedRanges.AffectedRanges affectedRanges = metadata.lockedRanges.locked.get(lockKey);
+        if (kind() == InProgressSequences.Kind.REMOVE)
+            return new ProgressBarrier(latestModification, affectedRanges, (e) -> !e.equals(metadata.directory.endpoint(startLeave.nodeId())));
+        else
+            return new ProgressBarrier(latestModification, affectedRanges);
     }
 
     public boolean executeNext()
@@ -125,18 +124,11 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             case MID_LEAVE:
                 try
                 {
-                    MovementMap movements =  movementMap(ClusterMetadata.current().directory.endpoint(startLeave.nodeId()),
-                                                         startLeave.delta(),
-                                                         midLeave.delta(),
-                                                         finishLeave.delta());
-                    movements.forEach((params, eps) -> logger.debug("Unbootstrap movements: {}: {}", params, eps));
-                    unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(), movements);
-                }
-                catch (InterruptedException e)
-                {
-                    StorageService.instance.markDecommissionFailed();
-                    logger.error("Node interrupted while decommissioning");
-                    return true;
+                    streams.execute(startLeave.nodeId(),
+                                    startLeave.delta(),
+                                    midLeave.delta(),
+                                    finishLeave.delta());
+                    ClusterMetadataService.instance().commit(midLeave);
                 }
                 catch (ExecutionException e)
                 {
@@ -147,17 +139,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                 }
                 catch (Throwable t)
                 {
-                    StorageService.instance.markDecommissionFailed();;
-                    logger.error("Error while decommissioning node: {}", t.getMessage());
-                    throw t;
-                }
-
-                try
-                {
-                    ClusterMetadataService.instance().commit(midLeave);
-                }
-                catch (Throwable t)
-                {
+                    logger.warn("Error committing midLeave", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return true;
                 }
@@ -178,46 +160,6 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         }
 
         return true;
-    }
-
-    private MovementMap movementMap(InetAddressAndPort leaving, PlacementDeltas startDelta, PlacementDeltas midDelta, PlacementDeltas finishDelta)
-    {
-        MovementMap.Builder allMovements = MovementMap.builder();
-        // map of src->dest movements, keyed by replication settings. During unbootstrap, this will be used to construct
-        // a stream plan for each keyspace, based on their replication params.
-        finishDelta.forEach((params, delta) -> {
-            // no streaming for LocalStrategy and friends
-            if (SystemStrategy.class.isAssignableFrom(params.klass))
-                return;
-
-            // first identify ranges to be migrated off the leaving node
-            Map<Range<Token>, Replica> oldReplicas = delta.writes.removals.get(leaving).byRange();
-
-            // next go through the additions to the write groups that will be applied during the
-            // first step of the plan. These represent the ranges moving to new replicas so in
-            // order to construct a streaming plan we can match these up with the corresponding
-            // removals to produce a src->dest mapping.
-            EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
-            startWriteAdditions.flattenValues()
-                               .forEach(newReplica -> movements.put(oldReplicas.get(newReplica.range()), newReplica));
-            // next, check if any replicas went from being transient to full, if so we need to stream to them;
-            Iterable<Replica> removalReplicas = delta.writes.removals.flattenValues();
-            for (Replica removal : removalReplicas)
-            {
-                if (removal.isTransient())
-                {
-                    Replica destination = midDelta.get(params).reads.additions.get(removal.endpoint()).byRange().get(removal.range());
-                    if (destination != null && destination.isFull())
-                    {
-                        logger.info("Conversion from transient to full replica {} -> {}", removal, destination);
-                        movements.put(oldReplicas.get(removal.range()), destination);
-                    }
-                }
-            }
-            allMovements.put(params, movements.build());
-        });
-        return allMovements.build();
     }
 
     @Override
@@ -243,43 +185,9 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                        .withNodeState(startLeave.nodeId(), NodeState.JOINED);
     }
 
-    private static void unbootstrap(Keyspaces keyspaces, MovementMap movements) throws ExecutionException, InterruptedException
+    public String status()
     {
-        Supplier<Future<StreamState>> startStreaming = prepareUnbootstrapStreaming(keyspaces, movements);
-
-        logger.info("replaying batch log and streaming data to other nodes");
-        // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
-        Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
-        Future<StreamState> streamSuccess = startStreaming.get();
-
-        // Wait for batch log to complete before streaming hints.
-        logger.debug("waiting for batch log processing.");
-        batchlogReplay.get();
-
-        logger.info("streaming hints to other nodes");
-
-        Future<?> hintsSuccess = StorageService.instance.streamHints();
-
-        // wait for the transfer runnables to signal the latch.
-        logger.debug("waiting for stream acks.");
-        streamSuccess.get();
-        hintsSuccess.get();
-
-        logger.debug("stream acks all received.");
-    }
-
-    private static Supplier<Future<StreamState>> prepareUnbootstrapStreaming(Keyspaces keyspaces,
-                                                                             MovementMap movements)
-    {
-        // PrepareLeave transformation gives us a map of range movements for unbootstrap, keyed on replication settings.
-        // The movements themselves are maps of leavingReplica -> newReplica(s). Here we just "inflate" the outer
-        // map to a set of movements per-keyspace, duplicating where keyspaces share the same replication params
-        Map<String, EndpointsByReplica> byKeyspace =
-        keyspaces.stream()
-                 .collect(Collectors.toMap(k -> k.name,
-                                           k -> movements.get(k.params.replication)));
-
-        return () -> StorageService.instance.streamRanges(byKeyspace);
+        return String.format("step: %s, streams: %s", next, streams.status());
     }
 
     @Override
@@ -323,14 +231,12 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
 
             Epoch.serializer.serialize(plan.latestModification, out, version);
             LockedRanges.Key.serializer.serialize(plan.lockKey, out, version);
-
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
-            if (plan.next.ordinal() >= Transformation.Kind.START_LEAVE.ordinal())
-                PrepareLeave.StartLeave.serializer.serialize(plan.startLeave, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.MID_LEAVE.ordinal())
-                PrepareLeave.MidLeave.serializer.serialize(plan.midLeave, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.FINISH_LEAVE.ordinal())
-                PrepareLeave.FinishLeave.serializer.serialize(plan.finishLeave, out, version);
+            VIntCoding.writeUnsignedVInt32(plan.streams.kind().ordinal(), out);
+
+            PrepareLeave.StartLeave.serializer.serialize(plan.startLeave, out, version);
+            PrepareLeave.MidLeave.serializer.serialize(plan.midLeave, out, version);
+            PrepareLeave.FinishLeave.serializer.serialize(plan.finishLeave, out, version);
         }
 
         public UnbootstrapAndLeave deserialize(DataInputPlus in, Version version) throws IOException
@@ -339,18 +245,14 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
 
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
-            PrepareLeave.StartLeave startLeave = null;
-            if (next.ordinal() >= Transformation.Kind.START_LEAVE.ordinal())
-                startLeave = PrepareLeave.StartLeave.serializer.deserialize(in, version);
-            PrepareLeave.MidLeave midLeave = null;
-            if (next.ordinal() >= Transformation.Kind.MID_LEAVE.ordinal())
-                midLeave = PrepareLeave.MidLeave.serializer.deserialize(in, version);
-            PrepareLeave.FinishLeave finishLeave = null;
-            if (next.ordinal() >= Transformation.Kind.FINISH_LEAVE.ordinal())
-                finishLeave = PrepareLeave.FinishLeave.serializer.deserialize(in, version);
+            LeaveStreams.Kind streamKind = LeaveStreams.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
+            PrepareLeave.StartLeave startLeave = PrepareLeave.StartLeave.serializer.deserialize(in, version);
+            PrepareLeave.MidLeave midLeave = PrepareLeave.MidLeave.serializer.deserialize(in, version);
+            PrepareLeave.FinishLeave finishLeave = PrepareLeave.FinishLeave.serializer.deserialize(in, version);
 
             return new UnbootstrapAndLeave(barrier, lockKey, next,
-                                           startLeave, midLeave, finishLeave);
+                                           startLeave, midLeave, finishLeave,
+                                           streamKind.supplier.get());
         }
 
         public long serializedSize(InProgressSequence<?> t, Version version)
@@ -360,13 +262,10 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
 
             size += VIntCoding.computeVIntSize(plan.kind().ordinal());
-
-            if (plan.next.ordinal() >= Transformation.Kind.START_LEAVE.ordinal())
-                size += PrepareLeave.StartLeave.serializer.serializedSize(plan.startLeave, version);
-            if (plan.next.ordinal() >= Transformation.Kind.MID_LEAVE.ordinal())
-                size += PrepareLeave.StartLeave.serializer.serializedSize(plan.midLeave, version);
-            if (plan.next.ordinal() >= Transformation.Kind.FINISH_LEAVE.ordinal())
-                size += PrepareLeave.StartLeave.serializer.serializedSize(plan.finishLeave, version);
+            size += VIntCoding.computeVIntSize(plan.streams.kind().ordinal());
+            size += PrepareLeave.StartLeave.serializer.serializedSize(plan.startLeave, version);
+            size += PrepareLeave.StartLeave.serializer.serializedSize(plan.midLeave, version);
+            size += PrepareLeave.StartLeave.serializer.serializedSize(plan.finishLeave, version);
             return size;
         }
     }

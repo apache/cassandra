@@ -33,7 +33,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 
 public abstract class ReplicationMap<T> implements Iterable<Map.Entry<ReplicationParams, T>>
 {
-    private final Map<ReplicationParams, T> map;
+    protected final Map<ReplicationParams, T> map;
 
     protected ReplicationMap()
     {

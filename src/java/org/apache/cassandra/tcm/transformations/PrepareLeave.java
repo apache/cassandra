@@ -39,6 +39,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -51,15 +52,17 @@ public class PrepareLeave implements Transformation
     private static final Logger logger = LoggerFactory.getLogger(PrepareLeave.class);
     public static final Serializer serializer = new Serializer();
 
-    private final NodeId nodeId;
+    private final NodeId leaving;
     private final boolean force;
     private final PlacementProvider placementProvider;
+    private final LeaveStreams.Kind streamKind;
 
-    public PrepareLeave(NodeId nodeId, boolean force, PlacementProvider placementProvider)
+    public PrepareLeave(NodeId leaving, boolean force, PlacementProvider placementProvider, LeaveStreams.Kind streamKind)
     {
-        this.nodeId = nodeId;
+        this.leaving = leaving;
         this.force = force;
         this.placementProvider = placementProvider;
+        this.streamKind = streamKind;
     }
 
     @Override
@@ -70,19 +73,19 @@ public class PrepareLeave implements Transformation
 
     public NodeId nodeId()
     {
-        return nodeId;
+        return leaving;
     }
 
     @Override
     public Result execute(ClusterMetadata prev)
     {
-        if (prev.isCMSMember(prev.directory.endpoint(nodeId)))
-            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is still a part of CMS.", nodeId));
+        if (prev.isCMSMember(prev.directory.endpoint(leaving)))
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is still a part of CMS.", leaving));
 
-        if (prev.directory.peerState(nodeId) != NodeState.JOINED)
-            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+        if (prev.directory.peerState(leaving) != NodeState.JOINED)
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", leaving, prev.directory.peerState(leaving)));
 
-        ClusterMetadata proposed = prev.transformer().proposeRemoveNode(nodeId).build().metadata;
+        ClusterMetadata proposed = prev.transformer().proposeRemoveNode(leaving).build().metadata;
 
         if (!force && !validateReplicationForDecommission(proposed))
             return new Rejected(INVALID, "Not enough live nodes to maintain replication factor after decomission.");
@@ -91,7 +94,7 @@ public class PrepareLeave implements Transformation
             return new Rejected(INVALID, "No peers registered, at least local node should be");
 
         PlacementTransitionPlan transitionPlan = placementProvider.planForDecommission(prev,
-                                                                                       nodeId,
+                                                                                       leaving,
                                                                                        prev.schema.getKeyspaces());
 
         LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();
@@ -108,28 +111,29 @@ public class PrepareLeave implements Transformation
 
         LockedRanges.Key unlockKey = LockedRanges.keyFor(proposed.epoch);
 
-        StartLeave start = new StartLeave(nodeId, startDelta, unlockKey);
-        MidLeave mid = new MidLeave(nodeId, midDelta, unlockKey);
-        FinishLeave leave = new FinishLeave(nodeId, finishDelta, unlockKey);
+        StartLeave start = new StartLeave(leaving, startDelta, unlockKey);
+        MidLeave mid = new MidLeave(leaving, midDelta, unlockKey);
+        FinishLeave leave = new FinishLeave(leaving, finishDelta, unlockKey);
 
         UnbootstrapAndLeave plan = new UnbootstrapAndLeave(prev.nextEpoch(),
                                                            unlockKey,
                                                            Kind.START_LEAVE,
                                                            start,
                                                            mid,
-                                                           leave);
+                                                           leave,
+                                                           streamKind.supplier.get());
 
         // note: we throw away the state with the leaving node's tokens removed. It's only
         // used to produce the operation plan.
         ClusterMetadata.Transformer next = prev.transformer()
                                                .with(prev.lockedRanges.lock(unlockKey, rangesToLock))
-                                               .with(prev.inProgressSequences.with(nodeId, plan));
+                                               .with(prev.inProgressSequences.with(leaving, plan));
         return success(next, rangesToLock);
     }
 
     private boolean validateReplicationForDecommission(ClusterMetadata proposed)
     {
-        String dc = proposed.directory.location(nodeId).datacenter;
+        String dc = proposed.directory.location(leaving).datacenter;
         int rf, numNodes;
         for (KeyspaceMetadata ksm : proposed.schema.getKeyspaces())
         {
@@ -180,26 +184,30 @@ public class PrepareLeave implements Transformation
         {
             assert t instanceof PrepareLeave;
             PrepareLeave transformation = (PrepareLeave) t;
-            NodeId.serializer.serialize(transformation.nodeId, out, version);
+            NodeId.serializer.serialize(transformation.leaving, out, version);
             out.writeBoolean(transformation.force);
+            out.writeUTF(transformation.streamKind.toString());
         }
 
         public PrepareLeave deserialize(DataInputPlus in, Version version) throws IOException
         {
             NodeId id = NodeId.serializer.deserialize(in, version);
             boolean force = in.readBoolean();
+            LeaveStreams.Kind streamsKind = LeaveStreams.Kind.valueOf(in.readUTF());
 
             return new PrepareLeave(id,
                                     force,
-                                    ClusterMetadataService.instance().placementProvider());
+                                    ClusterMetadataService.instance().placementProvider(),
+                                    streamsKind);
         }
 
        public long serializedSize(Transformation t, Version version)
         {
             assert t instanceof PrepareLeave;
             PrepareLeave transformation = (PrepareLeave) t;
-            return NodeId.serializer.serializedSize(transformation.nodeId, version)
-                   + TypeSizes.sizeof(transformation.force);
+            return NodeId.serializer.serializedSize(transformation.leaving, version)
+                   + TypeSizes.sizeof(transformation.force)
+                   + TypeSizes.sizeof(transformation.streamKind.toString());
         }
     }
 
@@ -207,7 +215,7 @@ public class PrepareLeave implements Transformation
     public String toString()
     {
         return "PrepareLeave{" +
-               "nodeId=" + nodeId +
+               "leaving=" + leaving +
                ", force=" + force +
                '}';
     }

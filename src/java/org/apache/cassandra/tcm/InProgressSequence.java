@@ -23,9 +23,14 @@ import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 
 public interface InProgressSequence<T extends InProgressSequence<T>>
 {
-    public InProgressSequences.Kind kind();
+    InProgressSequences.Kind kind();
 
-    public ProgressBarrier barrier();
+    ProgressBarrier barrier();
+
+    default String status()
+    {
+        return "kind: " + kind() + ", next step: " + nextStep() +" barrier: " + barrier();
+    }
 
     /**
      * Returns a kind of the next step

@@ -16,16 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm.membership;
-public enum NodeState
-{
-    REGISTERED,
-    BOOTSTRAPPING,
-    BOOT_REPLACING,
-    JOINED,
-    LEAVING,
-    LEFT,
-    MOVING;
+package org.apache.cassandra.tcm.listeners;
 
-    // TODO: probably we can make these states even more nuanced, and track which step each node is on to have a simpler representation of transition states
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.compatibility.GossipHelper;
+
+public class UpgradeMigrationListener implements ChangeListener
+{
+    private static final Logger logger = LoggerFactory.getLogger(UpgradeMigrationListener.class);
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+    {
+        if (!prev.epoch.equals(Epoch.UPGRADE_GOSSIP))
+            return;
+
+        logger.info("Detected upgrade from gossip mode, updating my host id in gossip to {}", next.myNodeId());
+        GossipHelper.mergeNodeToGossip(next.myNodeId(), next);
+    }
 }

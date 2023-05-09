@@ -362,12 +362,9 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             PlacementDeltas.serializer.serialize(plan.toSplitRanges, out, version);
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
 
-            if (plan.next.ordinal() >= Transformation.Kind.START_JOIN.ordinal())
-                PrepareJoin.StartJoin.serializer.serialize(plan.startJoin, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.MID_JOIN.ordinal())
-                PrepareJoin.MidJoin.serializer.serialize(plan.midJoin, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.FINISH_JOIN.ordinal())
-                PrepareJoin.FinishJoin.serializer.serialize(plan.finishJoin, out, version);
+            PrepareJoin.StartJoin.serializer.serialize(plan.startJoin, out, version);
+            PrepareJoin.MidJoin.serializer.serialize(plan.midJoin, out, version);
+            PrepareJoin.FinishJoin.serializer.serialize(plan.finishJoin, out, version);
         }
 
         public BootstrapAndJoin deserialize(DataInputPlus in, Version version) throws IOException
@@ -379,15 +376,9 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
             PlacementDeltas toSplitRanges = PlacementDeltas.serializer.deserialize(in, version);
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
-            PrepareJoin.StartJoin startJoin = null;
-            if (next.ordinal() >= Transformation.Kind.START_JOIN.ordinal())
-                startJoin = PrepareJoin.StartJoin.serializer.deserialize(in, version);
-            PrepareJoin.MidJoin midJoin = null;
-            if (next.ordinal() >= Transformation.Kind.MID_JOIN.ordinal())
-                midJoin = PrepareJoin.MidJoin.serializer.deserialize(in, version);
-            PrepareJoin.FinishJoin finishJoin = null;
-            if (next.ordinal() >= Transformation.Kind.FINISH_JOIN.ordinal())
-                finishJoin = PrepareJoin.FinishJoin.serializer.deserialize(in, version);
+            PrepareJoin.StartJoin startJoin = PrepareJoin.StartJoin.serializer.deserialize(in, version);
+            PrepareJoin.MidJoin midJoin = PrepareJoin.MidJoin.serializer.deserialize(in, version);
+            PrepareJoin.FinishJoin finishJoin = PrepareJoin.FinishJoin.serializer.deserialize(in, version);
 
             return new BootstrapAndJoin(lastModified, lockKey, next, toSplitRanges, startJoin, midJoin, finishJoin, finishJoiningRing, streamData);
         }
@@ -403,12 +394,9 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
 
             size += VIntCoding.computeVIntSize(plan.kind().ordinal());
 
-            if (plan.kind().ordinal() >= Transformation.Kind.START_JOIN.ordinal())
-                size += PrepareJoin.StartJoin.serializer.serializedSize(plan.startJoin, version);
-            if (plan.kind().ordinal() >= Transformation.Kind.MID_JOIN.ordinal())
-                size += PrepareJoin.MidJoin.serializer.serializedSize(plan.midJoin, version);
-            if (plan.kind().ordinal() >= Transformation.Kind.FINISH_JOIN.ordinal())
-                size += PrepareJoin.FinishJoin.serializer.serializedSize(plan.finishJoin, version);
+            size += PrepareJoin.StartJoin.serializer.serializedSize(plan.startJoin, version);
+            size += PrepareJoin.MidJoin.serializer.serializedSize(plan.midJoin, version);
+            size += PrepareJoin.FinishJoin.serializer.serializedSize(plan.finishJoin, version);
 
             return size;
         }

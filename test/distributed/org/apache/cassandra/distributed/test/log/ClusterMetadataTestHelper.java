@@ -61,6 +61,7 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.Move;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -380,7 +381,8 @@ public class ClusterMetadataTestHelper
                     NodeId nodeId = ClusterMetadata.current().directory.peerId(endpoint);
                     commit(new PrepareLeave(nodeId,
                                             force,
-                                            ClusterMetadataService.instance().placementProvider()));
+                                            ClusterMetadataService.instance().placementProvider(),
+                                            LeaveStreams.Kind.UNBOOTSTRAP));
                     idx++;
                     return this;
                 }
@@ -781,7 +783,8 @@ public class ClusterMetadataTestHelper
     {
         return new PrepareLeave(nodeId,
                                 false,
-                                new UniformRangePlacement());
+                                new UniformRangePlacement(),
+                                LeaveStreams.Kind.UNBOOTSTRAP);
     }
 
     public static PrepareMove prepareMove(NodeId id, Token newToken)

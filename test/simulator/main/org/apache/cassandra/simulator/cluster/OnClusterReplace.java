@@ -66,7 +66,7 @@ class OnClusterReplace extends OnClusterChangeTopology
     {
         IInvokableInstance joinInstance = actions.cluster.get(joining);
         before(joinInstance);
-        UUID leavingNodeId = actions.cluster.get(leaving).unsafeCallOnThisThread(() -> ClusterMetadata.current().myNodeId().uuid);
+        UUID leavingNodeId = actions.cluster.get(leaving).unsafeCallOnThisThread(() -> ClusterMetadata.current().myNodeId().toUUID());
         List<Action> actionList = new ArrayList<>();
         actionList.add(new SubmitPrepareReplace(actions, leavingNodeId, joining));
         actionList.add(new OnInstanceTopologyChangePaxosRepair(actions, joining, "Replace"));

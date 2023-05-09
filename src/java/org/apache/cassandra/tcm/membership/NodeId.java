@@ -32,11 +32,22 @@ public class NodeId implements Comparable<NodeId>
 {
     public static final Serializer serializer = new Serializer();
 
-    public final UUID uuid;
+    private final UUID uuid;
 
     public NodeId(UUID id)
     {
         this.uuid = id;
+    }
+
+    public static NodeId fromString(String sequenceOwner)
+    {
+        return new NodeId(UUID.fromString(sequenceOwner));
+    }
+
+    @Deprecated
+    public UUID toUUID()
+    {
+        return uuid;
     }
 
     @Override
@@ -85,5 +96,4 @@ public class NodeId implements Comparable<NodeId>
             return TypeSizes.LONG_SIZE + TypeSizes.LONG_SIZE;
         }
     }
-
 }

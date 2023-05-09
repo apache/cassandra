@@ -1010,7 +1010,17 @@ public class NodeProbe implements AutoCloseable
 
     public void removeNode(String token)
     {
-        ssProxy.removeNode(token);
+        removeNode(token, false);
+    }
+
+    public void removeNode(String token, boolean force)
+    {
+        ssProxy.removeNode(token, force);
+    }
+
+    public void cancelInProgressSequences(String nodeId, String inProgressKind)
+    {
+        getStorageService().cancelInProgressSequences(nodeId, inProgressKind);
     }
 
     public String getRemovalStatus(boolean withPort)

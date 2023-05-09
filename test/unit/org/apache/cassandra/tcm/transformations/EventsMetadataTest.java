@@ -42,6 +42,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
@@ -188,7 +189,7 @@ public class EventsMetadataTest
         ClusterMetadataService.instance().commit(join.finishJoin);
 
         ClusterMetadata before = ClusterMetadata.current();
-        ClusterMetadataService.instance().commit(new PrepareLeave(nodeId, true, PrepareLeaveTest.dummyPlacementProvider));
+        ClusterMetadataService.instance().commit(new PrepareLeave(nodeId, true, PrepareLeaveTest.dummyPlacementProvider, LeaveStreams.Kind.UNBOOTSTRAP));
         UnbootstrapAndLeave leave = (UnbootstrapAndLeave) ClusterMetadata.current().inProgressSequences.get(nodeId);
         ClusterMetadata after = ClusterMetadata.current();
         // no change in metadata after prepareLeave;

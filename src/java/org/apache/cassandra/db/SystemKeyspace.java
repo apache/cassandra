@@ -616,6 +616,7 @@ public final class SystemKeyspace
                 case REGISTERED:
                     return NEEDS_BOOTSTRAP;
                 case BOOTSTRAPPING:
+                case BOOT_REPLACING:
                     return IN_PROGRESS;
                 case JOINED:
                 case LEAVING:

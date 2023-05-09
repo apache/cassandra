@@ -662,7 +662,7 @@ public class ClusterUtils
         return executor.callOnInstance(() -> {
             try
             {
-                return ClusterMetadata.current().directory.peerId(toCassandraInetAddressAndPort(targetAddress)).uuid;
+                return ClusterMetadata.current().directory.peerId(toCassandraInetAddressAndPort(targetAddress)).toUUID();
             }
             catch (Exception e)
             {
@@ -679,7 +679,7 @@ public class ClusterUtils
 
     public static boolean cancelInProgressSequences(NodeId nodeId, IInvokableInstance executor)
     {
-        UUID uuid = nodeId.uuid;
+        UUID uuid = nodeId.toUUID();
         return executor.callOnInstance(() -> {
             try
             {

@@ -52,6 +52,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.addr;
 import static org.junit.Assert.assertFalse;
@@ -122,7 +123,8 @@ public class PrepareLeaveTest
     {
         PrepareLeave prepareLeave = new PrepareLeave(metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.1")),
                                                      false,
-                                                     dummyPlacementProvider);
+                                                     dummyPlacementProvider,
+                                                     LeaveStreams.Kind.UNBOOTSTRAP);
 
         return prepareLeave.execute(metadata).isSuccess();
     }

@@ -36,7 +36,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.assertGossipInfo;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertNotInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingHealthy;
@@ -90,9 +89,6 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
             // with all nodes down, now start the seed (should be first node)
             seed.startup();
 
-            // at this point node2 should be known in gossip, but with generation/version of 0
-            assertGossipInfo(seed, addressToReplace, 0, -1);
-
             // make sure node1 still has node2's tokens
             List<String> currentTokens = getTokenMetadataTokens(seed);
             Assertions.assertThat(currentTokens)
@@ -143,9 +139,6 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
 
             // with all nodes down, now start the seed (should be first node)
             seed.startup();
-
-            // at this point node2 should be known in gossip, but with generation/version of 0
-            assertGossipInfo(seed, addressToReplace, 0, -1);
 
             // make sure node1 still has node2's tokens
             List<String> currentTokens = getTokenMetadataTokens(seed);

@@ -85,17 +85,6 @@ public class EndpointState
         return hbState;
     }
 
-    public EndpointState nonDerivable()
-    {
-        Map<ApplicationState, VersionedValue> state = new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class);
-        for (Map.Entry<ApplicationState, VersionedValue> e : applicationState.get().entrySet())
-        {
-            if (!e.getKey().derivedFromState)
-                state.put(e.getKey(), e.getValue());
-        }
-        return new EndpointState(hbState, state);
-    }
-
     void setHeartBeatState(HeartBeatState newHbState)
     {
         updateTimestamp();

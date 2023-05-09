@@ -297,12 +297,9 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
             LockedRanges.Key.serializer.serialize(plan.lockKey, out, version);
 
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
-            if (plan.next.ordinal() >= Transformation.Kind.START_REPLACE.ordinal())
-                PrepareReplace.StartReplace.serializer.serialize(plan.startReplace, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.MID_REPLACE.ordinal())
-                PrepareReplace.MidReplace.serializer.serialize(plan.midReplace, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.FINISH_REPLACE.ordinal())
-                PrepareReplace.FinishReplace.serializer.serialize(plan.finishReplace, out, version);
+            PrepareReplace.StartReplace.serializer.serialize(plan.startReplace, out, version);
+            PrepareReplace.MidReplace.serializer.serialize(plan.midReplace, out, version);
+            PrepareReplace.FinishReplace.serializer.serialize(plan.finishReplace, out, version);
         }
 
         public BootstrapAndReplace deserialize(DataInputPlus in, Version version) throws IOException
@@ -319,15 +316,9 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
 
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
-            PrepareReplace.StartReplace startReplace = null;
-            if (next.ordinal() >= Transformation.Kind.START_REPLACE.ordinal())
-                startReplace = PrepareReplace.StartReplace.serializer.deserialize(in, version);
-            PrepareReplace.MidReplace midReplace = null;
-            if (next.ordinal() >= Transformation.Kind.MID_REPLACE.ordinal())
-                midReplace = PrepareReplace.MidReplace.serializer.deserialize(in, version);
-            PrepareReplace.FinishReplace finishReplace = null;
-            if (next.ordinal() >= Transformation.Kind.FINISH_REPLACE.ordinal())
-                finishReplace = PrepareReplace.FinishReplace.serializer.deserialize(in, version);
+            PrepareReplace.StartReplace startReplace = PrepareReplace.StartReplace.serializer.deserialize(in, version);
+            PrepareReplace.MidReplace midReplace = PrepareReplace.MidReplace.serializer.deserialize(in, version);
+            PrepareReplace.FinishReplace finishReplace = PrepareReplace.FinishReplace.serializer.deserialize(in, version);
 
             return new BootstrapAndReplace(barrier, lockKey, next, tokens, startReplace, midReplace, finishReplace, finishJoiningRing, streamData);
         }
@@ -346,12 +337,9 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
 
             size += VIntCoding.computeVIntSize(plan.kind().ordinal());
 
-            if (plan.kind().ordinal() >= Transformation.Kind.START_REPLACE.ordinal())
-                size += PrepareReplace.StartReplace.serializer.serializedSize(plan.startReplace, version);
-            if (plan.kind().ordinal() >= Transformation.Kind.MID_REPLACE.ordinal())
-                size += PrepareReplace.MidReplace.serializer.serializedSize(plan.midReplace, version);
-            if (plan.kind().ordinal() >= Transformation.Kind.FINISH_REPLACE.ordinal())
-                size += PrepareReplace.FinishReplace.serializer.serializedSize(plan.finishReplace, version);
+            size += PrepareReplace.StartReplace.serializer.serializedSize(plan.startReplace, version);
+            size += PrepareReplace.MidReplace.serializer.serializedSize(plan.midReplace, version);
+            size += PrepareReplace.FinishReplace.serializer.serializedSize(plan.finishReplace, version);
 
             return size;
         }

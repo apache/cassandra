@@ -87,7 +87,17 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
-import org.apache.cassandra.tcm.Commit.Result;import org.apache.cassandra.tcm.Discovery;import org.apache.cassandra.tcm.Replay;import org.apache.cassandra.tcm.log.LogState;import org.apache.cassandra.tcm.log.Replication;import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;import org.apache.cassandra.tcm.migration.Election;import org.apache.cassandra.utils.BooleanSerializer;
+import org.apache.cassandra.streaming.DataMovement;
+import org.apache.cassandra.streaming.DataMovementVerbHandler;
+import org.apache.cassandra.tcm.Commit.Result;
+import org.apache.cassandra.tcm.Discovery;
+import org.apache.cassandra.tcm.Replay;
+import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;
+import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.sequences.DataMovements;
+import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.paxos.Commit;
@@ -104,7 +114,12 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.*;
 import static org.apache.cassandra.net.VerbTimeouts.*;
 import static org.apache.cassandra.net.Verb.Kind.*;
-import static org.apache.cassandra.net.Verb.Priority.*;import static org.apache.cassandra.tcm.ClusterMetadataService.commitRequestHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.currentEpochRequestHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.logNotifyHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.replayRequestHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.replicationHandler;import static org.apache.cassandra.tcm.Commit.*;
+import static org.apache.cassandra.net.Verb.Priority.*;
+import static org.apache.cassandra.tcm.ClusterMetadataService.commitRequestHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.currentEpochRequestHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.logNotifyHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.replayRequestHandler;
+import static org.apache.cassandra.tcm.ClusterMetadataService.replicationHandler;
 
 /**
  * Note that priorities except P0 are presently unused.  P0 corresponds to urgent, i.e. what used to be the "Gossip" connection.
@@ -222,6 +237,11 @@ public enum Verb
     TCM_ABORT_MIG          (811, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP   ),
     TCM_DISCOVER_RSP       (812, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                             ),
     TCM_DISCOVER_REQ       (813, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP   ),
+
+    INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
+    INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),
+    DATA_MOVEMENT_EXECUTED_RSP  (816, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
+    DATA_MOVEMENT_EXECUTED_REQ  (817, P1, rpcTimeout, MISC, () -> DataMovement.Status.serializer,   () -> DataMovements.instance,           DATA_MOVEMENT_EXECUTED_RSP  ),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),

@@ -201,7 +201,8 @@ public class InProgressSequenceCancellationTest
                                                            Transformation.Kind.FINISH_LEAVE,
                                                            new PrepareLeave.StartLeave(nodeId, startDeltas, key),
                                                            new PrepareLeave.MidLeave(nodeId, midDeltas, key),
-                                                           new PrepareLeave.FinishLeave(nodeId, PlacementDeltas.empty(), key));
+                                                           new PrepareLeave.FinishLeave(nodeId, PlacementDeltas.empty(), key),
+                                                           new UnbootstrapStreams());
 
         // Ranges locked by this sequence (just random, not accurate, as we're only asserting that they get unlocked)
         locked = locked.lock(key, affectedRanges(placements, random));

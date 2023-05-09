@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.log;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -140,5 +141,30 @@ public class BounceGossipTest extends TestBaseImpl
             }
 
         }
+    }
+
+    @Test
+    public void gossipPropagatesVersionTest() throws IOException
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                             .start()))
+        {
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
+            cluster.get(2).nodetoolResult("move", "9999").asserts().success();
+            int correctTokensVersion = getGossipTokensVersion(cluster, 2);
+            for (int inst : new int[] {1, 3})
+                while (correctTokensVersion != getGossipTokensVersion(cluster, inst))
+                {
+                    System.out.println(correctTokensVersion + " ::: " + getGossipTokensVersion(cluster, inst));
+                    Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);  // wait for gossip to propagate
+                }
+        }
+    }
+
+    private static int getGossipTokensVersion(Cluster cluster, int instance)
+    {
+        return cluster.get(instance).callOnInstance(() -> Gossiper.instance.endpointStateMap.get(InetAddressAndPort.getByNameUnchecked("127.0.0.2"))
+                                                                                            .getApplicationState(ApplicationState.TOKENS).version);
     }
 }

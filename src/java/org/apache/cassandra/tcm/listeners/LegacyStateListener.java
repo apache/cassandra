@@ -80,10 +80,13 @@ public class LegacyStateListener implements ChangeListener
                             break;
                     }
                 }
-                if (next.directory.peerState(change) != LEFT)
-                    GossipHelper.mergeNodeToGossip(change, next);
-                else
+                if (next.directory.peerState(change) == LEFT)
+                {
                     GossipHelper.mergeNodeToGossip(change, next, prev.tokenMap.tokens(change));
+                    Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(prev.directory.endpoint(change)));
+                }
+                else
+                    GossipHelper.mergeNodeToGossip(change, next);
                 PeersTable.updateLegacyPeerTable(change, prev, next);
             }
         }

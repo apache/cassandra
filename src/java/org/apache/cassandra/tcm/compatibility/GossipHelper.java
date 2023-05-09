@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
@@ -65,8 +66,10 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.apache.cassandra.gms.ApplicationState.DC;
@@ -77,6 +80,7 @@ import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
 import static org.apache.cassandra.gms.ApplicationState.RACK;
 import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
+import static org.apache.cassandra.gms.Gossiper.isShutdown;
 import static org.apache.cassandra.gms.VersionedValue.unsafeMakeVersionedValue;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByName;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByNameOverrideDefaults;
@@ -120,7 +124,7 @@ public class GossipHelper
             Map<ApplicationState, VersionedValue> newStates = new EnumMap<>(ApplicationState.class);
             for (ApplicationState appState : ApplicationState.values())
             {
-                VersionedValue value = epstate.getApplicationState(appState);
+                VersionedValue oldValue = epstate.getApplicationState(appState);
                 VersionedValue newValue = null;
                 switch (appState)
                 {
@@ -138,8 +142,8 @@ public class GossipHelper
                         break;
                     case HOST_ID:
                         if (getBroadcastAddressAndPort().equals(addresses.broadcastAddress))
-                            SystemKeyspace.setLocalHostId(nodeId.uuid);
-                        newValue = valueFactory.hostId(nodeId.uuid);
+                            SystemKeyspace.setLocalHostId(nodeId.toUUID());
+                        newValue = valueFactory.hostId(nodeId.toUUID());
                         break;
                     case TOKENS:
                         if (tokens != null)
@@ -153,21 +157,19 @@ public class GossipHelper
                         break;
                     case STATUS:
                         // only publish/add STATUS if there are non-upgraded hosts
-                        if (metadata.directory.versions.values().stream().anyMatch(v -> !v.isUpgraded()) && tokens != null && !tokens.isEmpty())
-                            newValue = nodeStateToStatus(metadata.directory.peerState(nodeId), tokens, valueFactory);
-                        break;
+                        if (metadata.directory.versions.values().stream().allMatch(NodeVersion::isUpgraded))
+                            break;
                     case STATUS_WITH_PORT:
-                        if (tokens != null && !tokens.isEmpty())
-                            newValue = nodeStateToStatus(metadata.directory.peerState(nodeId), tokens, valueFactory);
+                        newValue = nodeStateToStatus(nodeId, metadata, tokens, valueFactory, oldValue);
                         break;
                     default:
-                        newValue = value;
+                        newValue = oldValue;
                 }
                 if (newValue != null)
                 {
                     // note that version needs to be > -1 here, otherwise Gossiper#sendAll on generation change doesn't send it
                     if (!isLocal)
-                        newValue = unsafeMakeVersionedValue(newValue.value, value == null ? 0 : value.version);
+                        newValue = unsafeMakeVersionedValue(newValue.value, oldValue == null ? 0 : oldValue.version);
                     newStates.put(appState, newValue);
                 }
             }
@@ -178,13 +180,25 @@ public class GossipHelper
         });
     }
 
-    private static VersionedValue nodeStateToStatus(NodeState nodeState, Collection<Token> tokens, VersionedValue.VersionedValueFactory valueFactory)
+    private static VersionedValue nodeStateToStatus(NodeId nodeId,
+                                                    ClusterMetadata metadata,
+                                                    Collection<Token> tokens,
+                                                    VersionedValue.VersionedValueFactory valueFactory,
+                                                    VersionedValue oldValue)
     {
+        NodeState nodeState =  metadata.directory.peerState(nodeId);
+        if ((tokens == null || tokens.isEmpty()) && nodeState != NodeState.BOOT_REPLACING)
+            return null;
+
+        InProgressSequence<?> sequence;
         VersionedValue status = null;
         switch (nodeState)
         {
             case JOINED:
-                status = valueFactory.normal(tokens);
+                if (isShutdown(oldValue))
+                    status = valueFactory.shutdown(true);
+                else
+                    status = valueFactory.normal(tokens);
                 break;
             case LEFT:
                 status = valueFactory.left(tokens, Gossiper.computeExpireTime());
@@ -192,11 +206,33 @@ public class GossipHelper
             case BOOTSTRAPPING:
                 status = valueFactory.bootstrapping(tokens);
                 break;
+            case BOOT_REPLACING:
+                sequence = metadata.inProgressSequences.get(nodeId);
+                if (!(sequence instanceof BootstrapAndReplace))
+                {
+                    logger.error(String.format("Cannot construct gossip state. Node is in %s state, but the sequence is %s", NodeState.BOOT_REPLACING, sequence));
+                    return null;
+                }
+
+                NodeId replaced = ((BootstrapAndReplace)sequence).startReplace.replaced();
+                if (metadata.directory.versions.values().stream().allMatch(NodeVersion::isUpgraded))
+                    status = valueFactory.bootReplacingWithPort(metadata.directory.endpoint(replaced));
+                else
+                    status = valueFactory.bootReplacing(metadata.directory.endpoint(replaced).getAddress());
+                break;
             case LEAVING:
                 status = valueFactory.leaving(tokens);
                 break;
             case MOVING:
-                status = valueFactory.moving(tokens.iterator().next()); //todo
+                sequence = metadata.inProgressSequences.get(nodeId);
+                if (!(sequence instanceof Move))
+                {
+                    logger.error(String.format("Cannot construct gossip state. Node is in %s state, but sequence the is %s", NodeState.MOVING, sequence));
+                    return null;
+                }
+
+                Token token = ((Move)sequence).tokens.iterator().next();
+                status = valueFactory.moving(token);
                 break;
             case REGISTERED:
                 break;

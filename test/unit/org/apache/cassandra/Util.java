@@ -284,7 +284,7 @@ public class Util
         // Expand pool of host IDs as necessary
         for (int i = hostIdPool.size(); i < howMany; i++)
         {
-            hostIdPool.add(ClusterMetadataTestHelper.register(i + 1).uuid);
+            hostIdPool.add(ClusterMetadataTestHelper.register(i + 1).toUUID());
         }
 
         boolean endpointTokenPrefilled = endpointTokens != null && !endpointTokens.isEmpty();

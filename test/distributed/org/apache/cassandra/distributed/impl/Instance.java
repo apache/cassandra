@@ -835,7 +835,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public void postStartup()
     {
         sync(() ->
-            StorageService.instance.doAuthSetup(false)
+            StorageService.instance.doAuthSetup()
         ).run();
     }
 

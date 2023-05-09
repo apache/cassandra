@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tcm.sequences;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,7 +139,7 @@ public class ProgressBarrier
         long deadline = Clock.Global.nanoTime() + TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS);
 
         Map<ReplicationParams, Set<Range<Token>>> affectedRangesMap = affectedRanges.asMap();
-        Map<ReplicationParams, WaitFor> waiters = new HashMap<>(affectedRangesMap.size());
+        Map<ReplicationParams, WaitFor> waiters = Maps.newHashMapWithExpectedSize(affectedRangesMap.size());
 
         Set<InetAddressAndPort> superset = new HashSet<>();
         for (Map.Entry<ReplicationParams, Set<Range<Token>>> e : affectedRangesMap.entrySet())
@@ -251,7 +252,7 @@ public class ProgressBarrier
 
         public WaitForOne(EndpointsForRange writes, EndpointsForRange reads)
         {
-            this.nodes = new HashSet<>(reads.size() + 1);
+            this.nodes = Sets.newHashSetWithExpectedSize(reads.size() + 1);
             writes.forEach(r -> nodes.add(r.endpoint()));
             reads.forEach(r -> nodes.add(r.endpoint()));
         }
@@ -287,7 +288,7 @@ public class ProgressBarrier
 
         public WaitForQuorum(EndpointsForRange writes, EndpointsForRange reads)
         {
-            this.nodes = new HashSet<>(reads.size() + 1);
+            this.nodes = Sets.newHashSetWithExpectedSize(reads.size() + 1);
             writes.forEach(r -> nodes.add(r.endpoint()));
             reads.forEach(r -> nodes.add(r.endpoint()));
             this.waitFor = nodes.size() / 2 + 1;
@@ -326,8 +327,7 @@ public class ProgressBarrier
 
         public WaitForLocalQuorum(EndpointsForRange writes, EndpointsForRange reads, Directory directory)
         {
-
-            this.nodes = new HashSet<>(reads.size() + 1);
+            this.nodes = Sets.newHashSetWithExpectedSize(reads.size() + 1);
             writes.forEach(r -> addNode(r, directory));
             reads.forEach(r -> addNode(r, directory));
             this.waitFor = nodes.size() / 2 + 1;
@@ -377,10 +377,10 @@ public class ProgressBarrier
 
         public WaitForEachQuorum(EndpointsForRange writes, EndpointsForRange reads, Directory directory)
         {
-            this.nodesByDc = new HashMap<>(directory.knownDatacenters().size());
+            nodesByDc = Maps.newHashMapWithExpectedSize(directory.knownDatacenters().size());
             writes.forEach((r) -> addToDc(r, directory));
             reads.forEach((r) -> addToDc(r, directory));
-            this.waitForByDc = new HashMap<>(nodesByDc.size());
+            waitForByDc = Maps.newHashMapWithExpectedSize(nodesByDc.size());
             int total = 0;
             for (Map.Entry<String, Set<InetAddressAndPort>> e : nodesByDc.entrySet())
             {
@@ -395,7 +395,7 @@ public class ProgressBarrier
         {
             InetAddressAndPort endpoint = r.endpoint();
             String dc = directory.location(directory.peerId(endpoint)).datacenter;
-            nodesByDc.computeIfAbsent(dc, (dc_) -> new HashSet<>(3))
+            nodesByDc.computeIfAbsent(dc, (dc_) -> Sets.newHashSetWithExpectedSize(3))
                      .add(endpoint);
         }
 
@@ -462,6 +462,7 @@ public class ProgressBarrier
 
             private void retry(InetAddressAndPort to, AtomicBoolean active)
             {
+                logger.info("Retrying watermark request from {}, sleeping {}ms", to, BACKOFF_MILLIS);
                 FBUtilities.sleepQuietly(BACKOFF_MILLIS);
                 sendRequest(to, active, collected);
             }

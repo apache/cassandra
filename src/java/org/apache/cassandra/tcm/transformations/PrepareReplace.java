@@ -271,7 +271,7 @@ public class PrepareReplace implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.withNodeState(replacement(), NodeState.BOOTSTRAPPING)
+            return transformer.withNodeState(replacement(), NodeState.BOOT_REPLACING)
                               .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.MID_REPLACE)));
         }
 

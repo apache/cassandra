@@ -177,7 +177,12 @@ public class Move implements InProgressSequence<Move>
                             if (source.isSelf())
                                 streamPlan.transferRanges(destination.endpoint(), ks.name, RangesAtEndpoint.of(destination));
                             else if (destination.isSelf())
-                                streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.of(destination), RangesAtEndpoint.empty(destination.endpoint()));
+                            {
+                                if (destination.isFull())
+                                    streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.of(destination), RangesAtEndpoint.empty(destination.endpoint()));
+                                else
+                                    streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.empty(destination.endpoint()), RangesAtEndpoint.of(destination));
+                            }
                             else
                                 throw new IllegalStateException("Node should be either source or destination in the movement map " + endpoints);
                         }
@@ -405,12 +410,9 @@ public class Move implements InProgressSequence<Move>
             PlacementDeltas.serializer.serialize(plan.toSplitRanges, out, version);
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
 
-            if (plan.next.ordinal() >= Transformation.Kind.START_MOVE.ordinal())
-                PrepareMove.StartMove.serializer.serialize(plan.startMove, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.MID_MOVE.ordinal())
-                PrepareMove.MidMove.serializer.serialize(plan.midMove, out, version);
-            if (plan.next.ordinal() >= Transformation.Kind.FINISH_MOVE.ordinal())
-                PrepareMove.FinishMove.serializer.serialize(plan.finishMove, out, version);
+            PrepareMove.StartMove.serializer.serialize(plan.startMove, out, version);
+            PrepareMove.MidMove.serializer.serialize(plan.midMove, out, version);
+            PrepareMove.FinishMove.serializer.serialize(plan.finishMove, out, version);
 
             out.writeUnsignedVInt32(plan.tokens.size());
             for (Token token : plan.tokens)
@@ -426,15 +428,9 @@ public class Move implements InProgressSequence<Move>
             PlacementDeltas toSplitRanges = PlacementDeltas.serializer.deserialize(in, version);
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
 
-            PrepareMove.StartMove startMove = null;
-            if (next.ordinal() >= Transformation.Kind.START_MOVE.ordinal())
-                startMove = PrepareMove.StartMove.serializer.deserialize(in, version);
-            PrepareMove.MidMove midMove = null;
-            if (next.ordinal() >= Transformation.Kind.MID_MOVE.ordinal())
-                midMove = PrepareMove.MidMove.serializer.deserialize(in, version);
-            PrepareMove.FinishMove finishMove = null;
-            if (next.ordinal() >= Transformation.Kind.FINISH_MOVE.ordinal())
-                finishMove = PrepareMove.FinishMove.serializer.deserialize(in, version);
+            PrepareMove.StartMove startMove = PrepareMove.StartMove.serializer.deserialize(in, version);
+            PrepareMove.MidMove midMove = PrepareMove.MidMove.serializer.deserialize(in, version);
+            PrepareMove.FinishMove finishMove = PrepareMove.FinishMove.serializer.deserialize(in, version);
 
             int numTokens = in.readUnsignedVInt32();
             List<Token> tokens = new ArrayList<>();
@@ -455,12 +451,9 @@ public class Move implements InProgressSequence<Move>
 
             size += VIntCoding.computeVIntSize(plan.kind().ordinal());
 
-            if (plan.kind().ordinal() >= Transformation.Kind.START_MOVE.ordinal())
-                size += PrepareMove.StartMove.serializer.serializedSize(plan.startMove, version);
-            if (plan.kind().ordinal() >= Transformation.Kind.MID_MOVE.ordinal())
-                size += PrepareMove.MidMove.serializer.serializedSize(plan.midMove, version);
-            if (plan.kind().ordinal() >= Transformation.Kind.FINISH_MOVE.ordinal())
-                size += PrepareMove.FinishMove.serializer.serializedSize(plan.finishMove, version);
+            size += PrepareMove.StartMove.serializer.serializedSize(plan.startMove, version);
+            size += PrepareMove.MidMove.serializer.serializedSize(plan.midMove, version);
+            size += PrepareMove.FinishMove.serializer.serializedSize(plan.finishMove, version);
 
             size += TypeSizes.sizeofUnsignedVInt(plan.tokens.size());
             for (Token token : plan.tokens)

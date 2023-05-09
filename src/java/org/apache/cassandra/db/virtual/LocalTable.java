@@ -116,7 +116,7 @@ public class LocalTable extends AbstractVirtualTable
               .column(CQL_VERSION, QueryProcessor.CQL_VERSION.toString())
               .column(DATACENTER, location.datacenter)
               .column(GOSSIP_GENERATION, Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getBroadcastAddressAndPort()))
-              .column(HOST_ID, peer.uuid)
+              .column(HOST_ID, peer.toUUID())
               .column(LISTEN_ADDRESS, addresses.localAddress.getAddress())
               .column(LISTEN_PORT, addresses.localAddress.getPort())
               .column(NATIVE_ADDRESS, addresses.nativeAddress.getAddress())

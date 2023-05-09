@@ -86,7 +86,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
-import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorLocals;
@@ -171,7 +170,6 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -204,6 +202,7 @@ import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -236,7 +235,6 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
-
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
@@ -267,6 +265,7 @@ import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getAllRanges
 import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getPrimaryRangeForEndpointWithinDC;
 import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getPrimaryRangesForEndpoint;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
+import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
@@ -489,13 +488,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (joined || joinRing)
                 assert validTokens : "Cannot start gossiping for a node intended to join without valid tokens";
 
-            // todo; this method is only called via JMX, we probably don't need this, we never call setGossipTokens from outside of this
-//            if (validTokens)
-//                setGossipTokens(tokens);
-
+            List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
+            states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+            states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens)));
+            states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
+            logger.info("Node {} jump to NORMAL", getBroadcastAddressAndPort());
+            Gossiper.instance.addLocalApplicationStates(states);
             Gossiper.instance.forceNewerGeneration();
-            Gossiper.instance.start((int) (currentTimeMillis() / 1000));
-            gossipActive = true;
+            Gossiper.instance.start((int) (currentTimeMillis() / 1000), true);
         }
     }
 
@@ -680,6 +680,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         Schema.instance.saveSystemKeyspace();
+        DatabaseDescriptor.getInternodeAuthenticator().setupInternode();
         try
         {
             MessagingService.instance().waitUntilListening();
@@ -709,6 +710,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(),
                                 ClusterMetadataService.state() != ClusterMetadataService.State.GOSSIP); // only populate local state if not running in gossip mode
         Gossiper.instance.register(this);
+        Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
                                                    valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
 
@@ -742,9 +744,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 finishInProgressSequences(self);
 
-                // TODO: how about write survey mode?
-                assert ClusterMetadata.current().directory.peerState(self) == JOINED ||
-                       ClusterMetadata.current().directory.peerState(self) == BOOTSTRAPPING;
+                if (finishJoiningRing && (ClusterMetadata.current().directory.peerState(self) != JOINED))
+                    throw new IllegalStateException("Did not finish joining the ring. Please check logs for details.");
             case JOINED:
                 logger.info("{}", Mode.NORMAL);
                 break;
@@ -757,7 +758,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Startup.maybeExecuteStartupTransformation();
 
         // TODO: is this a right place? auth setup is currently not serializable!
-        //doAuthSetup(true);
+        doAuthSetup();
 
         maybeInitializeServices();
         completeInitialization();
@@ -786,6 +787,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
                 return;
         }
+    }
+
+    public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind)
+    {
+        NodeId owner = NodeId.fromString(sequenceOwner);
+        InProgressSequence<?> seq = ClusterMetadata.current().inProgressSequences.get(owner);
+        if (seq == null)
+            throw new IllegalArgumentException("No in progress sequence for "+sequenceOwner);
+        InProgressSequences.Kind expectedKind = InProgressSequences.Kind.valueOf(expectedSequenceKind);
+        if (seq.kind() != expectedKind)
+            throw new IllegalArgumentException("No in progress sequence of kind " + expectedKind + " for " + owner + " (only " + seq.kind() +" in progress)");
+
+        return cancelInProgressSequences(owner);
     }
 
     public boolean cancelInProgressSequences(NodeId sequenceOwner)
@@ -922,7 +936,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             try
             {
                 joinTokenRing();
-                doAuthSetup(false);
+                doAuthSetup();
             }
             catch (ConfigurationException e)
             {
@@ -938,7 +952,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 // todo;
                 finishJoiningRing(/*resumedBootstrap, SystemKeyspace.getSavedTokens()*/);
-                doAuthSetup(false);
+                doAuthSetup();
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -966,16 +980,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @VisibleForTesting
-    public void doAuthSetup(boolean setUpSchema)
+    public void doAuthSetup()
     {
         if (!authSetupCalled.getAndSet(true))
         {
-            if (setUpSchema)
-            {
-                // TODO: this is not serializable!
-                Schema.instance.submit(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
-            }
-
             DatabaseDescriptor.getRoleManager().setup();
             DatabaseDescriptor.getAuthenticator().setup();
             DatabaseDescriptor.getAuthorizer().setup();
@@ -1518,7 +1526,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isBootstrapMode()
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        return metadata != null && metadata.myNodeState() == BOOTSTRAPPING;
+        return metadata != null && (metadata.myNodeState() == BOOTSTRAPPING || metadata.myNodeState() == BOOT_REPLACING);
     }
 
     public Map<List<String>, List<String>> getRangeToEndpointMap(String keyspace)
@@ -1815,7 +1823,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
         if (metadata == null || metadata.directory.peerId(getBroadcastAddressAndPort()) == null)
             return null;
-        return metadata.directory.peerId(getBroadcastAddressAndPort()).uuid;
+        return metadata.directory.peerId(getBroadcastAddressAndPort()).toUUID();
     }
 
     public Map<String, String> getHostIdMap()
@@ -1838,7 +1846,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, String> mapOut = new HashMap<>();
         for (Map.Entry<NodeId, NodeAddresses> entry : ClusterMetadata.current().directory.addresses.entrySet())
-            mapOut.put(entry.getValue().broadcastAddress.getHostAddress(withPort), entry.getKey().uuid.toString());
+            mapOut.put(entry.getValue().broadcastAddress.getHostAddress(withPort), entry.getKey().toUUID().toString());
         return mapOut;
     }
 
@@ -1856,7 +1864,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, String> mapOut = new HashMap<>();
         for (Map.Entry<NodeId, NodeAddresses> entry : ClusterMetadata.current().directory.addresses.entrySet())
-            mapOut.put(entry.getKey().uuid.toString(), entry.getValue().broadcastAddress.getHostAddress(withPort));
+            mapOut.put(entry.getKey().toUUID().toString(), entry.getValue().broadcastAddress.getHostAddress(withPort));
         return mapOut;
     }
 
@@ -1974,9 +1982,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     String moveName = pieces[0];
                     if (moveName.equals(VersionedValue.SHUTDOWN))
                     {
+                        logger.info("Node {} state jump to shutdown", endpoint);
                         Gossiper.runInGossipStageBlocking(() -> {
                             Gossiper.instance.markDead(endpoint, epState);
                         });
+                    }
+                    else if (moveName.equals(VersionedValue.STATUS_NORMAL))
+                    {
+                        logger.info("Node {} state jump to NORMAL", endpoint);
+
                     }
                     break;
                 case SCHEMA:
@@ -2015,7 +2029,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void updateTopology()
     {
-        logger.error("Caller should be updated, updateTopology is no longer supported", new RuntimeException());
+        logger.debug("Caller should be updated, updateTopology is no longer supported", new RuntimeException());
     }
 
     private void notifyRpcChange(InetAddressAndPort endpoint, boolean ready)
@@ -2192,7 +2206,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Nullable
     public UUID getHostIdForEndpoint(InetAddressAndPort address)
     {
-        return ClusterMetadata.current().directory.peerId(address).uuid;
+        return ClusterMetadata.current().directory.peerId(address).toUUID();
     }
 
     /* These methods belong to the MBean interface */
@@ -2292,6 +2306,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<String> getJoiningNodes()
     {
+        // todo use directory
         return stringify(endpointsWithState(BOOTSTRAPPING), false);
     }
 
@@ -3398,28 +3413,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return keys;
     }
 
-    public void decommission(boolean force)
+    public void maybeHandoverCMS(ClusterMetadata metadata, InetAddressAndPort toRemove)
     {
-        if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
-            throw new IllegalStateException("This cluster is migrating to cluster metadata, can't decommission until that is done.");
-
-        // TODO - still necessary?
-        if (operationMode == DECOMMISSIONED)
-        {
-            logger.info("This node was already decommissioned. There is no point in decommissioning it again.");
-            return;
-        }
-
-        if (isDecommissioning())
-        {
-            logger.info("This node is still decommissioning.");
-            return;
-        }
-        ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId self = metadata.myNodeId();
-
         Set<InetAddressAndPort> cmsMembers = metadata.placements.get(ReplicationParams.meta()).reads.byEndpoint().keySet();
-        if (cmsMembers.contains(getBroadcastAddressAndPort()))
+        if (cmsMembers.contains(toRemove))
         {
             if (metadata.directory.peerIds().size() == cmsMembers.size())
                 throw new IllegalStateException("Can not decomission the node as it will decrease the replication factor of CMS keyspace");
@@ -3450,14 +3447,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!nominated)
                 throw new IllegalStateException(String.format("Could not nominate an altenative CMS node. Tried:%s", tried));
 
-            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(getBroadcastAddressAndPort())).epoch;
+            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(toRemove)).epoch;
             // Awaiting on the progress barrier will leave a log message in case it could not collect a majority. But we do not
             // want to block the operation at that point, since for the purpose of executing CMS operations, we have already
             // stopped being a CMS node, and for the purpose of either continuing or starting a leave sequence, we will not
             // be able to collect a majority of CMS nodes during commit.
             new ProgressBarrier(epoch, EntireRange.affectedRanges).await();
         }
+    }
 
+    public void decommission(boolean force)
+    {
+        if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
+            throw new IllegalStateException("This cluster is migrating to cluster metadata, can't decommission until that is done.");
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId self = metadata.myNodeId();
+
+        maybeHandoverCMS(metadata, getBroadcastAddressAndPort());
         InProgressSequence<?> inProgress = metadata.inProgressSequences.get(self);
 
         if (inProgress == null)
@@ -3465,7 +3471,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("starting decom with {} {}", metadata.epoch, self);
             ClusterMetadataService.instance().commit(new PrepareLeave(self,
                                                                       force,
-                                                                      ClusterMetadataService.instance().placementProvider()),
+                                                                      ClusterMetadataService.instance().placementProvider(),
+                                                                      LeaveStreams.Kind.UNBOOTSTRAP),
                                                      (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                      (metadata_) -> null,
                                                      (metadata_, code, reason) -> {
@@ -3538,7 +3545,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // stream to the closest peer as chosen by the snitch
             candidates = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(getBroadcastAddressAndPort(), candidates);
             InetAddressAndPort hintsDestinationHost = candidates.get(0).endpoint();
-            return ClusterMetadata.current().directory.peerId(hintsDestinationHost).uuid;
+            return ClusterMetadata.current().directory.peerId(hintsDestinationHost).toUUID();
         }
     }
 
@@ -3614,25 +3621,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private String getRemovalStatus(boolean withPort)
     {
-        if (removingNode == null)
+        ClusterMetadata metadata = ClusterMetadata.current();
+        StringBuilder sb = new StringBuilder();
+        boolean found = false;
+        for (Map.Entry<NodeId, NodeState> stateEntry : metadata.directory.states.entrySet())
         {
-            return "No token removals in process.";
-        }
-
-        Collection toFormat = replicatingNodes;
-        if (!withPort)
-        {
-            toFormat = new ArrayList(replicatingNodes.size());
-            for (InetAddressAndPort node : replicatingNodes)
+            NodeId nodeId = stateEntry.getKey();
+            NodeState state = stateEntry.getValue();
+            if (state == LEAVING)
             {
-                toFormat.add(node.toString(false));
+                InProgressSequence<?> seq = metadata.inProgressSequences.get(nodeId);
+                if (seq != null && seq.kind() == InProgressSequences.Kind.REMOVE)
+                {
+                    sb.append("Removing node ").append(nodeId).append(" (").append(metadata.directory.endpoint(nodeId)).append(')').append(": ").append(seq.status());
+                    found = true;
+                }
             }
         }
-        ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId removingNodeId = metadata.directory.peerId(removingNode);
-        return String.format("Removing token (%s). Waiting for replication confirmation from [%s].",
-                             metadata.tokenMap.tokens(removingNodeId),
-                             StringUtils.join(toFormat, ","));
+        if (!found)
+            sb.append("No removals in progress.");
+        return sb.toString();
     }
 
     /**
@@ -3642,23 +3650,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void forceRemoveCompletion()
     {
-        if (!replicatingNodes.isEmpty()  || endpointsWithState(LEAVING).size() > 0)
-        {
-            logger.warn("Removal not confirmed for for {}", StringUtils.join(this.replicatingNodes, ","));
-            for (InetAddressAndPort endpoint : endpointsWithState(LEAVING))
-            {
-                UUID hostId = ClusterMetadata.current().directory.peerId(endpoint).uuid;
-                Gossiper.instance.advertiseTokenRemoved(endpoint, hostId);
-//                excise(tokenMetadata.getTokens(endpoint), endpoint);
-            }
-            replicatingNodes.clear();
-            removingNode = null;
-        }
-        else
-        {
-            logger.warn("No nodes to force removal on, call 'removenode' first");
-        }
-
+        throw new IllegalStateException("Can't force remove completion, abort the remove operation and retry.");
     }
 
     /**
@@ -3672,7 +3664,45 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void removeNode(String hostIdString)
     {
-        throw new UnsupportedOperationException("Remove node not implemented yet");
+        removeNode(hostIdString, false);
+    }
+
+    public void removeNode(String hostIdString, boolean force)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId toRemove = new NodeId(UUID.fromString(hostIdString));
+        if (toRemove.equals(metadata.myNodeId()))
+            throw new UnsupportedOperationException("Cannot remove self");
+        InetAddressAndPort endpoint = metadata.directory.endpoint(toRemove);
+        if (endpoint == null)
+            throw new UnsupportedOperationException("Host ID not found.");
+        if (Gossiper.instance.getLiveMembers().contains(endpoint))
+            throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this ID. Use decommission command to remove it from the ring");
+
+        NodeState removeState = metadata.directory.peerState(toRemove);
+        if (removeState == null)
+            throw new UnsupportedOperationException("Node to be removed is not a member of the token ring");
+        if (removeState == LEAVING)
+            logger.warn("Node {} is already leaving or being removed, continuing removal anyway", endpoint);
+
+        if (metadata.inProgressSequences.contains(toRemove))
+            throw new IllegalArgumentException("Can not remove a node that has an in-progress sequence");
+
+        maybeHandoverCMS(metadata, endpoint);
+
+        logger.info("starting removenode with {} {}", metadata.epoch, toRemove);
+
+        ClusterMetadataService.instance().commit(new PrepareLeave(toRemove,
+                                                                  force,
+                                                                  ClusterMetadataService.instance().placementProvider(),
+                                                                  LeaveStreams.Kind.REMOVENODE),
+                                                 (metadata_) -> !metadata_.inProgressSequences.contains(toRemove),
+                                                 (metadata_) -> null,
+                                                 (metadata_, code, reason) -> {
+                                                     throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting removenode sequence.",
+                                                                                                   reason));
+                                                 });
+        finishInProgressSequences(toRemove);
     }
 
     public void confirmReplication(InetAddressAndPort node)
@@ -4236,7 +4266,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Map.Entry<NodeId, NodeAddresses> entry : hostIdToEndpoint.entrySet())
         {
-            UUID hostId = entry.getKey().uuid;
+            UUID hostId = entry.getKey().toUUID();
             InetAddressAndPort endpoint = entry.getValue().broadcastAddress;
             result.put(endpoint.toString(withPort),
                        coreViewStatus.getOrDefault(hostId, "UNKNOWN"));

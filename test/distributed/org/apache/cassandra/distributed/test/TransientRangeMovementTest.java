@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -242,6 +243,43 @@ public class TransientRangeMovementTest extends TestBaseImpl
                                newArrayList(),
                                Pair.create("16", "18"),
                                Pair.create("21", "25"));
+        }
+    }
+
+    @Test
+    public void testRemoveNode() throws IOException, ExecutionException, InterruptedException
+    {
+        try (Cluster cluster = init(Cluster.build(4)
+                                           .withTokenSupplier(new OPPTokens())
+                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
+                                           .withConfig(conf -> conf.set("transient_replication_enabled","true")
+                                                                   .set("partitioner", "OrderPreservingPartitioner")
+                                                                   .set("hinted_handoff_enabled", "false")
+                                                                   .with(Feature.NETWORK, Feature.GOSSIP))
+                                           .start()))
+        {
+            populate(cluster);
+            String nodeId = cluster.get(4).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
+            cluster.get(4).shutdown().get();
+            cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success();
+            cluster.forEach(i -> {
+                if (i.config().num() != 4)
+                    i.nodetoolResult("cleanup").asserts().success();
+            });
+
+            assertAllContained(localStrs(cluster.get(1)),
+                               newArrayList("12", "14", "16", "18", "20"),
+                               Pair.create("00", "10"),
+                               Pair.create("21", "50"));
+            assertAllContained(localStrs(cluster.get(2)),
+                               newArrayList("22", "24", "26", "28", "30"),
+                               Pair.create("00", "20"),
+                               Pair.create("31", "50"));
+            assertAllContained(localStrs(cluster.get(3)),
+                               newArrayList("00", "02", "04", "06", "08", "10",
+                                            "32", "34", "36", "38", "40", "42", "44", "46", "48"),
+                               Pair.create("11", "30"));
+
         }
     }
 

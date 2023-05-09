@@ -117,6 +117,7 @@ public class ClientNotificationListener implements ChangeListener
             case LEFT:
                 return LEAVE;
             case BOOTSTRAPPING:
+            case BOOT_REPLACING:
             case REGISTERED:
                 return null;
             default:

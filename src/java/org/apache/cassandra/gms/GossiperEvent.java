@@ -19,6 +19,7 @@
 package org.apache.cassandra.gms;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ public final class GossiperEvent extends DiagnosticEvent
     private final long lastProcessedMessageAt;
     private final Set<InetAddressAndPort> liveEndpoints;
     private final List<String> seeds;
+    @Deprecated
     private final Set<InetAddressAndPort> seedsInShadowRound;
     private final Map<InetAddressAndPort, Long> unreachableEndpoints;
 
@@ -82,7 +84,8 @@ public final class GossiperEvent extends DiagnosticEvent
         this.lastProcessedMessageAt = gossiper.getLastProcessedMessageAt();
         this.liveEndpoints = gossiper.getLiveMembers();
         this.seeds = gossiper.getSeeds();
-        this.seedsInShadowRound = gossiper.getSeedsInShadowRound();
+        // Implementation of shadow round has changed with CEP-21, so this is no longer relevant but remains for compatibility
+        this.seedsInShadowRound = Collections.emptySet();
         this.unreachableEndpoints = gossiper.getUnreachableEndpoints();
     }
 

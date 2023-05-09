@@ -18,9 +18,24 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Test;
+
+import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.distributed.Constants;
+import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.membership.NodeId;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class ClusterMetadataUpgradeTest extends UpgradeTestBase
 {
@@ -45,5 +60,68 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
             cluster.get(1).nodetoolResult("addtocms", "--ignore", "127.0.0.1").asserts().failure(); // can't ignore localhost
             cluster.get(1).nodetoolResult("addtocms", "--ignore", "127.0.0.3").asserts().success();
         }).run();
+    }
+
+    @Test
+    public void upgradeHostIdUpdateTest() throws Throwable
+    {
+        Map<InetAddressAndPort, UUID> expectedUUIDs = new HashMap<>();
+        new TestCase()
+        .nodes(3)
+        .nodesToUpgrade(1, 2, 3)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                .set(Constants.KEY_DTEST_FULL_STARTUP, true))
+        .singleUpgradeToCurrentFrom(v41.toStrict())
+        .setup((cluster) -> {
+            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':2}"));
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+            expectedUUIDs.putAll(getHostIds(cluster, 1));
+            for (UUID hostId : expectedUUIDs.values())
+                assertFalse(NodeId.isValidNodeId(hostId));
+        })
+        .runAfterClusterUpgrade((cluster) -> {
+            for (int i = 1; i <= 3; i++)
+                assertEquals(expectedUUIDs, getHostIds(cluster, i));
+
+            cluster.get(1).nodetoolResult("addtocms").asserts().success();
+
+            Map<InetAddressAndPort, UUID> postUpgradeUUIDs = new HashMap<>(getHostIds(cluster, 1));
+            boolean found = false;
+            for (int i = 0; i < 20; i++)
+            {
+                if (postUpgradeUUIDs.values().stream().allMatch(NodeId::isValidNodeId))
+                {
+                    found = true;
+                    break;
+                }
+                System.out.println("NOT ALL VALID: "+postUpgradeUUIDs);
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+                postUpgradeUUIDs = new HashMap<>(getHostIds(cluster, 1));
+            }
+            assertTrue(found);
+
+            for (int i = 2; i <= 3; i++)
+                while(!getHostIds(cluster, i).equals(postUpgradeUUIDs))
+                    Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+        }).run();
+    }
+
+    private static Map<InetAddressAndPort, UUID> getHostIds(UpgradeableCluster cluster, int instance)
+    {
+        String gossipInfo = cluster.get(instance).nodetoolResult("gossipinfo").getStdout();
+        InetAddressAndPort host = null;
+        Map<InetAddressAndPort, UUID> hostIds = new HashMap<>();
+        for (String l : gossipInfo.split("\n"))
+        {
+            if (l.startsWith("/"))
+                host = InetAddressAndPort.getByNameUnchecked(l.replace("/", ""));
+
+            if (l.contains("HOST_ID"))
+            {
+                String hostIdStr = l.split(":")[2];
+                hostIds.put(host, UUID.fromString(hostIdStr));
+            }
+        }
+        return hostIds;
     }
 }

@@ -517,6 +517,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * enpoint that had it) from the ring
      */
     public void removeNode(String token);
+    public void removeNode(String token, boolean force);
+
+    public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
 
     /**
      * Get the status of a token removal.

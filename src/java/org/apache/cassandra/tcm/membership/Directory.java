@@ -147,7 +147,7 @@ public class Directory implements MetadataValue<Directory>
     {
         // this is obviously not the right way to do this
         NodeId id = new NodeId(new UUID(0L, nextId));
-        return with(addresses, id, id.uuid, location, nodeVersion);
+        return with(addresses, id, id.toUUID(), location, nodeVersion);
     }
 
     private Directory with(NodeAddresses nodeAddresses, NodeId id, UUID hostId, Location location, NodeVersion nodeVersion)
@@ -313,7 +313,7 @@ public class Directory implements MetadataValue<Directory>
 
     public UUID hostId(NodeId peer)
     {
-        return hostIds.getOrDefault(peer, peer.uuid);
+        return hostIds.getOrDefault(peer, peer.toUUID());
     }
 
     public Map<String, Multimap<String, InetAddressAndPort>> allDatacenterRacks()

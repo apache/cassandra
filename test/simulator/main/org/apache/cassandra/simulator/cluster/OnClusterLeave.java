@@ -29,6 +29,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 
@@ -84,7 +85,8 @@ class OnClusterLeave extends OnClusterChangeTopology
                 ClusterMetadata metadata = ClusterMetadata.current();
                 ClusterMetadataService.instance().commit(new PrepareLeave(metadata.myNodeId(),
                                                                           false,
-                                                                          ClusterMetadataService.instance().placementProvider()));
+                                                                          ClusterMetadataService.instance().placementProvider(),
+                                                                          LeaveStreams.Kind.UNBOOTSTRAP));
             });
         }
     }
