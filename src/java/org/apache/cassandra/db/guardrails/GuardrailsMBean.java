@@ -469,6 +469,33 @@ public interface GuardrailsMBean
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
 
     /**
+     * @return The threshold to warn when encountering partitions larger than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getPartitionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when encountering partitions larger than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     * Triggering a failure emits a log message and a diagnostic  event, but it doesn't throw an exception interrupting
+     * the offending sstable write.
+     */
+    @Nullable
+    String getPartitionSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering partitions larger than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to fail when encountering partitions larger than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled. Triggering a failure emits a log message and a diagnostic
+     *                 event, but it desn't throw an exception interrupting the offending sstable write.
+     */
+    void setPartitionSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The threshold to warn when encountering column values larger than threshold, as a string  formatted as
      * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
      */
