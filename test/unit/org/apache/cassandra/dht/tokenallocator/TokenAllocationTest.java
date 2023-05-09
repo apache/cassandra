@@ -43,7 +43,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RackInferringSnitch;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -113,7 +112,7 @@ public class TokenAllocationTest
 
     private Collection<Token> allocateTokensForKeyspace(int vnodes, String keyspace, ClusterMetadata metadata, InetAddressAndPort addr)
     {
-        AbstractReplicationStrategy rs = metadata.schema.getKeyspaces().get(keyspace.toLowerCase()).get().replicationStrategy;
+        AbstractReplicationStrategy rs = metadata.schema.getKeyspaces().get(keyspace).get().replicationStrategy;
         TokenAllocation tokenAllocation = TokenAllocation.create(metadata, rs, vnodes);
         return allocateAndVerify(vnodes, addr, tokenAllocation);
     }
@@ -206,7 +205,7 @@ public class TokenAllocationTest
             int vn = 8;
             int replicas = 3;
             int rackCount = replicas;
-            String ks = "token_allocation_test_nts_rf_eq_racks";
+            String ks = "TokenAllocationTestNTSKeyspaceRfEqRack";
             String dc = "1";
             String otherDc = "15";
             KeyspaceMetadata keyspace = KeyspaceMetadata.create(ks, KeyspaceParams.nts(dc, replicas, otherDc, "15"));

@@ -28,6 +28,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
@@ -384,8 +385,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         if (!SchemaConstants.isSystemKeyspace(keyspaceName))
         {
-            ImmutableMultimap<String, InetAddressAndPort> dcsNodes = Multimaps.index(ClusterMetadata.current().directory.allAddresses(),
-                                                                                     DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
+            // note: this includes all registered nodes, not only joined ones
+            Multimap<String, InetAddressAndPort> dcsNodes = HashMultimap.create();
+            Directory directory = ClusterMetadata.current().directory;
+            directory.peerIds().forEach(id -> dcsNodes.put(directory.location(id).datacenter, directory.endpoint(id)));
             for (Entry<String, String> e : this.configOptions.entrySet())
             {
                 String dc = e.getKey();
