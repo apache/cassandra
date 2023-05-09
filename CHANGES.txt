@@ -1,4 +1,5 @@
 5.0
+ * Add guardrail for partition size and deprecate compaction_large_partition_warning_threshold (CASSANDRA-18500)
  * Add HISTORY command for CQLSH (CASSANDRA-15046)
  * Fix sstable formats configuration (CASSANDRA-18441)
  * Add guardrail to bound timestamps (CASSANDRA-18352)

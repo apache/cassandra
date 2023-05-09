@@ -239,6 +239,18 @@ public interface GuardrailsConfig
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
     /**
+     * @return The threshold to warn when writing partitions larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPartitionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when writing partitions larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPartitionSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when writing column values larger than threshold.
      */
     @Nullable
