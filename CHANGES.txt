@@ -134,6 +134,7 @@
 
 
 4.1.2
+ * NPE when deserializing malformed collections from client (CASSANDRA-18505)
  * Allow keystore and trustrore passwords to be nullable (CASSANDRA-18124)
  * Return snapshots with dots in their name in nodetool listsnapshots (CASSANDRA-18371)
  * Fix NPE when loading snapshots and data directory is one directory from root (CASSANDRA-18359)
