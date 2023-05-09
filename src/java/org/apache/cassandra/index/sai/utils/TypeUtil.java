@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -344,6 +345,15 @@ public class TypeUtil
             }
         }
         return cell.buffer();
+    }
+
+    /**
+     * Returns <code>true</code> if given {@link AbstractType} is included in the types.
+     */
+    public static boolean isIn(AbstractType<?> type, Set<AbstractType<?>> types)
+    {
+        type = baseType(type);
+        return types.contains(type);
     }
 
     /**

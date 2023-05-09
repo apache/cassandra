@@ -15,32 +15,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sasi.analyzer.filter;
 
-import java.util.Locale;
-
-import org.tartarus.snowball.SnowballProgram;
+package org.apache.cassandra.index.sai.analyzer.filter;
 
 /**
- * Filters for performing Stemming on tokens
+ * A single task or set of work to process an input
+ * and return a single output. Maintains a link to the
+ * next task to be executed after itself
  */
-public class StemmingFilters
+public abstract class FilterPipelineTask
 {
-    public static class DefaultStemmingFilter extends FilterPipelineTask<String, String>
+    private String name;
+    public FilterPipelineTask next;
+
+    void setLast(String name, FilterPipelineTask last)
     {
-        private SnowballProgram stemmer;
+        if (last == this)
+            throw new IllegalArgumentException("provided last task [" + last.name + "] cannot be set to itself");
 
-        public DefaultStemmingFilter(Locale locale)
+        if (this.next == null)
         {
-            stemmer = StemmerFactory.getStemmer(locale);
+            this.next = last;
+            this.name = name;
         }
+        else
+        {
+            this.next.setLast(name, last);
+        }
+    }
 
-        public String process(String input) throws Exception
-        {
-            if (input == null || stemmer == null)
-                return input;
-            stemmer.setCurrent(input);
-            return (stemmer.stem()) ? stemmer.getCurrent() : input;
-        }
+    public abstract String process(String input);
+
+    public String getName()
+    {
+        return name;
     }
 }

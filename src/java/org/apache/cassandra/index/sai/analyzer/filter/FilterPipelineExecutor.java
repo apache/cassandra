@@ -15,32 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sasi.analyzer.filter;
 
-import java.util.Locale;
-
-import org.tartarus.snowball.SnowballProgram;
+package org.apache.cassandra.index.sai.analyzer.filter;
 
 /**
- * Filters for performing Stemming on tokens
+ * Executes all linked Pipeline Tasks serially and returns
+ * output (if exists) from the executed logic
  */
-public class StemmingFilters
+public class FilterPipelineExecutor
 {
-    public static class DefaultStemmingFilter extends FilterPipelineTask<String, String>
+    public static String execute(FilterPipelineTask task, String initialInput)
     {
-        private SnowballProgram stemmer;
-
-        public DefaultStemmingFilter(Locale locale)
+        FilterPipelineTask taskPtr = task;
+        String result = initialInput;
+        
+        while (true)
         {
-            stemmer = StemmerFactory.getStemmer(locale);
-        }
-
-        public String process(String input) throws Exception
-        {
-            if (input == null || stemmer == null)
-                return input;
-            stemmer.setCurrent(input);
-            return (stemmer.stem()) ? stemmer.getCurrent() : input;
+            FilterPipelineTask taskGeneric = taskPtr;
+            result = taskGeneric.process(result);
+            taskPtr = taskPtr.next;
+            
+            if (taskPtr == null)
+            {
+                return result;
+            }
         }
     }
 }

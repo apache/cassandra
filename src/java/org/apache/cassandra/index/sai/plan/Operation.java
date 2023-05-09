@@ -76,7 +76,7 @@ public class Operation
             IndexContext indexContext = controller.getContext(e);
             List<Expression> perColumn = analyzed.get(e.column());
 
-            AbstractAnalyzer analyzer = indexContext.getQueryAnalyzerFactory().create();
+            AbstractAnalyzer analyzer = indexContext.getAnalyzerFactory().create();
             try
             {
                 analyzer.reset(e.getIndexValue().duplicate());

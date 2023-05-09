@@ -22,12 +22,22 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
 
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
+    public static final Set<AbstractType<?>> ANALYZABLE_TYPES = ImmutableSet.of(UTF8Type.instance, AsciiType.instance);
+
     protected ByteBuffer next = null;
+    String nextLiteral = null;
 
     /**
      * @return true if index value is transformed, e.g. normalized or lower-cased or tokenized.
@@ -65,6 +75,7 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
     public void reset(ByteBuffer input)
     {
         this.next = null;
+        this.nextLiteral = null;
 
         resetInternal(input);
     }
@@ -80,6 +91,29 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 
     public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
     {
+        if (hasNonTokenizingOptions(options))
+        {
+            if (TypeUtil.isIn(type, ANALYZABLE_TYPES))
+            {
+                // load NonTokenizingAnalyzer so it'll validate options
+                NonTokenizingAnalyzer a = new NonTokenizingAnalyzer(type, options);
+                a.end();
+                return () -> new NonTokenizingAnalyzer(type, options);
+            }
+            else
+            {
+                throw new InvalidRequestException("CQL type " + type.asCQL3Type() + " cannot be analyzed.");
+            }
+        }
+
         return NoOpAnalyzer::new;
     }
+
+    private static boolean hasNonTokenizingOptions(Map<String, String> options)
+    {
+        return options.get(NonTokenizingOptions.ASCII) != null ||
+               options.containsKey(NonTokenizingOptions.CASE_SENSITIVE) ||
+               options.containsKey(NonTokenizingOptions.NORMALIZE);
+    }
+
 }
