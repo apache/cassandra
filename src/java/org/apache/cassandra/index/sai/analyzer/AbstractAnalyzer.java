@@ -24,10 +24,13 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
     protected ByteBuffer next = null;
+    protected String nextLiteral = null;
 
     /**
      * @return true if index value is transformed, e.g. normalized or lower-cased or tokenized.
@@ -65,6 +68,7 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
     public void reset(ByteBuffer input)
     {
         this.next = null;
+        this.nextLiteral = null;
 
         resetInternal(input);
     }
@@ -80,6 +84,28 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 
     public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
     {
+        if (hasNonTokenizingOptions(options))
+        {
+            if (type instanceof StringType)
+            {
+                // validate options
+                NonTokenizingOptions.fromMap(options);
+                return () -> new NonTokenizingAnalyzer(type, options);
+            }
+            else
+            {
+                throw new InvalidRequestException("CQL type " + type.asCQL3Type() + " cannot be analyzed.");
+            }
+        }
+
         return NoOpAnalyzer::new;
     }
+
+    private static boolean hasNonTokenizingOptions(Map<String, String> options)
+    {
+        return options.get(NonTokenizingOptions.ASCII) != null ||
+               options.containsKey(NonTokenizingOptions.CASE_SENSITIVE) ||
+               options.containsKey(NonTokenizingOptions.NORMALIZE);
+    }
+
 }
