@@ -86,7 +86,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         for (RowFilter.Expression expression : queryController.filterOperation())
         {
-            AbstractAnalyzer analyzer = queryController.getContext(expression).getIndexAnalyzerFactory().create();
+            AbstractAnalyzer analyzer = queryController.getContext(expression).getAnalyzerFactory().create();
             try
             {
                 if (analyzer.transformValue())

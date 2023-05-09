@@ -90,8 +90,7 @@ public class IndexContext
     private final IndexViewManager viewManager;
     private final IndexMetrics indexMetrics;
     private final ColumnQueryMetrics columnQueryMetrics;
-    private final AbstractAnalyzer.AnalyzerFactory indexAnalyzerFactory;
-    private final AbstractAnalyzer.AnalyzerFactory queryAnalyzerFactory;
+    private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
 
     public IndexContext(String keyspace,
@@ -119,9 +118,8 @@ public class IndexContext
         this.columnQueryMetrics = isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(this)
                                               : new ColumnQueryMetrics.BalancedTreeIndexMetrics(this);
 
-        // We currently only support the NoOpAnalyzer
-        this.indexAnalyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap());
-        this.queryAnalyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap());
+        this.analyzerFactory = indexMetadata == null ? AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap())
+                                                     : AbstractAnalyzer.fromOptions(getValidator(), indexMetadata.options);
     }
 
     public AbstractType<?> keyValidator()
@@ -199,23 +197,12 @@ public class IndexContext
     }
 
     /**
-     * Returns an {@code AnalyzerFactory} for use by the write path to transform incoming literal
-     * during indexing. The analyzers can be tokenising or non-tokenising. Tokenising analyzers
-     * will split the incoming terms into multiple terms in the index while non-tokenising analyzers
-     * will not split the incoming term but will transform the term (e.g. case-insensitive)
+     * Returns an {@link AbstractAnalyzer.AnalyzerFactory} for use by write and query paths to transform
+     * literal values.
      */
-    public AbstractAnalyzer.AnalyzerFactory getIndexAnalyzerFactory()
+    public AbstractAnalyzer.AnalyzerFactory getAnalyzerFactory()
     {
-        return indexAnalyzerFactory;
-    }
-
-    /**
-     * Return an {@code AnalyzerFactory} for use by the query path to transform query terms before
-     * searching for them in the index. This can be the same as the indexAnalyzerFactory.
-     */
-    public AbstractAnalyzer.AnalyzerFactory getQueryAnalyzerFactory()
-    {
-        return queryAnalyzerFactory;
+        return analyzerFactory;
     }
 
     public View getView()
@@ -256,9 +243,7 @@ public class IndexContext
     public void invalidate()
     {
         viewManager.invalidate();
-        indexAnalyzerFactory.close();
-        if (queryAnalyzerFactory != indexAnalyzerFactory)
-            queryAnalyzerFactory.close();
+        analyzerFactory.close();
         if (memtableIndexManager != null)
             memtableIndexManager.invalidate();
         if (indexMetrics != null)

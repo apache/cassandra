@@ -77,7 +77,7 @@ public class TrieMemoryIndex
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
         this.primaryKeysReducer = new PrimaryKeysReducer();
         // The use of the analyzer is within a synchronized block so can be considered thread-safe
-        this.analyzerFactory = indexContext.getIndexAnalyzerFactory();
+        this.analyzerFactory = indexContext.getAnalyzerFactory();
         this.validator = indexContext.getValidator();
         this.isLiteral = TypeUtil.isLiteral(validator);
     }
