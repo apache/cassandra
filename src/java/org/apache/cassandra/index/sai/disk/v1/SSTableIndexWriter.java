@@ -79,7 +79,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        this.analyzer = indexContext.getIndexAnalyzerFactory().create();
+        this.analyzer = indexContext.getAnalyzerFactory().create();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
         this.maxTermSize = indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
