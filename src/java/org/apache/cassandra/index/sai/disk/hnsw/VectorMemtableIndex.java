@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +43,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ReadWriteLockedList;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.util.BitSet;
@@ -57,7 +59,7 @@ public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
     private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
-    private final ArrayList<PrimaryKey> keys = new ArrayList<>();
+    private final List<PrimaryKey> keys = ReadWriteLockedList.wrap(new ArrayList<>());
     private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final LongAdder writeCount = new LongAdder();
 
@@ -301,7 +303,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
     private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
-        private final ArrayList<ByteBuffer> buffers = new ArrayList<>();
+        private final List<ByteBuffer> buffers = ReadWriteLockedList.wrap(new ArrayList<>());
 
         public ByteBufferVectorValues() {}
 
