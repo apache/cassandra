@@ -19,50 +19,136 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
 
+import org.apache.cassandra.cql3.statements.Bound;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UniqueComparator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
  * Builder that allow to build multiple Clustering/ClusteringBound at the same time.
  */
-public abstract class MultiCBuilder
+public class MultiCBuilder
 {
+    /**
+     * Represents a building block of a clustering.
+     * Either a point (single value) or a bound.
+     * Knowing the kind of elements greatly simplifies the process of building clustering bounds.
+     */
+    public static class Element
+    {
+        public enum Kind
+        {
+            POINT, INCL_START, EXCL_START, INCL_END, EXCL_END
+        }
+
+        public static Element BOTTOM = new Element(Collections.emptyList(), Kind.INCL_START);
+        public static Element TOP = new Element(Collections.emptyList(), Kind.INCL_END);
+        public static Element ROOT = new Element(Collections.emptyList(), Kind.POINT);
+
+        final List<ByteBuffer> value;
+        final Kind kind;
+
+
+        private Element(List<ByteBuffer> values, Kind kind)
+        {
+            this.value = values;
+            this.kind = kind;
+        }
+
+        public static Element point(ByteBuffer value)
+        {
+            return point(Collections.singletonList(value));
+        }
+
+        public static Element point(List<ByteBuffer> value)
+        {
+            return new Element(value, Kind.POINT);
+        }
+
+        public static Element bound(ByteBuffer value, Bound bound, boolean inclusive)
+        {
+            return bound(Collections.singletonList(value), bound, inclusive);
+        }
+
+        public static Element bound(List<ByteBuffer> value, Bound bound, boolean inclusive)
+        {
+            Kind kind = bound.isStart()
+                    ? (inclusive ? Kind.INCL_START : Kind.EXCL_START)
+                    : (inclusive ? Kind.INCL_END : Kind.EXCL_END);
+            return new Element(value, kind);
+        }
+
+        public  boolean isBound()
+        {
+            return kind != Kind.POINT;
+        }
+
+        public boolean isStart()
+        {
+            return kind == Element.Kind.EXCL_START ||
+                   kind == Element.Kind.INCL_START;
+        }
+
+        public boolean isInclusive()
+        {
+            return kind == Kind.INCL_START ||
+                   kind == Kind.INCL_END ||
+                   kind == Kind.POINT;
+        }
+
+        public String toString()
+        {
+            return "Element{" +
+                   "kind=" + kind +
+                   ", value=" + value +
+                   '}';
+        }
+    }
+
     /**
      * The table comparator.
      */
-    protected final ClusteringComparator comparator;
+    private final ClusteringComparator comparator;
 
     /**
-     * The number of clustering elements that have been added.
+     * Columns corresponding to the already added elements.
      */
-    protected int size;
+    private final List<ColumnMetadata> columns = new ArrayList<>();
+
+    /**
+     * The elements of the clusterings.
+     */
+    private List<Element> elements = Collections.singletonList(Element.ROOT);
+
 
     /**
      * <code>true</code> if the clusterings have been build, <code>false</code> otherwise.
      */
-    protected boolean built;
+    private boolean built;
 
     /**
      * <code>true</code> if the clusterings contains some <code>null</code> elements.
      */
-    protected boolean containsNull;
+    private boolean containsNull;
 
     /**
      * <code>true</code> if the composites contains some <code>unset</code> elements.
      */
-    protected boolean containsUnset;
+    private boolean containsUnset;
 
     /**
-     * <code>true</code> if some empty collection have been added.
+     * <code>true</code> if the composites contains some slice bound elements.
      */
-    protected boolean hasMissingElements;
+    private boolean containsSliceBound;
 
-    protected MultiCBuilder(ClusteringComparator comparator)
+
+    private MultiCBuilder(ClusteringComparator comparator)
     {
         this.comparator = comparator;
     }
@@ -70,53 +156,18 @@ public abstract class MultiCBuilder
     /**
      * Creates a new empty {@code MultiCBuilder}.
      */
-    public static MultiCBuilder create(ClusteringComparator comparator, boolean forMultipleValues)
+    public static MultiCBuilder create(ClusteringComparator comparator)
     {
-        return forMultipleValues
-             ? new MultiClusteringBuilder(comparator)
-             : new OneClusteringBuilder(comparator);
+        return new MultiCBuilder(comparator);
     }
 
-    /**
-     * Adds the specified element to all the clusterings.
-     * <p>
-     * If this builder contains 2 clustering: A-B and A-C a call to this method to add D will result in the clusterings:
-     * A-B-D and A-C-D.
-     * </p>
-     *
-     * @param value the value of the next element
-     * @return this <code>MulitCBuilder</code>
-     */
-    public abstract MultiCBuilder addElementToAll(ByteBuffer value);
-
-    /**
-     * Adds individually each of the specified elements to the end of all of the existing clusterings.
-     * <p>
-     * If this builder contains 2 clusterings: A-B and A-C a call to this method to add D and E will result in the 4
-     * clusterings: A-B-D, A-B-E, A-C-D and A-C-E.
-     * </p>
-     *
-     * @param values the elements to add
-     * @return this <code>CompositeBuilder</code>
-     */
-    public abstract MultiCBuilder addEachElementToAll(List<ByteBuffer> values);
-
-    /**
-     * Adds individually each of the specified list of elements to the end of all of the existing composites.
-     * <p>
-     * If this builder contains 2 composites: A-B and A-C a call to this method to add [[D, E], [F, G]] will result in the 4
-     * composites: A-B-D-E, A-B-F-G, A-C-D-E and A-C-F-G.
-     * </p>
-     *
-     * @param values the elements to add
-     * @return this <code>CompositeBuilder</code>
-     */
-    public abstract MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values);
 
     protected void checkUpdateable()
     {
         if (!hasRemaining() || built)
-            throw new IllegalStateException("this builder cannot be updated anymore");
+            throw new IllegalStateException("This builder cannot be updated anymore");
+        if (containsSliceBound)
+            throw new IllegalStateException("Cannot extend clustering that contains a slice bound");
     }
 
     /**
@@ -126,15 +177,9 @@ public abstract class MultiCBuilder
      */
     public int remainingCount()
     {
-        return comparator.size() - size;
+        return comparator.size() - columns.size();
     }
 
-    /**
-     * Returns the current number of results when {@link #build()} is called
-     *
-     * @return the current number of build results
-     */
-    public abstract int buildSize();
 
     /**
      * Checks if the clusterings contains null elements.
@@ -157,43 +202,14 @@ public abstract class MultiCBuilder
     }
 
     /**
-     * Checks if some empty list of values have been added
-     * @return <code>true</code> if the clusterings have some missing elements, <code>false</code> otherwise.
+     * Returns the current number of results when {@link #build()} is called
+     *
+     * @return the current number of build results
      */
-    public boolean hasMissingElements()
+    public int buildSize()
     {
-        return hasMissingElements;
+        return elements.size();
     }
-
-    /**
-     * Builds the <code>clusterings</code>.
-     *
-     * @return the clusterings
-     */
-    public abstract NavigableSet<Clustering<?>> build();
-
-    /**
-     * Builds the <code>ClusteringBound</code>s for slice restrictions.
-     *
-     * @param isStart specify if the bound is a start one
-     * @param isInclusive specify if the bound is inclusive or not
-     * @param isOtherBoundInclusive specify if the other bound is inclusive or not
-     * @param columnDefs the columns of the slice restriction
-     * @return the <code>ClusteringBound</code>s
-     */
-    public abstract NavigableSet<ClusteringBound<?>> buildBoundForSlice(boolean isStart,
-                                                                        boolean isInclusive,
-                                                                        boolean isOtherBoundInclusive,
-                                                                        List<ColumnMetadata> columnDefs);
-
-    /**
-     * Builds the <code>ClusteringBound</code>s
-     *
-     * @param isStart specify if the bound is a start one
-     * @param isInclusive specify if the bound is inclusive or not
-     * @return the <code>ClusteringBound</code>s
-     */
-    public abstract NavigableSet<ClusteringBound<?>> buildBound(boolean isStart, boolean isInclusive);
 
     /**
      * Checks if some elements can still be added to the clusterings.
@@ -205,310 +221,140 @@ public abstract class MultiCBuilder
         return remainingCount() > 0;
     }
 
+
     /**
-     * Specialization of MultiCBuilder when we know only one clustering/bound is created.
+     * Extends each clustering with the given element.
+     *
+     * <p>
+     * If this builder contains 2 composites: A-B and A-C a call to this method to add D will result in the
+     * clusterings A-B-D and A-C-D.
+     * </p>
+     *
+     * @param suffix the element to add
+     * @param suffixColumns column definitions in the element; must match the subsequent comparator subtypes
+     * @return this <code>CompositeBuilder</code>
      */
-    private static class OneClusteringBuilder extends MultiCBuilder
+    public final MultiCBuilder extend(Element suffix, List<ColumnMetadata> suffixColumns)
     {
-        /**
-         * The elements of the clusterings
-         */
-        private final ByteBuffer[] elements;
-
-        public OneClusteringBuilder(ClusteringComparator comparator)
-        {
-            super(comparator);
-            this.elements = new ByteBuffer[comparator.size()];
-        }
-
-        public MultiCBuilder addElementToAll(ByteBuffer value)
-        {
-            checkUpdateable();
-
-            if (value == null)
-                containsNull = true;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                containsUnset = true;
-
-            elements[size++] = value;
-            return this;
-        }
-
-        public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
-        {
-            if (values.isEmpty())
-            {
-                hasMissingElements = true;
-                return this;
-            }
-
-            assert values.size() == 1;
-
-            return addElementToAll(values.get(0));
-        }
-
-        public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
-        {
-            if (values.isEmpty())
-            {
-                hasMissingElements = true;
-                return this;
-            }
-
-            assert values.size() == 1;
-            return addEachElementToAll(values.get(0));
-        }
-
-        @Override
-        public int buildSize()
-        {
-            return hasMissingElements ? 0 : 1;
-        }
-
-        public NavigableSet<Clustering<?>> build()
-        {
-            built = true;
-
-            if (hasMissingElements)
-                return BTreeSet.empty(comparator);
-
-            return BTreeSet.of(comparator, size == 0 ? Clustering.EMPTY : Clustering.make(elements));
-        }
-
-        @Override
-        public NavigableSet<ClusteringBound<?>> buildBoundForSlice(boolean isStart,
-                                                                   boolean isInclusive,
-                                                                   boolean isOtherBoundInclusive,
-                                                                   List<ColumnMetadata> columnDefs)
-        {
-            return buildBound(isStart, columnDefs.get(0).isReversedType() ? isOtherBoundInclusive : isInclusive);
-        }
-
-        public NavigableSet<ClusteringBound<?>> buildBound(boolean isStart, boolean isInclusive)
-        {
-            built = true;
-
-            if (hasMissingElements)
-                return BTreeSet.empty(comparator);
-
-            if (size == 0)
-                return BTreeSet.of(comparator, isStart ? BufferClusteringBound.BOTTOM : BufferClusteringBound.TOP);
-
-            ByteBuffer[] newValues = size == elements.length
-                                   ? elements
-                                   : Arrays.copyOf(elements, size);
-
-            return BTreeSet.of(comparator, BufferClusteringBound.create(ClusteringBound.boundKind(isStart, isInclusive), newValues));
-        }
+        return extend(Collections.singletonList(suffix), suffixColumns);
     }
 
     /**
-     * MultiCBuilder implementation actually supporting the creation of multiple clustering/bound.
+     * Adds individually each of the specified elements to the end of all the existing clusterings.
+     * The number of result clusterings is the product of the number of current clusterings and the number
+     * of elements added.
+     *
+     * <p>
+     * If this builder contains 2 composites: A-B and A-C a call to this method to add D and E will result in the 4
+     * clusterings: A-B-D, A-B-E, A-C-D and A-C-E.
+     * </p>
+     *
+     * <p>
+     * Added elements can be composites as well.
+     * If this builder contains 2 composites: A-B and A-C a call to this method to add [[D, E], [F, G]] will result in
+     * 4 composites: A-B-D-E, A-B-F-G, A-C-D-E and A-C-F-G.
+     * </p>
+     *
+     * @param suffixes the elements to add
+     * @param suffixColumns column definitions in each element; must match the subsequent comparator subtypes
+     * @return this <code>CompositeBuilder</code>
      */
-    private static class MultiClusteringBuilder extends MultiCBuilder
+    public MultiCBuilder extend(List<Element> suffixes, List<ColumnMetadata> suffixColumns)
     {
-        /**
-         * The elements of the clusterings
-         */
-        private final List<List<ByteBuffer>> elementsList = new ArrayList<>();
+        checkUpdateable();
 
-        public MultiClusteringBuilder(ClusteringComparator comparator)
+        for (int i = 0; i < suffixColumns.size(); i++)
         {
-            super(comparator);
+            AbstractType<?> expectedType = comparator.subtype(columns.size() + i);
+            AbstractType<?> actualType = suffixColumns.get(i).type;
+            if (!actualType.equals(expectedType))
+            {
+                throw new IllegalStateException(
+                        String.format("Unexpected column type %s != %s.", actualType, expectedType));
+            }
         }
 
-        public MultiCBuilder addElementToAll(ByteBuffer value)
+        for (Element suffix: suffixes)
         {
-            checkUpdateable();
-
-            if (elementsList.isEmpty())
-                elementsList.add(new ArrayList<>());
-
-            if (value == null)
+            if (suffix.kind != Element.Kind.POINT)
+                containsSliceBound = true;
+            if (suffix.value.contains(null))
                 containsNull = true;
-            else if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            // Cannot use `value.contains(UNSET_BYTE_BUFFER)`
+            // because UNSET_BYTE_BUFFER.equals(EMPTY_BYTE_BUFFER) but UNSET_BYTE_BUFFER != EMPTY_BYTE_BUFFER
+            if (suffix.value.stream().anyMatch(b -> b == ByteBufferUtil.UNSET_BYTE_BUFFER))
                 containsUnset = true;
-
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-                elementsList.get(i).add(value);
-
-            size++;
-            return this;
         }
 
-        public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
+        this.elements = columns.isEmpty() ? suffixes : cartesianProduct(elements, suffixes);
+        this.columns.addAll(suffixColumns);
+
+        assert columns.size() <= comparator.size();
+        return this;
+    }
+
+    private static ArrayList<Element> cartesianProduct(List<Element> prefixes, List<Element> suffixes)
+    {
+        ArrayList<Element> newElements = new ArrayList<>(prefixes.size() * suffixes.size());
+        for (Element prefix: prefixes)
         {
-            checkUpdateable();
-
-            if (elementsList.isEmpty())
-                elementsList.add(new ArrayList<>());
-
-            if (values.isEmpty())
+            for (Element suffix: suffixes)
             {
-                hasMissingElements = true;
+                List<ByteBuffer> newValue = new ArrayList<>(prefix.value.size() + suffix.value.size());
+                newValue.addAll(prefix.value);
+                newValue.addAll(suffix.value);
+                newElements.add(new Element(newValue, suffix.kind));
             }
-            else
-            {
-                for (int i = 0, m = elementsList.size(); i < m; i++)
-                {
-                    List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-                    for (int j = 0, n = values.size(); j < n; j++)
-                    {
-                        List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                        elementsList.add(newComposite);
-
-                        ByteBuffer value = values.get(j);
-
-                        if (value == null)
-                            containsNull = true;
-                        if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                            containsUnset = true;
-
-                        newComposite.add(values.get(j));
-                    }
-                }
-            }
-            size++;
-            return this;
         }
+        assert newElements.size() == prefixes.size() * suffixes.size();
+        return newElements;
+    }
 
-        public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
+    /**
+     * Builds the <code>clusterings</code>.
+     */
+    public NavigableSet<Clustering<?>> build()
+    {
+        built = true;
+
+        CBuilder builder = CBuilder.create(comparator);
+        BTreeSet.Builder<Clustering<?>> set = BTreeSet.builder(builder.comparator());
+        for (Element element: elements)
         {
-            checkUpdateable();
-
-            if (elementsList.isEmpty())
-                elementsList.add(new ArrayList<>());
-
-            if (values.isEmpty())
-            {
-                hasMissingElements = true;
-            }
-            else
-            {
-                for (int i = 0, m = elementsList.size(); i < m; i++)
-                {
-                    List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-                    for (int j = 0, n = values.size(); j < n; j++)
-                    {
-                        List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                        elementsList.add(newComposite);
-
-                        List<ByteBuffer> value = values.get(j);
-
-                        if (value.contains(null))
-                            containsNull = true;
-                        if (value.contains(ByteBufferUtil.UNSET_BYTE_BUFFER))
-                            containsUnset = true;
-
-                        newComposite.addAll(value);
-                    }
-                }
-                size += values.get(0).size();
-            }
-            return this;
+            assert element.kind == Element.Kind.POINT : String.format("Not a point: %s", element);
+            set.add(builder.buildWith(element.value));
         }
+        return set.build();
+    }
 
-        @Override
-        public int buildSize()
+    /**
+     * Builds the <code>ClusteringBound</code>s for slice restrictions.
+     * The number of start bounds equals the number of end bounds.
+     *
+     * @param isStart if true, start bounds are returned, otherwise end bounds are returned
+     */
+    public NavigableSet<ClusteringBound<?>> buildBound(boolean isStart)
+    {
+        built = true;
+        CBuilder builder = CBuilder.create(comparator);
+
+        // Use UniqueComparator to allow duplicates.
+        // We deal with start bounds and end bounds separately, so it is a bad idea to lose duplicates,
+        // as this would cause the number of start bounds differ from the number of end bounds, if accidentally
+        // two bounds on one end collide but their corresponding bounds on the other end do not.
+        BTreeSet.Builder<ClusteringBound<?>> set = BTreeSet.builder(new UniqueComparator<>(comparator));
+        for (Element element: elements)
         {
-            return hasMissingElements ? 0 : elementsList.size();
+            if (element.isBound() && element.isStart() != isStart)
+                continue;
+
+            ClusteringBound<?> bound = element.value.isEmpty()
+                ? builder.buildBound(isStart, element.isInclusive())
+                : builder.buildBoundWith(element.value, isStart, element.isInclusive());
+
+            set.add(bound);
         }
-
-        public NavigableSet<Clustering<?>> build()
-        {
-            built = true;
-
-            if (hasMissingElements)
-                return BTreeSet.empty(comparator);
-
-            CBuilder builder = CBuilder.create(comparator);
-
-            if (elementsList.isEmpty())
-                return BTreeSet.of(builder.comparator(), builder.build());
-
-            BTreeSet.Builder<Clustering<?>> set = BTreeSet.builder(builder.comparator());
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-            {
-                List<ByteBuffer> elements = elementsList.get(i);
-                set.add(builder.buildWith(elements));
-            }
-            return set.build();
-        }
-
-        public NavigableSet<ClusteringBound<?>> buildBoundForSlice(boolean isStart,
-                                                                   boolean isInclusive,
-                                                                   boolean isOtherBoundInclusive,
-                                                                   List<ColumnMetadata> columnDefs)
-        {
-            built = true;
-
-            if (hasMissingElements)
-                return BTreeSet.empty(comparator);
-
-            CBuilder builder = CBuilder.create(comparator);
-
-            if (elementsList.isEmpty())
-                return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
-
-            // Use a TreeSet to sort and eliminate duplicates
-            BTreeSet.Builder<ClusteringBound<?>> set = BTreeSet.builder(comparator);
-
-            // The first column of the slice might not be the first clustering column (e.g. clustering_0 = ? AND (clustering_1, clustering_2) >= (?, ?)
-            int offset = columnDefs.get(0).position();
-
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-            {
-                List<ByteBuffer> elements = elementsList.get(i);
-
-                // Handle the no bound case
-                if (elements.size() == offset)
-                {
-                    set.add(builder.buildBoundWith(elements, isStart, true));
-                    continue;
-                }
-
-                // In the case of mixed order columns, we will have some extra slices where the columns change directions.
-                // For example: if we have clustering_0 DESC and clustering_1 ASC a slice like (clustering_0, clustering_1) > (1, 2)
-                // will produce 2 slices: [BOTTOM, 1) and (1.2, 1]
-                // So, the END bound will return 2 bounds with the same values 1
-                ColumnMetadata lastColumn = columnDefs.get(columnDefs.size() - 1);
-                if (elements.size() <= lastColumn.position() && i < m - 1 && elements.equals(elementsList.get(i + 1)))
-                {
-                    set.add(builder.buildBoundWith(elements, isStart, false));
-                    set.add(builder.buildBoundWith(elementsList.get(i++), isStart, true));
-                    continue;
-                }
-
-                // Handle the normal bounds
-                ColumnMetadata column = columnDefs.get(elements.size() - 1 - offset);
-                set.add(builder.buildBoundWith(elements, isStart, column.isReversedType() ? isOtherBoundInclusive : isInclusive));
-            }
-            return set.build();
-        }
-
-        public NavigableSet<ClusteringBound<?>> buildBound(boolean isStart, boolean isInclusive)
-        {
-            built = true;
-
-            if (hasMissingElements)
-                return BTreeSet.empty(comparator);
-
-            CBuilder builder = CBuilder.create(comparator);
-
-            if (elementsList.isEmpty())
-                return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
-
-            // Use a TreeSet to sort and eliminate duplicates
-            BTreeSet.Builder<ClusteringBound<?>> set = BTreeSet.builder(comparator);
-
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-            {
-                List<ByteBuffer> elements = elementsList.get(i);
-                set.add(builder.buildBoundWith(elements, isStart, isInclusive));
-            }
-            return set.build();
-        }
+        return set.build();
     }
 }
+

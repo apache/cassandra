@@ -95,6 +95,11 @@ public class MultiColumnRelation extends Relation
         return new MultiColumnRelation(entities, Operator.IN, null, inValues, null);
     }
 
+    public static MultiColumnRelation createNotInRelation(List<ColumnIdentifier> entities, List<? extends Term.MultiColumnRaw> inValues)
+    {
+        return new MultiColumnRelation(entities, Operator.NOT_IN, null, inValues, null);
+    }
+
     /**
      * Creates a multi-column IN relation with a marker for the IN values.
      * For example: "SELECT ... WHERE (a, b) IN ?"
@@ -105,6 +110,18 @@ public class MultiColumnRelation extends Relation
     public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnIdentifier> entities, Tuples.INRaw inMarker)
     {
         return new MultiColumnRelation(entities, Operator.IN, null, null, inMarker);
+    }
+
+    /**
+     * Creates a multi-column NOT IN relation with a marker for the NOT IN values.
+     * For example: "SELECT ... WHERE (a, b) NOT IN ?"
+     * @param entities the columns on the LHS of the relation
+     * @param inMarker a single IN marker
+     * @return a new <code>MultiColumnRelation</code> instance
+     */
+    public static MultiColumnRelation createSingleMarkerNotInRelation(List<ColumnIdentifier> entities, Tuples.INRaw inMarker)
+    {
+        return new MultiColumnRelation(entities, Operator.NOT_IN, null, null, inMarker);
     }
 
     public List<ColumnIdentifier> getEntities()
@@ -118,12 +135,12 @@ public class MultiColumnRelation extends Relation
      */
     public Term.MultiColumnRaw getValue()
     {
-        return relationType == Operator.IN ? inMarker : valuesOrMarker;
+        return (relationType == Operator.IN || relationType == Operator.NOT_IN) ? inMarker : valuesOrMarker;
     }
 
     public List<? extends Term.Raw> getInValues()
     {
-        assert relationType == Operator.IN;
+        assert relationType == Operator.IN || relationType == Operator.NOT_IN;
         return inValues;
     }
 
@@ -154,13 +171,32 @@ public class MultiColumnRelation extends Relation
         if (terms == null)
         {
             Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
-            return new MultiColumnRestriction.InRestrictionWithMarker(receivers, (AbstractMarker) term);
+            return new MultiColumnRestriction.INRestriction(receivers, MarkerOrList.marker((AbstractMarker) term));
         }
 
         if (terms.size() == 1)
             return new MultiColumnRestriction.EQRestriction(receivers, terms.get(0));
 
-        return new MultiColumnRestriction.InRestrictionWithValues(receivers, terms);
+        return new MultiColumnRestriction.INRestriction(receivers, MarkerOrList.list(terms));
+    }
+
+    @Override
+    protected Restriction newNotINRestriction(TableMetadata table, VariableSpecifications boundNames)
+    {
+        List<ColumnMetadata> receivers = receivers(table);
+        List<Term> terms = toTerms(receivers, inValues, table.keyspace, boundNames);
+        MarkerOrList values;
+        if (terms == null)
+        {
+            Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
+            values = MarkerOrList.marker((AbstractMarker) term);
+        }
+        else
+        {
+            values = MarkerOrList.list(terms);
+        }
+
+        return MultiColumnRestriction.SliceRestriction.fromSkippedValues(receivers, values);
     }
 
     @Override
@@ -168,7 +204,7 @@ public class MultiColumnRelation extends Relation
     {
         List<ColumnMetadata> receivers = receivers(table);
         Term term = toTerm(receivers(table), getValue(), table.keyspace, boundNames);
-        return new MultiColumnRestriction.SliceRestriction(receivers, bound, inclusive, term);
+        return MultiColumnRestriction.SliceRestriction.fromBound(receivers, bound, inclusive, term);
     }
 
     @Override

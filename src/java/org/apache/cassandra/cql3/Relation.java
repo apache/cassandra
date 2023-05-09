@@ -188,6 +188,7 @@ public abstract class Relation
             case GTE: return newSliceRestriction(table, boundNames, Bound.START, true);
             case GT: return newSliceRestriction(table, boundNames, Bound.START, false);
             case IN: return newINRestriction(table, boundNames);
+            case NOT_IN: return newNotINRestriction(table, boundNames);
             case CONTAINS: return newContainsRestriction(table, boundNames, false, false);
             case CONTAINS_KEY: return newContainsRestriction(table, boundNames, true, false);
             case NOT_CONTAINS: return newContainsRestriction(table, boundNames, false, true);
@@ -233,6 +234,17 @@ public abstract class Relation
      * @throws InvalidRequestException if the relation cannot be converted into an IN restriction.
      */
     protected abstract Restriction newINRestriction(TableMetadata table, VariableSpecifications boundNames);
+
+
+    /**
+     * Creates a new NOT IN restriction instance.
+     *
+     * @param table the table meta data
+     * @param boundNames the variables specification where to collect the bind variables
+     * @return a new NOT IN restriction instance
+     * @throws InvalidRequestException if the relation cannot be converted into an NOT IN restriction.
+     */
+    protected abstract Restriction newNotINRestriction(TableMetadata table, VariableSpecifications boundNames);
 
     /**
      * Creates a new Slice restriction instance.

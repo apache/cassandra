@@ -87,7 +87,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     @Override
     public List<ByteBuffer> values(QueryOptions options, ClientState state)
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
+        MultiCBuilder builder = MultiCBuilder.create(comparator);
         for (SingleRestriction r : restrictions)
         {
             r.appendTo(builder, options);
@@ -95,7 +95,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
             if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(state))
                 Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "partition key", false, state);
 
-            if (builder.hasMissingElements())
+            if (builder.buildSize() == 0)
                 break;
         }
         return toByteBuffers(builder.build());
@@ -104,14 +104,14 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     @Override
     public List<ByteBuffer> bounds(Bound bound, QueryOptions options)
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
+        MultiCBuilder builder = MultiCBuilder.create(comparator);
         for (SingleRestriction r : restrictions)
         {
             r.appendBoundTo(builder, bound, options);
-            if (builder.hasMissingElements())
+            if (builder.buildSize() == 0)
                 return Collections.emptyList();
         }
-        return toByteBuffers(builder.buildBound(bound.isStart(), true));
+        return toByteBuffers(builder.buildBound(bound.isStart()));
     }
 
     @Override

@@ -932,13 +932,13 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 1, 5));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) ALLOW FILTERING", 0, 1, 1),
-                row(0, 0, 1, 1, 0, 4),
-                row(0, 0, 1, 1, 1, 5));
+                   row(0, 0, 1, 1, 0, 4),
+                   row(0, 0, 1, 1, 1, 5));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1),
-                row(0, 0, 1, 1, 0, 4),
-                row(0, 0, 1, 1, 1, 5),
-                row(0, 0, 2, 0, 0, 5));
+                   row(0, 0, 1, 1, 0, 4),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) IN ((?)) AND f = ?", 0, 0, 1, 5),
                    row(0, 0, 1, 1, 1, 5));
@@ -1049,10 +1049,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, -1, 0, -1, 0);
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, -1, 0, 0, 0);
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<=(?,?,?,?) " +
-        "AND (b)>(?)", 0, 2, 0, 1, 1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<=(?,?,?,?) " +
+                   "AND (b)>(?)", 0, 2, 0, 1, 1, -1),
 
                    row(0, 2, 0, 1, 1),
                    row(0, 2, 0, -1, 0),
@@ -1075,10 +1075,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<=(?,?,?,?) " +
-        "AND (b)>=(?)", 0, 2, 0, 1, 1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<=(?,?,?,?) " +
+                   "AND (b)>=(?)", 0, 2, 0, 1, 1, -1),
 
                    row(0, 2, 0, 1, 1),
                    row(0, 2, 0, -1, 0),
@@ -1102,20 +1102,20 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d)>=(?,?,?)" +
-        "AND (b,c,d,e)<(?,?,?,?) ", 0, 1, 1, 0, 1, 1, 0, 1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d)>=(?,?,?)" +
+                   "AND (b,c,d,e)<(?,?,?,?) ", 0, 1, 1, 0, 1, 1, 0, 1),
                    row(0, 1, 1, 0, -1),
                    row(0, 1, 1, 0, 0)
 
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)>(?,?,?,?)" +
-        "AND (b,c,d)<=(?,?,?) ", 0, -1, 0, -1, -1, 2, 0, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)>(?,?,?,?)" +
+                   "AND (b,c,d)<=(?,?,?) ", 0, -1, 0, -1, -1, 2, 0, -1),
 
                    row(0, 2, 0, -1, 0),
                    row(0, 2, 0, -1, 1),
@@ -1138,27 +1138,27 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e) < (?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e) < (?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
                    row(0, 1, 0, 0, -1)
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e) <= (?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e) <= (?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
                    row(0, 1, 0, 0, -1),
                    row(0, 1, 0, 0, 0)
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b)<(?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b)<(?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, -1, 0, -1, -1),
 
                    row(0, 1, -1, 1, 0),
                    row(0, 1, -1, 1, 1),
@@ -1181,10 +1181,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b)<(?) " +
-        "AND (b)>(?)", 0, 2, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b)<(?) " +
+                   "AND (b)>(?)", 0, 2, -1),
 
                    row(0, 1, -1, 1, 0),
                    row(0, 1, -1, 1, 1),
@@ -1204,10 +1204,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b)<(?) " +
-        "AND (b)>=(?)", 0, 2, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b)<(?) " +
+                   "AND (b)>=(?)", 0, 2, -1),
 
                    row(0, 1, -1, 1, 0),
                    row(0, 1, -1, 1, 1),
@@ -1228,10 +1228,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<=(?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, 1, 1, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<=(?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, 1, 1, -1, 0, -1, -1),
 
                    row(0, 2, 0, 1, 1),
                    row(0, 2, 0, -1, 0),
@@ -1255,10 +1255,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c)<=(?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c)<=(?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
 
                    row(0, 2, 0, 1, 1),
                    row(0, 2, 0, -1, 0),
@@ -1282,10 +1282,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d)<=(?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d)<=(?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, -1, 0, -1, -1),
 
                    row(0, 2, 0, -1, 0),
                    row(0, 2, 0, -1, 1),
@@ -1308,10 +1308,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)>(?,?,?,?)" +
-        "AND (b,c,d)<=(?,?,?) ", 0, -1, 0, -1, -1, 2, 0, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)>(?,?,?,?)" +
+                   "AND (b,c,d)<=(?,?,?) ", 0, -1, 0, -1, -1, 2, 0, -1),
 
                    row(0, 2, 0, -1, 0),
                    row(0, 2, 0, -1, 1),
@@ -1334,28 +1334,28 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d)>=(?,?,?)" +
-        "AND (b,c,d,e)<(?,?,?,?) ", 0, 1, 1, 0, 1, 1, 0, 1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d)>=(?,?,?)" +
+                   "AND (b,c,d,e)<(?,?,?,?) ", 0, 1, 1, 0, 1, 1, 0, 1),
                    row(0, 1, 1, 0, -1),
                    row(0, 1, 1, 0, 0)
         );
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<(?,?,?,?) " +
-        "AND (b,c,d)>=(?,?,?)", 0, 1, 1, 0, 1, 1, 1, 0),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<(?,?,?,?) " +
+                   "AND (b,c,d)>=(?,?,?)", 0, 1, 1, 0, 1, 1, 1, 0),
                    row(0, 1, 1, 0, -1),
                    row(0, 1, 1, 0, 0)
 
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c)<(?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c)<(?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
                    row(0, 1, -1, 1, 0),
                    row(0, 1, -1, 1, 1),
                    row(0, 1, -1, 0, 0),
@@ -1375,10 +1375,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c)<(?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c)<(?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
                    row(0, 1, -1, 1, 0),
                    row(0, 1, -1, 1, 1),
                    row(0, 1, -1, 0, 0),
@@ -1589,10 +1589,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, -1, 0, 0, 0);
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<(?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, 1, 1, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<(?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, 1, 1, -1, 0, -1, -1),
 
                    row(0, -1, 0, 0, 0),
                    row(0, -1, 0, -1, 0),
@@ -1619,28 +1619,28 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e) < (?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e) < (?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
                    row(0, 1, 0, 0, -1)
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e) <= (?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e) <= (?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 1, 0, 0, 0, 1, 0, -1, -1),
                    row(0, 1, 0, 0, -1),
                    row(0, 1, 0, 0, 0)
         );
 
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<=(?,?,?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, 1, 1, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<=(?,?,?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, 1, 1, -1, 0, -1, -1),
 
                    row(0, -1, 0, 0, 0),
                    row(0, -1, 0, -1, 0),
@@ -1666,10 +1666,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c)<=(?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c)<=(?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
 
                    row(0, -1, 0, 0, 0),
                    row(0, -1, 0, -1, 0),
@@ -1695,10 +1695,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c)<(?,?) " +
-        "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c)<(?,?) " +
+                   "AND (b,c,d,e)>(?,?,?,?)", 0, 2, 0, -1, 0, -1, -1),
                    row(0, -1, 0, 0, 0),
                    row(0, -1, 0, -1, 0),
                    row(0, 0, 0, 0, 0),
@@ -1720,10 +1720,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<=(?,?,?,?) " +
-        "AND (b)>=(?)", 0, 2, 0, 1, 1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<=(?,?,?,?) " +
+                   "AND (b)>=(?)", 0, 2, 0, 1, 1, -1),
 
                    row(0, -1, 0, 0, 0),
                    row(0, -1, 0, -1, 0),
@@ -1749,10 +1749,10 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e)<=(?,?,?,?) " +
-        "AND (b)>(?)", 0, 2, 0, 1, 1, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e)<=(?,?,?,?) " +
+                   "AND (b)>(?)", 0, 2, 0, 1, 1, -1),
 
                    row(0, 0, 0, 0, 0),
                    row(0, 1, 1, 0, -1),
@@ -1851,21 +1851,21 @@ public class SelectMultiColumnRelationTest extends CQLTester
         );
 
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b) < (?) ", 0, 0),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b) < (?) ", 0, 0),
                    row(0, -1, 0, 0, 0), row(0, -1, 0, -1, 0)
         );
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b) <= (?) ", 0, -1),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b) <= (?) ", 0, -1),
                    row(0, -1, 0, 0, 0), row(0, -1, 0, -1, 0)
         );
         assertRows(execute(
-        "SELECT * FROM %s" +
-        " WHERE a = ? " +
-        "AND (b,c,d,e) < (?,?,?,?) and (b,c,d,e) > (?,?,?,?) ", 0, 2, 0, 0, 0, 2, -2, 0, 0),
+                   "SELECT * FROM %s" +
+                   " WHERE a = ? " +
+                   "AND (b,c,d,e) < (?,?,?,?) and (b,c,d,e) > (?,?,?,?) ", 0, 2, 0, 0, 0, 2, -2, 0, 0),
                    row(0, 2, 0, -1, 0),
                    row(0, 2, 0, -1, 1),
                    row(0, 2, -1, 1, 1)
@@ -1928,6 +1928,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE (b, e) > (0, 1) and b <= 2");
         assertInvalidMessage("Undefined column name e", "SELECT c AS e FROM %s WHERE (b, e) = (0, 0)");
         assertInvalidMessage("Undefined column name e", "SELECT c AS e FROM %s WHERE (b, e) IN ((0, 1), (2, 4))");
+        assertInvalidMessage("Undefined column name e", "SELECT c AS e FROM %s WHERE (b, e) NOT IN ((0, 1), (2, 4))");
         assertInvalidMessage("Undefined column name e", "SELECT c AS e FROM %s WHERE (b, e) > (0, 1) and b <= 2");
     }
 
@@ -1972,4 +1973,477 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertInvalidMessage("Multicolumn IN filters are not supported",
                              "SELECT * FROM %s WHERE (c2, c3) IN ((?, ?), (?, ?)) ALLOW FILTERING", 1, 0, 2, 0);
     }
- }
+
+    @Test
+    public void testNotInRestrictionsWithClustering()
+    {
+        createTable("CREATE TABLE %s (pk int, c1 int, c2 int, v int, primary key(pk, c1, c2))");
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 1, 11);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 2, 12);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 3, 13);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 4, 14);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 1, 21);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 2, 22);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 3, 23);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 4, 24);
+
+        // empty NOT IN
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN ()", 1),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+        // non existent NOT IN:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN ((?, ?))", 1, 2000, 2001),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+        // existing values in NOT IN, different ways of passing them:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN ((0, 2), (0, 3), (1, 1), (1, 4))", 1),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN ((?, ?), (?, ?), (?, ?), (?, ?))",
+                           1, 0, 2, 0, 3, 1, 1, 1, 4),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN (?, ?, ?, ?)",
+                           1, tuple(0, 2), tuple(0, 3), tuple(1, 1), tuple(1, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN ?",
+                           1, list(tuple(0, 2), tuple(0, 3), tuple(1, 1), tuple(1, 4))),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        // Tuples given in arbitrary order:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN (?, ?, ?, ?)",
+                           1, tuple(0, 3), tuple(1, 4), tuple(1, 1), tuple(0, 2)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        // Multiple NOT IN:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN (?, ?) AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(0, 2), tuple(0, 3), tuple(1, 1), tuple(1, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        // Multiple NOT IN, mixed markers:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN (?, ?) AND (c1, c2) NOT IN ?",
+                           1, tuple(0, 2), tuple(0, 3), list(tuple(1, 1), tuple(1, 4))),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        // Multiple NOT IN, mixed markers and values:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) NOT IN ((0, 2), (0, 3)) AND (c1, c2) NOT IN ?",
+                           1, list(tuple(1, 1), tuple(1, 4))),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        // Mixed single-column and multicolumn restrictions:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 NOT IN ? AND (c1, c2) NOT IN ?",
+                           1, list(0), list(tuple(1, 1), tuple(1, 4))),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 NOT IN (?) AND (c1, c2) NOT IN (?, ?)",
+                           1, 0, tuple(1, 1), tuple(1, 4)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+    }
+
+    @Test
+    public void testNotInRestrictionsWithClusteringAndSlices()
+    {
+        createTable("CREATE TABLE %s (pk int, c1 int, c2 int, v int, primary key(pk, c1, c2))");
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 1, 11);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 2, 12);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 3, 13);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 4, 14);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 1, 21);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 2, 22);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 3, 23);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 4, 24);
+
+        // NOT IN values outside of slice bounds
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(2, 5)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(1, 1)),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+        // Empty result set
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(1, 2), tuple(1, 3), tuple(1, 4)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(0, 3), tuple(0, 2), tuple(0, 1)));
+
+        // NOT IN values inside slice bounds
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(0, 2)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(0, 2)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 3)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 3)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 4, 24));
+
+
+        // One NOT IN value exactly the same as the slice bound
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(1, 2), tuple(0, 2), tuple(1, 2)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(1, 2), tuple(0, 2), tuple(1, 2)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14),
+                   row(1, 1, 1, 21));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 1)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 1)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+        // NOT IN with both upper and lower bound
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 0, 3, 13),
+                   row(1, 1, 1, 21));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 1, 1, 21));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 0, 3, 13),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22));
+
+        // Mixed multi-column NOT IN with single column slice restriction:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 > ? AND (c1, c2) NOT IN (?)",
+                           1, 0, tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 >= ? AND (c1, c2) NOT IN (?)",
+                           1, 1, tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 < ? AND (c1, c2) NOT IN (?)",
+                           1, 1, tuple(0, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 <= ? AND (c1, c2) NOT IN (?)",
+                           1, 0, tuple(0, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 >= ? AND c1 <= ? AND (c1, c2) NOT IN (?)",
+                           1, 0, 1, tuple(0, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+        // Mixed single-column NOT IN with multi-column slice restriction:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND c1 NOT IN (?)",
+                           1, tuple(0, 1), 1),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND c1 NOT IN (?)",
+                           1, tuple(0, 1), 1),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND c1 NOT IN (?)",
+                           1, tuple(1, 3), 1),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND c1 NOT IN (?)",
+                           1, tuple(1, 3), 0),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) <= ? AND c1 NOT IN (?)",
+                           1, tuple(1, 3), 0),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) <= ? AND c1 NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 3), 0),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+    }
+
+    @Test
+    public void testNotInRestrictionsWithMixedOrderClusteringAndSlices()
+    {
+        createTable("CREATE TABLE %s (pk int, c1 int, c2 int, v int, primary key(pk, c1, c2)) WITH CLUSTERING ORDER BY (c1 DESC, c2 ASC)");
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 1, 11);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 2, 12);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 3, 13);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 0, 4, 14);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 1, 21);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 2, 22);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 3, 23);
+        execute("INSERT INTO %s (pk, c1, c2, v) values (?, ?, ?, ?)", 1, 1, 4, 24);
+
+        // NOT IN values outside of slice bounds
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(2, 5)),
+                   row(1, 1, 1, 21),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(1, 1)),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+        // Empty result set
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(1, 2), tuple(1, 3), tuple(1, 4)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(0, 3), tuple(0, 2), tuple(0, 1)));
+
+        // NOT IN values inside slice bounds
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(0, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 2), tuple(0, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 3)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 3)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 4, 24));
+
+        // One NOT IN value exactly the same as the slice bound
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(1, 2), tuple(0, 2), tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?, ?)",
+                           1, tuple(1, 2), tuple(0, 2), tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 1)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(1, 1), tuple(1, 1)),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+
+
+        // NOT IN with both upper and lower bound
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 1, 1, 21),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 1, 1, 21),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 2), tuple(0, 4)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+
+        // Mixed multi-column NOT IN with single column slice restriction:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 > ? AND (c1, c2) NOT IN (?)",
+                           1, 0, tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 >= ? AND (c1, c2) NOT IN (?)",
+                           1, 1, tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 < ? AND (c1, c2) NOT IN (?)",
+                           1, 1, tuple(0, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 <= ? AND (c1, c2) NOT IN (?)",
+                           1, 0, tuple(0, 4)),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 >= ? AND c1 <= ? AND (c1, c2) NOT IN (?)",
+                           1, 0, 1, tuple(0, 4)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13));
+
+        // Mixed single-column NOT IN with multi-column slice restriction:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND c1 NOT IN (?)",
+                           1, tuple(0, 1), 1),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND c1 NOT IN (?)",
+                           1, tuple(0, 1), 1),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND c1 NOT IN (?)",
+                           1, tuple(1, 3), 1),
+                   row(1, 0, 1, 11),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 3, 13),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) < ? AND c1 NOT IN (?)",
+                           1, tuple(1, 3), 0),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) <= ? AND c1 NOT IN (?)",
+                           1, tuple(1, 3), 0),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) >= ? AND (c1, c2) <= ? AND c1 NOT IN (?)",
+                           1, tuple(0, 2), tuple(1, 3), 0),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 2, 22),
+                   row(1, 1, 3, 23));
+
+        // Mixed single-column and multi column slices with multi column NOT IN:
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND c1 < ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 1), 1, tuple(0, 3)),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND (c1, c2) > ? AND c1 <= ? AND (c1, c2) NOT IN (?)",
+                           1, tuple(0, 1), 0, tuple(0, 3)),
+                   row(1, 0, 2, 12),
+                   row(1, 0, 4, 14));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 > ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, 0, tuple(1, 4), tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 >= ? AND (c1, c2) < ? AND (c1, c2) NOT IN (?)",
+                           1, 1, tuple(1, 4), tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 > ? AND c1 < ? AND (c1, c2) NOT IN (?)",
+                           1, 0, 2, tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ? AND c1 >= ? AND c1 <= ? AND (c1, c2) NOT IN (?)",
+                           1, 1, 1, tuple(1, 2)),
+                   row(1, 1, 1, 21),
+                   row(1, 1, 3, 23),
+                   row(1, 1, 4, 24));
+    }
+}

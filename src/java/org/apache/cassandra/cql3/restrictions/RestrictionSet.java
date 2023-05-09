@@ -189,21 +189,12 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         Collection<ColumnMetadata> columnDefs = restriction.getColumnDefs();
         Set<SingleRestriction> existingRestrictions = getRestrictions(columnDefs);
 
-        if (existingRestrictions.isEmpty())
-        {
-            for (ColumnMetadata columnDef : columnDefs)
-                restrictions.put(columnDef, restriction);
-        }
-        else
-        {
-            for (SingleRestriction existing : existingRestrictions)
-            {
-                SingleRestriction newRestriction = mergeRestrictions(existing, restriction);
+        SingleRestriction merged = restriction;
+        for (SingleRestriction existing : existingRestrictions)
+            merged = mergeRestrictions(existing, merged);
 
-                for (ColumnMetadata columnDef : columnDefs)
-                    restrictions.put(columnDef, newRestriction);
-            }
-        }
+        for (ColumnMetadata columnDef : merged.getColumnDefs())
+            restrictions.put(columnDef, merged);
 
         return restrictions;
     }

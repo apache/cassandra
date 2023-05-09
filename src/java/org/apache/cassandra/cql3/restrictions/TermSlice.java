@@ -29,6 +29,12 @@ import org.apache.cassandra.index.Index;
 final class TermSlice
 {
     /**
+     * Represents a slice with no bounds.
+     * Can be merged with any other slice.
+     */
+    public static final TermSlice UNBOUNDED = new TermSlice(null, false, null, false);
+
+    /**
      * The slice boundaries.
      */
     private final Term[] bounds;
@@ -108,21 +114,16 @@ final class TermSlice
      */
     public TermSlice merge(TermSlice otherSlice)
     {
-        if (hasBound(Bound.START))
-        {
-            assert !otherSlice.hasBound(Bound.START);
+        assert !(hasBound(Bound.START) && otherSlice.hasBound(Bound.START));
+        assert !(hasBound(Bound.END) && otherSlice.hasBound(Bound.END));
 
-            return new TermSlice(bound(Bound.START),
-                                  isInclusive(Bound.START),
-                                  otherSlice.bound(Bound.END),
-                                  otherSlice.isInclusive(Bound.END));
-        }
-        assert !otherSlice.hasBound(Bound.END);
+        TermSlice sliceForStart = hasBound(Bound.START) ? this : otherSlice;
+        TermSlice sliceForEnd = hasBound(Bound.END) ? this : otherSlice;
 
-        return new TermSlice(otherSlice.bound(Bound.START),
-                              otherSlice.isInclusive(Bound.START),
-                              bound(Bound.END),
-                              isInclusive(Bound.END));
+        return new TermSlice(sliceForStart.bound(Bound.START),
+                             sliceForStart.isInclusive(Bound.START),
+                             sliceForEnd.bound(Bound.END),
+                             sliceForEnd.isInclusive(Bound.END));
     }
 
     @Override
