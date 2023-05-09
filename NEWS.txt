@@ -78,6 +78,7 @@ New features
       - Maximum replication factor
       - Whether DROP KEYSPACE commands are allowed.
       - Column value size
+      - Partition size
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
     - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
       intervals (see CASSANDRA-17821)
@@ -183,6 +184,9 @@ Deprecation
     - All native CQL functions names that don't use the snake case names are deprecated in favour of equivalent names
       using snake casing. Thus, `totimestamp` is deprecated in favour of `to_timestamp`, `intasblob` in favour
       of `int_as_blob`, `castAsInt` in favour of `cast_as_int`, etc.
+    - The config property `compaction_large_partition_warning_threshold` has been deprecated in favour of the new
+      guardrail for partition size. That guardrail is based on the properties `partition_size_warn_threshold` and
+      `partition_size_fail_threshold`. The warn threshold has a very similar behaviour to the old config property.
 
 4.1
 ===

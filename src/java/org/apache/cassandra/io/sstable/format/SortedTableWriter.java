@@ -213,6 +213,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
 
         long endPosition = dataWriter.position();
         long rowSize = endPosition - partitionWriter.getInitialPosition();
+        guardPartitionSize(key, rowSize);
         maybeLogLargePartitionWarning(key, rowSize);
         maybeLogManyTombstonesWarning(key, metadataCollector.totalTombstones);
         metadataCollector.addPartitionSizeInBytes(rowSize);
@@ -322,6 +323,19 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         }
 
         return dataFile;
+    }
+
+    private void guardPartitionSize(DecoratedKey key, long rowSize)
+    {
+        if (Guardrails.partitionSize.triggersOn(rowSize, null))
+        {
+            String what = String.format("%s.%s:%s on sstable %s",
+                                        metadata.keyspace,
+                                        metadata.name,
+                                        metadata().partitionKeyType.getString(key.getKey()),
+                                        getFilename());
+            Guardrails.partitionSize.guard(rowSize, what, true, null);
+        }
     }
 
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)

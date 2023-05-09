@@ -1541,7 +1541,8 @@ batch_size_fail_threshold: 50KiB
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
 
-# Log a warning when compacting partitions larger than this value
+# Log a warning when compacting partitions larger than this value.
+# As of Cassandra 5.0, this property is deprecated in favour of partition_size_warn_threshold.
 compaction_large_partition_warning_threshold: 100MiB
 
 # Log a warning when writing more tombstones than this value to a partition
@@ -1812,6 +1813,15 @@ drop_compact_storage_enabled: false
 # Guardrail to warn about or reject write consistency levels. By default, all consistency levels are allowed.
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
+#
+# Guardrail to warn or fail when writing partitions larger than threshold, expressed as 100MiB, 1GiB, etc.
+# The guardrail is only checked when writing sstables (flush and compaction), and exceeding the fail threshold on that
+# moment will only log an error message, without interrupting the operation.
+# This operates on a per-sstable basis, so it won't detect a large partition if it is spread across multiple sstables.
+# The warning threshold replaces the deprecated config property compaction_large_partition_warning_threshold.
+# The two thresholds default to null to disable.
+# partition_size_warn_threshold:
+# partition_size_fail_threshold:
 #
 # Guardrail to warn or fail when writing column values larger than threshold.
 # This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
