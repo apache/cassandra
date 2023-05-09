@@ -126,6 +126,7 @@ public class StandaloneDowngrader
                 catch (Exception e)
                 {
                     System.err.println(String.format("Error downgrading %s to %s: %s", sstable, options.version, e.getMessage()));
+                    e.printStackTrace(System.err);
                     if (options.debug)
                         e.printStackTrace(System.err);
                 }

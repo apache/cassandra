@@ -1018,20 +1018,6 @@ public class TableMetadata implements SchemaElement
             return columns.get(identifier.bytes);
         }
 
-        public void replaceColumn(ColumnIdentifier identifier, ColumnMetadata metadata)
-        {
-            if (!identifier.equals( metadata.name))
-                columns.remove(identifier.bytes);
-
-           columns.put(metadata.name.bytes, metadata);
-        }
-
-        public void dropColumn(ColumnIdentifier identifier)
-        {
-            columns.remove(identifier.bytes);
-        }
-
-
         public ColumnMetadata getColumn(ByteBuffer name)
         {
             return columns.get(name);
@@ -1045,6 +1031,12 @@ public class TableMetadata implements SchemaElement
         /*
          * The following methods all assume a Builder with valid set of partition key, clustering, regular and static columns.
          */
+
+        public void replaceRegularOrStaticColumn(ColumnIdentifier identifier, ColumnMetadata metadata)
+        {
+            removeRegularOrStaticColumn(identifier);
+            addColumn(metadata);
+        }
 
         public Builder removeRegularOrStaticColumn(ColumnIdentifier identifier)
         {
