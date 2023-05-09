@@ -655,6 +655,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             {
                 case EQ:
                 case IN:
+                case NOT_IN:
                 case LT:
                 case LTE:
                 case GTE:

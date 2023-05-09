@@ -95,6 +95,11 @@ public final class TokenRelation extends Relation
         throw invalidRequest("%s cannot be used with the token function", operator());
     }
 
+    protected Restriction newNotINRestriction(TableMetadata table, VariableSpecifications boundNames)
+    {
+        throw invalidRequest("%s cannot be used with the token function", operator());
+    }
+
     @Override
     protected Restriction newSliceRestriction(TableMetadata table,
                                               VariableSpecifications boundNames,

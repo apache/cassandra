@@ -1732,8 +1732,12 @@ relation[WhereClause.Builder clauses]
         { $clauses.add(new TokenRelation(l, type, t)); }
     | name=cident K_IN marker=inMarker
         { $clauses.add(new SingleColumnRelation(name, Operator.IN, marker)); }
+    | name=cident K_NOT K_IN marker=inMarker
+        { $clauses.add(new SingleColumnRelation(name, Operator.NOT_IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues
         { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
+    | name=cident K_NOT K_IN inValues=singleColumnInValues
+            { $clauses.add(SingleColumnRelation.createNotInRelation($name.id, inValues)); }
     | name=cident rt=containsOperator t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
     | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(new SingleColumnRelation(name, key, type, t)); }
     | ids=tupleOfIdentifiers
@@ -1748,6 +1752,16 @@ relation[WhereClause.Builder clauses]
               }
           | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
               { $clauses.add(MultiColumnRelation.createInRelation(ids, markers)); }
+          )
+      | K_NOT K_IN
+          ( '(' ')'
+              { $clauses.add(MultiColumnRelation.createNotInRelation(ids, new ArrayList<Tuples.Literal>())); }
+          | tupleInMarker=inMarkerForTuple /* (a, b, c) IN ? */
+              { $clauses.add(MultiColumnRelation.createSingleMarkerNotInRelation(ids, tupleInMarker)); }
+          | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
+              { $clauses.add(MultiColumnRelation.createNotInRelation(ids, literals)); }
+          | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
+              { $clauses.add(MultiColumnRelation.createNotInRelation(ids, markers)); }
           )
       | type=relationType literal=tupleLiteral /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
           {

@@ -1808,7 +1808,7 @@ public class ClusteringColumnRestrictionsTest
             columnMetadatas.add(getClusteringColumnDefinition(tableMetadata, firstIndex + i));
             terms.add(toMultiItemTerminal(values[i].toArray(new ByteBuffer[0])));
         }
-        return new MultiColumnRestriction.InRestrictionWithValues(columnMetadatas, terms);
+        return new MultiColumnRestriction.INRestriction(columnMetadatas, MarkerOrList.list(terms));
     }
 
     /**
@@ -1822,7 +1822,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleIN(TableMetadata tableMetadata, int index, ByteBuffer... values)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.InRestrictionWithValues(columnDef, toTerms(values));
+        return new SingleColumnRestriction.INRestriction(columnDef, MarkerOrList.list(toTerms(values)));
     }
 
     /**
@@ -1850,7 +1850,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleSlice(TableMetadata tableMetadata, int index, Bound bound, boolean inclusive, ByteBuffer value)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, toTerm(value));
+        return SingleColumnRestriction.SliceRestriction.fromBound(columnDef, bound, inclusive, toTerm(value));
     }
 
     /**
@@ -1870,7 +1870,7 @@ public class ClusteringColumnRestrictionsTest
         {
             columnMetadatas.add(getClusteringColumnDefinition(tableMetadata, i + firstIndex));
         }
-        return new MultiColumnRestriction.SliceRestriction(columnMetadatas, bound, inclusive, toMultiItemTerminal(values));
+        return MultiColumnRestriction.SliceRestriction.fromBound(columnMetadatas, bound, inclusive, toMultiItemTerminal(values));
     }
 
     /**
