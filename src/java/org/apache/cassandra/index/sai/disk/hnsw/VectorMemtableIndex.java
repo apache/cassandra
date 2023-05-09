@@ -27,6 +27,8 @@ import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -301,23 +303,36 @@ public class VectorMemtableIndex implements MemtableIndex
         }
     }
 
-    private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
+    public class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
-        private final List<ByteBuffer> buffers = ReadWriteLockedList.wrap(new ArrayList<>());
+        private final List<ByteBuffer> buffers = new ArrayList<>();
+        private final Lock writeLock;
+        private final Lock readLock;
 
-        public ByteBufferVectorValues() {}
+        public ByteBufferVectorValues()
+        {
+            var rwLock = new ReentrantReadWriteLock();
+            readLock = rwLock.readLock();
+            writeLock = rwLock.writeLock();
+        }
 
         @Override
         public int size()
         {
-            return buffers.size();
+            readLock.lock();
+            try
+            {
+                return buffers.size();
+            }
+            finally
+            {
+                readLock.unlock();
+            }
         }
 
         @Override
         public int dimension()
         {
-            // if cached dimensions is 0, then this is being called for the first time;
-            // compute it from the current vector length
             int i = cachedDimensions.get();
             if (i == 0)
             {
@@ -330,12 +345,29 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public float[] vectorValue(int i)
         {
-            return (float[])indexContext.getValidator().getSerializer().deserialize(buffers.get(i));
+            readLock.lock();
+            try
+            {
+                return (float[]) indexContext.getValidator().getSerializer().deserialize(buffers.get(i));
+            }
+            finally
+            {
+                readLock.unlock();
+            }
         }
 
-        public float[] add(ByteBuffer buffer) {
-            buffers.add(buffer);
-            return vectorValue(buffers.size() - 1);
+        public float[] add(ByteBuffer buffer)
+        {
+            writeLock.lock();
+            try
+            {
+                buffers.add(buffer);
+                return vectorValue(buffers.size() - 1);
+            }
+            finally
+            {
+                writeLock.unlock();
+            }
         }
 
         @Override
