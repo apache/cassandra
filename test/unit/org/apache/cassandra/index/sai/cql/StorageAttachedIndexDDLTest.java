@@ -265,6 +265,112 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
+    public void shouldBeCaseSensitiveByDefault()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Camel'").size());
+
+        assertEquals(0, execute("SELECT id FROM %s WHERE val = 'camel'").size());
+    }
+
+    @Test
+    public void shouldEnableCaseSensitiveSearch()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : true }");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Camel'").size());
+
+        assertEquals(0, execute("SELECT id FROM %s WHERE val = 'camel'").size());
+    }
+
+    @Test
+    public void shouldEnableCaseInsensitiveSearch()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : false }");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'camel'").size());
+    }
+
+    @Test
+    public void shouldBeNonNormalizedByDefault()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Cam\u00E1l'").size());
+
+        // Both \u00E1 and \u0061\u0301 are visible as the character á, but without NFC normalization, they won't match.
+        assertEquals(0, execute("SELECT id FROM %s WHERE val = 'Cam\u0061\u0301l'").size());
+    }
+
+    @Test
+    public void shouldEnableNonNormalizedSearch()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : false }");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Cam\u00E1l'").size());
+
+        // Both \u00E1 and \u0061\u0301 are visible as the character á, but without NFC normalization, they won't match.
+        assertEquals(0, execute("SELECT id FROM %s WHERE val = 'Cam\u0061\u0301l'").size());
+    }
+
+    @Test
+    public void shouldEnableNormalizedSearch()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : true }");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Cam\u0061\u0301l'").size());
+    }
+
+    @Test
+    public void shouldEnableNormalizedCaseInsensitiveSearch()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : true, 'case_sensitive' : false}");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'cam\u0061\u0301l'").size());
+    }
+
+    @Test
+    public void shouldEnableAsciiSearch()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'ascii' : true, 'case_sensitive' : false}");
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'Éppinger')");
+
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'eppinger'").size());
+    }
+
+    @Test
     public void shouldCreateIndexOnReversedType() throws Throwable
     {
         createTable("CREATE TABLE %s (id text, ck1 text, val text, PRIMARY KEY (id,ck1)) WITH CLUSTERING ORDER BY (ck1 desc)");
