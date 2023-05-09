@@ -65,7 +65,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         super(cfs, options);
         int configuredMaxSSTableSize = DEFAULT_MAX_SSTABLE_SIZE_MIB;
         int configuredLevelFanoutSize = DEFAULT_LEVEL_FANOUT_SIZE;
-        boolean configuredSingleSSTableUplevel = false;
+        boolean configuredSingleSSTableUplevel = true;
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
         {

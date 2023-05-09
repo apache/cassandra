@@ -45,6 +45,11 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
         this.level = level;
     }
 
+    protected int getLevel()
+    {
+        return level;
+    }
+
     @Override
     protected void executeInternal(ActiveCompactionsTracker activeCompactions)
     {
