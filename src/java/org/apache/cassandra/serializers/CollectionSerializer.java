@@ -30,6 +30,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class CollectionSerializer<T> extends TypeSerializer<T>
@@ -98,6 +99,14 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
             return null;
 
         return accessor.slice(input, offset + TypeSizes.INT_SIZE, size);
+    }
+
+    public static <V> V readNonNullValue(V input, ValueAccessor<V> accessor, int offset)
+    {
+        V value = readValue(input, accessor, offset);
+        if (value == null)
+            throw new MarshalException("Null value read when not allowed");
+        return value;
     }
 
     protected static void skipValue(ByteBuffer input)
