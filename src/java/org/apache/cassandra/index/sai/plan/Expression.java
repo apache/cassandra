@@ -93,7 +93,7 @@ public class Expression
     public Expression(IndexContext indexContext)
     {
         this.context = indexContext;
-        this.analyzerFactory = indexContext.getQueryAnalyzerFactory();
+        this.analyzerFactory = indexContext.getAnalyzerFactory();
         this.validator = indexContext.getValidator();
     }
 

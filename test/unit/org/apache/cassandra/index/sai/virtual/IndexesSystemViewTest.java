@@ -129,6 +129,6 @@ public class IndexesSystemViewTest extends SAITester
                        isQueryable,
                        isBuilding,
                        isString,
-                       context.getIndexAnalyzerFactory().toString());
+                       context.getAnalyzerFactory().toString());
     }
 }
