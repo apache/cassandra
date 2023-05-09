@@ -89,15 +89,11 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
             int offset = sizeOfCollectionSize(n, version);
             for (int i = 0; i < n; i++)
             {
-                T key = readValue(input, accessor, offset, version);
-                if (key == null)
-                    throw new MarshalException("Not enough bytes to read key in map");
+                T key = readNonNullValue(input, accessor, offset, version);
                 offset += sizeOfValue(key, accessor, version);
                 keys.validate(key, accessor);
 
-                T value = readValue(input, accessor, offset, version);
-                if (value == null)
-                    throw new MarshalException("Not enough bytes to read value in map");
+                T value = readNonNullValue(input, accessor, offset, version);
                 offset += sizeOfValue(value, accessor, version);
                 values.validate(value, accessor);
             }
@@ -127,15 +123,11 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
             Map<K, V> m = new LinkedHashMap<K, V>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
-                I key = readValue(input, accessor, offset, version);
-                if (key == null)
-                    throw new MarshalException("Not enough bytes to read key in map");
+                I key = readNonNullValue(input, accessor, offset, version);
                 offset += sizeOfValue(key, accessor, version);
                 keys.validate(key, accessor);
 
-                I value = readValue(input, accessor, offset, version);
-                if (value == null)
-                    throw new MarshalException("Not enough bytes to read value in map");
+                I value = readNonNullValue(input, accessor, offset, version);
                 offset += sizeOfValue(value, accessor, version);
                 values.validate(value, accessor);
 
