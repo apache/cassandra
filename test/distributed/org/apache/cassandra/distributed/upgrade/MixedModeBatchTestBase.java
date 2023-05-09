@@ -48,7 +48,7 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
         testSimpleStrategy(from, UpgradeTestBase.CURRENT, isLogged);
     }
 
-    protected void testSimpleStrategy(Semver from, Semver to, boolean isLogged) throws Throwable
+    private void testSimpleStrategy(Semver from, Semver to, boolean isLogged) throws Throwable
     {
         String insert = "INSERT INTO test_simple.names (key, name) VALUES (%d, '%s')";
         String select = "SELECT * FROM test_simple.names WHERE key = ?";
@@ -56,7 +56,7 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1, 2)
-        .upgrades(from, to)
+        .applicableVersionsRange(from, to)
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");

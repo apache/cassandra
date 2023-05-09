@@ -46,18 +46,21 @@ import static org.junit.Assert.assertFalse;
 
 public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
 {
+    /**
+     * this test only supports valid upgrade paths that start no
+     * earlier than v3
+     */
+    private static final Semver MINIMAL_APPLICABLE_VERSION = v30;
     private static final int NUM_NODES = 3;
     private static final int COORDINATOR = 1;
     private static final String INSERT = withKeyspace("INSERT INTO %s.t (k, c, v) VALUES (?, ?, ?)");
     private static final String SELECT = withKeyspace("SELECT * FROM %s.t WHERE k = ?");
 
-    private final Semver initial;
     private final ConsistencyLevel writeConsistencyLevel;
     private final ConsistencyLevel readConsistencyLevel;
 
-    public MixedModeAvailabilityTestBase(Semver initial, ConsistencyLevel writeConsistencyLevel, ConsistencyLevel readConsistencyLevel)
+    public MixedModeAvailabilityTestBase(ConsistencyLevel writeConsistencyLevel, ConsistencyLevel readConsistencyLevel)
     {
-        this.initial = initial;
         this.writeConsistencyLevel = writeConsistencyLevel;
         this.readConsistencyLevel = readConsistencyLevel;
     }
@@ -65,32 +68,24 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
     @Test
     public void testAvailabilityCoordinatorNotUpgraded() throws Throwable
     {
-        testAvailability(false, initial, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(false, MINIMAL_APPLICABLE_VERSION, writeConsistencyLevel, readConsistencyLevel);
     }
 
     @Test
     public void testAvailabilityCoordinatorUpgraded() throws Throwable
     {
-        testAvailability(true, initial, writeConsistencyLevel, readConsistencyLevel);
-    }
-
-    protected static void testAvailability(Semver initial,
-                                           ConsistencyLevel writeConsistencyLevel,
-                                           ConsistencyLevel readConsistencyLevel) throws Throwable
-    {
-        testAvailability(true, initial, writeConsistencyLevel, readConsistencyLevel);
-        testAvailability(false, initial, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(true, MINIMAL_APPLICABLE_VERSION, writeConsistencyLevel, readConsistencyLevel);
     }
 
     private static void testAvailability(boolean upgradedCoordinator,
-                                         Semver initial,
+                                         Semver minimalApplicableVersion,
                                          ConsistencyLevel writeConsistencyLevel,
                                          ConsistencyLevel readConsistencyLevel) throws Throwable
     {
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
-        .upgradesToCurrentFrom(initial)
+        .minimalApplicableVersion(minimalApplicableVersion)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(5))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(5)))
         // use retry of 10ms so that each check is consistent

@@ -19,44 +19,26 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
-import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.tools.ToolRunner;
 
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
-
-import java.util.ArrayList;
 
 import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.COMPACTION_TYPE_PROPERTY;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetoolJvmDtest;
 import static org.apache.cassandra.tools.nodetool.CompactionHistoryTest.assertCompactionHistoryOutPut;
 
-@RunWith(Parameterized.class)
 public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
 {
-    @Parameter
-    public Semver version;
-
-    @Parameters()
-    public static ArrayList<Semver> versions()
-    {
-        return Lists.newArrayList(v30, v3X, v40, v41);
-    }
-
     @Test
     public void compactionHistorySystemTableTest() throws Throwable
     {
         new TestCase()
         .nodes(1)
         .nodesToUpgrade(1)
-        .upgradesToCurrentFrom(version)
+        .minimalApplicableVersion(v30)
         .setup((cluster) -> {
             //create table
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tb (" +

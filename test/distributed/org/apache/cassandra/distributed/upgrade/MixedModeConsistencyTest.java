@@ -24,7 +24,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.vdurmont.semver4j.Semver;
+import org.junit.Test;
 
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -38,9 +38,10 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-public class MixedModeConsistencyTestBase extends UpgradeTestBase
+public class MixedModeConsistencyTest extends UpgradeTestBase
 {
-    protected static void testConsistency(Semver initial) throws Throwable
+    @Test
+    public void testConsistency() throws Throwable
     {
         List<Tester> testers = new ArrayList<>();
         testers.addAll(Tester.create(1, ALL));
@@ -50,7 +51,7 @@ public class MixedModeConsistencyTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1)
-        .upgradesToCurrentFrom(initial)
+        .minimalApplicableVersion(v30)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(30))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(30)))
         .setup(cluster -> {

@@ -33,7 +33,7 @@ public class BatchUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
-        .upgradesToCurrentFrom(v40).setup((cluster) -> {
+        .minimalApplicableVersion(v40).setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".users (" +
                                  "userid uuid PRIMARY KEY," +
                                  "firstname ascii," +

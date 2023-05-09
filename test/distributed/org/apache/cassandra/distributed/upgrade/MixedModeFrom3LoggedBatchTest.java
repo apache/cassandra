@@ -23,12 +23,6 @@ import org.junit.Test;
 public class MixedModeFrom3LoggedBatchTest extends MixedModeBatchTestBase
 {
     @Test
-    public void testSimpleStrategy30to3X() throws Throwable
-    {
-        testSimpleStrategy(v30, v3X, true);
-    }
-
-    @Test
     public void testSimpleStrategy() throws Throwable
     {
         testSimpleStrategy(v30, true);

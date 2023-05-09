@@ -54,7 +54,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
         new UpgradeTestBase.TestCase()
         .nodes(2)
         .nodesToUpgrade(UPGRADED_NODE)
-        .upgradesToCurrentFrom(v40)
+        .minimalApplicableVersion(v40)
         .withConfig(config -> config.with(NETWORK, GOSSIP))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
