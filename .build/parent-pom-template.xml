@@ -1051,8 +1051,6 @@
         <groupId>org.apache.lucene</groupId>
         <artifactId>lucene-core</artifactId>
         <version>9.7.0-SNAPSHOT</version>
-        <scope>system</scope>
-        <systemPath>${project.basedir}/lib/lucene-core-9.7.0-SNAPSHOT.jar</systemPath>
       </dependency>
       <dependency>
         <groupId>com.carrotsearch.randomizedtesting</groupId>
