@@ -48,6 +48,8 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
@@ -1563,6 +1565,16 @@ public abstract class CQLTester
                 {
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
                     if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
+                    {
+                        //TODO confirm this isn't a bug...
+                        // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
+                        // If the user writes a null for each column, then the whole tuple is null
+                        if (column.type.isUDT() && actualValue == null)
+                        {
+                            ByteBuffer[] cells = ((TupleType) column.type).split(ByteBufferAccessor.instance, expectedByteValue);
+                            if (Stream.of(cells).allMatch(b -> b == null))
+                                continue; // nothing to see here...
+                        }
                         error.append(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
                                                    i,
                                                    j,
@@ -1570,6 +1582,7 @@ public abstract class CQLTester
                                                    column.type.asCQL3Type(),
                                                    formatValue(expectedByteValue != null ? expectedByteValue.duplicate() : null, column.type),
                                                    formatValue(actualValue, column.type))).append("\n");
+                    }
                 }
             }
             if (error.length() > 0)
