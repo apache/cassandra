@@ -503,12 +503,19 @@ public final class AbstractTypeGenerators
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(setType, rnd -> {
                 int size = sizeGen.generate(rnd);
+                if (elementSupport.type instanceof BooleanType)
+                    size = Math.min(size, 2);
                 HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
                 for (int i = 0; i < size; i++)
                 {
                     Object generate = elementSupport.valueGen.generate(rnd);
-                    while (set.contains(generate))
+                    for (int attempts = 0; set.contains(generate); attempts++)
+                    {
+                        if (attempts == 42)
+                            throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", elementSupport.type.asCQL3Type(), size));
                         generate = elementSupport.valueGen.generate(rnd);
+                    }
+
                     set.add(generate);
                 }
                 return set;
@@ -539,13 +546,19 @@ public final class AbstractTypeGenerators
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(mapType, rnd -> {
                 int size = sizeGen.generate(rnd);
+                if (keySupport.type instanceof BooleanType)
+                    size = Math.min(size, 2);
                 Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
                 // if there is conflict thats fine
                 for (int i = 0; i < size; i++)
                 {
                     Object generate = keySupport.valueGen.generate(rnd);
-                    while (map.containsKey(generate))
+                    for (int attempts = 0; map.containsKey(generate); attempts++)
+                    {
+                        if (attempts == 42)
+                            throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", keySupport.type.asCQL3Type(), size));
                         generate = keySupport.valueGen.generate(rnd);
+                    }
                     map.put(generate, valueSupport.valueGen.generate(rnd));
                 }
                 return map;
