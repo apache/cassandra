@@ -48,12 +48,15 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.Version;
-import org.apache.lucene.util.hnsw.HnswGraphResumableSearcher;
-import org.apache.lucene.util.hnsw.NeighborQueue;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
@@ -136,9 +139,9 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
         private final String field;
         private final float[] queryVector;
         private final PriorityQueue<Long> queue;
-        private HnswGraphResumableSearcher<float[]> searcher;
 
         private int limit;
+        private BitSet bitset;
 
         BatchPostingList(String field, float[] queryVector, int limit)
         {
@@ -185,16 +188,36 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
 
         private void readBatch() throws IOException
         {
-            NeighborQueue results;
-            if (searcher == null) {
-                searcher = reader.getResumableSearcher(field, queryVector, null);
-                results = searcher.search(limit, Integer.MAX_VALUE);
-            } else {
-                results = searcher.resume(limit, Integer.MAX_VALUE);
+            TopDocs docs = reader.search(field, queryVector, limit, new InvertedBits(bitset), Integer.MAX_VALUE);
+            if (bitset == null)
+                bitset = new SparseFixedBitSet(numRows);
+            for (ScoreDoc doc : docs.scoreDocs)
+            {
+                queue.offer((long)doc.doc);
+                bitset.set(doc.doc);
             }
-            while (results.size() > 0) {
-                queue.offer((long)results.pop());
-            }
+        }
+    }
+
+    private static class InvertedBits implements Bits
+    {
+        private final Bits wrapped;
+
+        InvertedBits(Bits wrapped)
+        {
+            this.wrapped = wrapped;
+        }
+
+        @Override
+        public boolean get(int i)
+        {
+            return wrapped == null ? true : !wrapped.get(i);
+        }
+
+        @Override
+        public int length()
+        {
+            return wrapped == null ? 0 : wrapped.length();
         }
     }
 }
