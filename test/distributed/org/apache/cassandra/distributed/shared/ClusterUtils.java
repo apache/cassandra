@@ -241,7 +241,7 @@ public class ClusterUtils
      * @param <I> instance type
      * @return the instance added
      */
-    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster, IInstance toReplace)
+    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster, I toReplace)
     {
         return replaceHostAndStart(cluster, toReplace, ignore -> {});
     }
@@ -258,7 +258,7 @@ public class ClusterUtils
      * @return the instance added
      */
     public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
-                                                              IInstance toReplace,
+                                                              I toReplace,
                                                               Consumer<WithProperties> fn)
     {
         return replaceHostAndStart(cluster, toReplace, (ignore, prop) -> fn.accept(prop));
@@ -276,12 +276,26 @@ public class ClusterUtils
      * @return the instance added
      */
     public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
-                                                              IInstance toReplace,
+                                                              I toReplace,
                                                               BiConsumer<I, WithProperties> fn)
     {
         IInstanceConfig toReplaceConf = toReplace.config();
         I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true));
+        return startHostReplacement(toReplace, inst, fn);
 
+    }
+
+    /**
+     * Start a instance with the properties needed to perform a host replacement.
+     *
+     * @param toReplace instance to replace
+     * @param inst      to start
+     * @param fn        lambda to add additional properties or modify instance
+     * @param <I>       instance type
+     * @return inst
+     */
+    public static <I extends IInstance> I startHostReplacement(I toReplace, I inst, BiConsumer<I, WithProperties> fn)
+    {
         return start(inst, properties -> {
             // lower this so the replacement waits less time
             properties.set(BROADCAST_INTERVAL_MS, Long.toString(TimeUnit.SECONDS.toMillis(30)));
