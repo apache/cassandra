@@ -45,7 +45,7 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.impl.JavaRandom;
 
-public class RandomSchemaTest extends CQLTester
+public class RandomSchemaTest extends CQLTester.InMemory
 {
     private static final Logger logger = LoggerFactory.getLogger(RandomSchemaTest.class);
 
