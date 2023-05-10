@@ -48,6 +48,9 @@ public interface MemtableIndex
     @Nullable
     ByteBuffer getMaxTerm();
 
+    /**
+     * @return ram used by the new entry
+     */
     long index(DecoratedKey key, Clustering clustering, ByteBuffer value);
 
     KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);

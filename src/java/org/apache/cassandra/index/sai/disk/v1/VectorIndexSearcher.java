@@ -51,8 +51,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.Version;
 import org.apache.lucene.util.hnsw.HnswGraphResumableSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;

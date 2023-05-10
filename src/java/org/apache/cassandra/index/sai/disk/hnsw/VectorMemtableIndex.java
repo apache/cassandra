@@ -20,15 +20,9 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.PriorityQueue;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,29 +37,19 @@ import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.ReadWriteLockedList;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
-import org.apache.lucene.util.hnsw.ConcurrentHnswGraphFactory;
-import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
-    private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
-    private final List<PrimaryKey> keys = ReadWriteLockedList.wrap(new ArrayList<>());
-    private final ConcurrentHnswGraphBuilder<float[]> builder;
+    private final CassandraHnswGraph graph;
     private final LongAdder writeCount = new LongAdder();
-
-    private final AtomicInteger cachedDimensions = new AtomicInteger();
 
     private static final Token.KeyBound MIN_KEY_BOUND = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
 
@@ -74,24 +58,9 @@ public class VectorMemtableIndex implements MemtableIndex
 
     public VectorMemtableIndex(IndexContext indexContext) {
         this.indexContext = indexContext;
-        try
-        {
-            ConcurrentHnswGraphFactory factory = ConcurrentHnswGraphFactory.instance;
-            builder = factory.createBuilder(vectorValues,
-                                            VectorEncoding.FLOAT32,
-                                            indexContext.getIndexWriterConfig().getSimilarityFunction(),
-                                            indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
-                                            indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
-                                            ThreadLocalRandom.current().nextLong());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        this.graph = new CassandraHnswGraph(indexContext);
     }
 
-    // TODO either we need to create a concurrent graph builder (possible!), or
-    // do sharding in the memtable with brute force search, followed by building the actual graph on flush
     @Override
     public long index(DecoratedKey key, Clustering clustering, ByteBuffer value)
     {
@@ -104,18 +73,9 @@ public class VectorMemtableIndex implements MemtableIndex
             maximumKey = primaryKey;
         else if (primaryKey.compareTo(maximumKey) > 0)
             maximumKey = primaryKey;
-        keys.add(primaryKey);
-        var vector = vectorValues.add(value);
-        writeCount.increment();
-        try
-        {
-            builder.addGraphNode(vectorValues.size() - 1, vector);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return 0;
+
+        graph.put(primaryKey, value);
+        return 0; // FIXME
     }
 
     @Override
@@ -149,13 +109,13 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public long estimatedMemoryUsed()
     {
-        return vectorValues.ramBytesUsed() + builder.getGraph().ramBytesUsed();
+        return graph.ramBytesUsed();
     }
 
     @Override
     public boolean isEmpty()
     {
-        return vectorValues.size() == 0;
+        return graph.isEmpty();
     }
 
     @Nullable
@@ -184,14 +144,14 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public boolean get(int index)
         {
-            PrimaryKey key = keys.get(index);
-            return keyRange.contains(key.partitionKey());
+            var keys = graph.keysFromOrdinal(index);
+            return keys.stream().anyMatch(k -> keyRange.contains(k.partitionKey()));
         }
 
         @Override
         public int length()
         {
-            return keys.size();
+            return graph.size();
         }
     }
 
@@ -209,7 +169,7 @@ public class VectorMemtableIndex implements MemtableIndex
             this.queryVector = queryVector;
             this.limit = limit;
             // key range doesn't full token ring, we need to filter keys inside ANN search
-            if (!keys.isEmpty() && !coversFullRing(keyRange))
+            if (!graph.isEmpty() && !coversFullRing(keyRange))
                 bits = new KeyRangeFilteringBits(keyRange);
         }
 
@@ -249,28 +209,14 @@ public class VectorMemtableIndex implements MemtableIndex
 
         private void readBatch()
         {
-            try
-            {
-                NeighborQueue neighborQueue = HnswGraphSearcher.search(queryVector,
-                                                                       limit,
-                                                                       vectorValues,
-                                                                       VectorEncoding.FLOAT32,
-                                                                       indexContext.getIndexWriterConfig().getSimilarityFunction(),
-                                                                       builder.getGraph(),
-                                                                       bits,
-                                                                       Integer.MAX_VALUE);
-                if (bits == null || bits instanceof KeyRangeFilteringBits)
-                    bits = new InvertedFilteringBits(bits);
+            NeighborQueue neighborQueue = graph.search(queryVector, limit, VectorEncoding.FLOAT32, bits, Integer.MAX_VALUE);
+            if (bits == null || bits instanceof KeyRangeFilteringBits)
+                bits = new InvertedFilteringBits(bits);
 
-                for (int node : neighborQueue.nodes())
-                {
-                    ((InvertedFilteringBits)bits).set(node);
-                    keyQueue.add(keys.get(node));
-                }
-            }
-            catch (IOException e)
+            for (int node : neighborQueue.nodes())
             {
-                throw new RuntimeException(e);
+                ((InvertedFilteringBits)bits).set(node);
+                keyQueue.addAll(graph.keysFromOrdinal(node));
             }
         }
     }
@@ -300,85 +246,6 @@ public class VectorMemtableIndex implements MemtableIndex
         public int length()
         {
             return ignoredBits.length();
-        }
-    }
-
-    public class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
-    {
-        private final List<ByteBuffer> buffers = new ArrayList<>();
-        private final Lock writeLock;
-        private final Lock readLock;
-
-        public ByteBufferVectorValues()
-        {
-            var rwLock = new ReentrantReadWriteLock();
-            readLock = rwLock.readLock();
-            writeLock = rwLock.writeLock();
-        }
-
-        @Override
-        public int size()
-        {
-            readLock.lock();
-            try
-            {
-                return buffers.size();
-            }
-            finally
-            {
-                readLock.unlock();
-            }
-        }
-
-        @Override
-        public int dimension()
-        {
-            int i = cachedDimensions.get();
-            if (i == 0)
-            {
-                i = vectorValue(0).length;
-                cachedDimensions.set(i);
-            }
-            return i;
-        }
-
-        @Override
-        public float[] vectorValue(int i)
-        {
-            readLock.lock();
-            try
-            {
-                return (float[]) indexContext.getValidator().getSerializer().deserialize(buffers.get(i));
-            }
-            finally
-            {
-                readLock.unlock();
-            }
-        }
-
-        public float[] add(ByteBuffer buffer)
-        {
-            writeLock.lock();
-            try
-            {
-                buffers.add(buffer);
-                return vectorValue(buffers.size() - 1);
-            }
-            finally
-            {
-                writeLock.unlock();
-            }
-        }
-
-        @Override
-        public RandomAccessVectorValues<float[]> copy()
-        {
-            return this;
-        }
-
-        public long ramBytesUsed()
-        {
-            return ObjectSizes.measure(buffers) + buffers.size() * (4L * dimension());
         }
     }
 }
