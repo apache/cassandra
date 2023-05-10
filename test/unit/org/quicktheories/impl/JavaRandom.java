@@ -32,6 +32,13 @@ public class JavaRandom implements RandomnessSource, DetatchedRandomnessSource
         this.random = new Random(seed);
     }
 
+    public static JavaRandom wrap(RandomnessSource rnd)
+    {
+        if (rnd instanceof JavaRandom)
+            return (JavaRandom) rnd;
+        return new JavaRandom(rnd.next(Constraint.none().withNoShrinkPoint()));
+    }
+
     @Override
     public long next(Constraint constraint)
     {
