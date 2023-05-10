@@ -79,7 +79,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 maybeCreateUDTs(metadata);
                 createTable(KEYSPACE, metadata.toCqlString(false, false));
 
-                Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata);
+                Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, true);
                 String insertStmt = insertStmt(metadata);
                 int primaryColumnCount = primaryColumnCount(metadata);
                 String selectStmt = selectStmt(metadata);

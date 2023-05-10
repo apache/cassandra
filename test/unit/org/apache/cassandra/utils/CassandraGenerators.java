@@ -368,7 +368,7 @@ public final class CassandraGenerators
         };
     }
 
-    public static Gen<ByteBuffer[]> data(TableMetadata metadata)
+    public static Gen<ByteBuffer[]> data(TableMetadata metadata, boolean allowNull)
     {
         AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
         Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
@@ -377,12 +377,17 @@ public final class CassandraGenerators
             ColumnMetadata col = it.next();
             types[i] = AbstractTypeGenerators.getTypeSupport(col.type);
         }
+        int primaryKeyColumns = metadata.partitionKeyColumns().size() + metadata.clusteringColumns().size();
+        Constraint range1to100 = Constraint.between(1, 100);
         return rnd -> {
             ByteBuffer[] row = new ByteBuffer[types.length];
             for (int i = 0; i < row.length; i++)
             {
                 AbstractTypeGenerators.TypeSupport<?> support = types[i];
-                row[i] = support.bytesGen().generate(rnd);
+                if (allowNull && i >= primaryKeyColumns && rnd.next(range1to100) < 5)
+                    row[i] = null;
+                else
+                    row[i] = support.bytesGen().generate(rnd);
             }
             return row;
         };
