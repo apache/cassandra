@@ -27,7 +27,9 @@ import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -51,7 +53,15 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         ClusterMetadata metadata = ClusterMetadata.current();
         ReadCommand command = message.payload;
 
-        checkTokenOwnership(metadata, message);
+        try
+        {
+            checkTokenOwnership(metadata, message);
+        }
+        catch (InvalidRoutingException e)
+        {
+            MessagingService.instance().send(message.failureResponse(RequestFailureReason.INVALID_ROUTING), message.respondTo());
+        }
+
         MessageParams.reset();
 
         long timeout = message.expiresAtNanos() - message.createdAtNanos();
@@ -118,6 +128,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Replica localReplica = getLocalReplica(metadata, token, command.metadata().keyspace);
             if (localReplica == null)
             {
+                StorageService.instance.incOutOfRangeOperationCount();
+                Keyspace.open(command.metadata().keyspace).metric.outOfRangeTokenReads.inc();
                 throw InvalidRoutingException.forTokenRead(message.from(), token, metadata.epoch, message.payload);
             }
 
@@ -138,6 +150,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Replica maxTokenLocalReplica = getLocalReplica(metadata, range.right.getToken(), command.metadata().keyspace);
             if (maxTokenLocalReplica == null)
             {
+                StorageService.instance.incOutOfRangeOperationCount();
+                Keyspace.open(command.metadata().keyspace).metric.outOfRangeTokenReads.inc();
                 throw InvalidRoutingException.forRangeRead(message.from(), range, metadata.epoch, message.payload);
             }
 

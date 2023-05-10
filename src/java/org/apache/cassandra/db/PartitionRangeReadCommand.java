@@ -65,17 +65,17 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     protected final DataRange dataRange;
     protected final Slices requestedSlices;
 
-    private PartitionRangeReadCommand(boolean isDigest,
-                                      int digestVersion,
-                                      boolean acceptsTransient,
-                                      TableMetadata metadata,
-                                      long nowInSec,
-                                      ColumnFilter columnFilter,
-                                      RowFilter rowFilter,
-                                      DataLimits limits,
-                                      DataRange dataRange,
-                                      Index.QueryPlan indexQueryPlan,
-                                      boolean trackWarnings)
+    PartitionRangeReadCommand(boolean isDigest,
+                              int digestVersion,
+                              boolean acceptsTransient,
+                              TableMetadata metadata,
+                              long nowInSec,
+                              ColumnFilter columnFilter,
+                              RowFilter rowFilter,
+                              DataLimits limits,
+                              DataRange dataRange,
+                              Index.QueryPlan indexQueryPlan,
+                              boolean trackWarnings)
     {
         super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
         this.dataRange = dataRange;

@@ -22,20 +22,28 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement;
 import org.apache.cassandra.cql3.statements.schema.KeyspaceAttributes;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -55,6 +63,7 @@ import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -69,10 +78,29 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
+
+import static org.junit.Assert.assertEquals;
 
 public class ClusterMetadataTestHelper
 {
+    public static final InetAddressAndPort node1;
+    public static final InetAddressAndPort broadcastAddress;
+
+    static
+    {
+        try
+        {
+            node1 = InetAddressAndPort.getByName("127.0.1.99");
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException("Error initializing InetAddressAndPort");
+        }
+        broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
+    }
 
     public static void setInstanceForTest()
     {
@@ -175,6 +203,11 @@ public class ClusterMetadataTestHelper
         return register(nodeIdx, "dc0", "rack0");
     }
 
+    public static NodeId register(InetAddressAndPort addr)
+    {
+        return register(addr, "dc0", "rack0");
+    }
+
     public static NodeId nodeId(int nodeIdx)
     {
         return ClusterMetadata.current().directory.peerId(addr(nodeIdx));
@@ -219,6 +252,11 @@ public class ClusterMetadataTestHelper
         join(addr(nodeIdx), Collections.singleton(new Murmur3Partitioner.LongToken(token)));
     }
 
+    public static void join(InetAddressAndPort addr, Token token)
+    {
+        join(addr, Collections.singleton(token));
+    }
+
     public static void join(InetAddressAndPort addr, Set<Token> tokens)
     {
         try
@@ -231,6 +269,51 @@ public class ClusterMetadataTestHelper
                    .finishJoin();
 
             assert ClusterMetadata.current().inProgressSequences.get(nodeId) == null;
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void joinPartially(InetAddressAndPort addr, Token token)
+    {
+        joinPartially(addr, Collections.singleton(token));
+    }
+
+    public static void joinPartially(InetAddressAndPort addr, Set<Token> tokens)
+    {
+        try
+        {
+            NodeId nodeId = ClusterMetadata.current().directory.peerId(addr);
+            JoinProcess process = lazyJoin(addr, tokens);
+            process.prepareJoin()
+                   .startJoin()
+                   .midJoin();
+
+            assert ClusterMetadata.current().inProgressSequences.get(nodeId) != null;
+            assert ClusterMetadata.current().directory.peerState(nodeId) == NodeState.BOOTSTRAPPING;
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void movePartially(InetAddressAndPort addr, Set<Token> newTokens)
+    {
+        try
+        {
+            NodeId nodeId = ClusterMetadata.current().directory.peerId(addr);
+            // for now we preserve the constraint that can only move when non-vnodes
+            assertEquals(1, ClusterMetadata.current().tokenMap.tokens(nodeId).size());
+            assertEquals(1, newTokens.size());
+            MoveProcess process = lazyMove(addr, newTokens);
+            process.prepareMove()
+                   .startMove();
+
+            assert ClusterMetadata.current().inProgressSequences.get(nodeId) != null;
+            assert ClusterMetadata.current().directory.peerState(nodeId) == NodeState.MOVING;
         }
         catch (Throwable e)
         {
@@ -876,5 +959,51 @@ public class ClusterMetadataTestHelper
     public static Move getMovePlan(NodeId nodeId, ClusterMetadata metadata)
     {
         return (Move) metadata.inProgressSequences.get(nodeId);
+    }
+
+    public static Token bytesToken(int token)
+    {
+        return new ByteOrderedPartitioner.BytesToken(ByteBufferUtil.bytes(token));
+    }
+
+    private static final Random random = new Random();
+    public static int randomInt()
+    {
+        return randomInt(Integer.MAX_VALUE);
+    }
+
+    public static int randomInt(int max)
+    {
+        return random.nextInt(max);
+    }
+
+    public static ListenableFuture<MessageDelivery> registerOutgoingMessageSink(Verb... ignored)
+    {
+        final SettableFuture<MessageDelivery> future = SettableFuture.create();
+        Set<Verb> ignore = Sets.newHashSet(ignored);
+        MessagingService.instance().outboundSink.clear();
+        MessagingService.instance().outboundSink.add((Message<?> message, InetAddressAndPort to) ->
+                                                     {
+                                                         if (!ignore.contains(message.verb()))
+                                                             future.set(new MessageDelivery(message, to));
+                                                         return true;
+                                                     });
+
+        MessagingService.instance().inboundSink.clear();
+        MessagingService.instance().inboundSink.add((Message<?> message) -> false);
+
+        return future;
+    }
+
+    public static class MessageDelivery
+    {
+        public final Message<?> message;
+        public final InetAddressAndPort to;
+
+        MessageDelivery(Message<?> message, InetAddressAndPort to)
+        {
+            this.message = message;
+            this.to = to;
+        }
     }
 }

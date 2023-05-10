@@ -251,7 +251,6 @@ public final class ServerTestUtils
         QueryProcessor.registerStatementInvalidatingListener();
     }
 
-
     public static void resetCMS()
     {
         assert ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean() : "Need to set " + ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION + " to true for resetCMS to work";

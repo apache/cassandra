@@ -65,6 +65,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
+    public static final RowFilter NONE = new CQLFilter(Collections.emptyList());
 
     protected final List<Expression> expressions;
 

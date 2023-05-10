@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.messages.*;
@@ -37,6 +38,7 @@ import org.apache.cassandra.repair.state.SyncState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
@@ -227,6 +229,17 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             sendFailureResponse(message);
                             return;
                         }
+
+                        if (!acceptMessage(validationRequest, message.from()))
+                        {
+                            RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(validationRequest.desc.ranges);
+
+                            logger.error("Got out-of-range repair request from " + message.from() + ": " + validationRequest.desc.ranges, e);
+                            vState.phase.fail(e);
+                            sendFailureResponse(message);
+                            return;
+                        }
+
                         vState.phase.accept();
                         sendAck(message);
 
@@ -417,5 +430,15 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     private void sendAck(Message<RepairMessage> message)
     {
         ctx.messaging().send(message.emptyResponse(), message.from());
+    }
+
+    private static boolean acceptMessage(final ValidationRequest validationRequest, final InetAddressAndPort from)
+    {
+        return StorageService.instance
+               .getNormalizedLocalRanges(validationRequest.desc.keyspace)
+               .validateRangeRequest(validationRequest.desc.ranges,
+                                     "RepairSession #" + validationRequest.desc.parentSessionId,
+                                     "validation request",
+                                     from);
     }
 }

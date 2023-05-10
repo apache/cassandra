@@ -15,19 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+package org.apache.cassandra.repair;
 
-public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
+import java.util.Collection;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+
+public class RepairOutOfTokenRangeException extends RuntimeException
 {
-    public static final ReadRepairVerbHandler instance = new ReadRepairVerbHandler();
-
-    void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
+    public RepairOutOfTokenRangeException(Collection<Range<Token>> ownedRanges)
     {
-        message.payload.apply();
-        MessagingService.instance().send(message.emptyResponse(), respondToAddress);
+        super(String.format("Received repair outside of owned ranges %s", ownedRanges));
     }
 }

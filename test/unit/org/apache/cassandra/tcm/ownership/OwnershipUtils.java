@@ -27,16 +27,21 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.randomEndpoint;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -130,6 +135,74 @@ public class OwnershipUtils
                                                              KeyspaceParams.simple(2).replication,
                                                              KeyspaceParams.simple(3).replication);
         return placements(ranges(random), replication, random);
+    }
+
+    public static void setLocalTokens(int... tokens)
+    {
+        Set<Token> joiningTokens = new HashSet<>();
+        for (int token : tokens)
+            joiningTokens.add(token(token));
+        ClusterMetadataTestHelper.join(broadcastAddress, joiningTokens);
+    }
+
+
+    public static RangesAtEndpoint generateRangesAtEndpoint(InetAddressAndPort endpoint, int... rangePairs)
+    {
+        if (rangePairs.length % 2 == 1)
+            throw new RuntimeException("generateRangesAtEndpoint argument count should be even");
+
+        RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
+
+        for (int i = 0; i < rangePairs.length; i += 2)
+        {
+            builder.add(Replica.fullReplica(endpoint, generateRange(rangePairs[i], rangePairs[i + 1])));
+        }
+        return builder.build();
+    }
+
+    public static List<Range<Token>> generateRanges(int... rangePairs)
+    {
+        if (rangePairs.length % 2 == 1)
+            throw new RuntimeException("generateRanges argument count should be even");
+
+        List<Range<Token>> ranges = new ArrayList<>();
+
+        for (int i = 0; i < rangePairs.length; i += 2)
+        {
+            ranges.add(generateRange(rangePairs[i], rangePairs[i + 1]));
+        }
+
+        return ranges;
+    }
+
+    public static Range<Token> generateRange(int left, int right)
+    {
+        return new Range<>(token(left), token(right));
+    }
+
+    public static Token token(int token)
+    {
+        return new Murmur3Partitioner.LongToken(token);
+    }
+
+    public static Token bytesToken(int token)
+    {
+        return new ByteOrderedPartitioner.BytesToken(ByteBufferUtil.bytes(token));
+    }
+    public static void beginJoin(int... tokens)
+    {
+        Set<Token> newTokens = new HashSet<>();
+        for (int token : tokens)
+            newTokens.add(token(token));
+        ClusterMetadataTestHelper.joinPartially(broadcastAddress, newTokens);
+    }
+
+    public static void beginMove(int... tokens)
+    {
+        Set<Token> newTokens = new HashSet<>();
+        for (int token : tokens)
+            newTokens.add(token(token));
+        ClusterMetadataTestHelper.movePartially(broadcastAddress, newTokens);
     }
 
 }
