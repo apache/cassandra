@@ -20,13 +20,11 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -34,12 +32,10 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.utils.ReadWriteLockedList;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
-import org.apache.lucene.util.hnsw.ConcurrentHnswGraphFactory;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
@@ -74,13 +70,11 @@ public class CassandraHnswGraph
 
         try
         {
-            var factory = ConcurrentHnswGraphFactory.instance;
-            builder = factory.createBuilder(vectorValues,
+            builder = ConcurrentHnswGraphBuilder.create(vectorValues,
                                             VectorEncoding.FLOAT32,
                                             similarityFunction,
                                             indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
-                                            indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
-                                            ThreadLocalRandom.current().nextLong());
+                                            indexContext.getIndexWriterConfig().getConstructionBeamWidth());
         }
         catch (IOException e)
         {
@@ -125,7 +119,7 @@ public class CassandraHnswGraph
                                             vectorValues,
                                             encoding,
                                             similarityFunction,
-                                            builder.getGraph(),
+                                            builder.getGraph().getView(),
                                             acceptBits,
                                             vistLimit);
         }
