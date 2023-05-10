@@ -56,7 +56,6 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 public class CassandraHnswGraph
 {
     private final ByteBufferVectorValues vectorValues;
-    private final List<PrimaryKey> keys;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final AtomicInteger cachedDimensions = new AtomicInteger();
     private final TypeSerializer<float[]> serializer;
@@ -67,7 +66,6 @@ public class CassandraHnswGraph
     public CassandraHnswGraph(IndexContext indexContext)
     {
         vectorValues = new ByteBufferVectorValues();
-        keys = ReadWriteLockedList.wrap(new ArrayList<>());
         serializer = (TypeSerializer<float[]>) indexContext.getValidator().getSerializer();
         similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
         postingsMap = new ConcurrentSkipListMap<>((left, right) -> {
@@ -110,7 +108,7 @@ public class CassandraHnswGraph
 
     public boolean isEmpty()
     {
-        return keys.isEmpty();
+        return vectorValues.size() == 0;
     }
 
     public Collection<PrimaryKey> keysFromOrdinal(int node)
