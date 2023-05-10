@@ -1131,22 +1131,4 @@ public class FBUtilities
             logger.warn("Closing {} had an unexpected exception", o, e);
         }
     }
-
-    /**
-     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
-     * @param runnable Runnable to wrap.
-     * @param exceptionFactory Factory to create the exception to throw.
-     */
-    public static void runExceptionally(Runnable runnable, Function<Exception, ? extends RuntimeException> exceptionFactory)
-    {
-        try
-        {
-            runnable.run();
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
-            throw exceptionFactory.apply(e);
-        }
-    }
 }
