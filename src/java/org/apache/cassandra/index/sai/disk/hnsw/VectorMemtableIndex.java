@@ -74,6 +74,7 @@ public class VectorMemtableIndex implements MemtableIndex
         else if (primaryKey.compareTo(maximumKey) > 0)
             maximumKey = primaryKey;
 
+        writeCount.increment();
         graph.put(primaryKey, value);
         return 0; // FIXME
     }
