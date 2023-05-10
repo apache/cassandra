@@ -193,6 +193,13 @@
             </patternset>
             <mapper type="flatten"/>
         </unzip>
+
+        <!-- FIXME remove-->
+        <!-- cep-vsearch branch is working with a patched lucene-core-9.7.0-SNAPSHOT.jar we've placed in lib/ for now -->
+        <copy todir="${build.dir.lib}/jars" >
+            <file file="${build.lib}/lucene-core-9.7.0-SNAPSHOT.jar"/>
+        </copy>
+        <!-- end FIXME -->
     </target>
 
     <target name="resolver-dist-lib" depends="resolver-retrieve-build">

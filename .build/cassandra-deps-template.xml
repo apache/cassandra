@@ -380,10 +380,15 @@
       <groupId>org.agrona</groupId>
       <artifactId>agrona</artifactId>
     </dependency>
-    <dependency>
+
+    <!-- FIXME uncomment-->
+    <!-- cep-vsearch branch is working with a patched lucene-core-9.7.0-SNAPSHOT.jar we've placed in lib/ for now -->
+    <!--dependency>
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-core</artifactId>
-    </dependency>
+    </dependency-->
+    <!-- end FIXME -->
+
     <dependency>
       <groupId>com.github.jelmerk</groupId>
       <artifactId>hnswlib-core</artifactId>
