@@ -41,12 +41,14 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterators.toArray;
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
@@ -85,10 +87,10 @@ public class ShortReadProtectionTest extends TestBaseImpl
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
+        for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM, SERIAL))
             for (boolean flush : BOOLEANS)
-                for (boolean paging : BOOLEANS)
-                    result.add(new Object[]{ readConsistencyLevel, flush, paging });
+                    for (boolean paging : BOOLEANS)
+                        result.add(new Object[]{ readConsistencyLevel, flush, paging });
         return result;
     }
 
@@ -97,8 +99,10 @@ public class ShortReadProtectionTest extends TestBaseImpl
     {
         cluster = init(Cluster.build()
                               .withNodes(NUM_NODES)
-                              .withConfig(config -> config.set("hinted_handoff_enabled", false))
+                              .withConfig(config -> config.set("hinted_handoff_enabled", false)
+                                                          .set("lwt_strategy", "accord"))
                               .start());
+        cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
     }
 
     @AfterClass
@@ -427,7 +431,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
             this.paging = paging;
             qualifiedTableName = KEYSPACE + ".t_" + seqNumber.getAndIncrement();
 
-            assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM
+            assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL
             : "Only ALL and QUORUM consistency levels are supported";
         }
 
@@ -485,12 +489,12 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         /**
          * Internally runs the specified write queries in the specified node. If the {@link #readConsistencyLevel} is
-         * QUORUM the write will also be internally done in the next replica in the ring, to simulate a QUORUM write.
+         * QUORUM/SERIAL the write will also be internally done in the next replica in the ring, to simulate a QUORUM/SERIAL write.
          */
         private Tester toNode(int node, String... queries)
         {
             IInvokableInstance replica = cluster.get(node);
-            IInvokableInstance nextReplica = readConsistencyLevel == QUORUM
+            IInvokableInstance nextReplica = (readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL)
                                              ? cluster.get(node == NUM_NODES ? 1 : node + 1)
                                              : null;
 

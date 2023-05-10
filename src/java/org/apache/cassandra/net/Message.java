@@ -1517,7 +1517,7 @@ public class Message<T> implements ReplyContext, IMessage<T>
     private int payloadSize30   = -1;
     private int payloadSize3014 = -1;
     private int payloadSize40   = -1;
-    private int payloadSize42   = -1;
+    private int payloadSize50 = -1;
 
     private int payloadSize(int version)
     {
@@ -1536,9 +1536,9 @@ public class Message<T> implements ReplyContext, IMessage<T>
                     payloadSize40 = serializer.payloadSize(this, VERSION_40);
                 return payloadSize40;
             case VERSION_50:
-                if (payloadSize42 < 0)
-                    payloadSize42 = serializer.payloadSize(this, VERSION_50);
-                return payloadSize42;
+                if (payloadSize50 < 0)
+                    payloadSize50 = serializer.payloadSize(this, VERSION_50);
+                return payloadSize50;
             default:
                 throw new IllegalStateException();
         }

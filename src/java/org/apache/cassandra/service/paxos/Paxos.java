@@ -81,8 +81,8 @@ import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
@@ -673,7 +673,7 @@ public class Paxos
                     {
                         Tracing.trace("CAS precondition rejected", current);
                         casWriteMetrics.conditionNotMet.inc();
-                        return casResult(current.rowIterator());
+                        return casResult(current.rowIterator(false));
                     }
 
                     // If we failed to meet our condition, it does not mean we can do nothing: if we do not propose
@@ -806,7 +806,7 @@ public class Paxos
     {
         Tracing.trace("CAS precondition rejected", read);
         casWriteMetrics.conditionNotMet.inc();
-        return read.rowIterator();
+        return read.rowIterator(false);
     }
 
     public static ConsensusAttemptResult read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, long queryStartNanos)

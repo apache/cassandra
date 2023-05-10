@@ -147,6 +147,7 @@ public class TxnDataResolver implements DataResolver
         // TODO Review: Need to pick a thread pool to run this in. Normally it would be the request thread pool
         return AsyncChains.ofCallable(Stage.ACCORD_MIGRATION.executor(), () -> {
             repairsFinal.values().forEach(ReadRepair::startRepair);
+            repairsFinal.values().forEach(ReadRepair::maybeSendAdditionalReads);
             for (Map.Entry<TxnDataName, ReadRepair> e : repairsFinal.entrySet()) {
                 ReadRepair readRepair = e.getValue();
                 processPartitionIterator(readRepair.awaitReads(), readRepair.command(), resolvedData, e.getKey());

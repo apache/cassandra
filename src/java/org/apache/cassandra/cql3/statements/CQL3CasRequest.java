@@ -536,6 +536,6 @@ public class CQL3CasRequest implements CASRequest
             return RETRY_NEW_PROTOCOL;
         TxnData txnData = (TxnData)txnResult;
         FilteredPartition partition = txnData.get(TxnRead.CAS_READ);
-        return casResult(partition != null ? partition.rowIterator() : null);
+        return casResult(partition != null ? partition.rowIterator(false) : null);
     }
 }

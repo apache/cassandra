@@ -382,8 +382,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 if (selectQuery.queries.size() == 1)
                 {
                     FilteredPartition partition = data.get(TxnDataName.returning());
+                    boolean reversed = selectQuery.queries.get(0).isReversed();
                     if (partition != null)
-                        returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
                 }
                 else
                 {
@@ -391,8 +392,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     for (int i = 0; i < selectQuery.queries.size(); i++)
                     {
                         FilteredPartition partition = data.get(TxnDataName.returning(i));
+                        boolean reversed = selectQuery.queries.get(i).isReversed();
                         if (partition != null)
-                            returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
+                            returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
                     }
                 }
                 return new ResultMessage.Rows(result.build());

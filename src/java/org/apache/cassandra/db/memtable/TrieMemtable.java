@@ -666,9 +666,9 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         @Override
-        public Iterator<Row> iterator()
+        public Iterator<Row> iterator(boolean reverse)
         {
-            return ensureOnHeap.applyToPartition(super.iterator());
+            return ensureOnHeap.applyToPartition(super.iterator(reverse));
         }
     }
 
