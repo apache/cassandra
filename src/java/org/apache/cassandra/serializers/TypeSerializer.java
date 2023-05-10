@@ -72,6 +72,13 @@ public abstract class TypeSerializer<T>
                :  maybeQuote(toCQLLiteralNonNull(buffer));
     }
 
+    public final String toCQLLiteralNoQuote(ByteBuffer buffer)
+    {
+        return buffer == null || !buffer.hasRemaining()
+               ? "null"
+               :  toCQLLiteralNonNull(buffer);
+    }
+
     public boolean shouldQuoteCQL()
     {
         return true;
