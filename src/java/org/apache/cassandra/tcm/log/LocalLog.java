@@ -343,14 +343,14 @@ public abstract class LocalLog implements Closeable
                     ClusterMetadata next = transformed.success().metadata;
                     assert pendingEntry.epoch.is(next.epoch) :
                     String.format("Entry epoch %s does not match metadata epoch %s", pendingEntry.epoch, next.epoch);
-                    assert next.epoch.isDirectlyAfter(prev.epoch) || pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT || pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS :
+                    assert next.epoch.isDirectlyAfter(prev.epoch) || isSnapshot || pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS :
                     String.format("Epoch %s for %s can either force snapshot, or immediately follow %s",
                                   next.epoch, pendingEntry.transform, prev.epoch);
 
                     persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
 
                     for (ChangeListener listener : cmListeners)
-                        listener.notifyPreCommit(prev, next);
+                        listener.notifyPreCommit(prev, next, isSnapshot);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -367,7 +367,7 @@ public abstract class LocalLog implements Closeable
                     }
 
                     for (ChangeListener listener : cmListeners)
-                        listener.notifyPostCommit(prev, next);
+                        listener.notifyPostCommit(prev, next, isSnapshot);
                 }
                 catch (Throwable t)
                 {
@@ -432,9 +432,9 @@ public abstract class LocalLog implements Closeable
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         for (ChangeListener listener : cmListeners)
-            listener.notifyPreCommit(emptyFromSystemTables, metadata);
+            listener.notifyPreCommit(emptyFromSystemTables, metadata, true);
         for (ChangeListener listener : cmListeners)
-            listener.notifyPostCommit(emptyFromSystemTables, metadata);
+            listener.notifyPostCommit(emptyFromSystemTables, metadata, true);
 
     }
 

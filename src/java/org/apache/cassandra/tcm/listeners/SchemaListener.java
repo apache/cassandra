@@ -37,33 +37,35 @@ public class SchemaListener implements ChangeListener
     public static final SchemaListener INSTANCE_FOR_STARTUP = new SchemaListener()
     {
         @Override
-        public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next)
+        public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
         {
-            notifyInternal(prev, next, false);
+            notifyInternal(prev, next, fromSnapshot, false);
         }
     };
 
     @Override
-    public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        notifyInternal(prev, next, true);
+        notifyInternal(prev, next, fromSnapshot, true);
     }
 
-    protected void notifyInternal(ClusterMetadata prev, ClusterMetadata next, boolean loadSSTables)
+    protected void notifyInternal(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot, boolean loadSSTables)
     {
-        if (!next.schema.lastModified().equals(prev.schema.lastModified()))
-            next.schema.initializeKeyspaceInstances(prev.schema, loadSSTables);
+        if (!fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
+            return;
+
+        next.schema.initializeKeyspaceInstances(prev.schema, loadSSTables);
     }
 
     @Override
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        if (!next.schema.lastModified().equals(prev.schema.lastModified()))
-        {
-            DistributedSchema.maybeRebuildViews(prev.schema, next.schema);
-            SchemaDiagnostics.versionUpdated(Schema.instance);
-            Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
-            SystemKeyspace.updateSchemaVersion(next.schema.getVersion());
-        }
+        if (!fromSnapshot && next.schema.lastModified().equals(prev.schema.lastModified()))
+            return;
+
+        DistributedSchema.maybeRebuildViews(prev.schema, next.schema);
+        SchemaDiagnostics.versionUpdated(Schema.instance);
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
+        SystemKeyspace.updateSchemaVersion(next.schema.getVersion());
     }
 }

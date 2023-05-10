@@ -28,19 +28,19 @@ import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 public class PaxosRepairListener implements ChangeListener
 {
     @Override
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        if (!next.directory.lastModified().equals(prev.directory.lastModified()))
+        if (next.directory.lastModified().equals(prev.directory.lastModified()))
+            return;
+
+        for (NodeId node : next.directory.peerIds())
         {
-            for (NodeId node : next.directory.peerIds())
+            NodeState oldState = prev.directory.peerState(node);
+            NodeState newState = next.directory.peerState(node);
+            if (oldState != newState && newState == LEFT)
             {
-                NodeState oldState = prev.directory.peerState(node);
-                NodeState newState = next.directory.peerState(node);
-                if (oldState != newState && newState == LEFT)
-                {
-                    StorageService.instance.repairPaxosForTopologyChange("decommission");
-                    break;
-                }
+                StorageService.instance.repairPaxosForTopologyChange("decommission");
+                break;
             }
         }
     }

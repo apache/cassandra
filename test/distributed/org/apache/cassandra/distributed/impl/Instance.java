@@ -669,7 +669,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
-
     protected void partialStartup(ICluster<?> cluster) throws IOException, NoSuchFieldException, IllegalAccessException, ExecutionException, InterruptedException, StartupException
     {
         // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread

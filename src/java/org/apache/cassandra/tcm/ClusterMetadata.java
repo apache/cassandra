@@ -390,6 +390,12 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer with(Directory directory)
+        {
+            this.directory = directory;
+            return this;
+        }
+
         public Transformer register(NodeAddresses addresses, Location location, NodeVersion version)
         {
             directory = directory.with(addresses, location, version);

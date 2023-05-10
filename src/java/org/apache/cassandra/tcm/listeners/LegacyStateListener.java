@@ -55,55 +55,56 @@ public class LegacyStateListener implements ChangeListener
     private static final Logger logger = LoggerFactory.getLogger(LegacyStateListener.class);
 
     @Override
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        if (!next.directory.lastModified().equals(prev.directory.lastModified()) ||
-            !next.tokenMap.lastModified().equals(prev.tokenMap.lastModified()))
+        if (!fromSnapshot &&
+            next.directory.lastModified().equals(prev.directory.lastModified()) &&
+            next.tokenMap.lastModified().equals(prev.tokenMap.lastModified()))
+            return;
+
+        Set<NodeId> removed = Sets.difference(prev.directory.peerIds(), next.directory.peerIds());
+        Set<NodeId> changed = new HashSet<>();
+        for (NodeId node : next.directory.peerIds())
         {
-            Set<NodeId> removed = Sets.difference(prev.directory.peerIds(), next.directory.peerIds());
-            Set<NodeId> changed = new HashSet<>();
-            for (NodeId node : next.directory.peerIds())
-            {
-                if (directoryEntryChangedFor(node, prev.directory, next.directory) || !prev.tokenMap.tokens(node).equals(next.tokenMap.tokens(node)))
-                    changed.add(node);
-            }
+            if (directoryEntryChangedFor(node, prev.directory, next.directory) || !prev.tokenMap.tokens(node).equals(next.tokenMap.tokens(node)))
+                changed.add(node);
+        }
 
-            for (NodeId remove : removed)
-            {
-                GossipHelper.removeFromGossip(prev.directory.endpoint(remove));
-                PeersTable.updateLegacyPeerTable(remove, prev, next);
-            }
+        for (NodeId remove : removed)
+        {
+            GossipHelper.removeFromGossip(prev.directory.endpoint(remove));
+            PeersTable.updateLegacyPeerTable(remove, prev, next);
+        }
 
-            for (NodeId change : changed)
+        for (NodeId change : changed)
+        {
+            // next.myNodeId() can be null during replay (before we have registered)
+            if (next.myNodeId() != null && next.myNodeId().equals(change))
             {
-                // next.myNodeId() can be null during replay (before we have registered)
-                if (next.myNodeId() != null && next.myNodeId().equals(change))
+                switch (next.directory.peerState(change))
                 {
-                    switch (next.directory.peerState(change))
-                    {
-                        case BOOTSTRAPPING:
-                            if (prev.directory.peerState(change) != BOOTSTRAPPING)
-                            {
-                                // legacy log messages for tests
-                                logger.info("JOINING: Starting to bootstrap");
-                                logger.info("JOINING: calculation complete, ready to bootstrap");
-                            }
-                            break;
-                        case REGISTERED:
-                            Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-                            break;
-                        case JOINED:
-                            SystemKeyspace.updateTokens(next.tokenMap.tokens());
-                            // needed if we miss the REGISTERED above; Does nothing if we are already in epStateMap:
-                            Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-                            SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                            StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                                         .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
-                                         .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
-                            if (prev.directory.peerState(change) == MOVING)
-                                logger.info("Node {} state jump to NORMAL", next.directory.endpoint(change));
-                            break;
-                    }
+                    case BOOTSTRAPPING:
+                        if (prev.directory.peerState(change) != BOOTSTRAPPING)
+                        {
+                            // legacy log messages for tests
+                            logger.info("JOINING: Starting to bootstrap");
+                            logger.info("JOINING: calculation complete, ready to bootstrap");
+                        }
+                        break;
+                    case REGISTERED:
+                        Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
+                        break;
+                    case JOINED:
+                        SystemKeyspace.updateTokens(next.tokenMap.tokens());
+                        // needed if we miss the REGISTERED above; Does nothing if we are already in epStateMap:
+                        Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
+                        SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
+                        StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
+                                     .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                                     .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+                        if (prev.directory.peerState(change) == MOVING)
+                            logger.info("Node {} state jump to NORMAL", next.directory.endpoint(change));
+                        break;
                 }
                 if (next.directory.peerState(change) == LEFT)
                 {

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tcm.listeners;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -26,7 +25,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 public class PlacementsChangeListener implements ChangeListener
 {
     @Override
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
         if (shouldInvalidate(prev, next))
             StorageService.instance.invalidateLocalRanges();
@@ -44,8 +43,8 @@ public class PlacementsChangeListener implements ChangeListener
         // can't rely only on placements alone since we can move a ks from rf=1 to rf=3 and the rf=3 params might already exist in the placements:
         for (KeyspaceMetadata ksm : prev.schema.getKeyspaces())
         {
-            Keyspace newKs = next.schema.getKeyspace(ksm.name);
-            if (newKs == null || !ksm.params.equals(newKs.getMetadata().params))
+            KeyspaceMetadata newKsm = next.schema.getKeyspaceMetadata(ksm.name);
+            if (newKsm == null || !ksm.params.equals(newKsm.params))
                 return true;
         }
         return false;

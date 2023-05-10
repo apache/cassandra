@@ -48,7 +48,7 @@ public class TestChangeListener implements ChangeListener
     private final WaitQueue waiters = WaitQueue.newWaitQueue();
 
     @Override
-    public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
         Iterator<Predicate<Epoch>> iter = preCommitPredicates.iterator();
         while (iter.hasNext())
@@ -63,7 +63,7 @@ public class TestChangeListener implements ChangeListener
     }
 
     @Override
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
         Iterator<Predicate<Epoch>> iter = postCommitPredicates.iterator();
         while (iter.hasNext())

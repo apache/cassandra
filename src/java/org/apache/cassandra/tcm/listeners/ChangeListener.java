@@ -30,10 +30,10 @@ public interface ChangeListener
     /**
      * Called before updating ClusterMetadata.current() - it is still `prev` here.
      */
-    default void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next) {}
+    default void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot) {}
 
     /**
      * Called after updating ClusterMetadata.current() - it is now `next`
      */
-    default void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next) {}
+    default void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot) {}
 }

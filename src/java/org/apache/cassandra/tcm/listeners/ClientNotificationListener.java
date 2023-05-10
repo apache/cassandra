@@ -48,7 +48,8 @@ public class ClientNotificationListener implements ChangeListener
      * note that we don't register any listeners in StorageService until starting the native protocol
      * so we won't send any notifications during startup replay (todo: should we start native before doing the background catchup?)
      */
-    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
+    @Override
+    public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
         List<Pair<NodeId, ChangeType>> diff = diff(prev.directory, next.directory);
         logger.debug("Maybe notify listeners about {}", diff);
