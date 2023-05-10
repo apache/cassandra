@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.Nullable;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -39,7 +41,6 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
@@ -48,7 +49,7 @@ import org.apache.lucene.util.hnsw.NeighborQueue;
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
-    private final CassandraHnswGraph graph;
+    private final CassandraOnHeapHnsw graph;
     private final LongAdder writeCount = new LongAdder();
 
     private static final Token.KeyBound MIN_KEY_BOUND = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
@@ -58,7 +59,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
     public VectorMemtableIndex(IndexContext indexContext) {
         this.indexContext = indexContext;
-        this.graph = new CassandraHnswGraph(indexContext);
+        this.graph = new CassandraOnHeapHnsw(indexContext);
     }
 
     @Override
@@ -131,6 +132,11 @@ public class VectorMemtableIndex implements MemtableIndex
     public ByteBuffer getMaxTerm()
     {
         return null;
+    }
+
+    public void writeData(IndexDescriptor descriptor, IndexContext context, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    {
+        graph.write(descriptor, context, keyToRowId);
     }
 
     private class KeyRangeFilteringBits implements Bits
@@ -210,14 +216,15 @@ public class VectorMemtableIndex implements MemtableIndex
 
         private void readBatch()
         {
-            NeighborQueue neighborQueue = graph.search(queryVector, limit, VectorEncoding.FLOAT32, bits, Integer.MAX_VALUE);
+            var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
             if (bits == null || bits instanceof KeyRangeFilteringBits)
                 bits = new InvertedFilteringBits(bits);
 
-            for (int node : neighborQueue.nodes())
+            while (results.hasNext())
             {
-                ((InvertedFilteringBits)bits).set(node);
-                keyQueue.addAll(graph.keysFromOrdinal(node));
+                var r = results.next();
+                ((InvertedFilteringBits)bits).set(r.vectorOrdinal);
+                keyQueue.addAll(r.keys);
             }
         }
     }

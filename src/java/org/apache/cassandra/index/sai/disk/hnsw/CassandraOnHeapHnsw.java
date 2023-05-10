@@ -21,16 +21,23 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -39,6 +46,8 @@ import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+
+import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.WRITER_OPTION;
 
 /**
  * This class needs to
@@ -49,7 +58,7 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
  * (5) Do all this in a thread-safe api
  */
 @SuppressWarnings("com.google.common.annotations.Beta")
-public class CassandraHnswGraph
+public class CassandraOnHeapHnsw
 {
     private final ByteBufferVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
@@ -59,7 +68,7 @@ public class CassandraHnswGraph
     private final Map<ByteBuffer, VectorPostings> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
-    public CassandraHnswGraph(IndexContext indexContext)
+    public CassandraOnHeapHnsw(IndexContext indexContext)
     {
         vectorValues = new ByteBufferVectorValues();
         serializer = (TypeSerializer<float[]>) indexContext.getValidator().getSerializer();
@@ -110,23 +119,45 @@ public class CassandraHnswGraph
         return postingsMap.get(vectorValues.bufferValue(node)).keys;
     }
 
-    public NeighborQueue search(float[] queryVector, int topK, VectorEncoding encoding, Bits acceptBits, int vistLimit)
+    /**
+     * @return PrimaryKeys associated with the topK vectors near the query
+     */
+    public Iterator<AnnResultPk> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
     {
+        NeighborQueue queue;
         try
         {
-            return HnswGraphSearcher.search(queryVector,
-                                            topK,
-                                            vectorValues,
-                                            encoding,
-                                            similarityFunction,
-                                            builder.getGraph().getView(),
-                                            acceptBits,
-                                            vistLimit);
+            queue = HnswGraphSearcher.search(queryVector,
+                                             topK,
+                                             vectorValues,
+                                             VectorEncoding.FLOAT32,
+                                             similarityFunction,
+                                             builder.getGraph().getView(),
+                                             acceptBits,
+                                             vistLimit);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+        return new Iterator<>()
+        {
+            int remaining = queue.size();
+
+            @Override
+            public boolean hasNext()
+            {
+                return remaining > 0;
+            }
+
+            @Override
+            public AnnResultPk next()
+            {
+                remaining--;
+                int ordinal = queue.pop();
+                return new AnnResultPk(ordinal, keysFromOrdinal(ordinal));
+            }
+        };
     }
 
     public long ramBytesUsed()
@@ -137,6 +168,71 @@ public class CassandraHnswGraph
     public int size()
     {
         return vectorValues.size();
+    }
+
+    private int rowCount()
+    {
+        return postingsMap.values().stream().mapToInt(p -> p.keys.size()).sum();
+    }
+
+    private void writeOrdinalToRowMapping(File file, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    {
+        Preconditions.checkState(keyToRowId.size() == rowCount(),
+                                 "Expected %s rows, but found %s", keyToRowId.size(), rowCount());
+        Preconditions.checkState(postingsMap.size() == vectorValues.size(),
+                                 "Postings entries %s do not match vectors entries %s", postingsMap.size(), vectorValues.size());
+        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
+            // total number of vectors
+            out.writeInt(vectorValues.size());
+
+            // Write the offsets of the postings for each ordinal
+            long offset = 4L + 8L * vectorValues.size();
+            for (var i = 0; i < vectorValues.size(); i++) {
+                // (ordinal is implied; don't need to write it)
+                out.writeLong(offset);
+                var postings = postingsMap.get(vectorValues.bufferValue(i));
+                offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
+            }
+
+            // Write postings lists
+            for (var i = 0; i < vectorValues.size(); i++) {
+                var postings = postingsMap.get(vectorValues.bufferValue(i));
+                out.writeInt(postings.keys.size());
+                for (var key : postings.keys) {
+                    out.writeInt(keyToRowId.get(key));
+                }
+            }
+
+            out.flush();
+        }
+    }
+
+    private void writeGraph(File file) throws IOException
+    {
+        new ConcurrentHnswGraphWriter(builder.getGraph()).write(file);
+    }
+
+    // TODO should we just save references to the vectors in the sstable itself?
+    private void writeVectors(File file) throws IOException
+    {
+        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
+            out.writeInt(vectorValues.size());
+            out.writeInt(vectorValues.dimension());
+
+            for (var i = 0; i < vectorValues.size(); i++) {
+                var buffer = vectorValues.bufferValue(i);
+                out.write(buffer);
+            }
+
+            out.flush();
+        }
+    }
+
+    public void write(IndexDescriptor descriptor, IndexContext context, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    {
+        writeVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
+        writeOrdinalToRowMapping(descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
+        writeGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
     }
 
     private static class VectorPostings
@@ -199,6 +295,18 @@ public class CassandraHnswGraph
         public ByteBuffer bufferValue(int node)
         {
             return values.get(node);
+        }
+    }
+
+    public static class AnnResultPk
+    {
+        public final int vectorOrdinal;
+        public final Collection<PrimaryKey> keys;
+
+        public AnnResultPk(int vectorOrdinal, Collection<PrimaryKey> keys)
+        {
+            this.vectorOrdinal = vectorOrdinal;
+            this.keys = keys;
         }
     }
 }

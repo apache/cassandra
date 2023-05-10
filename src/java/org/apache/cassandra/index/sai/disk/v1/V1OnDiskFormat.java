@@ -40,6 +40,7 @@ import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -127,7 +128,7 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                         RowMapping rowMapping)
     {
         if (index.getIndexContext().isVector())
-            return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
+            return new VectorIndexWriter((VectorMemtableIndex) index.getIndexContext().getMemtableIndexManager().getPendingMemtableIndex(tracker), indexDescriptor, index.getIndexContext());
 
         // If we're not flushing, or we haven't yet started the initialization build, flush from SSTable contents.
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
