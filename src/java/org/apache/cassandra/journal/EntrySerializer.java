@@ -80,32 +80,33 @@ final class EntrySerializer
         CRC32 crc = Crc.crc32();
         into.clear();
 
-        DataInputBuffer in = new DataInputBuffer(buffer, false);
-
-        K key = keySupport.deserialize(in, userVersion);
-        keySupport.updateChecksum(crc, key, userVersion);
-        into.key = key;
-
-        int hostCount = in.readShort();
-        updateChecksumShort(crc, (short) hostCount);
-
-        int entrySize = in.readInt();
-        updateChecksumInt(crc, entrySize);
-
-        validateCRC(crc, in.readInt());
-
-        for (int i = 0; i < hostCount; i++)
+        try (DataInputBuffer in = new DataInputBuffer(buffer, false))
         {
-            int hostId = in.readInt();
-            updateChecksumInt(crc, hostId);
-            into.hosts.add(hostId);
+            K key = keySupport.deserialize(in, userVersion);
+            keySupport.updateChecksum(crc, key, userVersion);
+            into.key = key;
+
+            int hostCount = in.readShort();
+            updateChecksumShort(crc, (short) hostCount);
+
+            int entrySize = in.readInt();
+            updateChecksumInt(crc, entrySize);
+
+            validateCRC(crc, in.readInt());
+
+            for (int i = 0; i < hostCount; i++)
+            {
+                int hostId = in.readInt();
+                updateChecksumInt(crc, hostId);
+                into.hosts.add(hostId);
+            }
+
+            ByteBuffer entry = ByteBufferUtil.read(in, entrySize);
+            updateChecksum(crc, entry);
+            into.value = entry;
+
+            validateCRC(crc, in.readInt());
         }
-
-        ByteBuffer entry = ByteBufferUtil.read(in, entrySize);
-        updateChecksum(crc, entry);
-        into.value = entry;
-
-        validateCRC(crc, in.readInt());
     }
 
     static <K> boolean tryRead(EntryHolder<K> into,

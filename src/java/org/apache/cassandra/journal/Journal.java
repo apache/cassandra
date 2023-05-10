@@ -218,9 +218,10 @@ public class Journal<K, V>
             {
                 if (segment.read(id, holder))
                 {
-                    try
+                    try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
                     {
-                        return valueSerializer.deserialize(holder.key, new DataInputBuffer(holder.value, false), segment.descriptor.userVersion);
+                        return valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion);
+
                     }
                     catch (IOException e)
                     {

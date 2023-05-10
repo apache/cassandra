@@ -111,15 +111,14 @@ final class StaticSegment<K> extends Segment<K>
         }
     }
 
+    @SuppressWarnings("resource")
     private static <K> StaticSegment<K> internalOpen(
         Descriptor descriptor, SyncedOffsets syncedOffsets, OnDiskIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
     throws IOException
     {
         File file = descriptor.fileFor(Component.DATA);
-
         FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ);
         MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-
         return new StaticSegment<>(descriptor, channel, buffer, syncedOffsets, index, metadata, keySupport);
     }
 
@@ -185,8 +184,7 @@ final class StaticSegment<K> extends Segment<K>
     boolean read(int offset, EntrySerializer.EntryHolder<K> into)
     {
         ByteBuffer duplicate = (ByteBuffer) buffer.duplicate().position(offset);
-        DataInputBuffer in = new DataInputBuffer(duplicate, false);
-        try
+        try (DataInputBuffer in = new DataInputBuffer(duplicate, false))
         {
             return EntrySerializer.tryRead(into, keySupport, duplicate, in, syncedOffsets.syncedOffset(), descriptor.userVersion);
         }

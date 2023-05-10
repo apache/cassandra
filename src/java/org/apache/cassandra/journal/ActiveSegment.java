@@ -83,6 +83,7 @@ final class ActiveSegment<K> extends Segment<K>
         }
     }
 
+    @SuppressWarnings("resource")
     static <K> ActiveSegment<K> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
         SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor, true);

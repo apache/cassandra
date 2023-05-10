@@ -142,6 +142,7 @@ class Segments<K>
      *
      * @return a subset of segments with references to them, or {@code null} if failed to grab the refs
      */
+    @SuppressWarnings("resource")
     ReferencedSegments<K> selectAndReference(K id)
     {
         List<ActiveSegment<K>> selectedActive = null;
