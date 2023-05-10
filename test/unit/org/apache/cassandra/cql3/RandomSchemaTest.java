@@ -43,6 +43,7 @@ import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
 public class RandomSchemaTest extends CQLTester.InMemory
@@ -58,41 +59,42 @@ public class RandomSchemaTest extends CQLTester.InMemory
     @Test
     public void test()
     {
-            qt().checkAssert(random -> {
-                TypeGenBuilder nonEmptyNoDuration = AbstractTypeGenerators.builder()
-                                                                          .withoutEmpty()
-                                                                          .withUserTypeKeyspace(KEYSPACE)
-                                                                          .withoutPrimitive(DurationType.instance);
-                TableMetadata metadata = new TableMetadataBuilder()
-                                         .withKeyspaceName(KEYSPACE)
-                                         .withTableKinds(TableMetadata.Kind.REGULAR)
-                                         .withDefaultTypeGen(AbstractTypeGenerators.builder()
-                                                                                   .withoutEmpty()
-                                                                                   .withUserTypeKeyspace(KEYSPACE)
-                                                                                   .withMaxDepth(2)
-                                                                                   .withDefaultSetKey(nonEmptyNoDuration)
-                                                                                   .build())
-                                         .withPartitionColumnsCount(1)
-                                         .withPrimaryColumnTypeGen(new TypeGenBuilder(nonEmptyNoDuration).withMaxDepth(2).build())
-                                         .withClusteringColumnsBetween(1, 2)
-                                         .build(random);
-                maybeCreateUDTs(metadata);
-                createTable(KEYSPACE, metadata.toCqlString(false, false));
+        Gen<Boolean> nulls = SourceDSL.integers().between(1, 100).map(i -> i < 5);
+        qt().checkAssert(random -> {
+            TypeGenBuilder nonEmptyNoDuration = AbstractTypeGenerators.builder()
+                                                                      .withoutEmpty()
+                                                                      .withUserTypeKeyspace(KEYSPACE)
+                                                                      .withoutPrimitive(DurationType.instance);
+            TableMetadata metadata = new TableMetadataBuilder()
+                                     .withKeyspaceName(KEYSPACE)
+                                     .withTableKinds(TableMetadata.Kind.REGULAR)
+                                     .withDefaultTypeGen(AbstractTypeGenerators.builder()
+                                                                               .withoutEmpty()
+                                                                               .withUserTypeKeyspace(KEYSPACE)
+                                                                               .withMaxDepth(2)
+                                                                               .withDefaultSetKey(nonEmptyNoDuration)
+                                                                               .build())
+                                     .withPartitionColumnsCount(1)
+                                     .withPrimaryColumnTypeGen(new TypeGenBuilder(nonEmptyNoDuration).withMaxDepth(2).build())
+                                     .withClusteringColumnsBetween(1, 2)
+                                     .build(random);
+            maybeCreateUDTs(metadata);
+            createTable(KEYSPACE, metadata.toCqlString(false, false));
 
-                Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, true);
-                String insertStmt = insertStmt(metadata);
-                int primaryColumnCount = primaryColumnCount(metadata);
-                String selectStmt = selectStmt(metadata);
+            Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, nulls);
+            String insertStmt = insertStmt(metadata);
+            int primaryColumnCount = primaryColumnCount(metadata);
+            String selectStmt = selectStmt(metadata);
 
-                for (int i = 0; i < 1000; i++)
-                {
-                    ByteBuffer[] expected = dataGen.generate(random);
-                    ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
-                    execute(insertStmt, expected);
-                    UntypedResultSet row = execute(selectStmt, rowKey);
-                    assertRows(row, expected);
-                }
-            });
+            for (int i = 0; i < 1000; i++)
+            {
+                ByteBuffer[] expected = dataGen.generate(random);
+                ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
+                execute(insertStmt, expected);
+                UntypedResultSet row = execute(selectStmt, rowKey);
+                assertRows(row, expected);
+            }
+        });
     }
 
     private void maybeCreateUDTs(TableMetadata metadata)

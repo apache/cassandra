@@ -33,6 +33,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
@@ -368,23 +370,22 @@ public final class CassandraGenerators
         };
     }
 
-    public static Gen<ByteBuffer[]> data(TableMetadata metadata, boolean allowNull)
+    public static Gen<ByteBuffer[]> data(TableMetadata metadata, @Nullable Gen<Boolean> nulls)
     {
         AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
         Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
         for (int i = 0; it.hasNext(); i++)
         {
             ColumnMetadata col = it.next();
-            types[i] = AbstractTypeGenerators.getTypeSupport(col.type);
+            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, nulls);
         }
         int primaryKeyColumns = metadata.partitionKeyColumns().size() + metadata.clusteringColumns().size();
-        Constraint range1to100 = Constraint.between(1, 100);
         return rnd -> {
             ByteBuffer[] row = new ByteBuffer[types.length];
             for (int i = 0; i < row.length; i++)
             {
                 AbstractTypeGenerators.TypeSupport<?> support = types[i];
-                if (allowNull && i >= primaryKeyColumns && rnd.next(range1to100) < 5)
+                if (nulls != null && i >= primaryKeyColumns && nulls.generate(rnd))
                     row[i] = null;
                 else
                     row[i] = support.bytesGen().generate(rnd);

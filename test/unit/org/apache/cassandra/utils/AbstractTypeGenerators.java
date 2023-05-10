@@ -33,6 +33,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -65,7 +67,7 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.Constraint;
+import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 
@@ -482,21 +484,22 @@ public final class AbstractTypeGenerators
         return getTypeSupport(type, VERY_SMALL_POSITIVE_SIZE_GEN);
     }
 
-    public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, boolean allowNull)
+    public static <T> TypeSupport<T> getTypeSupportWithNulls(AbstractType<T> type, Gen<Boolean> nulls)
     {
-        return getTypeSupport(type, VERY_SMALL_POSITIVE_SIZE_GEN, allowNull);
+        return getTypeSupport(type, VERY_SMALL_POSITIVE_SIZE_GEN, nulls);
     }
 
     public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, Gen<Integer> sizeGen)
     {
-        return getTypeSupport(type, sizeGen, false);
+        return getTypeSupport(type, sizeGen, null);
     }
 
     /**
      * For a type, create generators for data that matches that type
      */
-    public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, Gen<Integer> sizeGen, boolean allowNull)
+    public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, Gen<Integer> sizeGen, @Nullable Gen<Boolean> nulls)
     {
+        Objects.requireNonNull(sizeGen, "sizeGen");
         // this doesn't affect the data, only sort order, so drop it
         if (type.isReversed())
             type = ((ReversedType<T>) type).baseType;
@@ -510,7 +513,7 @@ public final class AbstractTypeGenerators
         {
             // T = Set<A> so can not use T here
             SetType<Object> setType = (SetType<Object>) type;
-            TypeSupport<?> elementSupport = getTypeSupport(setType.getElementsType(), sizeGen, allowNull);
+            TypeSupport<?> elementSupport = getTypeSupport(setType.getElementsType(), sizeGen, nulls);
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(setType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -523,6 +526,7 @@ public final class AbstractTypeGenerators
                     {
                         if (attempts == 42)
                             throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", elementSupport.type.asCQL3Type(), size));
+                        rnd = JavaRandom.wrap(rnd);
                         generate = elementSupport.valueGen.generate(rnd);
                     }
 
@@ -536,7 +540,7 @@ public final class AbstractTypeGenerators
         {
             // T = List<A> so can not use T here
             ListType<Object> listType = (ListType<Object>) type;
-            TypeSupport<?> elementSupport = getTypeSupport(listType.getElementsType(), sizeGen, allowNull);
+            TypeSupport<?> elementSupport = getTypeSupport(listType.getElementsType(), sizeGen, nulls);
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(listType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -551,8 +555,8 @@ public final class AbstractTypeGenerators
         {
             // T = Map<A, B> so can not use T here
             MapType<Object, Object> mapType = (MapType<Object, Object>) type;
-            TypeSupport<?> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, allowNull);
-            TypeSupport<?> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, allowNull);
+            TypeSupport<?> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, nulls);
+            TypeSupport<?> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, nulls);
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(mapType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -561,14 +565,15 @@ public final class AbstractTypeGenerators
                 // if there is conflict thats fine
                 for (int i = 0; i < size; i++)
                 {
-                    Object generate = keySupport.valueGen.generate(rnd);
-                    for (int attempts = 0; map.containsKey(generate); attempts++)
+                    Object key = keySupport.valueGen.generate(rnd);
+                    for (int attempts = 0; map.containsKey(key); attempts++)
                     {
                         if (attempts == 42)
                             throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", keySupport.type.asCQL3Type(), size));
-                        generate = keySupport.valueGen.generate(rnd);
+                        rnd = JavaRandom.wrap(rnd);
+                        key = keySupport.valueGen.generate(rnd);
                     }
-                    map.put(generate, valueSupport.valueGen.generate(rnd));
+                    map.put(key, valueSupport.valueGen.generate(rnd));
                 }
                 return map;
             });
@@ -579,20 +584,20 @@ public final class AbstractTypeGenerators
             // T is ByteBuffer
             TupleType tupleType = (TupleType) type;
             @SuppressWarnings("unchecked")
-            TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, allowNull));
+            TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, nulls));
             return support;
         }
         else if (type instanceof VectorType)
         {
             VectorType<Object> vectorType = (VectorType<Object>) type;
-            TypeSupport<?> elementSupport = getTypeSupport(vectorType.elementType, false);
+            TypeSupport<?> elementSupport = getTypeSupport(vectorType.elementType, sizeGen, nulls);
             return (TypeSupport<T>) TypeSupport.of(vectorType, rnd -> {
                 List<Object> list = new ArrayList<>(vectorType.dimention);
                 for (int i = 0; i < vectorType.dimention; i++)
                 {
                     Object generate = elementSupport.valueGen.generate(rnd);
-                    while (generate == null)
-                        generate = elementSupport.valueGen.generate(rnd);
+                    if (generate == null)
+                        throw new AssertionError(String.format("TypeSupport(%s) generated a null value", vectorType.elementType.asCQL3Type()));
                     list.add(generate);
                 }
                 return list;
@@ -615,6 +620,19 @@ public final class AbstractTypeGenerators
             int uniq = uniqueElementsForDomain(vector.elementType);
             if (uniq != -1)
                 return uniq * vector.dimention;
+        }
+        if (type instanceof TupleType)
+        {
+            TupleType tt = (TupleType) type;
+            int product = 1;
+            for (AbstractType<?> f : tt.subTypes())
+            {
+                int uniq = uniqueElementsForDomain(f);
+                if (uniq == -1)
+                    return -1;
+                product *= uniq;
+            }
+            return product;
         }
         return -1;
     }
@@ -647,11 +665,13 @@ public final class AbstractTypeGenerators
     private static final class TupleGen implements Gen<ByteBuffer>
     {
         private final List<TypeSupport<Object>> elementsSupport;
+        private final @Nullable Gen<Boolean> nulls;
 
         @SuppressWarnings("unchecked")
-        private TupleGen(TupleType tupleType, Gen<Integer> sizeGen, boolean allowNull)
+        private TupleGen(TupleType tupleType, Gen<Integer> sizeGen, @Nullable Gen<Boolean> nulls)
         {
-            this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, allowNull)).collect(Collectors.toList());
+            this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, nulls)).collect(Collectors.toList());
+            this.nulls = nulls;
         }
 
         public ByteBuffer generate(RandomnessSource rnd)
@@ -661,7 +681,7 @@ public final class AbstractTypeGenerators
             for (int i = 0; i < eSupport.size(); i++)
             {
                 TypeSupport<Object> support = eSupport.get(i);
-                elements[i] = support.type.decompose(support.valueGen.generate(rnd));
+                elements[i] = nulls != null && nulls.generate(rnd) ? null : support.type.decompose(support.valueGen.generate(rnd));
             }
             return TupleType.buildValue(elements);
         }
