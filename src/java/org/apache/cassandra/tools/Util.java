@@ -318,7 +318,6 @@ public final class Util
         SerializationHeader.Component header = statsComponent.serializationHeader();
 
         IPartitioner partitioner = FBUtilities.newPartitioner(desc);
-        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
 
         TableMetadata.Builder builder = TableMetadata.builder("keyspace", "table").partitioner(partitioner).offline();
         header.getStaticColumns().entrySet().stream()
