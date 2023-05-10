@@ -62,12 +62,19 @@ import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
 
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
 
 public class AbstractTypeTest
 {
+    static
+    {
+        // make sure blob is always the same
+        System.setProperty("cassandra.test.blob.shared.seed", "42");
+    }
+
     //TODO
     // isCompatibleWith/isValueCompatibleWith/isSerializationCompatibleWith,
     // withUpdatedUserType/expandUserTypes/referencesDuration - types that recursive check types
@@ -172,7 +179,7 @@ public class AbstractTypeTest
     @Test
     public void nested()
     {
-        qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).build()).checkAssert(type -> {
+        qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE).build()).checkAssert(type -> {
             List<AbstractType<?>> subtypes = type.subTypes();
             assertThat(subtypes).hasSize(type instanceof MapType ? 2 : type instanceof TupleType ? ((TupleType) type).size() : 1);
         });
@@ -202,7 +209,7 @@ public class AbstractTypeTest
                 assertThat(read).isEqualTo(expected);
 
                 String str = type.getString(bb);
-                assertThat(type.fromString(str)).describedAs("fromString(getString(bb)) != bb; %s", str).isEqualTo(bb);
+                assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
 
                 String literal = type.asCQL3Type().toCQLLiteral(bb, ProtocolVersion.CURRENT);
                 ByteBuffer cqlBB = parseLiteralType(type, literal);
