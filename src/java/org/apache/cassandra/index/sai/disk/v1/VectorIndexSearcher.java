@@ -141,7 +141,6 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
         private HnswGraphResumableSearcher<float[]> searcher;
 
         private int limit;
-        private BitSet bitset;
 
         BatchPostingList(String field, float[] queryVector, int limit)
         {
@@ -198,28 +197,6 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
             while (results.size() > 0) {
                 queue.offer((long)results.pop());
             }
-        }
-    }
-
-    private static class InvertedBits implements Bits
-    {
-        private final Bits wrapped;
-
-        InvertedBits(Bits wrapped)
-        {
-            this.wrapped = wrapped;
-        }
-
-        @Override
-        public boolean get(int i)
-        {
-            return wrapped == null ? true : !wrapped.get(i);
-        }
-
-        @Override
-        public int length()
-        {
-            return wrapped == null ? 0 : wrapped.length();
         }
     }
 }
