@@ -25,7 +25,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 /**
  * Helper class for programmatically overriding individual config values before DatabaseDescriptor is bootstrapped.
  */
-public class OverrideConfigurationLoader implements ConfigurationLoader
+public class OverrideConfigurationLoader implements ConfigurationLoader, AutoCloseable
 {
 
     private static Consumer<Config> configModifier;
@@ -42,5 +42,16 @@ public class OverrideConfigurationLoader implements ConfigurationLoader
     {
         System.setProperty(Config.PROPERTY_PREFIX + "config.loader", OverrideConfigurationLoader.class.getName());
         configModifier = modifier;
+    }
+
+    public static void closeOverride()
+    {
+        System.clearProperty(Config.PROPERTY_PREFIX + "config.loader");
+    }
+
+    @Override
+    public void close() throws Exception
+    {
+        closeOverride();
     }
 }

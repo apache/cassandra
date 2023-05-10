@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 import javax.annotation.Nonnull;
@@ -1128,6 +1129,24 @@ public class FBUtilities
         catch (Exception e)
         {
             logger.warn("Closing {} had an unexpected exception", o, e);
+        }
+    }
+
+    /**
+     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
+     * @param runnable Runnable to wrap.
+     * @param exceptionFactory Factory to create the exception to throw.
+     */
+    public static void runExceptionally(Runnable runnable, Function<Exception, ? extends RuntimeException> exceptionFactory)
+    {
+        try
+        {
+            runnable.run();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+            throw exceptionFactory.apply(e);
         }
     }
 }

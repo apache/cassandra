@@ -32,6 +32,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.HeartBeatState;
@@ -129,6 +130,14 @@ public class StorageProxyTest
         Assert.assertTrue(StorageProxy.instance.isLoggingReadRepairs());
         Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
         Assert.assertFalse(StorageProxy.instance.isLoggingReadRepairs());
+    }
+
+    @Test
+    public void testIdealConsistencyLevel()
+    {
+        Assert.assertEquals("", StorageProxy.instance.getIdealConsistencyLevel());
+        StorageProxy.instance.setIdealConsistencyLevel(ConsistencyLevel.TWO.toString());
+        Assert.assertEquals(ConsistencyLevel.TWO.toString(), StorageProxy.instance.getIdealConsistencyLevel());
     }
 
     private void shouldHintTest(Consumer<Replica> test) throws UnknownHostException

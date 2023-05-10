@@ -17,40 +17,33 @@
  */
 package org.apache.cassandra.db.virtual;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import com.google.common.collect.ImmutableMap;
+import java.util.Optional;
 
-import org.apache.cassandra.config.Config;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableBiMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Loader;
-import org.apache.cassandra.config.Properties;
-import org.apache.cassandra.config.Replacement;
-import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
 
-final class SettingsTable extends AbstractVirtualTable
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
+
+final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
+    private static final BiMap<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableBiMap.copyOf(getBackwardsCompatableNames());
 
-    private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
-    protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
-
-    private final Config config;
-
+    @VisibleForTesting
     SettingsTable(String keyspace)
-    {
-        this(keyspace, DatabaseDescriptor.getRawConfig());
-    }
-
-    SettingsTable(String keyspace, Config config)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -59,7 +52,26 @@ final class SettingsTable extends AbstractVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
-        this.config = config;
+    }
+
+    @Override
+    protected void applyColumnDeletion(AbstractMutableVirtualTable.ColumnValues partitionKey, AbstractMutableVirtualTable.ColumnValues clusteringColumns, String columnName)
+    {
+        String name = partitionKey.value(0);
+        String key = getKeyAndWarn(name);
+        runExceptionally(() -> DatabaseDescriptor.setProperty(key, null),
+                         t -> invalidRequest("Unable to clear property '%s': %s", key, t.getMessage()));
+    }
+
+    @Override
+    protected void applyColumnUpdate(AbstractMutableVirtualTable.ColumnValues partitionKey,
+                                     AbstractMutableVirtualTable.ColumnValues clusteringColumns,
+                                     Optional<AbstractMutableVirtualTable.ColumnValue> columnValue)
+    {
+        String name = partitionKey.value(0);
+        String value = columnValue.map(v -> v.value().toString()).orElse(null);
+        runExceptionally(() -> DatabaseDescriptor.setProperty(getKeyAndWarn(name), value),
+                         t -> invalidRequest("Invalid update request for property '%s'. %s", name, t.getMessage()));
     }
 
     @Override
@@ -67,10 +79,14 @@ final class SettingsTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
-        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
-            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
-        if (PROPERTIES.containsKey(name))
-            result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
+        try
+        {
+            result.row(getKeyAndWarn(name)).column(VALUE, DatabaseDescriptor.getStringProperty(name));
+        }
+        catch (PropertyNotFoundException e)
+        {
+            // ignore
+        }
         return result;
     }
 
@@ -78,44 +94,22 @@ final class SettingsTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Map.Entry<String, Property> e : PROPERTIES.entrySet())
-            result.row(e.getKey()).column(VALUE, getValue(e.getValue()));
+        BiMap<String, String> map = BACKWARDS_COMPATABLE_NAMES.inverse();
+        DatabaseDescriptor.accept((key, type, ro) -> {
+                                      if (map.containsKey(key))
+                                          result.row(map.get(key)).column(VALUE, DatabaseDescriptor.getStringProperty(key));
+                                      result.row(key).column(VALUE, DatabaseDescriptor.getStringProperty(key));
+                                  },
+                                  t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
 
-    private String getValue(Property prop)
+    private static String getKeyAndWarn(String name)
     {
-        Object value = prop.get(config);
-        return value == null ? null : value.toString();
-    }
-
-    private static Map<String, Property> getProperties()
-    {
-        Loader loader = Properties.defaultLoader();
-        Map<String, Property> properties = loader.flatten(Config.class);
-        // only handling top-level replacements for now, previous logic was only top level so not a regression
-        Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
-        if (replacements != null)
-        {
-            for (Replacement r : replacements.values())
-            {
-                Property latest = properties.get(r.newName);
-                assert latest != null : "Unable to find replacement new name: " + r.newName;
-                Property conflict = properties.put(r.oldName, r.toProperty(latest));
-                // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
-                assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
-            }
-        }
-        for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
-        {
-            String oldName = e.getKey();
-            if (properties.containsKey(oldName))
-                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
-            String newName = e.getValue();
-            Property prop = Objects.requireNonNull(properties.get(newName), newName + " cant be found for " + oldName);
-            properties.put(oldName, Properties.rename(oldName, prop));
-        }
-        return properties;
+        String key = BACKWARDS_COMPATABLE_NAMES.getOrDefault(name, name);
+        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
+        return key;
     }
 
     /**
@@ -126,9 +120,9 @@ final class SettingsTable extends AbstractVirtualTable
      * There were a handle full of properties which had custom names, names not present in the yaml, this map also
      * fixes this and returns the proper (what is accessable via yaml) names.
      */
-    private static Map<String, String> getBackwardsCompatableNames()
+    public static BiMap<String, String> getBackwardsCompatableNames()
     {
-        Map<String, String> names = new HashMap<>();
+        BiMap<String, String> names = HashBiMap.create();
         // Names that dont match yaml
         names.put("audit_logging_options_logger", "audit_logging_options.logger.class_name");
         names.put("server_encryption_options_client_auth", "server_encryption_options.require_client_auth");

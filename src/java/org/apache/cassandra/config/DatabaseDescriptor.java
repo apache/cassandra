@@ -28,8 +28,10 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -42,8 +44,10 @@ import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.ToDoubleFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -79,6 +83,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
@@ -100,13 +105,17 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
+import org.yaml.snakeyaml.introspector.FieldProperty;
+import org.yaml.snakeyaml.introspector.Property;
 
+import static java.util.Optional.ofNullable;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.config.Properties.defaultLoader;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
@@ -128,12 +137,20 @@ public class DatabaseDescriptor
      */
     private static final int MAX_NUM_TOKENS = 1536;
 
+    /**
+     * The metadata source of configuration properties. It is used to access the configuration class instance loaded 
+     * from the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
+     * by calling {@link #toolInitialization()}, {@link #daemonInitialization()} or {@link #clientInitialization()}.
+     */
+    private static Map<String, ? extends Property> confValueAccessors;
     private static Config conf;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
      */
     static final DurationSpec.LongMillisecondsBound LOWEST_ACCEPTED_TIMEOUT = new DurationSpec.LongMillisecondsBound(10L);
+
+    public static final int SPACE_UPPER_BOUND_MB = (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576));
 
     private static Supplier<IFailureDetector> newFailureDetector;
     private static IEndpointSnitch snitch;
@@ -213,7 +230,7 @@ public class DatabaseDescriptor
             return;
         daemonInitialized = true;
 
-        setConfig(config.get());
+        setConfig(config);
         applyAll();
         AuthConfig.applyAuth();
     }
@@ -252,7 +269,7 @@ public class DatabaseDescriptor
             return;
         toolInitialized = true;
 
-        setConfig(loadConfig());
+        setConfig(DatabaseDescriptor::loadConfig);
 
         applySSTableFormats();
 
@@ -308,7 +325,7 @@ public class DatabaseDescriptor
         clientInitialized = true;
         setDefaultFailureDetector();
         Config.setClientMode(true);
-        conf = configSupplier.get();
+        setConfig(configSupplier);
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
     }
@@ -389,9 +406,20 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    private static void setConfig(Supplier<Config> config)
     {
-        conf = config;
+        conf = config.get();
+        confValueAccessors = ImmutableMap.copyOf(defaultLoader(true)
+                                                 .flatten(Config.class)
+                                                 .entrySet()
+                                                 .stream()
+                                                 .map(e -> {
+                                                     if (e.getValue() instanceof FieldProperty)
+                                                         return new AbstractMap.SimpleEntry<>(e.getKey(), new ListenableProperty<>(e.getValue()));
+                                                     else
+                                                         return e;
+                                                 })
+                                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     private static void applyAll() throws ConfigurationException
@@ -521,20 +549,20 @@ public class DatabaseDescriptor
             logger.warn("concurrent_replicates has been deprecated and should be removed from cassandra.yaml");
 
         if (conf.networking_cache_size == null)
-            conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
+            conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, SPACE_UPPER_BOUND_MB));
 
         if (conf.file_cache_size == null)
-            conf.file_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(512, (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576))));
+            conf.file_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(512, SPACE_UPPER_BOUND_MB));
 
         // round down for SSDs and round up for spinning disks
         if (conf.file_cache_round_up == null)
             conf.file_cache_round_up = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.spinning;
 
         if (conf.memtable_offheap_space == null)
-            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound(SPACE_UPPER_BOUND_MB);
         // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
         if (conf.memtable_heap_space == null)
-            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound((int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound(SPACE_UPPER_BOUND_MB);
         if (conf.memtable_heap_space.toMebibytes() == 0)
             throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
         logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
@@ -556,14 +584,7 @@ public class DatabaseDescriptor
             conf.repair_session_max_tree_depth = 20;
         }
 
-        if (conf.repair_session_space == null)
-            conf.repair_session_space = new DataStorageSpec.IntMebibytesBound(Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
-
-        if (conf.repair_session_space.toMebibytes() < 1)
-            throw new ConfigurationException("repair_session_space must be > 0, but was " + conf.repair_session_space);
-        else if (conf.repair_session_space.toMebibytes() > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space of " + conf.repair_session_space+ " mebibytes is likely to cause heap pressure");
-
+        conf.repair_session_space = validateRepairSessionSpace(conf, ConfigFields.REPAIR_SESSION_SPACE, conf.repair_session_space);
         checkForLowestAcceptedTimeouts(conf);
 
         long valueInBytes = conf.native_transport_max_frame_size.toBytes();
@@ -723,12 +744,7 @@ public class DatabaseDescriptor
         if (conf.memtable_cleanup_threshold < 0.1f)
             logger.warn("memtable_cleanup_threshold is set very low [{}], which may cause performance degradation", conf.memtable_cleanup_threshold);
 
-        if (conf.concurrent_compactors == null)
-            conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
-
-        if (conf.concurrent_compactors <= 0)
-            throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
-
+        conf.concurrent_compactors = validateConcurrentCompactors(conf, ConfigFields.CONCURRENT_COMPACTORS, conf.concurrent_compactors);
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
         applyReadThresholdsValidations(conf);
@@ -941,34 +957,34 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
     }
 
-    @VisibleForTesting
-    static void validateUpperBoundStreamingConfig() throws ConfigurationException
+    /**
+     * Validates that the given value is a valid throughput upper bound in megabits (mebibytes) per second.
+     */
+    public static void validateUpperBoundStreamingConfig()
     {
         // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
-        if (conf.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + conf.stream_throughput_outbound.toString(), false);
-        }
+        validateThroughputUpperBoundMbits(conf, ConfigFields.STREAM_THROUGHPUT_OUTBOUND, conf.stream_throughput_outbound);
+        validateThroughputUpperBoundMbits(conf, ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.inter_dc_stream_throughput_outbound);
+        validateThroughputUpperBoundMbytes(conf, ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_stream_throughput_outbound);
+        validateThroughputUpperBoundMbytes(conf, ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_inter_dc_stream_throughput_outbound);
+        validateThroughputUpperBoundMbytes(conf, ConfigFields.COMPACTION_THROUGHPUT, conf.compaction_throughput);
+    }
 
-        if (conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
-        }
+    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(Config conf, String name, DataRateSpec.LongBytesPerSecondBound value)
+    {
+        return validateThroughputUpperBound(name, value, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
+    }
 
-        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + conf.entire_sstable_stream_throughput_outbound.toString(), false);
-        }
+    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbytes(Config conf, String name, DataRateSpec.LongBytesPerSecondBound value)
+    {
+        return validateThroughputUpperBound(name, value, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
+    }
 
-        if (conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + conf.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
-        }
-
-        if (conf.compaction_throughput.toMebibytesPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of compaction_throughput: " + conf.compaction_throughput.toString(), false);
-        }
+    private static <T extends DataRateSpec<T>> T validateThroughputUpperBound(String name, T value, ToDoubleFunction<T> throughput)
+    {
+        if (throughput.applyAsDouble(value) >= Integer.MAX_VALUE)
+            throw new ConfigurationException(String.format("Invalid value of '%s': '%s'", name, value), false);
+        return value;
     }
 
     @VisibleForTesting
@@ -991,7 +1007,6 @@ public class DatabaseDescriptor
         if (config.repair_command_pool_size < 1)
             config.repair_command_pool_size = config.concurrent_validations;
     }
-
     @VisibleForTesting
     static void applyReadThresholdsValidations(Config config)
     {
@@ -2085,7 +2100,7 @@ public class DatabaseDescriptor
 
     public static void setConcurrentCompactors(int value)
     {
-        conf.concurrent_compactors = value;
+        setProperty(ConfigFields.CONCURRENT_COMPACTORS, value);
     }
 
     public static int getCompactionThroughputMebibytesPerSecAsInt()
@@ -2106,22 +2121,12 @@ public class DatabaseDescriptor
     @VisibleForTesting // only for testing!
     public static void setCompactionThroughputBytesPerSec(int value)
     {
-        if (BYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("compaction_throughput: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in MiB/s");
-
-        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value);
+        setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value));
     }
 
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
-        if (value == Integer.MAX_VALUE)
-            throw new IllegalArgumentException("compaction_throughput: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in MiB/s");
-
-        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+        setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }
@@ -2226,22 +2231,20 @@ public class DatabaseDescriptor
 
     public static void setStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
-        if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("stream_throughput_outbound: " + value  +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in megabits/s");
-
-        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+                    new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static void setStreamThroughputOutboundBytesPerSec(long value)
     {
-        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND);
+        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+                    new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND));
     }
 
-    public static void setStreamThroughputOutboundMegabitsPerSec(int value)
+    public static void setStreamThroughputOutboundMegabitsPerSec(int megabitsPerSecond)
     {
-        conf.stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
+        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+                    new DataRateSpec.LongBytesPerSecondBound(125_000L * megabitsPerSecond, BYTES_PER_SECOND));
     }
 
     public static double getEntireSSTableStreamThroughputOutboundMebibytesPerSec()
@@ -3589,14 +3592,28 @@ public class DatabaseDescriptor
 
     public static void setRepairSessionSpaceInMiB(int sizeInMiB)
     {
-        if (sizeInMiB < 1)
-            throw new ConfigurationException("Cannot set repair_session_space to " + sizeInMiB +
-                                             " < 1 mebibyte");
-        else if (sizeInMiB > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space of " + conf.repair_session_space +
-                        " is likely to cause heap pressure.");
+        setProperty(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
+    }
 
-        conf.repair_session_space = new DataStorageSpec.IntMebibytesBound(sizeInMiB);
+    public static DataStorageSpec.IntMebibytesBound validateRepairSessionSpace(Config conf, String name, DataStorageSpec.IntMebibytesBound newValue)
+    {
+        DataStorageSpec.IntMebibytesBound value0 = newValue == null ? new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB)) : newValue;
+        if (value0.toMebibytes() < 1)
+            throw new ConfigurationException(String.format("Cannot set '%s' to '%s' < 1 mebibyte", name, value0.toMebibytes()));
+        else if (value0.toMebibytes() > SPACE_UPPER_BOUND_MB)
+            logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", name, value0.toMebibytes());
+        return value0;
+    }
+
+    public static Integer validateConcurrentCompactors(Config conf, String name, Integer newValue)
+    {
+        if (newValue == null)
+            newValue = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
+
+        if (newValue <= 0)
+            throw new ConfigurationException(String.format("'%s' should be strictly greater than 0, but was '%s'",
+                                                           name, newValue), false);
+        return newValue;
     }
 
     public static int getPaxosRepairParallelism()
@@ -4702,5 +4719,112 @@ public class DatabaseDescriptor
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
+    }
+
+    public static void accept(ConfigVisitor visitor)
+    {
+        accept(visitor, RuntimeException::new);
+    }
+
+    public static void accept(ConfigVisitor visitor, Function<Throwable, ? extends RuntimeException> handler)
+    {
+        try
+        {
+            for (Property property : ofNullable(confValueAccessors).orElse(Collections.emptyMap()).values())
+                visitor.visit(property.getName(), property.getType(), property.getAnnotation(Mutable.class) == null);
+        }
+        catch (Throwable t)
+        {
+            throw handler.apply(t);
+        }
+    }
+
+    public static <T> PropertyListener.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
+    {
+        return addPropertyListner(name, clazz, new PropertyListener<T>()
+        {
+            @Override
+            public void onBeforeChange(T oldValue, T newValue)
+            {
+                consumer.accept(oldValue, newValue);
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> PropertyListener.Remover addPropertyListner(String name, Class<T> clazz, PropertyListener<T> listener)
+    {
+        Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
+        if (property instanceof ListenableProperty && clazz.equals(property.getType()))
+            return ((ListenableProperty<T>) property).addListener(listener);
+        else
+            throw new ConfigurationException(String.format("Listener type '%s' doesn't match the property '%s' type '%s'.",
+                                                           clazz.getSimpleName(), name, clazz.getSimpleName()));
+    }
+
+    public static Object getProperty(String name)
+    {
+        return ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name))
+                                                       .get(conf);
+    }
+
+    public static String getStringProperty(String name)
+    {
+        Property property = ofNullable(confValueAccessors.get(name))
+                            .orElseThrow(() -> new PropertyNotFoundException(name));
+        if (property.getType().equals(String.class))
+            return (String) property.get(conf);
+        else
+            return TypeConverterRegistry.instance.get(property.getType(), String.class)
+                                                 .convertNullable(property.get(conf));
+    }
+
+    /**
+     * Set configuration property for the given name to {@link #conf} if a safe manner
+     * with handling internal Cassandra exceptions.
+     *
+     * @param name Property name.
+     * @param value Property value.
+     */
+    public static void setProperty(String name, Object value)
+    {
+        setProperty(name, value, conf);
+    }
+
+    /**
+     * Set configuration property for the given name to {@link #conf} if a safe manner
+     * with handling internal Cassandra exceptions.
+     *
+     * @param name Property name.
+     * @param value Property value.
+     * @param config Configuration instance to set the property on.
+     */
+    @VisibleForTesting
+    public static void setProperty(String name, Object value, Config config)
+    {
+        try
+        {
+            Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
+            // Do conversion if the value is not null and the type is not the same as the property type.
+            Object convertedValue = ofNullable(value)
+                                    .map(Object::getClass)
+                                    .map(from -> TypeConverterRegistry.instance.get(from, property.getType())
+                                                                      .convert(value))
+                                    .orElse(null);
+            property.set(config, convertedValue);
+        }
+        catch (ConfigurationException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException(e.getMessage(), false);
+        }
+    }
+
+    public interface ConfigVisitor
+    {
+        void visit(String name, Class<?> type, boolean readOnly) throws Throwable;
     }
 }
