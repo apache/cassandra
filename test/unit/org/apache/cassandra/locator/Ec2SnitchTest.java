@@ -19,9 +19,7 @@
 package org.apache.cassandra.locator;
 
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import org.junit.AfterClass;
@@ -29,16 +27,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.mockito.stubbing.Answer;
 
-import static org.apache.cassandra.ServerTestUtils.cleanup;
-import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.locator.Ec2MultiRegionSnitch.PRIVATE_IP_QUERY;
 import static org.apache.cassandra.locator.Ec2MultiRegionSnitch.PUBLIC_IP_QUERY;
@@ -68,12 +62,7 @@ public class Ec2SnitchTest
     {
         GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
-        mkdirs();
-        cleanup();
-        Keyspace.setInitialized();
-        StorageService.instance.initServer();
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
 
@@ -257,10 +246,8 @@ public class Ec2SnitchTest
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
-        Map<ApplicationState, VersionedValue> stateMap = new EnumMap<>(ApplicationState.class);
-        stateMap.put(ApplicationState.DC, StorageService.instance.valueFactory.datacenter("us-west"));
-        stateMap.put(ApplicationState.RACK, StorageService.instance.valueFactory.datacenter("1a"));
-        Gossiper.instance.getEndpointStateForEndpoint(nonlocal).addApplicationStates(stateMap);
+        Token t1 = ClusterMetadata.current().partitioner.getRandomToken();
+        ClusterMetadataTestHelper.addEndpoint(nonlocal, t1, "us-west", "1a");
 
         assertEquals("us-west", snitch.getDatacenter(nonlocal));
         assertEquals("1a", snitch.getRack(nonlocal));
