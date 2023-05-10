@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -30,6 +31,9 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.impl.AbstractSafeCommandStore;
+import accord.impl.CommandTimeseries;
+import accord.impl.CommandTimeseries.CommandLoader;
+import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
 import accord.local.CommandStores.RangesForEpoch;
@@ -51,12 +55,12 @@ import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey>
 {
     private final Map<TxnId, AccordSafeCommand> commands;
-    private final Map<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
+    private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
-                                  Map<RoutableKey, AccordSafeCommandsForKey> commandsForKey,
+                                  NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKey,
                                   AccordCommandStore commandStore)
     {
         super(context);
@@ -158,12 +162,22 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                            .orElse(Timestamp.NONE);
     }
 
-    private <O> O mapReduceForKey(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandsForKey, O, O> map, O accumulate, O terminalValue)
+    private <O> O mapReduce(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
     {
-        switch (keysOrRanges.domain()) {
+        accumulate = commandStore.mapReduceForRange(keysOrRanges, slice, map, accumulate, terminalValue);
+        if (accumulate.equals(terminalValue))
+            return accumulate;
+        return mapReduceForKey(keysOrRanges, slice, map, accumulate, terminalValue);
+    }
+
+    private <O> O mapReduceForKey(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    {
+        switch (keysOrRanges.domain())
+        {
             default:
-                throw new AssertionError();
+                throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
             case Key:
+            {
                 // TODO: efficiency
                 AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
                 for (Key key : keys)
@@ -174,10 +188,25 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                     if (accumulate.equals(terminalValue))
                         return accumulate;
                 }
-                break;
+            }
+            break;
             case Range:
-                // TODO (required): implement
-                throw new UnsupportedOperationException();
+            {
+                // TODO (correctness): if a range is used, then the range must exist in the PreLoadContext, else the commandsForKeys won't be in-sync... can this be detected?
+                // Assuming the range provided is in the PreLoadContext, then AsyncLoader has populated commandsForKeys with keys that
+                // are contained within the ranges... so walk all keys found in commandsForKeys
+                keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
+                for (RoutableKey key : commandsForKeys.keySet())
+                {
+                    //TODO (duplicate code): this is a repeat of Key... only change is checking contains in range
+                    if (!keysOrRanges.contains(key)) continue;
+                    SafeCommandsForKey forKey = commandsForKey(key);
+                    accumulate = map.apply(forKey.current(), accumulate);
+                    if (accumulate.equals(terminalValue))
+                        return accumulate;
+                }
+            }
+            break;
         }
         return accumulate;
     }
@@ -185,8 +214,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public <T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<T, T> map, T accumulate, T terminalValue)
     {
-        accumulate = mapReduceForKey(keysOrRanges, slice, (forKey, prev) -> {
-            CommandsForKey.CommandTimeseries<?> timeseries;
+        accumulate = mapReduce(keysOrRanges, slice, (forKey, prev) -> {
+            CommandTimeseries<?> timeseries;
             switch (testTimestamp)
             {
                 default: throw new AssertionError();
@@ -198,17 +227,17 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 case MAY_EXECUTE_BEFORE:
                     timeseries = forKey.byExecuteAt();
             }
-            CommandsForKey.CommandTimeseries.TestTimestamp remapTestTimestamp;
+            CommandTimeseries.TestTimestamp remapTestTimestamp;
             switch (testTimestamp)
             {
                 default: throw new AssertionError();
                 case STARTED_AFTER:
                 case EXECUTES_AFTER:
-                    remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.AFTER;
+                    remapTestTimestamp = CommandTimeseries.TestTimestamp.AFTER;
                     break;
                 case STARTED_BEFORE:
                 case MAY_EXECUTE_BEFORE:
-                    remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.BEFORE;
+                    remapTestTimestamp = CommandTimeseries.TestTimestamp.BEFORE;
             }
             return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminalValue);
         }, accumulate, terminalValue);
@@ -245,7 +274,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public CommandsForKey.CommandLoader<?> cfkLoader()
+    public CommandLoader<?> cfkLoader()
     {
         return CommandsForKeySerializer.loader;
     }

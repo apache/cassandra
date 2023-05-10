@@ -69,6 +69,16 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         return EMPTY_TREE;
     }
 
+    public static <C extends Comparable<? super C>, D, I extends Interval<C, D>> Builder<C, D, I> builder()
+    {
+        return new Builder<>();
+    }
+
+    public Builder<C, D, I> unbuild()
+    {
+        return new Builder<C, D, I>().addAll(this);
+    }
+
     public int intervalCount()
     {
         return count;
@@ -365,6 +375,28 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
                 size += dataSerializer.serializedSize(interval.data);
             }
             return size;
+        }
+    }
+
+    public static class Builder<C extends Comparable<? super C>, D, I extends Interval<C, D>>
+    {
+        private final List<I> intervals = new ArrayList<>();
+
+        public Builder<C, D, I> addAll(IntervalTree<C, D, I> other)
+        {
+            other.forEach(intervals::add);
+            return this;
+        }
+
+        public Builder<C, D, I> add(I interval)
+        {
+            intervals.add(interval);
+            return this;
+        }
+
+        public IntervalTree<C, D, I> build()
+        {
+            return IntervalTree.build(intervals);
         }
     }
 }

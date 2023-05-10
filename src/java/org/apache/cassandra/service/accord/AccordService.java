@@ -302,6 +302,12 @@ public class AccordService implements IAccordService, Shutdownable
         ExecutorUtils.shutdownAndWait(timeout, unit, this);
     }
 
+    @VisibleForTesting
+    public Node node()
+    {
+        return node;
+    }
+
     private static Shutdownable toShutdownable(Node node)
     {
         return new Shutdownable() {
