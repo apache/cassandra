@@ -61,7 +61,7 @@ public class BytesSerializer extends TypeSerializer<ByteBuffer>
     }
 
     @Override
-    public boolean isNull(ByteBuffer buffer)
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
     {
         // !buffer.hasRemaining() is not "null" for bytes types, it is byte[0]
         return buffer == null;

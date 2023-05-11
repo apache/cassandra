@@ -64,7 +64,7 @@ public abstract class AbstractTextSerializer extends TypeSerializer<String>
     }
 
     @Override
-    public boolean isNull(ByteBuffer buffer)
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
     {
         // !buffer.hasRemaining() is not "null" for string types, it is the empty string
         return buffer == null;
