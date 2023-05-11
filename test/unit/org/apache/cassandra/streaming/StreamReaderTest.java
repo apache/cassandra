@@ -91,7 +91,7 @@ public class StreamReaderTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
     }
@@ -119,6 +119,7 @@ public class StreamReaderTest
     private static void clearAndSetPeerTokens(int...tokens)
     {
         ServerTestUtils.resetCMS();
+        ClusterMetadataTestHelper.register(broadcastAddress);
         Collection<Token> peerTokens = new HashSet<>();
         for (int token : tokens)
             peerTokens.add(token(token));
