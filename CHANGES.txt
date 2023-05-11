@@ -6,6 +6,7 @@
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
 Merged from 4.0:
+ * Fix quoting in toCqlString methods of UDTs and aggregates (CASSANDRA-17918)
  * NPE when deserializing malformed collections from client (CASSANDRA-18505)
  * Improve 'Not enough space for compaction' logging messages (CASSANDRA-18260)
  * Incremental repairs fail on mixed IPv4/v6 addresses serializing SyncRequest (CASSANDRA-18474)
