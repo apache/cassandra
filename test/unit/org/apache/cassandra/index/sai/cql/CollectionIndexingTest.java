@@ -178,7 +178,6 @@ public class CollectionIndexingTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk int primary key, value map<int, text>)");
         createIndex(createIndex);
-        waitForIndexQueryable();
         execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 1, new HashMap<Integer, String>() {{
             put(1, "v1");
             put(2, "v2");
@@ -194,7 +193,6 @@ public class CollectionIndexingTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk int primary key, value frozen<map<int, text>>)");
         createIndex(createIndex);
-        waitForIndexQueryable();
         execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 1, new HashMap<Integer, String>() {{
             put(1, "v1");
             put(2, "v2");
@@ -210,7 +208,6 @@ public class CollectionIndexingTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk int primary key, value frozen<list<int>>)");
         createIndex(createIndex);
-        waitForIndexQueryable();
         execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 1, Arrays.asList(1, 2, 3));
         execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 2, Arrays.asList(1, 2, 3));
         execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 3, Arrays.asList(4, 5, 6));

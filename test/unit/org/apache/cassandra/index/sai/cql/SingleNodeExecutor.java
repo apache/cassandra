@@ -43,9 +43,9 @@ public class SingleNodeExecutor implements BaseDataModel.Executor
     }
 
     @Override
-    public void waitForIndexQueryable(String keyspace, String table)
+    public void waitForIndexQueryable(String keyspace, String index)
     {
-        tester.waitForIndexQueryable(keyspace, table);
+        tester.waitForIndexQueryable(keyspace, index);
     }
 
     @Override
