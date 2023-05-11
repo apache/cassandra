@@ -322,6 +322,32 @@ public class ColumnFilterTest
         assertCellFetchedQueried(false, false, filter, s2, path1);
     }
 
+    @Test
+    public void testColumnNotFound()
+    {
+        ColumnMetadata missing = ColumnMetadata.regularColumn("ks", "table", "missing", Int32Type.instance);
+        ColumnFilter filter = ColumnFilter.selectionBuilder()
+                                          .add(v1)
+                                          .add(s1)
+                                          .add(missing)
+                                          .slice(v2, path0, path2)
+                                          .select(v2, path4)
+                                          .select(s2, path0)
+                                          .slice(s2, path2, path4)
+                                          .build();
+        //metadata.colum
+        //filter.queriedColumns();
+        //filter.
+        testRoundTrips(filter);
+        assertEquals("[s1, s2[0], s2[2:4], v1, v2[0:2], v2[4]]", filter.toString());
+        assertEquals("s1, s2[0], s2[2:4], v1, v2[0:2], v2[4]", filter.toCQLString());
+        assertFetchedQueried(true, true, filter, v1, v2, s1, s2);
+        assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path4);
+        assertCellFetchedQueried(false, false, filter, v2, path3);
+        assertCellFetchedQueried(true, true, filter, s2, path0, path2, path3, path4);
+        assertCellFetchedQueried(false, false, filter, s2, path1);
+    }
+
     // select with metadata
 
     @Test
