@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +51,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -64,9 +64,11 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.isEmpty;
@@ -605,40 +607,45 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             Set<InetAddressAndPort> preC15897nodes = new HashSet<>();
             Set<InetAddressAndPort> with2xSStables = new HashSet<>();
             Splitter onComma = Splitter.on(',').omitEmptyStrings().trimResults();
-            for (InetAddressAndPort node : ClusterMetadata.current().directory.allAddresses())
+            Directory directory = ClusterMetadata.current().directory;
+            for (InetAddressAndPort node : directory.allAddresses())
             {
-                if (MessagingService.instance().versions.knows(node) &&
-                    MessagingService.instance().versions.getRaw(node) < MessagingService.VERSION_40)
+
+                CassandraVersion version = directory.version(directory.peerId(node)).cassandraVersion;
+
+                if (version.compareTo(CassandraVersion.CASSANDRA_4_0) < 0)
                 {
+                    // if the cluster contains any pre-4.0 nodes (which really shouldn't be the case), reject this
+                    // operation as we can't be certain all peers can support it.
                     before4.add(node);
-                    continue;
                 }
-
-                String sstableVersionsString = Gossiper.instance.getApplicationState(node, ApplicationState.SSTABLE_VERSIONS);
-                if (sstableVersionsString == null)
+                else
                 {
-                    preC15897nodes.add(node);
-                    continue;
-                }
-
-                try
-                {
-                    boolean has2xSStables = onComma.splitToList(sstableVersionsString)
-                                                   .stream()
-                                                   .anyMatch(v -> v.compareTo("big-ma")<=0);
-                    if (has2xSStables)
-                        with2xSStables.add(node);
-                }
-                catch (IllegalArgumentException e)
-                {
-                    // Means VersionType::fromString didn't parse a version correctly. Which shouldn't happen, we shouldn't
-                    // have garbage in Gossip. But crashing the request is not ideal, so we log the error but ignore the
-                    // node otherwise.
-                    noSpamLogger.error("Unexpected error parsing sstable versions from gossip for {} (gossiped value " +
-                                       "is '{}'). This is a bug and should be reported. Cannot ensure that {} has no " +
-                                       "non-upgraded 2.x sstables anymore. If after this DROP COMPACT STORAGE some old " +
-                                       "sstables cannot be read anymore, please use `upgradesstables` with the " +
-                                       "`--force-compact-storage-on` option.", node, sstableVersionsString, node);
+                    // any peer on a version greater than 4.0.0 must include CASSANDRA-15897, so just check that
+                    // its min sstable version. Note: this app state may be empty/unset if the full StorageService
+                    // initialisation hasn't been done, i.e. in tests.
+                    String sstableVersionsString = Gossiper.instance.getApplicationState(node, ApplicationState.SSTABLE_VERSIONS);
+                    if (Strings.isNullOrEmpty(sstableVersionsString))
+                        continue;
+                    try
+                    {
+                        boolean has2xSStables = onComma.splitToList(sstableVersionsString)
+                                                       .stream()
+                                                       .anyMatch(v -> v.compareTo("big-ma")<=0);
+                        if (has2xSStables)
+                            with2xSStables.add(node);
+                    }
+                    catch (IllegalArgumentException e)
+                    {
+                        // Means VersionType::fromString didn't parse a version correctly. Which shouldn't happen, we shouldn't
+                        // have garbage in Gossip. But crashing the request is not ideal, so we log the error but ignore the
+                        // node otherwise.
+                        noSpamLogger.error("Unexpected error parsing sstable versions from gossip for {} (gossiped value " +
+                                           "is '{}'). This is a bug and should be reported. Cannot ensure that {} has no " +
+                                           "non-upgraded 2.x sstables anymore. If after this DROP COMPACT STORAGE some old " +
+                                           "sstables cannot be read anymore, please use `upgradesstables` with the " +
+                                           "`--force-compact-storage-on` option.", node, sstableVersionsString, node);
+                    }
                 }
             }
 
@@ -646,10 +653,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw new InvalidRequestException(format("Cannot DROP COMPACT STORAGE as some nodes in the cluster (%s) " +
                                                          "are not on 4.0+ yet. Please upgrade those nodes and run " +
                                                          "`upgradesstables` before retrying.", before4));
-            if (!preC15897nodes.isEmpty())
-                throw new InvalidRequestException(format("Cannot guarantee that DROP COMPACT STORAGE is safe as some nodes " +
-                                                         "in the cluster (%s) do not have https://issues.apache.org/jira/browse/CASSANDRA-15897. " +
-                                                         "Please upgrade those nodes and retry.", preC15897nodes));
             if (!with2xSStables.isEmpty())
                 throw new InvalidRequestException(format("Cannot DROP COMPACT STORAGE as some nodes in the cluster (%s) " +
                                                          "has some non-upgraded 2.x sstables. Please run `upgradesstables` " +
