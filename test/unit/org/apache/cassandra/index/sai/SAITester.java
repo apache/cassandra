@@ -97,7 +97,6 @@ import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.codecs.CodecUtil;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;
@@ -118,8 +117,6 @@ public abstract class SAITester extends CQLTester
     protected static final String CREATE_INDEX_TEMPLATE = "CREATE CUSTOM INDEX IF NOT EXISTS ON %%s(%s) USING 'StorageAttachedIndex'";
 
     protected static final ColumnIdentifier V1_COLUMN_IDENTIFIER = ColumnIdentifier.getInterned("v1", true);
-
-    protected static final int ASSERTION_TIMEOUT_SECONDS = 15;
 
     protected static final Injections.Counter indexBuildCounter = Injections.newCounter("IndexBuildCounter")
                                                                             .add(newInvokePoint().onClass(CompactionManager.class)
@@ -273,7 +270,7 @@ public abstract class SAITester extends CQLTester
         cfs.indexManager.executePreJoinTasksBlocking(true);
         if (wait)
         {
-            waitForIndexQueryable();
+            waitForTableIndexesQueryable();
         }
     }
 
@@ -297,36 +294,10 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    protected void waitForAssert(Runnable runnableAssert, long timeout, TimeUnit unit)
-    {
-        Awaitility.await().dontCatchUncaughtExceptions().atMost(timeout, unit).untilAsserted(runnableAssert::run);
-    }
-
-    protected void waitForAssert(Runnable assertion)
-    {
-        waitForAssert(assertion, ASSERTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-    }
-
     protected boolean indexNeedsFullRebuild(String index)
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         return cfs.indexManager.needsFullRebuild(index);
-    }
-
-    protected boolean isIndexQueryable()
-    {
-        return isIndexQueryable(KEYSPACE, currentTable());
-    }
-
-    protected boolean isIndexQueryable(String keyspace, String table)
-    {
-        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-        for (Index index : cfs.indexManager.listIndexes())
-        {
-            if (!cfs.indexManager.isIndexQueryable(index))
-                return false;
-        }
-        return true;
     }
 
     protected void verifyInitialIndexFailed(String indexName)
@@ -386,16 +357,6 @@ public abstract class SAITester extends CQLTester
             throw new RuntimeException(e);
         }
         return metricValue;
-    }
-
-    public void waitForIndexQueryable()
-    {
-        waitForIndexQueryable(KEYSPACE, currentTable());
-    }
-
-    public void waitForIndexQueryable(String keyspace, String table)
-    {
-        waitForAssert(() -> assertTrue(isIndexQueryable(keyspace, table)), 60, TimeUnit.SECONDS);
     }
 
     public void waitForCompactions()

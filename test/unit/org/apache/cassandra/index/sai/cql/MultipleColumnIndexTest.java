@@ -46,8 +46,6 @@ public class MultipleColumnIndexTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(values(text_map)) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(entries(text_map)) USING 'StorageAttachedIndex'");
 
-        waitForIndexQueryable();
-
         execute("INSERT INTO %s(id, text_map) values (1, {'k1':'v1', 'k2':'v2'})");
         execute("INSERT INTO %s(id, text_map) values (2, {'k1':'v1', 'k3':'v3'})");
         execute("INSERT INTO %s(id, text_map) values (3, {'k4':'v4', 'k5':'v5'})");

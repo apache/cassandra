@@ -169,7 +169,6 @@ public abstract class SegmentFlushingFailureTester extends SAITester
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
         String table2 = createTable(CREATE_TABLE_TEMPLATE);
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
 
         assertEquals(expectedBytesLimit(), getSegmentBufferSpaceLimit());
         assertEquals("Segment buffer memory tracker should start at zero!", 0L, getSegmentBufferUsedBytes());

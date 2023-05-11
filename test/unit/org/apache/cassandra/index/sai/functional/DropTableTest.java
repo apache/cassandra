@@ -50,7 +50,6 @@ public class DropTableTest extends SAITester
     {
         createTable(CREATE_TABLE_TEMPLATE);
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
 
         int rows = 100;
         for (int j = 0; j < rows; j++)

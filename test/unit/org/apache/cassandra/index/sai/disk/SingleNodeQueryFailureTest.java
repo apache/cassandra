@@ -73,7 +73,6 @@ public class SingleNodeQueryFailureTest extends SAITester
 
         createTable(CREATE_TABLE_TEMPLATE);
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, v1) VALUES ('1', '0')");
         flush();

@@ -169,14 +169,22 @@ class BaseDataModel
 
     public void createIndexes(Executor tester) throws Throwable
     {
-        String template = "CREATE CUSTOM INDEX ndi_%s_index_%s ON %%s (%s) USING 'StorageAttachedIndex'";
+        createIndexes(tester, columns);
+    }
+
+    protected void createIndexes(Executor tester, List<Pair<String, String>> columns) throws Throwable
+    {
+        String indexNameTemplate = "sai_%s_index_%s";
+        String createIndexTemplate = "CREATE CUSTOM INDEX %s ON %%s (%s) USING 'StorageAttachedIndex'";
 
         for (Pair<String, String> column : columns)
         {
-            if (!skipColumns.contains(column.left))
+            String columnName = column.left;
+            if (!skipColumns.contains(columnName))
             {
-                executeLocalIndexed(tester, String.format(template, column.left, indexedTable, column.left));
-                tester.waitForIndexQueryable(KEYSPACE, indexedTable);
+                String indexName = String.format(indexNameTemplate, columnName, indexedTable);
+                executeLocalIndexed(tester, String.format(createIndexTemplate, indexName, columnName));
+                tester.waitForIndexQueryable(KEYSPACE, indexName);
             }
         }
     }
@@ -294,16 +302,7 @@ class BaseDataModel
         public void createIndexes(Executor tester) throws Throwable
         {
             super.createIndexes(tester);
-            String template = "CREATE CUSTOM INDEX ndi_%s_index_%s ON %%s (%s) USING 'StorageAttachedIndex'";
-
-            for (Pair<String, String> column : keyColumns)
-            {
-                if (!skipColumns.contains(column.left))
-                {
-                    executeLocalIndexed(tester, String.format(template, column.left, indexedTable, column.left));
-                    tester.waitForIndexQueryable(KEYSPACE, indexedTable);
-                }
-            }
+            createIndexes(tester, keyColumns);
         }
 
         @Override
@@ -383,7 +382,7 @@ class BaseDataModel
     {
         void createTable(String statement);
 
-        void waitForIndexQueryable(String keyspace, String table);
+        void waitForIndexQueryable(String keyspace, String index);
 
         void executeLocal(String query, Object...values) throws Throwable;
 

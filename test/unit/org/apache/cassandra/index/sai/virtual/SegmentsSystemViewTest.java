@@ -92,7 +92,6 @@ public class SegmentsSystemViewTest extends SAITester
     {
         createTable("CREATE TABLE %s (k int, c int, v1 text, PRIMARY KEY (k, c))");
         String literalIndex = createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
 
         int num = 100;
 

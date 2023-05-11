@@ -107,8 +107,8 @@ public class SecondaryIndexTest extends CQLTester
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
 
         createTable("CREATE TABLE %s (a int primary key, b int);");
-        createIndex("CREATE INDEX " + indexName + " ON %s(b);");
-        createIndex("CREATE INDEX IF NOT EXISTS " + indexName + " ON %s(b);");
+        createIndexAsync("CREATE INDEX " + indexName + " ON %s(b);");
+        createIndexAsync("CREATE INDEX IF NOT EXISTS " + indexName + " ON %s(b);");
 
         assertInvalidMessage(format("Index '%s' already exists",
                                     removeQuotes(indexName.toLowerCase(Locale.US))),
@@ -117,7 +117,7 @@ public class SecondaryIndexTest extends CQLTester
         // IF NOT EXISTS should apply in cases where the new index differs from an existing one in name only
         String otherIndexName = "index_" + nanoTime();
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
-        createIndex("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
+        createIndexAsync("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
         assertInvalidMessage(format("Index %s is a duplicate of existing index %s",
                                     removeQuotes(otherIndexName.toLowerCase(Locale.US)),
@@ -254,7 +254,7 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testIndexOnComposite() throws Throwable
     {
-        String tableName = createTable("CREATE TABLE %s (blog_id int, timestamp int, author text, content text, PRIMARY KEY (blog_id, timestamp))");
+        createTable("CREATE TABLE %s (blog_id int, timestamp int, author text, content text, PRIMARY KEY (blog_id, timestamp))");
 
         execute("INSERT INTO %s (blog_id, timestamp, author, content) VALUES (?, ?, ?, ?)", 0, 0, "bob", "1st post");
         execute("INSERT INTO %s (blog_id, timestamp, author, content) VALUES (?, ?, ?, ?)", 0, 1, "tom", "2nd post");
@@ -263,8 +263,6 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s (blog_id, timestamp, author, content) VALUES (?, ?, ?, ?)", 1, 0, "bob", "5th post");
 
         createIndex("CREATE INDEX authoridx ON %s (author)");
-
-        assertTrue(waitForIndex(keyspace(), tableName, "authoridx"));
 
         beforeAndAfterFlush(() -> {
             assertRows(execute("SELECT blog_id, timestamp FROM %s WHERE author = 'bob'"),
@@ -618,14 +616,13 @@ public class SecondaryIndexTest extends CQLTester
     @Test
     public void testCanQuerySecondaryIndex() throws Throwable
     {
-        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v int,)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int,)");
 
         execute("ALTER TABLE %s WITH CACHING = { 'keys': 'ALL', 'rows_per_partition': 'ALL' }");
         execute("INSERT INTO %s (k,v) VALUES (0,0)");
         execute("INSERT INTO %s (k,v) VALUES (1,1)");
 
         createIndex("CREATE INDEX testindex on %s (v)");
-        assertTrue(waitForIndex(keyspace(), tableName, "testindex"));
 
         assertRows(execute("SELECT k FROM %s WHERE v = 0"), row(0));
         cleanupCache();
@@ -1040,7 +1037,7 @@ public class SecondaryIndexTest extends CQLTester
             for (int j = 0; j < 10; j++)
                 execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", i, j, i + j);
 
-        createIndex("CREATE CUSTOM INDEX testIndex ON %s (value) USING '" + IndexBlockingOnInitialization.class.getName() + "'");
+        createIndexAsync("CREATE CUSTOM INDEX testIndex ON %s (value) USING '" + IndexBlockingOnInitialization.class.getName() + "'");
         try
         {
             execute("SELECT value FROM %s WHERE value = 2");
@@ -1060,9 +1057,8 @@ public class SecondaryIndexTest extends CQLTester
     public void testReadOnlyIndex() throws Throwable
     {
         // On successful initialization both reads and writes go through
-        String tableName = createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
+        createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
         String indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
-        assertTrue(waitForIndex(keyspace(), tableName, indexName));
         execute("SELECT value FROM %s WHERE value = 1");
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         ReadOnlyOnFailureIndex index = (ReadOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
@@ -1078,9 +1074,9 @@ public class SecondaryIndexTest extends CQLTester
 
         // On bad initial build writes are not forwarded to the index
         ReadOnlyOnFailureIndex.failInit = true;
-        indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
+        indexName = createIndexAsync("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
         index = (ReadOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
-        assertTrue(waitForIndexBuilds(keyspace(), indexName));
+        waitForIndexBuilds(indexName);
         assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         assertEquals(0, index.rowsInserted.size());
@@ -1099,9 +1095,8 @@ public class SecondaryIndexTest extends CQLTester
     public void testWriteOnlyIndex() throws Throwable
     {
         // On successful initialization both reads and writes go through
-        String tableName = createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
+        createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
         String indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + WriteOnlyOnFailureIndex.class.getName() + "'");
-        assertTrue(waitForIndex(keyspace(), tableName, indexName));
         execute("SELECT value FROM %s WHERE value = 1");
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         WriteOnlyOnFailureIndex index = (WriteOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
@@ -1117,9 +1112,9 @@ public class SecondaryIndexTest extends CQLTester
 
         // On bad initial build writes are forwarded to the index
         WriteOnlyOnFailureIndex.failInit = true;
-        indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + WriteOnlyOnFailureIndex.class.getName() + "'");
+        indexName = createIndexAsync("CREATE CUSTOM INDEX ON %s (value) USING '" + WriteOnlyOnFailureIndex.class.getName() + "'");
         index = (WriteOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
-        assertTrue(waitForIndexBuilds(keyspace(), indexName));
+        waitForIndexBuilds(indexName);
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         assertEquals(1, index.rowsInserted.size());
         assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
@@ -1449,7 +1444,7 @@ public class SecondaryIndexTest extends CQLTester
     public void testIndexOnFrozenUDT() throws Throwable
     {
         String type = createType("CREATE TYPE %s (a int)");
-        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + type + ">)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + type + ">)");
 
         Object udt1 = userType("a", 1);
         Object udt2 = userType("a", 2);
@@ -1459,7 +1454,6 @@ public class SecondaryIndexTest extends CQLTester
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt2);
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt1);
-        assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
         assertRows(execute("SELECT * FROM %s WHERE v = ?", udt1), row(1, udt1), row(0, udt1));
         assertEmpty(execute("SELECT * FROM %s WHERE v = ?", udt2));
@@ -1478,7 +1472,7 @@ public class SecondaryIndexTest extends CQLTester
     public void testIndexOnFrozenCollectionOfUDT() throws Throwable
     {
         String type = createType("CREATE TYPE %s (a int)");
-        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<frozen<" + type + ">>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<frozen<" + type + ">>>)");
 
         Object udt1 = userType("a", 1);
         Object udt2 = userType("a", 2);
@@ -1489,7 +1483,6 @@ public class SecondaryIndexTest extends CQLTester
         String indexName = createIndex("CREATE INDEX ON %s (full(v))");
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
-        assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
@@ -1511,7 +1504,7 @@ public class SecondaryIndexTest extends CQLTester
     public void testIndexOnNonFrozenCollectionOfFrozenUDT() throws Throwable
     {
         String type = createType("CREATE TYPE %s (a int)");
-        String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<frozen<" + type + ">>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<frozen<" + type + ">>)");
 
         Object udt1 = userType("a", 1);
         Object udt2 = userType("a", 2);
@@ -1525,7 +1518,6 @@ public class SecondaryIndexTest extends CQLTester
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
         execute("UPDATE %s SET v = v + ? WHERE k = ?", set(udt2), 1);
-        assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
         assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt1), row(1, set(udt1, udt2)));
         assertRows(execute("SELECT * FROM %s WHERE v CONTAINS ?", udt2), row(1, set(udt1, udt2)), row(2, set(udt2)));

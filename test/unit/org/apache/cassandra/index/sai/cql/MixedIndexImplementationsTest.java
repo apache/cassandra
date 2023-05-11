@@ -41,7 +41,6 @@ public class MixedIndexImplementationsTest extends SAITester
         String ossIndex = createIndex("CREATE INDEX ON %s(v1)");
         String ndiIndex = createIndex(
                 String.format("CREATE CUSTOM INDEX ON %%s(v2) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // drop non-storage-attached index when a SAI index exists
         dropIndex("DROP INDEX %s." + ossIndex);
@@ -67,8 +66,6 @@ public class MixedIndexImplementationsTest extends SAITester
         execute(insert, 1, 0, 1);
         execute(insert, 2, 1, 0);
         execute(insert, 3, 1, 1);
-
-        waitForIndexQueryable();
 
         String ossSelect = "SELECT * FROM %s WHERE v1 = ?";
         assertRowsIgnoringOrder(execute(ossSelect, 0), new Object[][]{{0, 0, 0}, {1, 0, 1}});
@@ -99,7 +96,6 @@ public class MixedIndexImplementationsTest extends SAITester
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c3) USING '%s'", StorageAttachedIndex.class.getName()));
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(r1) USING '%s'", StorageAttachedIndex.class.getName()));
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(r2) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // without using the not-SAI index
         testAllowFiltering("SELECT * FROM %s", false);
