@@ -665,6 +665,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return instanceMap.get(addr);
     }
 
+    public List<I> get(int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            throw new IllegalArgumentException("No nodes provided");
+        List<I> list = new ArrayList<>(nodes.length);
+        for (int i : nodes)
+            list.add(get(i));
+        return list;
+    }
+
     public I getFirstRunningInstance()
     {
         return stream().filter(i -> !i.isShutdown()).findFirst().orElseThrow(
