@@ -497,7 +497,7 @@ public class UserType extends TupleType implements SchemaElement
                 builder.append(",")
                        .newLine();
 
-            builder.append(fieldNameAsString(i))
+            builder.appendQuotingIfNeeded(fieldNameAsString(i))
                    .append(' ')
                    .append(fieldType(i));
         }
