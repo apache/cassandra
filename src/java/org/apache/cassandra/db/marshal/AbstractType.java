@@ -496,7 +496,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     // This assumes that no empty values are passed
     public  <V> void writeValue(V value, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
     {
-        assert !accessor.isEmpty(value) : "bytes should not be empty for type " + this;
+        assert !getSerializer().isNull(value, accessor) : "bytes should not be null for type " + this;
         int expectedValueLength = valueLengthIfFixed();
         if (expectedValueLength >= 0)
         {

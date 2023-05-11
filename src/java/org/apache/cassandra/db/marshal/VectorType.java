@@ -273,8 +273,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
             for (int i = 0; i < dimension; i++)
             {
                 Object value = values.get(i);
-                if (value == null || (value instanceof ByteBuffer && ByteBufferAccessor.instance.isEmpty((ByteBuffer) value)))
-                    throw new MarshalException(String.format("Element at index %d is null; given %s", i, values));
+                if (value == null || (value instanceof ByteBuffer && elementSerializer.isNull((ByteBuffer) value)))
+                    throw new MarshalException(String.format("Element at index %d is null (expected type %s); given %s", i, elementType.asCQL3Type(), values));
             }
         }
     }
