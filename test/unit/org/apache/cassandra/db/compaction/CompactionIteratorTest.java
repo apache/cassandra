@@ -29,9 +29,11 @@ import java.util.regex.Pattern;
 
 import com.google.common.collect.*;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -61,26 +63,29 @@ public class CompactionIteratorTest extends CQLTester
     private static final String KSNAME = "CompactionIteratorTest";
     private static final String CFNAME = "Integer1";
 
-    static final DecoratedKey kk;
-    static final TableMetadata metadata;
+    private static final DecoratedKey kk;
+    private static final TableMetadata metadata;
     private static final int RANGE = 1000;
     private static final int COUNT = 100;
 
     Map<List<Unfiltered>, DeletionTime> deletionTimes = new HashMap<>();
 
-    static {
-        DatabaseDescriptor.daemonInitialization();
-
+    static
+    {
         kk = Util.dk("key");
+        metadata = SchemaLoader.standardCFMD(KSNAME,
+                                             CFNAME,
+                                             1,
+                                             UTF8Type.instance,
+                                             Int32Type.instance,
+                                             Int32Type.instance).build();
+    }
 
-        SchemaLoader.createKeyspace(KSNAME,
-                                    KeyspaceParams.simple(1),
-                                    metadata = SchemaLoader.standardCFMD(KSNAME,
-                                                                         CFNAME,
-                                                                         1,
-                                                                         UTF8Type.instance,
-                                                                         Int32Type.instance,
-                                                                         Int32Type.instance).build());
+    @BeforeClass
+    public static void setupClass()
+    {
+        SchemaLoader.createKeyspace(KSNAME, KeyspaceParams.simple(1), metadata);
+        ServerTestUtils.markCMS();
     }
 
     // See org.apache.cassandra.db.rows.UnfilteredRowsGenerator.parse for the syntax used in these tests.
