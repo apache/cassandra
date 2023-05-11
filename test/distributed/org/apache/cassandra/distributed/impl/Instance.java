@@ -22,10 +22,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,12 +47,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
@@ -175,11 +174,10 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_RMI_PORT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
@@ -791,11 +789,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         initialized = true;
     }
 
-    private void startJmx()
+    private void startJmx() throws InterruptedException
     {
         try
         {
-            IS_DISABLED_MBEAN_REGISTRATION.setBoolean(false);
+            ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(false);
             InetAddress addr = config.broadcastAddress().getAddress();
 
             int jmxPort = config.jmxPort();
@@ -830,7 +828,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // Set the port used to create subsequent connections to exported objects over RMI. This simplifies
             // configuration in firewalled environments, but it can't be used in conjuction with SSL sockets.
             // See: CASSANDRA-7087
-            int rmiPort = COM_SUN_MANAGEMENT_JMXREMOTE_RMI_PORT.getInt();
+            int rmiPort = config.jmxPort();
 
             // We create the underlying RMIJRMPServerImpl so that we can manually bind it to the registry,
             // rather then specifying a binding address in the JMXServiceURL and letting it be done automatically
@@ -844,14 +842,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                                  (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
                                                  env);
             JMXServiceURL serviceURL = new JMXServiceURL("rmi", hostname, rmiPort);
-            jmxConnectorServer = new RMIConnectorServer(serviceURL, env, jmxRmiServer, wrapper.getMBeanServer());
+            jmxConnectorServer = new RMIConnectorServer(serviceURL, env, jmxRmiServer, wrapper.getMbs());
 
             jmxConnectorServer.start();
 
-            IS_DISABLED_MBEAN_REGISTRATION.setBoolean(false);
-
             registry.setRemoteServerStub(jmxRmiServer.toStub());
             JMXServerUtils.logJmxServiceUrl(addr, jmxPort);
+            waitForJmxAvailability(hostname, jmxPort);
         }
         catch (IOException e)
         {
@@ -859,62 +856,83 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    private void stopJmx() throws ClassNotFoundException, IllegalAccessException, InvocationTargetException, NoSuchMethodException, IOException, NoSuchFieldException, InterruptedException
+    private void waitForJmxAvailability(String hostname, int rmiPort) throws InterruptedException, MalformedURLException
+    {
+        String url = String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", hostname, rmiPort);
+        JMXServiceURL serviceURL = new JMXServiceURL(url);
+        int attempts = 0;
+        Throwable lastThrown = null;
+        while (attempts < 20)
+        {
+            attempts++;
+            try (JMXConnector ignored = JMXConnectorFactory.connect(serviceURL, null))
+            {
+                inInstancelogger.info("Connected to JMX server at {} after {} attempt(s)",
+                                      url, attempts);
+                return;
+            }
+            catch (MalformedURLException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (Throwable thrown)
+            {
+                lastThrown = thrown;
+            }
+            inInstancelogger.info("Could not connect to JMX on {} after {} attempts. Will retry.", url, attempts);
+            Thread.sleep(1000);
+        }
+        throw new RuntimeException("Could not start JMX - unreachable after 20 attempts", lastThrown);
+    }
+
+    private void stopJmx() throws IllegalAccessException, NoSuchFieldException, InterruptedException
     {
         if (!config.has(JMX))
             return;
         // First, swap the mbean wrapper back to a NoOp wrapper
         // This prevents later attempts to unregister mbeans from failing in Cassandra code, as we're going to
         // unregister all of them here
-        ((MBeanWrapper.DelegatingMbeanWrapper)MBeanWrapper.instance).setDelegate(new MBeanWrapper.NoOpMBeanWrapper());
-        try {
+        ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(new MBeanWrapper.NoOpMBeanWrapper());
+        try
+        {
             wrapper.close();
-        } catch (Throwable e) {
+        }
+        catch (Throwable e)
+        {
             inInstancelogger.warn("failed to close wrapper.", e);
         }
-        try {
+        try
+        {
             jmxConnectorServer.stop();
-        } catch (Throwable e) {
+        }
+        catch (Throwable e)
+        {
             inInstancelogger.warn("failed to close jmxConnectorServer.", e);
         }
-        try {
+        try
+        {
             registry.close();
-        } catch (Throwable e) {
+        }
+        catch (Throwable e)
+        {
             inInstancelogger.warn("failed to close registry.", e);
         }
-        try {
+        try
+        {
             serverSocketFactory.close();
-        } catch (Throwable e) {
+        }
+        catch (Throwable e)
+        {
             inInstancelogger.warn("failed to close serverSocketFactory.", e);
         }
         // The TCPEndpoint class holds references to a class in the in-jvm dtest framework
         // which transitively has a reference to the InstanceClassLoader, so we need to
         // make sure to remove the reference to them when the instance is shutting down
-        clearMapField(TCPEndpoint.class, null, "localEndpoints", this::endpointCreatedByThisClassloader);
-        Thread.sleep(2000); // Allow JMX background processes time to stop
+        clearMapField(TCPEndpoint.class, null, "localEndpoints");
     }
 
-    /**
-     * Checks to make sure the endpoint in question was created by the instance classloader
-     * for this instance to prevent us from over-removing items.
-     * @param entry The map entry to be checked
-     * @return true, if the TCPEndpoint in the map entry was created by the InstanceClassloader instance
-     *         created by this Instance. Otherwise, false.
-     */
-    private boolean endpointCreatedByThisClassloader(Map.Entry<TCPEndpoint, LinkedList> entry) {
-        RMIClientSocketFactory factory = entry.getKey().getClientSocketFactory();
-        return (factory != null && factory.getClass().getClassLoader() == classLoader);
-    }
-
-    private <K, V> void clearMapField(Class<?> clazz,
-                                      Object instance,
-                                      String mapName,
-                                      @Nullable Predicate<Map.Entry<K, V>> selector)
+    private <K, V> void clearMapField(Class<?> clazz, Object instance, String mapName)
     throws IllegalAccessException, NoSuchFieldException {
-        if (selector == null)
-        {
-            selector = (obj) -> true;
-        }
         Field mapField = clazz.getDeclaredField(mapName);
         mapField.setAccessible(true);
         Map<K, V> map = (Map<K, V>) mapField.get(instance);
@@ -924,9 +942,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             for (Iterator<Map.Entry<K, V>> it = map.entrySet().iterator(); it.hasNext(); )
             {
-                Map.Entry<K, V> entry = it.next();
-                if (selector.test(entry))
-                    it.remove();
+                it.next();
+                it.remove();
             }
         }
     }
@@ -1355,21 +1372,27 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
      * later close the sockets, which would otherwise be left with a thread running waiting for
      * connections that would never show up as the server was otherwise closed.
      */
-    private static class CollectingRMIServerSocketFactoryImpl extends RMIServerSocketFactoryImpl {
+    private static class CollectingRMIServerSocketFactoryImpl extends RMIServerSocketFactoryImpl
+    {
         List<ServerSocket> sockets = new ArrayList<>();
-        public CollectingRMIServerSocketFactoryImpl(InetAddress addr) {
+
+        public CollectingRMIServerSocketFactoryImpl(InetAddress addr)
+        {
             super(addr);
         }
 
         @Override
-        public ServerSocket createServerSocket(int pPort) throws IOException {
+        public ServerSocket createServerSocket(int pPort) throws IOException
+        {
             ServerSocket socket = super.createServerSocket(pPort);
             sockets.add(socket);
             return socket;
         }
 
-        public void close() throws IOException {
-            for (ServerSocket socket: sockets) {
+        public void close() throws IOException
+        {
+            for (ServerSocket socket : sockets)
+            {
                 socket.close();
             }
         }

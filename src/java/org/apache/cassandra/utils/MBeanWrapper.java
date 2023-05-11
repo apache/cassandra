@@ -19,12 +19,15 @@
 package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerFactory;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+import javax.management.QueryExp;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,15 +42,15 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.MBEAN_REGI
  */
 public interface MBeanWrapper
 {
-    static final Logger logger = LoggerFactory.getLogger(MBeanWrapper.class);
+    Logger logger = LoggerFactory.getLogger(MBeanWrapper.class);
 
-    static final MBeanWrapper instance = create();
+    MBeanWrapper instance = create();
 
     static MBeanWrapper create()
     {
         // If we're running in the in-jvm dtest environment, always use the delegating
         // mbean wrapper even if we start off with no-op, so it can be switched later
-        if (ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean())
+        if (IS_IN_JVM_DTEST.getBoolean())
             return new DelegatingMbeanWrapper(getmBeanWrapper());
 
         return getmBeanWrapper();
@@ -68,7 +71,7 @@ public interface MBeanWrapper
     }
 
     // Passing true for graceful will log exceptions instead of rethrowing them
-    public void registerMBean(Object obj, ObjectName mbeanName, OnException onException);
+    void registerMBean(Object obj, ObjectName mbeanName, OnException onException);
     default void registerMBean(Object obj, ObjectName mbeanName)
     {
         registerMBean(obj, mbeanName, OnException.THROW);
@@ -86,7 +89,7 @@ public interface MBeanWrapper
         registerMBean(obj, mbeanName, OnException.THROW);
     }
 
-    public boolean isRegistered(ObjectName mbeanName, OnException onException);
+    boolean isRegistered(ObjectName mbeanName, OnException onException);
     default boolean isRegistered(ObjectName mbeanName)
     {
         return isRegistered(mbeanName, OnException.THROW);
@@ -104,7 +107,7 @@ public interface MBeanWrapper
         return isRegistered(mbeanName, OnException.THROW);
     }
 
-    public void unregisterMBean(ObjectName mbeanName, OnException onException);
+    void unregisterMBean(ObjectName mbeanName, OnException onException);
     default void unregisterMBean(ObjectName mbeanName)
     {
         unregisterMBean(mbeanName, OnException.THROW);
@@ -135,7 +138,11 @@ public interface MBeanWrapper
         }
     }
 
-    static class NoOpMBeanWrapper implements MBeanWrapper
+    Set<ObjectName> queryNames(ObjectName name, QueryExp query);
+
+    MBeanServer getMbs();
+
+    class NoOpMBeanWrapper implements MBeanWrapper
     {
         public void registerMBean(Object obj, ObjectName mbeanName, OnException onException) {}
         public void registerMBean(Object obj, String mbeanName, OnException onException) {}
@@ -143,9 +150,11 @@ public interface MBeanWrapper
         public boolean isRegistered(String mbeanName, OnException onException) { return false; }
         public void unregisterMBean(ObjectName mbeanName, OnException onException) {}
         public void unregisterMBean(String mbeanName, OnException onException) {}
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query) {return Collections.emptySet(); }
+        public MBeanServer getMbs() {return null; }
     }
 
-    static class PlatformMBeanWrapper implements MBeanWrapper
+    class PlatformMBeanWrapper implements MBeanWrapper
     {
         private final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
@@ -184,9 +193,19 @@ public interface MBeanWrapper
                 onException.handler.accept(e);
             }
         }
+
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return mbs.queryNames(name, query);
+        }
+
+        public MBeanServer getMbs()
+        {
+            return mbs;
+        }
     }
 
-    static class InstanceMBeanWrapper implements MBeanWrapper
+    class InstanceMBeanWrapper implements MBeanWrapper
     {
         private final MBeanServer mbs;
         public final UUID id = UUID.randomUUID();
@@ -233,7 +252,12 @@ public interface MBeanWrapper
             }
         }
 
-        public MBeanServer getMBeanServer()
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return mbs.queryNames(name, query);
+        }
+
+        public MBeanServer getMbs()
         {
             return mbs;
         }
@@ -251,7 +275,8 @@ public interface MBeanWrapper
         }
     }
 
-    static class DelegatingMbeanWrapper implements MBeanWrapper {
+    class DelegatingMbeanWrapper implements MBeanWrapper
+    {
         MBeanWrapper delegate;
 
         public DelegatingMbeanWrapper(MBeanWrapper mBeanWrapper)
@@ -267,6 +292,7 @@ public interface MBeanWrapper
         {
             return delegate;
         }
+        
         public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
         {
             try
@@ -303,9 +329,19 @@ public interface MBeanWrapper
                 onException.handler.accept(e);
             }
         }
+
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return delegate.queryNames(name, query);
+        }
+
+        public MBeanServer getMbs()
+        {
+            return delegate.getMbs();
+        }
     }
 
-    public enum OnException
+    enum OnException
     {
         THROW(e -> { throw new RuntimeException(e); }),
         LOG(e -> { logger.error("Error in MBean wrapper: ", e); }),

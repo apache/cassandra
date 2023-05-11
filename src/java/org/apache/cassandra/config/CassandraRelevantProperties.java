@@ -245,10 +245,10 @@ public enum CassandraRelevantProperties
     INDEX_SUMMARY_EXPECTED_KEY_SIZE("cassandra.index_summary_expected_key_size", "64"),
     INITIAL_TOKEN("cassandra.initial_token"),
     INTERNODE_EVENT_THREADS("cassandra.internode-event-threads"),
-    /** This property indicates if the code is running under the in-jvm dtest framework */
-    IS_IN_JVM_DTEST("org.apache.cassandra.is_in_jvm_dtest"),
     IO_NETTY_EVENTLOOP_THREADS("io.netty.eventLoopThreads"),
     IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT("io.netty.transport.estimateSizeOnSubmit"),
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    IS_IN_JVM_DTEST("org.apache.cassandra.is_in_jvm_dtest"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES("javax.rmi.ssl.client.enabledCipherSuites"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS("javax.rmi.ssl.client.enabledProtocols"),
     /** Java class path. */

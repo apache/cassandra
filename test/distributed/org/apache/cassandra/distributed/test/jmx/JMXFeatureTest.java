@@ -18,26 +18,27 @@
 
 package org.apache.cassandra.distributed.test.jmx;
 
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import javax.management.MBeanServerConnection;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.INodeProvisionStrategy;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import javax.management.MBeanServerConnection;
-import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.startsWith;
 
-public class JMXFeatureTest extends TestBaseImpl {
+public class JMXFeatureTest extends TestBaseImpl
+{
 
     public static final String JMX_SERVICE_URL_FMT = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
 
@@ -46,6 +47,7 @@ public class JMXFeatureTest extends TestBaseImpl {
      * - Create a cluster with multiple JMX servers, one per instance
      * - Test that when connecting, we get the correct MBeanServer by checking the default domain, which is set to the IP of the instance
      * - Run the test multiple times to ensure cleanup of the JMX servers is complete so the next test can run successfully using the same host/port.
+     *
      * @throws Exception
      */
     @Test
@@ -53,12 +55,15 @@ public class JMXFeatureTest extends TestBaseImpl {
     {
         int iterations = 2; // Make sure the JMX infrastructure all cleans up properly by running this multiple times.
         Set<String> allInstances = new HashSet<>();
-        for (int i=0; i < iterations; i++) {
+        for (int i = 0; i < iterations; i++)
+        {
             try (Cluster cluster = Cluster.build(2)
                                           .withNodeProvisionStrategy(INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces)
-                                          .withConfig(c -> c.with(Feature.values())).start()) {
+                                          .withConfig(c -> c.with(Feature.values())).start())
+            {
                 Set<String> instancesContacted = new HashSet<>();
-                for (IInvokableInstance instance : cluster.get(1, 2)) {
+                for (IInvokableInstance instance : cluster.get(1, 2))
+                {
                     testInstance(instancesContacted, instance);
                 }
                 Assert.assertEquals("Should have connected with both JMX instances.", 2, instancesContacted.size());
@@ -73,12 +78,15 @@ public class JMXFeatureTest extends TestBaseImpl {
     {
         int iterations = 2; // Make sure the JMX infrastructure all cleans up properly by running this multiple times.
         Set<String> allInstances = new HashSet<>();
-        for (int i=0; i < iterations; i++) {
+        for (int i = 0; i < iterations; i++)
+        {
             try (Cluster cluster = Cluster.build(2)
                                           .withNodeProvisionStrategy(INodeProvisionStrategy.Strategy.OneNetworkInterface)
-                                          .withConfig(c -> c.with(Feature.values())).start()) {
+                                          .withConfig(c -> c.with(Feature.values())).start())
+            {
                 Set<String> instancesContacted = new HashSet<>();
-                for (IInvokableInstance instance : cluster.get(1, 2)) {
+                for (IInvokableInstance instance : cluster.get(1, 2))
+                {
                     testInstance(instancesContacted, instance);
                 }
                 Assert.assertEquals("Should have connected with both JMX instances.", 2, instancesContacted.size());
@@ -88,7 +96,7 @@ public class JMXFeatureTest extends TestBaseImpl {
         Assert.assertEquals("Each instance from each cluster should have been unique", iterations * 2, allInstances.size());
     }
 
-    private static void testInstance(Set<String> instancesContacted, IInvokableInstance instance) throws IOException
+    private void testInstance(Set<String> instancesContacted, IInvokableInstance instance) throws IOException
     {
         // NOTE: At some point, the hostname of the broadcastAddress can be resolved
         // and then the `getHostString`, which would otherwise return the IP address,
@@ -96,7 +104,8 @@ public class JMXFeatureTest extends TestBaseImpl {
         String jmxHost = instance.config().broadcastAddress().getAddress().getHostAddress();
         int jmxPort = instance.config().jmxPort();
         String url = String.format(JMX_SERVICE_URL_FMT, jmxHost, jmxPort);
-        try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null)) {
+        try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null))
+        {
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
             // instances get their default domain set to their IP address, so us it
             // to check that we are actually connecting to the correct instance

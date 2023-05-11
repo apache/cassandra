@@ -95,7 +95,6 @@ public interface INodeProvisionStrategy
                         return 9042;
                     }
 
-                    @Override
                     public int jmxPort(int nodeNum)
                     {
                         return 7199;

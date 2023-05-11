@@ -384,7 +384,7 @@ public class JMXServerUtils
             {
                 UnicastRemoteObject.unexportObject(this, true);
             }
-            catch (NoSuchObjectException e)
+            catch (NoSuchObjectException ignored)
             {
                 // Ignore if it's already unexported
             }
