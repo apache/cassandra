@@ -28,7 +28,7 @@ public class SystemPropertiesBasedFileSystemOwnershipCheckTest extends AbstractF
     public void setup()
     {
         super.setup();
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey(), token);
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey(), "true");
+        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.setString(token);
+        CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.setBoolean(true);
     }
 }

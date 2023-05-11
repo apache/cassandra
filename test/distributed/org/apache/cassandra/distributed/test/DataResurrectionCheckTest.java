@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -40,6 +39,7 @@ import org.apache.cassandra.utils.Clock.Global;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD;
 import static org.apache.cassandra.config.StartupChecksOptions.ENABLED_PROPERTY;
 import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -62,7 +62,7 @@ public class DataResurrectionCheckTest extends TestBaseImpl
         try
         {
             // set it to 1 hour so check will be not updated after it is written, for test purposes
-            System.setProperty(CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.getKey(), "3600000");
+            CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.setInt(3600000);
 
             // start the node with the check enabled, it will just pass fine as there are not any user tables yet
             // and system tables are young enough
@@ -131,7 +131,7 @@ public class DataResurrectionCheckTest extends TestBaseImpl
         }
         finally
         {
-            System.clearProperty(CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.getKey());
+            CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.clearValue();
         }
     }
 

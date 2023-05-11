@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.vint.VIntCoding;
 import org.assertj.core.util.VisibleForTesting;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_MAX_HINT_TTL;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -59,7 +60,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public final class Hint
 {
     public static final Serializer serializer = new Serializer();
-    static final int maxHintTTL = Integer.getInteger("cassandra.maxHintTTL", Integer.MAX_VALUE);
+    static final int maxHintTTL = CASSANDRA_MAX_HINT_TTL.getInt();
 
     final Mutation mutation;
     final long creationTime;  // time of hint creation (in milliseconds)

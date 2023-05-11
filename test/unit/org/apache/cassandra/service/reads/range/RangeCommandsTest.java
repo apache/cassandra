@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.schema.IndexMetadata;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_CONCURRENT_RANGE_REQUESTS;
 import static org.apache.cassandra.db.ConsistencyLevel.ONE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
@@ -52,13 +53,13 @@ public class RangeCommandsTest extends CQLTester
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        System.setProperty("cassandra.max_concurrent_range_requests", String.valueOf(MAX_CONCURRENCY_FACTOR));
+        MAX_CONCURRENT_RANGE_REQUESTS.setInt(MAX_CONCURRENCY_FACTOR);
     }
 
     @AfterClass
     public static void cleanup()
     {
-        System.clearProperty("cassandra.max_concurrent_range_requests");
+        MAX_CONCURRENT_RANGE_REQUESTS.clearValue();
     }
 
     @Test

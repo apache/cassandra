@@ -43,6 +43,10 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.utils.JMXServerUtils;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -86,10 +90,10 @@ public class JMXAuthTest extends CQLTester
     private static void setupJMXServer() throws Exception
     {
         String config = Paths.get(ClassLoader.getSystemResource("auth/cassandra-test-jaas.conf").toURI()).toString();
-        System.setProperty("com.sun.management.jmxremote.authenticate", "true");
-        System.setProperty("java.security.auth.login.config", config);
-        System.setProperty("cassandra.jmx.remote.login.config", "TestLogin");
-        System.setProperty("cassandra.jmx.authorizer", NoSuperUserAuthorizationProxy.class.getName());
+        COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE.setBoolean(true);
+        JAVA_SECURITY_AUTH_LOGIN_CONFIG.setString(config);
+        CASSANDRA_JMX_REMOTE_LOGIN_CONFIG.setString("TestLogin");
+        CASSANDRA_JMX_AUTHORIZER.setString(NoSuperUserAuthorizationProxy.class.getName());
         jmxServer = JMXServerUtils.createJMXServer(9999, "localhost", true);
         jmxServer.start();
 

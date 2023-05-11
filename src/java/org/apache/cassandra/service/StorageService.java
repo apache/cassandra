@@ -242,10 +242,24 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_JOIN;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_REPLACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOAD_RING_STATE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OVERRIDE_DECOMMISSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRIES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.START_GOSSIP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -389,8 +403,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean isBootstrapMode;
 
     /* we bootstrap but do NOT join the ring unless told to do so */
-    private boolean isSurveyMode = Boolean.parseBoolean(System.getProperty
-            ("cassandra.write_survey", "false"));
+    private boolean isSurveyMode = TEST_WRITE_SURVEY.getBoolean(false);
     /* true if node is rebuilding and receiving data */
     private final AtomicBoolean isRebuilding = new AtomicBoolean();
     private final AtomicBoolean isDecommissioning = new AtomicBoolean();
@@ -419,9 +432,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private Collection<Token> bootstrapTokens = null;
 
     // true when keeping strict consistency while bootstrapping
-    public static final boolean useStrictConsistency = Boolean.parseBoolean(System.getProperty("cassandra.consistent.rangemovement", "true"));
-    private static final boolean allowSimultaneousMoves = Boolean.parseBoolean(System.getProperty("cassandra.consistent.simultaneousmoves.allow","false"));
-    private static final boolean joinRing = Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"));
+    public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();
+    private static final boolean allowSimultaneousMoves = CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.getBoolean();
+    private static final boolean joinRing = JOIN_RING.getBoolean();
     private boolean replacing;
 
     private final StreamStateStore streamStateStore = new StreamStateStore();
@@ -664,11 +677,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!joinRing)
             throw new ConfigurationException("Cannot set both join_ring=false and attempt to replace a node");
 
-        if (!shouldBootstrap() && !Boolean.getBoolean("cassandra.allow_unsafe_replace"))
+        if (!shouldBootstrap() && !ALLOW_UNSAFE_REPLACE.getBoolean())
             throw new RuntimeException("Replacing a node without bootstrapping risks invalidating consistency " +
                                        "guarantees as the expected data may not be present until repair is run. " +
                                        "To perform this operation, please restart with " +
-                                       "-Dcassandra.allow_unsafe_replace=true");
+                                       "-D" + ALLOW_UNSAFE_REPLACE.getKey() + "=true");
 
         InetAddressAndPort replaceAddress = DatabaseDescriptor.getReplaceAddress();
         logger.info("Gathering node replacement information for {}", replaceAddress);
@@ -784,9 +797,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public synchronized void checkForEndpointCollision(UUID localHostId, Set<InetAddressAndPort> peers) throws ConfigurationException
     {
-        if (Boolean.getBoolean("cassandra.allow_unsafe_join"))
+        if (ALLOW_UNSAFE_JOIN.getBoolean())
         {
-            logger.warn("Skipping endpoint collision check as cassandra.allow_unsafe_join=true");
+            logger.warn("Skipping endpoint collision check as " + ALLOW_UNSAFE_JOIN.getKey() + "=true");
             return;
         }
 
@@ -803,8 +816,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!Gossiper.instance.isSafeForStartup(FBUtilities.getBroadcastAddressAndPort(), localHostId, shouldBootstrap(), epStates))
         {
             throw new RuntimeException(String.format("A node with address %s already exists, cancelling join. " +
-                                                     "Use cassandra.replace_address if you want to replace this node.",
-                                                     FBUtilities.getBroadcastAddressAndPort()));
+                                                     "Use %s if you want to replace this node.",
+                                                     FBUtilities.getBroadcastAddressAndPort(), REPLACE_ADDRESS.getKey()));
         }
 
         validateEndpointSnitch(epStates.values().iterator());
@@ -827,7 +840,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 assert (pieces.length > 0);
                 String state = pieces[0];
                 if (state.equals(VersionedValue.STATUS_BOOTSTRAPPING) || state.equals(VersionedValue.STATUS_LEAVING) || state.equals(VersionedValue.STATUS_MOVING))
-                    throw new UnsupportedOperationException("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true");
+                    throw new UnsupportedOperationException("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while " + CONSISTENT_RANGE_MOVEMENT.getKey() + " is true");
             }
         }
     }
@@ -900,7 +913,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new AssertionError(e);
         }
 
-        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
+        if (LOAD_RING_STATE.getBoolean())
         {
             logger.info("Loading persisted ring state");
             populatePeerTokenMetadata();
@@ -938,7 +951,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         replacing = isReplacing();
 
-        if (!Boolean.parseBoolean(System.getProperty("cassandra.start_gossip", "true")))
+        if (!START_GOSSIP.getBoolean())
         {
             logger.info("Not starting gossip as requested.");
             completeInitialization();
@@ -991,7 +1004,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void populateTokenMetadata()
     {
-        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
+        if (LOAD_RING_STATE.getBoolean())
         {
             populatePeerTokenMetadata();
             // if we have not completed bootstrapping, we should not add ourselves as a normal token
@@ -1028,9 +1041,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (replacing)
             return true;
 
-        if (System.getProperty("cassandra.replace_address_first_boot", null) != null && SystemKeyspace.bootstrapComplete())
+        if (REPLACE_ADDRESS_FIRST_BOOT.getString() != null && SystemKeyspace.bootstrapComplete())
         {
-            logger.info("Replace address on first boot requested; this node is already bootstrapped");
+            logger.info("Replace address on the first boot requested; this node is already bootstrapped");
             return false;
         }
 
@@ -1066,17 +1079,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (SystemKeyspace.wasDecommissioned())
             {
-                if (Boolean.getBoolean("cassandra.override_decommission"))
+                if (OVERRIDE_DECOMMISSION.getBoolean())
                 {
                     logger.warn("This node was decommissioned, but overriding by operator request.");
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
                 }
                 else
-                    throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
+                {
+                    throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless -D" + OVERRIDE_DECOMMISSION.getKey() +
+                                                     "=true has been set, or all existing data is removed and the node is bootstrapped again");
+                }
             }
 
             if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
-                throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
+                throw new RuntimeException("Replace method removed; use " + REPLACE_ADDRESS.getKey() + " system property instead.");
 
             MessagingService.instance().listen();
 
@@ -1949,7 +1965,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             String bootstrapTokens = StringUtils.join(tokenMetadata.getBootstrapTokens().valueSet(), ',');
             String leavingTokens = StringUtils.join(tokenMetadata.getLeavingEndpoints(), ',');
             String movingTokens = StringUtils.join(tokenMetadata.getMovingEndpoints().stream().map(e -> e.right).toArray(), ',');
-            throw new UnsupportedOperationException(String.format("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true. Nodes detected, bootstrapping: %s; leaving: %s; moving: %s;", bootstrapTokens, leavingTokens, movingTokens));
+            throw new UnsupportedOperationException(String.format("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while %s is true. Nodes detected, bootstrapping: %s; leaving: %s; moving: %s;",
+                                                                  CONSISTENT_RANGE_MOVEMENT.getKey(), bootstrapTokens, leavingTokens, movingTokens));
         }
 
         // get bootstrap tokens
@@ -2067,7 +2084,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!Gossiper.instance.seenAnySeed())
             throw new IllegalStateException("Unable to contact any seeds: " + Gossiper.instance.getSeeds());
 
-        if (Boolean.getBoolean("cassandra.reset_bootstrap_progress"))
+        if (RESET_BOOTSTRAP_PROGRESS.getBoolean())
         {
             logger.info("Resetting bootstrap progress to start fresh");
             SystemKeyspace.resetAvailableStreamedRanges();
@@ -4707,8 +4724,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("repairing paxos for {}", reason);
 
         int retries = 0;
-        int maxRetries = Integer.getInteger("cassandra.paxos_repair_on_topology_change_retries", 10);
-        int delaySec = Integer.getInteger("cassandra.paxos_repair_on_topology_change_retry_delay_seconds", 10);
+        int maxRetries = PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRIES.getInt();
+        int delaySec = PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS.getInt();
 
         boolean completed = false;
         while (!completed)

@@ -29,18 +29,20 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+
 public class PEMBasedSslContextFactoryInvalidConfigTest
 {
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra-pem-sslcontextfactory-invalidconfiguration.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-pem-sslcontextfactory-invalidconfiguration.yaml");
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        System.clearProperty("cassandra.config");
+        CASSANDRA_CONFIG.clearValue();
     }
 
     @Test(expected = ConfigurationException.class)

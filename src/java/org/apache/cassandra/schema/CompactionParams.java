@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES;
 
 public final class CompactionParams
 {
@@ -76,15 +77,15 @@ public final class CompactionParams
     public static final int DEFAULT_MAX_THRESHOLD = 32;
 
     public static final boolean DEFAULT_ENABLED = true;
-    public static final TombstoneOption DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES =
-            TombstoneOption.valueOf(System.getProperty("default.provide.overlapping.tombstones", TombstoneOption.NONE.toString()).toUpperCase());
+    public static final TombstoneOption DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE =
+        DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES.getEnum(TombstoneOption.NONE);
 
     public static final Map<String, String> DEFAULT_THRESHOLDS =
         ImmutableMap.of(Option.MIN_THRESHOLD.toString(), Integer.toString(DEFAULT_MIN_THRESHOLD),
                         Option.MAX_THRESHOLD.toString(), Integer.toString(DEFAULT_MAX_THRESHOLD));
 
     public static final CompactionParams DEFAULT =
-        new CompactionParams(SizeTieredCompactionStrategy.class, DEFAULT_THRESHOLDS, DEFAULT_ENABLED, DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES);
+        new CompactionParams(SizeTieredCompactionStrategy.class, DEFAULT_THRESHOLDS, DEFAULT_ENABLED, DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE);
 
     private final Class<? extends AbstractCompactionStrategy> klass;
     private final ImmutableMap<String, String> options;
@@ -105,7 +106,7 @@ public final class CompactionParams
                           ? Boolean.parseBoolean(options.get(Option.ENABLED.toString()))
                           : DEFAULT_ENABLED;
         String overlappingTombstoneParm = options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
-                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES.toString()).toUpperCase();
+                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()).toUpperCase();
         Optional<TombstoneOption> tombstoneOptional = TombstoneOption.forName(overlappingTombstoneParm);
         if (!tombstoneOptional.isPresent())
         {
