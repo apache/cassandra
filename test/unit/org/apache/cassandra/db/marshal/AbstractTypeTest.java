@@ -40,6 +40,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
@@ -436,10 +437,28 @@ public class AbstractTypeTest
         };
         return gen.describedAs(e -> {
             StringBuilder sb = new StringBuilder();
-            sb.append("Type: ").append(e.type.asCQL3Type());
+            sb.append("Type: ").append(humanReadableType(e.type));
             sb.append("\nValues: ").append(e.samples);
             return sb.toString();
         });
+    }
+
+    private static String humanReadableType(AbstractType<?> type)
+    {
+        if (!type.isUDT()) return type.asCQL3Type().toString();
+        StringBuilder sb = new StringBuilder();
+        UserType ut = (UserType) type;
+        sb.append(ut.asCQL3Type()).append('(');
+        for (int i = 0; i < ut.size(); i++)
+        {
+            FieldIdentifier fieldName = ut.fieldName(i);
+            AbstractType<?> fieldType = ut.fieldType(i);
+            if (i > 0)
+                sb.append(", ");
+            sb.append(ColumnIdentifier.maybeQuote(fieldName.toString())).append(": ").append(humanReadableType(fieldType));
+        }
+        sb.append(')');
+        return sb.toString();
     }
 
     private static class Example
