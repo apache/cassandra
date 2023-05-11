@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -2312,6 +2313,10 @@ public abstract class CQLTester
                 values = typeFor(entry.getValue());
             }
             return MapType.getInstance(keys, values, true);
+        }
+        else if (value instanceof float[])
+        {
+            return VectorType.getInstance(Array.getLength(value));
         }
 
         throw new IllegalArgumentException("Unsupported value type (value is " + value + ")");

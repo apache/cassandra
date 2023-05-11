@@ -149,12 +149,12 @@ public class VectorTypeTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", Lists.newArrayList(1.0, 2.0 ,3.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", Lists.newArrayList(2.0 ,3.0, 4.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", Lists.newArrayList(3.0, 4.0, 5.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", Lists.newArrayList(4.0, 5.0, 6.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", new float[] {1.0f, 2.0f ,3.0f});
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", new float[] {2.0f ,3.0f, 4.0f});
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", new float[] {3.0f, 4.0f, 5.0f});
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", new float[] {4.0f, 5.0f, 6.0f});
 
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 3");
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of ? LIMIT 3", new float[] {2.5f, 3.5f, 4.5f});
         assertThat(result).hasSize(3);
         System.out.println(makeRowStrings(result));
     }
