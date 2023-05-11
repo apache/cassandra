@@ -610,6 +610,8 @@ public final class AbstractTypeGenerators
     {
         if (type instanceof BooleanType)
             return 2;
+        if (type instanceof EmptyType)
+            return 1;
         if (type instanceof SetType)
             return uniqueElementsForDomain(((SetType<?>) type).getElementsType());
         if (type instanceof MapType)
