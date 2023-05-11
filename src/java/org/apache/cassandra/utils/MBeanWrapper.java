@@ -19,10 +19,15 @@
 package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
+import java.util.Collections;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
+import javax.management.MBeanServerFactory;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+import javax.management.QueryExp;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,79 +38,149 @@ import org.slf4j.LoggerFactory;
  */
 public interface MBeanWrapper
 {
-    static final Logger logger = LoggerFactory.getLogger(MBeanWrapper.class);
+    Logger logger = LoggerFactory.getLogger(MBeanWrapper.class);
 
-    static final MBeanWrapper instance = Boolean.getBoolean("org.apache.cassandra.disable_mbean_registration") ?
-                                         new NoOpMBeanWrapper() :
-                                         new PlatformMBeanWrapper();
+    MBeanWrapper instance = create();
+    String IS_DISABLED_MBEAN_REGISTRATION = "org.apache.cassandra.disable_mbean_registration";
+    String IS_IN_JVM_DTEST = "org.apache.cassandra.is_in_jvm_dtest";
+    String MBEAN_REGISTRATION_CLASS = "org.apache.cassandra.mbean_registration_class";
+
+    static MBeanWrapper create()
+    {
+        // If we're running in the in-jvm dtest environment, always use the delegating
+        // mbean wrapper even if we start off with no-op, so it can be switched later
+        if (Boolean.getBoolean(IS_IN_JVM_DTEST))
+            return new DelegatingMbeanWrapper(getmBeanWrapper());
+
+        return getmBeanWrapper();
+    }
+
+    static MBeanWrapper getmBeanWrapper()
+    {
+        if (Boolean.getBoolean(IS_DISABLED_MBEAN_REGISTRATION))
+            return new NoOpMBeanWrapper();
+
+        String klass = System.getProperty(MBEAN_REGISTRATION_CLASS);
+        if (klass == null)
+            if (Boolean.getBoolean(IS_IN_JVM_DTEST))
+                return new NoOpMBeanWrapper();
+            else
+                return new PlatformMBeanWrapper();
+        return FBUtilities.construct(klass, "mbean");
+    }
+
+    static ObjectName create(String mbeanName, OnException onException)
+    {
+        try
+        {
+            return new ObjectName(mbeanName);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            onException.handler.accept(e);
+            return null;
+        }
+    }
 
     // Passing true for graceful will log exceptions instead of rethrowing them
-    public void registerMBean(Object obj, ObjectName mbeanName, OnException onException);
+    void registerMBean(Object obj, ObjectName mbeanName, OnException onException);
+
     default void registerMBean(Object obj, ObjectName mbeanName)
     {
         registerMBean(obj, mbeanName, OnException.THROW);
     }
 
-    public void registerMBean(Object obj, String mbeanName, OnException onException);
+    default void registerMBean(Object obj, String mbeanName, OnException onException)
+    {
+        ObjectName name = create(mbeanName, onException);
+        if (name == null)
+            return;
+        registerMBean(obj, name, onException);
+    }
+
     default void registerMBean(Object obj, String mbeanName)
     {
         registerMBean(obj, mbeanName, OnException.THROW);
     }
 
-    public boolean isRegistered(ObjectName mbeanName, OnException onException);
+    boolean isRegistered(ObjectName mbeanName, OnException onException);
+
     default boolean isRegistered(ObjectName mbeanName)
     {
         return isRegistered(mbeanName, OnException.THROW);
     }
 
-    public boolean isRegistered(String mbeanName, OnException onException);
+    default boolean isRegistered(String mbeanName, OnException onException)
+    {
+        ObjectName name = create(mbeanName, onException);
+        if (name == null)
+            return false;
+        return isRegistered(name, onException);
+    }
+
     default boolean isRegistered(String mbeanName)
     {
         return isRegistered(mbeanName, OnException.THROW);
     }
 
-    public void unregisterMBean(ObjectName mbeanName, OnException onException);
+    void unregisterMBean(ObjectName mbeanName, OnException onException);
+
     default void unregisterMBean(ObjectName mbeanName)
     {
         unregisterMBean(mbeanName, OnException.THROW);
     }
 
-    public void unregisterMBean(String mbeanName, OnException onException);
+    default void unregisterMBean(String mbeanName, OnException onException)
+    {
+        ObjectName name = create(mbeanName, onException);
+        if (name == null)
+            return;
+        unregisterMBean(name, onException);
+    }
+
     default void unregisterMBean(String mbeanName)
     {
         unregisterMBean(mbeanName, OnException.THROW);
     }
 
-    static class NoOpMBeanWrapper implements MBeanWrapper
+    enum OnException
+    {
+        THROW(e -> { throw new RuntimeException(e); }),
+        LOG(e -> { logger.error("Error in MBean wrapper: ", e); }),
+        IGNORE(e -> { });
+
+        private Consumer<Exception> handler;
+        OnException(Consumer<Exception> handler)
+        {
+            this.handler = handler;
+        }
+    }
+
+    Set<ObjectName> queryNames(ObjectName name, QueryExp query);
+
+    MBeanServer getMbs();
+
+    class NoOpMBeanWrapper implements MBeanWrapper
     {
         public void registerMBean(Object obj, ObjectName mbeanName, OnException onException) {}
         public void registerMBean(Object obj, String mbeanName, OnException onException) {}
-        public boolean isRegistered(ObjectName mbeanName, OnException onException) { return false; }
-        public boolean isRegistered(String mbeanName, OnException onException) { return false; }
+        public boolean isRegistered(ObjectName mbeanName, OnException onException) { return false;}
+        public boolean isRegistered(String mbeanName, OnException onException) { return false;}
         public void unregisterMBean(ObjectName mbeanName, OnException onException) {}
         public void unregisterMBean(String mbeanName, OnException onException) {}
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query) {return Collections.emptySet(); }
+        public MBeanServer getMbs() {return null; }
     }
 
-    static class PlatformMBeanWrapper implements MBeanWrapper
+    class PlatformMBeanWrapper implements MBeanWrapper
     {
         private final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+
         public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
         {
             try
             {
                 mbs.registerMBean(obj, mbeanName);
-            }
-            catch (Exception e)
-            {
-                onException.handler.accept(e);
-            }
-        }
-
-        public void registerMBean(Object obj, String mbeanName, OnException onException)
-        {
-            try
-            {
-                mbs.registerMBean(obj, new ObjectName(mbeanName));
             }
             catch (Exception e)
             {
@@ -126,11 +201,57 @@ public interface MBeanWrapper
             return false;
         }
 
-        public boolean isRegistered(String mbeanName, OnException onException)
+        public void unregisterMBean(ObjectName mbeanName, OnException onException)
         {
             try
             {
-                return mbs.isRegistered(new ObjectName(mbeanName));
+                mbs.unregisterMBean(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return mbs.queryNames(name, query);
+        }
+
+        public MBeanServer getMbs()
+        {
+            return mbs;
+        }
+
+    }
+
+    class InstanceMBeanWrapper implements MBeanWrapper
+    {
+        public final UUID id = UUID.randomUUID();
+        private final MBeanServer mbs;
+
+        public InstanceMBeanWrapper(String hostname)
+        {
+            mbs = MBeanServerFactory.createMBeanServer(hostname + "-" + id);
+        }
+
+        public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                mbs.registerMBean(obj, mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+
+        public boolean isRegistered(ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                return mbs.isRegistered(mbeanName);
             }
             catch (Exception e)
             {
@@ -151,29 +272,97 @@ public interface MBeanWrapper
             }
         }
 
-        public void unregisterMBean(String mbeanName, OnException onException)
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return mbs.queryNames(name, query);
+        }
+
+        public MBeanServer getMbs()
+        {
+            return mbs;
+        }
+
+        public void close()
+        {
+            mbs.queryNames(null, null).forEach(name -> {
+                try
+                {
+                    if (!name.getCanonicalName().contains("MBeanServerDelegate"))
+                        mbs.unregisterMBean(name);
+                }
+                catch (Throwable e)
+                {
+                    logger.debug("Could not unregister mbean {}", name.getCanonicalName());
+                }
+            });
+            MBeanServerFactory.releaseMBeanServer(mbs);
+        }
+    }
+
+    class DelegatingMbeanWrapper implements MBeanWrapper
+    {
+        MBeanWrapper delegate;
+
+        public DelegatingMbeanWrapper(MBeanWrapper mBeanWrapper)
+        {
+            delegate = mBeanWrapper;
+        }
+
+        public MBeanWrapper getDelegate()
+        {
+            return delegate;
+        }
+
+        public void setDelegate(MBeanWrapper wrapper)
+        {
+            delegate = wrapper;
+        }
+
+        public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
         {
             try
             {
-                mbs.unregisterMBean(new ObjectName(mbeanName));
+                delegate.registerMBean(obj, mbeanName);
             }
             catch (Exception e)
             {
                 onException.handler.accept(e);
             }
         }
-    }
 
-    public enum OnException
-    {
-        THROW(e -> { throw new RuntimeException(e); }),
-        LOG(e -> { logger.error("Error in MBean wrapper: ", e); }),
-        IGNORE(e -> {});
-
-        private Consumer<Exception> handler;
-        OnException(Consumer<Exception> handler)
+        public boolean isRegistered(ObjectName mbeanName, OnException onException)
         {
-            this.handler = handler;
+            try
+            {
+                return delegate.isRegistered(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+            return false;
+        }
+
+        public void unregisterMBean(ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                delegate.unregisterMBean(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return delegate.queryNames(name, query);
+        }
+
+        public MBeanServer getMbs()
+        {
+            return delegate.getMbs();
         }
     }
 }

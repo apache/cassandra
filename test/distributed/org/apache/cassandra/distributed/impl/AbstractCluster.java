@@ -77,6 +77,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.reflections.Reflections;
 
+import static org.apache.cassandra.utils.MBeanWrapper.IS_IN_JVM_DTEST;
+
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
  *
@@ -142,6 +144,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
 
+    {
+        System.setProperty(IS_IN_JVM_DTEST, "true");
+    }
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
         private final int generation;
@@ -388,6 +393,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public ICoordinator coordinator(int node)
     {
         return instances.get(node - 1).coordinator();
+    }
+
+    public List<I> get(int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            throw new IllegalArgumentException("No nodes provided");
+        List<I> list = new ArrayList<>(nodes.length);
+        for (int i : nodes)
+            list.add(get(i));
+        return list;
     }
 
     /**
