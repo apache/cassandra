@@ -20,6 +20,7 @@ package org.apache.cassandra;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -56,9 +57,12 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -119,6 +123,16 @@ public final class ServerTestUtils
 
     public static void prepareServer()
     {
+        prepareServerNoRegister();
+        NodeId nodeId = Register.maybeRegister();
+        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
+                                                                Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()),
+                                                                ClusterMetadataService.instance().placementProvider()));
+        markCMS();
+    }
+
+    public static void prepareServerNoRegister()
+    {
         if (isServerPrepared)
             return;
 
@@ -160,6 +174,7 @@ public final class ServerTestUtils
         AuditLogManager.instance.initialize();
         isServerPrepared = true;
     }
+
 
     /**
      * Cleanup the directories used by the server, creating them if they do not exist.

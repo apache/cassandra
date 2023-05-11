@@ -82,7 +82,7 @@ public class SchemaLoader
     public static void prepareServerNoRegister()
     {
         ServerTestUtils.daemonInitialization();
-        ServerTestUtils.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
     }
 
     public static void startGossiper()
