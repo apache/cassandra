@@ -55,7 +55,7 @@ public class ConcurrentHnswGraphWriter
     private long neighborSize(int level, int node)
     {
         // node neighbor count, and node neighbors
-        return 4L * (1 + hnsw.getNeighbors(level, node).size());
+        return 4L * (1 + countNeighbors(hnsw.getNeighbors(level, node)));
     }
 
     public void write(File file) throws IOException {
@@ -101,9 +101,8 @@ public class ConcurrentHnswGraphWriter
                 {
                     assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                     var neighborSet = hnsw.getNeighbors(level, node);
-                    assert neighborSet.size() == countNeighbors(neighborSet) : String.format("level %s node %s neighbor count mismatch: %s actual vs %s expected", level, node, countNeighbors(neighborSet), neighborSet.size());
                     // TODO use VInt and delta encoding
-                    out.writeInt(neighborSet.size());
+                    out.writeInt(countNeighbors(neighborSet)); // FIXME neighborSet.size() is broken
                     neighborSet.forEach((ordinal, score_) -> {
                         out.writeInt(ordinal);
                     });
