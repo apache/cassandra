@@ -64,7 +64,7 @@ public class Vectors
             if (!(receiver.type instanceof VectorType))
                 return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
             VectorType<?> type = (VectorType<?>) receiver.type;
-            if (elements.size() != type.dimention)
+            if (elements.size() != type.dimension)
                 return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
             ColumnSpecification valueSpec = valueSpecOf(receiver);
             return AssignmentTestable.TestResult.testAll(receiver.ksName, valueSpec, elements);
@@ -76,8 +76,8 @@ public class Vectors
             if (!(receiver.type instanceof VectorType))
                 throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
             VectorType<?> type = (VectorType<?>) receiver.type;
-            if (elements.size() != type.dimention)
-                throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s; expected %d elements, but given %d", receiver.name, receiver.type.asCQL3Type(), type.dimention, elements.size()));
+            if (elements.size() != type.dimension)
+                throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s; expected %d elements, but given %d", receiver.name, receiver.type.asCQL3Type(), type.dimension, elements.size()));
 
             ColumnSpecification valueSpec = valueSpecOf(receiver);
             for (Term.Raw rt : elements)

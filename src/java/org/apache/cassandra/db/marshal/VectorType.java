@@ -40,21 +40,21 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 public final class VectorType<T> extends AbstractType<List<T>>
 {
     public final AbstractType<T> elementType;
-    public final int dimention;
+    public final int dimension;
     protected final TypeSerializer<T> elementSerializer;
     private final int valueLengthIfFixed;
     private final VectorSerializer serializer;
 
-    private VectorType(AbstractType<T> elementType, int dimention)
+    private VectorType(AbstractType<T> elementType, int dimension)
     {
         super(ComparisonType.CUSTOM);
-        if (dimention <= 0)
-            throw new InvalidRequestException(String.format("vectors may only have positive dimentions; given %d", dimention));
+        if (dimension <= 0)
+            throw new InvalidRequestException(String.format("vectors may only have positive dimentions; given %d", dimension));
         this.elementType = elementType;
-        this.dimention = dimention;
+        this.dimension = dimension;
         this.elementSerializer = elementType.getSerializer();
         this.valueLengthIfFixed = elementType.isValueLengthFixed() ?
-                                  elementType.valueLengthIfFixed() * dimention :
+                                  elementType.valueLengthIfFixed() * dimension :
                                   super.valueLengthIfFixed();
         this.serializer = elementType.isValueLengthFixed() ?
                           new FixedLengthSerializer() :
@@ -106,9 +106,9 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
         if (accessor.isEmpty(input))
             return null;
-        float[] array = new float[dimention];
+        float[] array = new float[dimension];
         int offset = 0;
-        for (int i = 0; i < dimention; i++)
+        for (int i = 0; i < dimension; i++)
         {
             array[i] = accessor.getFloat(input, offset);
             offset += Float.BYTES;
@@ -131,9 +131,9 @@ public final class VectorType<T> extends AbstractType<List<T>>
     {
         if (accessor.isEmpty(value))
             return null;
-        ByteSource[] srcs = new ByteSource[dimention];
+        ByteSource[] srcs = new ByteSource[dimension];
         List<V> split = split(value, accessor);
-        for (int i = 0; i < dimention; i++)
+        for (int i = 0; i < dimension; i++)
             srcs[i] = elementType.asComparableBytes(accessor, split.get(i), version);
         return ByteSource.withTerminatorMaybeLegacy(version, 0x00, srcs);
     }
@@ -158,7 +158,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     @Override
     public CQL3Type asCQL3Type()
     {
-        return new CQL3Type.Vector(elementType, dimention);
+        return new CQL3Type.Vector(this);
     }
 
     public AbstractType<T> getElementsType()
@@ -204,7 +204,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         StringBuilder sb = new StringBuilder();
         sb.append('[');
         List<V> split = split(value, accessor);
-        for (int i = 0; i < dimention; i++)
+        for (int i = 0; i < dimension; i++)
         {
             if (i > 0)
                 sb.append(", ");
@@ -242,13 +242,13 @@ public final class VectorType<T> extends AbstractType<List<T>>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VectorType<?> that = (VectorType<?>) o;
-        return dimention == that.dimention && Objects.equals(elementType, that.elementType);
+        return dimension == that.dimension && Objects.equals(elementType, that.elementType);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(elementType, dimention);
+        return Objects.hash(elementType, dimension);
     }
 
     @Override
@@ -259,18 +259,18 @@ public final class VectorType<T> extends AbstractType<List<T>>
         sb.append('(');
         sb.append(elementType.toString());
         sb.append(", ");
-        sb.append(dimention);
+        sb.append(dimension);
         sb.append(')');
         return sb.toString();
     }
 
     protected void check(List<?> values)
     {
-        if (values.size() != dimention)
-            throw new MarshalException(String.format("Required %d elements, but saw %d", dimention, values.size()));
+        if (values.size() != dimension)
+            throw new MarshalException(String.format("Required %d elements, but saw %d", dimension, values.size()));
         {
             // This code base always works with a list that is RandomAccess, so can use .get to avoid allocation
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 Object value = values.get(i);
                 if (value == null || (value instanceof ByteBuffer && ByteBufferAccessor.instance.isEmpty((ByteBuffer) value)))
@@ -328,7 +328,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
             int offset = 0;
             int elementLength = elementType.valueLengthIfFixed();
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 VL leftBytes = accessorL.slice(left, offset, elementLength);
                 VR rightBytes = accessorR.slice(right, offset, elementLength);
@@ -344,10 +344,10 @@ public final class VectorType<T> extends AbstractType<List<T>>
         @Override
         public <V> List<V> split(V buffer, ValueAccessor<V> accessor)
         {
-            List<V> result = new ArrayList<>(dimention);
+            List<V> result = new ArrayList<>(dimension);
             int offset = 0;
             int elementLength = elementType.valueLengthIfFixed();
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 V bb = accessor.slice(buffer, offset, elementLength);
                 offset += elementLength;
@@ -368,7 +368,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
             check(value);
 
             int size = elementType.valueLengthIfFixed();
-            V bb = accessor.allocate(size * dimention);
+            V bb = accessor.allocate(size * dimension);
             int position = 0;
             for (V v : value)
                 position += accessor.copyTo(v, 0, bb, accessor, position, size);
@@ -383,7 +383,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
             check(value);
 
-            ByteBuffer bb = ByteBuffer.allocate(elementType.valueLengthIfFixed() * dimention);
+            ByteBuffer bb = ByteBuffer.allocate(elementType.valueLengthIfFixed() * dimension);
             for (T v : value)
                 bb.put(elementSerializer.serialize(v).duplicate());
             bb.flip();
@@ -395,10 +395,10 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             if (accessor.isEmpty(input))
                 return null;
-            List<T> result = new ArrayList<>(dimention);
+            List<T> result = new ArrayList<>(dimension);
             int offset = 0;
             int elementLength = elementType.valueLengthIfFixed();
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 V bb = accessor.slice(input, offset, elementLength);
                 offset += elementLength;
@@ -416,7 +416,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             int offset = 0;
             int elementSize = elementType.valueLengthIfFixed();
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 V bb = accessor.slice(input, offset, elementSize);
                 offset += elementSize;
@@ -442,7 +442,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
             int leftOffset = 0;
             int rightOffset = 0;
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 VL leftBytes = readValue(left, accessorL, leftOffset);
                 leftOffset += sizeOf(leftBytes, accessorL);
@@ -483,9 +483,9 @@ public final class VectorType<T> extends AbstractType<List<T>>
         @Override
         public <V> List<V> split(V buffer, ValueAccessor<V> accessor)
         {
-            List<V> result = new ArrayList<>(dimention);
+            List<V> result = new ArrayList<>(dimension);
             int offset = 0;
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 V bb = readValue(buffer, accessor, offset);
                 offset += sizeOf(bb, accessor);
@@ -519,8 +519,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
             check(value);
 
-            List<ByteBuffer> bbs = new ArrayList<>(dimention);
-            for (int i = 0; i < dimention; i++)
+            List<ByteBuffer> bbs = new ArrayList<>(dimension);
+            for (int i = 0; i < dimension; i++)
                 bbs.add(elementSerializer.serialize(value.get(i)));
             return serializeRaw(bbs, ByteBufferAccessor.instance);
         }
@@ -530,9 +530,9 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             if (accessor.isEmpty(input))
                 return null;
-            List<T> result = new ArrayList<>(dimention);
+            List<T> result = new ArrayList<>(dimension);
             int offset = 0;
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 V bb = readValue(input, accessor, offset);
                 offset += sizeOf(bb, accessor);
@@ -549,7 +549,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
         {
             int offset = 0;
-            for (int i = 0; i < dimention; i++)
+            for (int i = 0; i < dimension; i++)
             {
                 V bb = readValue(input, accessor, offset);
                 offset += sizeOf(bb, accessor);

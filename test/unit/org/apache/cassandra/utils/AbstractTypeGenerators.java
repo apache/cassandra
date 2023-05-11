@@ -592,8 +592,8 @@ public final class AbstractTypeGenerators
             VectorType<Object> vectorType = (VectorType<Object>) type;
             TypeSupport<?> elementSupport = getTypeSupport(vectorType.elementType, sizeGen, nulls);
             return (TypeSupport<T>) TypeSupport.of(vectorType, rnd -> {
-                List<Object> list = new ArrayList<>(vectorType.dimention);
-                for (int i = 0; i < vectorType.dimention; i++)
+                List<Object> list = new ArrayList<>(vectorType.dimension);
+                for (int i = 0; i < vectorType.dimension; i++)
                 {
                     Object generate = elementSupport.valueGen.generate(rnd);
                     if (generate == null)
@@ -621,7 +621,7 @@ public final class AbstractTypeGenerators
             VectorType<?> vector = (VectorType<?>) type;
             int uniq = uniqueElementsForDomain(vector.elementType);
             if (uniq != -1)
-                return uniq * vector.dimention;
+                return uniq * vector.dimension;
         }
         if (type instanceof TupleType)
         {

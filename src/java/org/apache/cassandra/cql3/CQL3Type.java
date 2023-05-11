@@ -71,6 +71,14 @@ public interface CQL3Type
         return Terms.asBytes("--dummy--", literal, getType());
     }
 
+    /**
+     * Generates a binary value for the CQL literal of this type
+     */
+    default ByteBuffer fromCQLLiteral(String keyspaceName, String literal)
+    {
+        return Terms.asBytes(keyspaceName, literal, getType());
+    }
+
     public enum Native implements CQL3Type
     {
         ASCII       (AsciiType.instance),
@@ -509,19 +517,22 @@ public interface CQL3Type
 
     public static class Vector implements CQL3Type
     {
-        private final AbstractType<?> type;
-        private final int dimensions;
+        private final VectorType<?> type;
+
+        public Vector(VectorType<?> type)
+        {
+            this.type = type;
+        }
 
         public Vector(AbstractType<?> type, int dimensions)
         {
-            this.type = type;
-            this.dimensions = dimensions;
+            this.type = VectorType.getInstance(type, dimensions);
         }
 
         @Override
         public VectorType<?> getType()
         {
-            return VectorType.getInstance(type, dimensions);
+            return type;
         }
 
         @Override
@@ -530,7 +541,7 @@ public interface CQL3Type
             if (buffer == null)
                 return "null";
             buffer = buffer.duplicate();
-            CQL3Type elementType = type.asCQL3Type();
+            CQL3Type elementType = type.elementType.asCQL3Type();
             List<ByteBuffer> values = getType().split(buffer);
             StringBuilder sb = new StringBuilder();
             sb.append('[');
@@ -548,7 +559,7 @@ public interface CQL3Type
         public String toString()
         {
             StringBuilder sb = new StringBuilder();
-            sb.append("vector<").append(type.asCQL3Type()).append(", ").append(dimensions).append('>');
+            sb.append("vector<").append(type.elementType.asCQL3Type()).append(", ").append(type.dimension).append('>');
             return sb.toString();
         }
     }
