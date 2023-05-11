@@ -388,6 +388,17 @@ public abstract class CQLTester
         return new JMXServiceURL(String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", jmxHost, jmxPort));
     }
 
+    /**
+     * If a fixture needs to use a specific partitioner other than M3P, it should shadow this method
+     * with an implementation like:
+     *     @BeforeClass
+     *     public static void setUpClass()     // overrides CQLTester.setUpClass()
+     *     {
+     *         daemonInitialization();
+     *         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+     *         prepareServer();
+     *     }
+     */
     @BeforeClass
     public static void setUpClass()
     {

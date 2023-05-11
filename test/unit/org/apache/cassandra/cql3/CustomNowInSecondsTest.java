@@ -48,11 +48,8 @@ import static org.junit.Assert.assertEquals;
 public class CustomNowInSecondsTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()
+    public static void setupNetwork()
     {
-        ServerTestUtils.daemonInitialization();
-
-        prepareServer();
         requireNetwork();
     }
 

@@ -111,13 +111,11 @@ public abstract class GuardrailTester extends CQLTester
     }
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpState()
     {
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
-
         systemClientState = ClientState.forInternalCalls();
 
         userClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 123));

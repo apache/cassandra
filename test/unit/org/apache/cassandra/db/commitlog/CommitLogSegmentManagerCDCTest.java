@@ -49,11 +49,11 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 {
     private static final Random random = new Random();
 
+    // shadow CQLTester#setUpClass
     @BeforeClass
     public static void setUpClass()
     {
         ServerTestUtils.daemonInitialization();
-
         DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCDCTotalSpaceInMiB(1024);
         CQLTester.setUpClass();
