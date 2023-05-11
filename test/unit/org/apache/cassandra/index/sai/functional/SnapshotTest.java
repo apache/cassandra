@@ -52,7 +52,6 @@ public class SnapshotTest extends SAITester
         // Insert some initial data and create the index over it
         execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
         IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        waitForIndexQueryable();
         flush();
         verifyIndexFiles(literalIndexContext, 1, 1, 1);
         // Note: This test will fail here if it is run on its own because the per-index validation
@@ -130,7 +129,6 @@ public class SnapshotTest extends SAITester
 
         // create index
         IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        waitForIndexQueryable();
         verifyIndexFiles(literalIndexContext, 2);
         assertValidationCount(0, 0);
 
