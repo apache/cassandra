@@ -38,6 +38,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -206,5 +207,18 @@ public class ResourceLeakTest extends TestBaseImpl
             Thread.sleep(finalWaitMillis);
         }
         dumpResources("final-native");
+    }
+
+    @Test
+    public void looperJmxTest() throws Throwable
+    {
+        doTest(1, config -> config.with(JMX));
+        if (forceCollection)
+        {
+            System.runFinalization();
+            System.gc();
+            Thread.sleep(finalWaitMillis);
+        }
+        dumpResources("final-jmx");
     }
 }

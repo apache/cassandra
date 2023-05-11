@@ -226,6 +226,9 @@ public enum CassandraRelevantProperties
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
 
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    IS_IN_JVM_DTEST("org.apache.cassandra.is_in_jvm_dtest"),
+
     BATCH_COMMIT_LOG_SYNC_INTERVAL("cassandra.batch_commitlog_sync_interval_millis", "1000"),
 
     SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),

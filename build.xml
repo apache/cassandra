@@ -217,6 +217,7 @@
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
         <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
 
         <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
