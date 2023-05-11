@@ -40,6 +40,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
@@ -60,10 +61,12 @@ public class VectorIndexWriter implements PerColumnIndexWriter
     private final VectorMemtableIndex memtableIndex;
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
+    private final int nowInSec = FBUtilities.nowInSeconds();
 
     private final Map<PrimaryKey, Integer> keyToRowId = new HashMap<>(); // TODO can we know ahead of time how many rows there will be?
 
     private final byte[] segmentId;
+    private final boolean needsBuilding;
 
     private long maxRowId = -1;
 
@@ -72,7 +75,8 @@ public class VectorIndexWriter implements PerColumnIndexWriter
 
     public VectorIndexWriter(VectorMemtableIndex memtableIndex, IndexDescriptor indexDescriptor, IndexContext indexContext)
     {
-        this.memtableIndex = memtableIndex;
+        this.needsBuilding = memtableIndex == null;
+        this.memtableIndex = needsBuilding ? new VectorMemtableIndex(indexContext) : memtableIndex;
         Preconditions.checkState(indexContext.isVector());
 
         this.indexDescriptor = indexDescriptor;
@@ -91,6 +95,14 @@ public class VectorIndexWriter implements PerColumnIndexWriter
     {
         assert sstableRowId > maxRowId : "Row IDs must be added in ascending order";
         keyToRowId.put(key, Math.toIntExact(sstableRowId));
+        if (needsBuilding) {
+            ByteBuffer value = indexContext.getValueOf(key.partitionKey(), row, nowInSec);
+            if (value != null)
+            {
+                float[] vector = (float[]) indexContext.getValidator().getSerializer().deserialize(value.duplicate());
+                memtableIndex.index(key, vector);
+            }
+        }
 
         if (minKey == null)
             minKey = key;

@@ -30,6 +30,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -44,7 +45,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.apache.lucene.util.hnsw.NeighborQueue;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
@@ -62,10 +62,21 @@ public class VectorMemtableIndex implements MemtableIndex
         this.graph = new CassandraOnHeapHnsw(indexContext);
     }
 
+    // FIXME horrible no good hack that compacts in-memory
+    public void index(PrimaryKey key, float[] vector)
+    {
+        graph.put(key, VectorType.Serializer.getByteBuffer(vector));
+    }
+
     @Override
     public long index(DecoratedKey key, Clustering clustering, ByteBuffer value)
     {
         var primaryKey = indexContext.keyFactory().create(key, clustering);
+        return index(primaryKey, value);
+    }
+
+    private int index(PrimaryKey primaryKey, ByteBuffer value)
+    {
         if (minimumKey == null)
             minimumKey = primaryKey;
         else if (primaryKey.compareTo(minimumKey) < 0)
@@ -77,7 +88,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         writeCount.increment();
         graph.put(primaryKey, value);
-        return 0; // FIXME
+        return 0;
     }
 
     @Override

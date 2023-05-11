@@ -123,6 +123,11 @@ public class VectorType extends AbstractType<float[]>
         @Override
         public ByteBuffer serialize(float[] value)
         {
+            return getByteBuffer(value);
+        }
+
+        public static ByteBuffer getByteBuffer(float[] value)
+        {
             if (value == null)
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
