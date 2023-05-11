@@ -344,11 +344,6 @@ public abstract class CQLTester
     public static void prepareServer()
     {
         ServerTestUtils.prepareServer();
-        NodeId nodeId = Register.maybeRegister();
-        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
-                                                                Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()),
-                                                                ClusterMetadataService.instance().placementProvider()));
-        ServerTestUtils.markCMS();
     }
 
     public static void cleanup()

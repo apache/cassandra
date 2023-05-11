@@ -172,6 +172,12 @@ public final class ServerTestUtils
         initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
+
+        NodeId nodeId = Register.maybeRegister();
+        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
+                                                                Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()),
+                                                                ClusterMetadataService.instance().placementProvider()));
+        markCMS();
         isServerPrepared = true;
     }
 
