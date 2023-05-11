@@ -70,6 +70,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Throwables;
+import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
 import static java.util.Collections.singletonList;
@@ -257,7 +258,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         createIndex("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(val) USING 'StorageAttachedIndex' ");
 
-        createIndex("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(val) USING 'StorageAttachedIndex' ");
+        createIndexAsync("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(val) USING 'StorageAttachedIndex' ");
 
         assertEquals(1, saiCreationCounter.get());
     }
@@ -334,7 +335,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         flush();
 
         executeNet("CREATE CUSTOM INDEX index_1 ON %s(v1) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
+        waitForTableIndexesQueryable();
 
         // same name
         assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX index_1 ON %s(v1) USING 'StorageAttachedIndex'"))
@@ -365,7 +366,6 @@ public class StorageAttachedIndexDDLTest extends SAITester
             execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0')");
 
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
 
         ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
         assertEquals(rowCount, rows.all().size());
@@ -384,7 +384,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // Create the index, but do not allow the initial index build to begin:
         Injections.inject(delayInitializationTask);
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndexAsync("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
 
         // Flush the Memtable's contents, which will feed data to the index as the SSTable is written:
         flush();
@@ -392,7 +392,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         // Allow the initialization task, which builds the index, to continue:
         delayInitializationTask.countDown();
 
-        waitForIndexQueryable();
+        waitForTableIndexesQueryable();
 
         ResultSet rows = executeNet("SELECT id FROM %s WHERE val = 'Camel'");
         assertEquals(1, rows.all().size());
@@ -410,7 +410,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
             execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0')");
 
         Injections.inject(forceFlushPause);
-        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
 
         assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1='0'")).isInstanceOf(ReadFailureException.class);
     }
@@ -427,7 +427,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         flush();
 
         Injections.inject(failSAIInitialializaion);
-        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
         waitForAssert(() -> assertEquals(1, indexBuildCounter.get()));
         waitForCompactions();
 
@@ -478,7 +478,6 @@ public class StorageAttachedIndexDDLTest extends SAITester
         verifyNoIndexFiles();
 
         IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        waitForIndexQueryable();
         verifyIndexFiles(literalIndexContext, 2);
         ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
         assertEquals(2, rows.all().size());
@@ -501,7 +500,6 @@ public class StorageAttachedIndexDDLTest extends SAITester
         verifyNoIndexFiles();
 
         IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        waitForIndexQueryable();
         verifyIndexFiles(literalIndexContext, 2);
         ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
         assertEquals(2, rows.all().size());
@@ -571,9 +569,9 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         if (concurrentTruncate)
         {
-            createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+            createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
             truncate(true);
-            waitForIndexQueryable();
+            waitForTableIndexesQueryable();
         }
         else
         {
@@ -721,7 +719,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         try
         {
             // Create a new index, which will actuate a build compaction and fail, but leave the node running...
-            IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+            IndexContext literalIndexContext = createIndexContext(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
             // two index builders running in different compaction threads because of parallelised index initial build
             waitForAssert(() -> assertEquals(2, indexBuildCounter.get()));
             waitForCompactionsFinished();
@@ -729,7 +727,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
             // Only token/primary key files for the first SSTable in the compaction task should exist, while column-specific files are blown away:
             verifyIndexFiles(literalIndexContext, 2, 0, 0);
 
-            assertFalse(isIndexQueryable());
+            Assertions.assertThat(getNotQueryableIndexes()).isNotEmpty();
 
             assertZeroSegmentBuilderUsage();
         }
@@ -757,7 +755,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         try
         {
             // Create a new index, which will actuate a build compaction and fail, but leave the node running...
-            createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+            createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
             // two index builders running in different compaction threads because of parallelised index initial build
             waitForAssert(() -> assertEquals(2, indexBuildCounter.get()));
             waitForAssert(() -> assertEquals(0, getCompactionTasks()));
@@ -765,7 +763,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
             // SSTable-level token/offset file(s) should be removed, while column-specific files never existed:
             verifyNoIndexFiles();
 
-            assertFalse(isIndexQueryable());
+            Assertions.assertThat(getNotQueryableIndexes()).isNotEmpty();
 
             assertZeroSegmentBuilderUsage();
         }
@@ -857,7 +855,6 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
 
         IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        waitForIndexQueryable();
 
         populateData.run();
         verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), 2, 0);
@@ -895,7 +892,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                                                    .build();
 
         Injections.inject(delayIndexBuilderCompletion);
-        String indexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String indexName = createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
         waitForAssert(() -> assertEquals(1, delayIndexBuilderCompletion.getCount()));
 
         dropIndex("DROP INDEX %s." + indexName);
@@ -911,7 +908,6 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // create index again, it should succeed
         indexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
         verifySSTableIndexes(indexName, 1);
 
         ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
@@ -940,7 +936,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         Injections.inject(delayIndexBuilderCompletion);
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
 
         waitForAssert(() -> assertTrue(getCompactionTasks() > 0), 1000, TimeUnit.MILLISECONDS);
 
@@ -963,7 +959,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // initial index builder should have stopped abruptly resulting in the index not being queryable
         verifyInitialIndexFailed(literalIndexContext.getIndexName());
-        assertFalse(isIndexQueryable());
+        Assertions.assertThat(getNotQueryableIndexes()).isNotEmpty();
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
         for (Index i : cfs.indexManager.listIndexes())

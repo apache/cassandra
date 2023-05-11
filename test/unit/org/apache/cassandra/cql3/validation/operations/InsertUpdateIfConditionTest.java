@@ -464,8 +464,6 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // create and confirm
         createIndex("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");
 
-        assertTrue(waitForIndex(KEYSPACE, tableName, "myindex"));
-
         // unsuccessful create since it's already there
         execute("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");
 

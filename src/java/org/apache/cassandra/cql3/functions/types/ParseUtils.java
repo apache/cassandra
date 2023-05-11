@@ -292,7 +292,7 @@ public abstract class ParseUtils
      * @param value The string to un-double quote.
      * @return The un-double quoted string.
      */
-    static String unDoubleQuote(String value)
+    public static String unDoubleQuote(String value)
     {
         return unquote(value, '"');
     }
@@ -482,7 +482,7 @@ public abstract class ParseUtils
      * @return {@code true} if the given string is surrounded by the quote character, and {@code
      * false} otherwise.
      */
-    private static boolean isQuoted(String value, char quoteChar)
+    public static boolean isQuoted(String value, char quoteChar)
     {
         return value != null
                && value.length() > 1

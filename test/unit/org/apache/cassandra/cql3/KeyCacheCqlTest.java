@@ -128,13 +128,13 @@ public class KeyCacheCqlTest extends CQLTester
     @Override
     protected String createIndex(String query)
     {
-        return createFormattedIndex(formatQuery(KEYSPACE_PER_TEST, query));
+        return createIndex(KEYSPACE_PER_TEST, query);
     }
 
     @Override
     protected void dropTable(String query)
     {
-        dropFormattedTable(String.format(query, KEYSPACE_PER_TEST + "." + currentTable()));
+        dropTable(KEYSPACE_PER_TEST, query);
     }
 
     @Test

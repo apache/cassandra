@@ -47,6 +47,7 @@ import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.schema.Schema;
+import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -241,7 +242,7 @@ public class NodeStartupTest extends SAITester
     {
         populator.populate(this);
 
-        assertTrue(isIndexQueryable());
+        Assertions.assertThat(getNotQueryableIndexes()).isEmpty();
         assertTrue(isGroupIndexComplete());
         assertTrue(isColumnIndexComplete());
         Assert.assertEquals(expectedDocuments, execute("SELECT * FROM %s WHERE v1 = '0'").size());
@@ -252,7 +253,7 @@ public class NodeStartupTest extends SAITester
 
         simulateNodeRestart();
 
-        assertTrue(isIndexQueryable());
+        Assertions.assertThat(getNotQueryableIndexes()).isEmpty();
         assertTrue(isGroupIndexComplete());
         assertTrue(isColumnIndexComplete());
         Assert.assertEquals(expectedDocuments, execute("SELECT * FROM %s WHERE v1 = '0'").size());

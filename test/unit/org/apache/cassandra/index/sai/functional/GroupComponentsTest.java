@@ -46,7 +46,6 @@ public class GroupComponentsTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
         execute("INSERT INTO %s (pk) VALUES (1)");
         flush();
 
@@ -72,7 +71,6 @@ public class GroupComponentsTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
         execute("INSERT INTO %s (pk) VALUES (1)");
         flush();
 
@@ -94,7 +92,6 @@ public class GroupComponentsTest extends SAITester
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
         IndexContext indexContext = createIndexContext(createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'"), UTF8Type.instance);
-        waitForIndexQueryable();
         execute("INSERT INTO %s (pk, value) VALUES (1, '1')");
         flush();
 

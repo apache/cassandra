@@ -38,7 +38,6 @@ public class AllowFilteringTest extends SAITester
         createTable("CREATE TABLE %s (k1 int, k2 int, c1 int, c2 int, c3 int, v1 int, " +
                     "PRIMARY KEY ((k1, k2), c1, c2, c3))");
         createIndex(format("CREATE CUSTOM INDEX ON %%s(c1) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // with only index restrictions
         test("SELECT * FROM %s WHERE c1=0", false);
@@ -83,7 +82,6 @@ public class AllowFilteringTest extends SAITester
         createTable("CREATE TABLE %s (k1 int, k2 int, c1 int, c2 int, c3 int, c4 int, v1 int, " +
                     "PRIMARY KEY ((k1, k2), c1, c2, c3, c4))");
         createIndex(format("CREATE CUSTOM INDEX ON %%s(c3) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // with only index restrictions
         test("SELECT * FROM %s WHERE c3=0", false);
@@ -129,7 +127,6 @@ public class AllowFilteringTest extends SAITester
                     "PRIMARY KEY ((k1, k2), c1, c2, c3, c4))");
         createIndex(format("CREATE CUSTOM INDEX ON %%s(c2) USING '%s'", StorageAttachedIndex.class.getName()));
         createIndex(format("CREATE CUSTOM INDEX ON %%s(c4) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // with only index restrictions
         test("SELECT * FROM %s WHERE c2=0 AND c4=0", false);
@@ -175,7 +172,6 @@ public class AllowFilteringTest extends SAITester
     {
         createTable("CREATE TABLE %s (k1 int, k2 int, c1 int, c2 int, v1 int, v2 int, PRIMARY KEY ((k1, k2), c1, c2))");
         createIndex(format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // with only index restrictions
         test("SELECT * FROM %s WHERE v1=0", false);
@@ -219,7 +215,6 @@ public class AllowFilteringTest extends SAITester
                     "PRIMARY KEY ((k1, k2), c1, c2))");
         createIndex(format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", StorageAttachedIndex.class.getName()));
         createIndex(format("CREATE CUSTOM INDEX ON %%s(v2) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // with only index restrictions
         test("SELECT * FROM %s WHERE v1=0 AND v2=0", false);
@@ -268,7 +263,6 @@ public class AllowFilteringTest extends SAITester
         createIndex(format("CREATE CUSTOM INDEX ON %%s(c4) USING '%s'", StorageAttachedIndex.class.getName()));
         createIndex(format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", StorageAttachedIndex.class.getName()));
         createIndex(format("CREATE CUSTOM INDEX ON %%s(v2) USING '%s'", StorageAttachedIndex.class.getName()));
-        waitForIndexQueryable();
 
         // with only index restrictions
         test("SELECT * FROM %s WHERE c2=0 AND c4=0 AND v1=0 AND v2=0", false);
