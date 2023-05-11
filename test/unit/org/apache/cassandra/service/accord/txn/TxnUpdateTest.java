@@ -18,14 +18,22 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import org.apache.cassandra.service.accord.AccordTestUtils;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.primitives.Txn;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.txn.TxnWrite.Update;
 
+import static junit.framework.TestCase.assertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.utils.SerializerTestUtils.assertSerializerIOEquality;
 
@@ -46,5 +54,16 @@ public class TxnUpdateTest
         Txn txn = AccordTestUtils.createTxn(0, 0);
         TxnUpdate update = (TxnUpdate) txn.update();
         assertSerializerIOEquality(update, TxnUpdate.serializer);
+    }
+
+    @Test
+    public void failedConditionStillCreatesRepairWrites()
+    {
+        Txn txn = AccordTestUtils.createTxn(0, 0);
+        TxnUpdate txnUpdate = (TxnUpdate) txn.update();
+        List<PartitionUpdate> update = new ArrayList<>();
+        update.add(PartitionUpdate.emptyUpdate(TableMetadata.minimal("foo", "bar"), Util.dk("")));
+        TxnWrite writes = txnUpdate.apply(new TxnData(), new TxnRepairWrites(update));
+        assertEquals(TxnWrite.Update.REPAIR_UPDATE_INDEX, ((Update)writes.items[0]).index);
     }
 }

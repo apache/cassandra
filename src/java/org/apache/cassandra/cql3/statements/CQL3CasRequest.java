@@ -475,10 +475,10 @@ public class CQL3CasRequest implements CASRequest
     }
 
     @Override
-    public Txn toAccordTxn(ConsistencyLevel consistencyLevel, ClientState clientState, int nowInSecs)
+    public Txn toAccordTxn(ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, int nowInSecs)
     {
         SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
-        Update update = createUpdate(clientState);
+        Update update = createUpdate(clientState, commitConsistencyLevel);
         // In a CAS request only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
@@ -486,9 +486,9 @@ public class CQL3CasRequest implements CASRequest
         return new Txn.InMemory(read.keys(), read, new TxnDataResolver(), TxnQuery.CONDITION, update);
     }
 
-    private Update createUpdate(ClientState clientState)
+    private Update createUpdate(ClientState clientState, ConsistencyLevel commitConsistencyLevel)
     {
-        return new TxnUpdate(createWriteFragments(clientState), createCondition());
+        return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel);
     }
 
     private TxnCondition createCondition()

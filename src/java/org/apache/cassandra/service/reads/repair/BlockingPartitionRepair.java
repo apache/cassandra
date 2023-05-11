@@ -21,9 +21,6 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -40,25 +37,28 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.reads.repair.BlockingReadRepair.PendingPartitionRepair;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static org.apache.cassandra.net.Verb.*;
+import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class BlockingPartitionRepair
-        extends AsyncFuture<Object> implements RequestCallback<Object>
+        extends AsyncFuture<Object> implements RequestCallback<Object>, PendingPartitionRepair
 {
     private final DecoratedKey key;
     private final ReplicaPlan.ForWrite writePlan;
@@ -99,13 +99,15 @@ public class BlockingPartitionRepair
         latch = newCountDownLatch(Math.max(blockFor, 0));
     }
 
-    int blockFor()
+    @Override
+    public int blockFor()
     {
         return writePlan.writeQuorum();
     }
 
     @VisibleForTesting
-    int waitingOn()
+    @Override
+    public int waitingOn()
     {
         return (int) latch.count();
     }
@@ -170,13 +172,7 @@ public class BlockingPartitionRepair
         }
     }
 
-    /**
-     * Wait for the repair to complete util a future time
-     * If the {@param timeoutAt} is a past time, the method returns immediately with the repair result.
-     * @param timeoutAt, future time
-     * @param timeUnit, the time unit of the future time
-     * @return true if repair is done; otherwise, false.
-     */
+    @Override
     public boolean awaitRepairsUntil(long timeoutAt, TimeUnit timeUnit)
     {
         long timeoutAtNanos = timeUnit.toNanos(timeoutAt);
@@ -191,18 +187,18 @@ public class BlockingPartitionRepair
         }
     }
 
+    @Override
+    public boolean awaitRepairs(long remaining, TimeUnit timeUnit) throws InterruptedException
+    {
+        return latch.await(remaining, timeUnit);
+    }
+
     private static int msgVersionIdx(int version)
     {
         return version - MessagingService.minimum_version;
     }
 
-    /**
-     * If it looks like we might not receive acks for all the repair mutations we sent out, combine all
-     * the unacked mutations and send them to the minority of nodes not involved in the read repair data
-     * read / write cycle. We will accept acks from them in lieu of acks from the initial mutations sent
-     * out, so long as we receive the same number of acks as repair mutations transmitted. This prevents
-     * misbehaving nodes from killing a quorum read, while continuing to guarantee monotonic quorum reads
-     */
+    @Override
     public void maybeSendAdditionalWrites(long timeout, TimeUnit timeoutUnit)
     {
         if (awaitRepairsUntil(timeout + timeoutUnit.convert(mutationsSentTime, TimeUnit.NANOSECONDS), timeoutUnit))

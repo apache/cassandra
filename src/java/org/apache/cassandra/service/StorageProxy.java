@@ -366,6 +366,7 @@ public class StorageProxy implements StorageProxyMBean
                     break;
                 case accord:
                     TxnResult txnResult = AccordService.instance().coordinate(request.toAccordTxn(consistencyForPaxos,
+                                                                                                  consistencyForCommit,
                                                                                                   clientState,
                                                                                                   nowInSeconds),
                                                                               consistencyForPaxos,

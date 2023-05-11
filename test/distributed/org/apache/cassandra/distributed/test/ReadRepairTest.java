@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,11 +53,12 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-
 import static org.apache.cassandra.db.Keyspace.open;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
@@ -70,6 +70,7 @@ import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class ReadRepairTest extends TestBaseImpl
@@ -80,7 +81,8 @@ public class ReadRepairTest extends TestBaseImpl
     @Test
     public void testBlockingReadRepair() throws Throwable
     {
-        testReadRepair(ReadRepairStrategy.BLOCKING);
+        testReadRepair(ReadRepairStrategy.BLOCKING, false);
+        testReadRepair(ReadRepairStrategy.BLOCKING, true);
     }
     /**
      *
@@ -94,8 +96,14 @@ public class ReadRepairTest extends TestBaseImpl
 
     private void testReadRepair(ReadRepairStrategy strategy) throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        testReadRepair(strategy, false);
+    }
+
+    private void testReadRepair(ReadRepairStrategy strategy, boolean runWithAccordLWTs) throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("lwt_strategy", runWithAccordLWTs ? "accord" : "migration"))))
         {
+            cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c)) " +
                                               String.format("WITH read_repair='%s'", strategy)));
 
@@ -105,19 +113,40 @@ public class ReadRepairTest extends TestBaseImpl
 
             // insert data in two nodes, simulating a quorum write that has missed one node
             cluster.get(1).executeInternal(insertQuery, row);
-            cluster.get(2).executeInternal(insertQuery, row);
+//            cluster.get(2).executeInternal(insertQuery, row);
 
             // verify that the third node doesn't have the row
             assertRows(cluster.get(3).executeInternal(selectQuery));
 
             // read with CL=QUORUM to trigger read repair
-            assertRows(cluster.coordinator(3).execute(selectQuery, QUORUM), row);
+            assertRows(cluster.coordinator(3).execute(selectQuery, ALL), row);
 
             // verify whether the coordinator has the repaired row depending on the read repair strategy
             if (strategy == ReadRepairStrategy.NONE)
+            {
                 assertRows(cluster.get(3).executeInternal(selectQuery));
+            }
+            else if (runWithAccordLWTs)
+            {
+                int matchCount = 0;
+                for (int ii = 2; ii <= 3; ii++)
+                {
+                    try
+                    {
+                        assertRows(cluster.get(ii).executeInternal(selectQuery), row);
+                        matchCount++;
+                    }
+                    catch (AssertionError e)
+                    {
+                        // ignored
+                    }
+                }
+                assertTrue("Accord should have applied repair to at least one of the two missing the row", matchCount >= 1);
+            }
             else
+            {
                 assertRows(cluster.get(3).executeInternal(selectQuery), row);
+            }
         }
     }
 

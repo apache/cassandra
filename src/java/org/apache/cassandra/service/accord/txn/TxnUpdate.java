@@ -22,20 +22,24 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.RepairWrites;
 import accord.api.Update;
 import accord.api.Write;
+import accord.local.Node.Id;
+import accord.primitives.DataConsistencyLevel;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -51,7 +55,9 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.utils.Invariants.checkArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
+import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
@@ -59,32 +65,41 @@ import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
 public class TxnUpdate implements Update
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(null, new ByteBuffer[0], null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(null, new ByteBuffer[0], null, null));
 
     private final Keys keys;
     private final ByteBuffer[] fragments;
     private final ByteBuffer condition;
 
+    @Nullable
+    private final ConsistencyLevel cassandraCommitCL;
+
     // Memoize computation of condition
     private Boolean conditionResult;
 
-    public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition)
+    public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL)
     {
+        checkArgument(cassandraCommitCL == null || cassandraCommitCL == ConsistencyLevel.QUORUM);
         // TODO: Figure out a way to shove keys into TxnCondition, and have it implement slice/merge.
         this.keys = Keys.of(fragments, fragment -> fragment.key);
         fragments.sort(TxnWrite.Fragment::compareKeys);
         this.fragments = toSerializedValuesArray(keys, fragments, fragment -> fragment.key, TxnWrite.Fragment.serializer);
         this.condition = serialize(condition, TxnCondition.serializer);
+        this.cassandraCommitCL = cassandraCommitCL;
     }
 
-    private TxnUpdate(Keys keys, ByteBuffer[] fragments, ByteBuffer condition)
+    private TxnUpdate(Keys keys, ByteBuffer[] fragments, ByteBuffer condition, ConsistencyLevel cassandraCommitCL)
     {
         this.keys = keys;
         this.fragments = fragments;
         this.condition = condition;
+        this.cassandraCommitCL = cassandraCommitCL;
     }
 
     public long estimatedSizeOnHeap()
@@ -131,7 +146,7 @@ public class TxnUpdate implements Update
     {
         Keys keys = this.keys.slice(ranges);
         // TODO: Slice the condition.
-        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition);
+        return new TxnUpdate(keys, select(this.keys, keys, fragments), condition, cassandraCommitCL);
     }
 
     private static ByteBuffer[] select(Keys in, Keys out, ByteBuffer[] from)
@@ -153,7 +168,7 @@ public class TxnUpdate implements Update
         TxnUpdate that = (TxnUpdate) update;
         Keys mergedKeys = this.keys.with(that.keys);
         ByteBuffer[] mergedFragments = merge(this.keys, that.keys, this.fragments, that.fragments, mergedKeys.size());
-        return new TxnUpdate(mergedKeys, mergedFragments, condition);
+        return new TxnUpdate(mergedKeys, mergedFragments, condition, cassandraCommitCL);
     }
 
     private static ByteBuffer[] merge(Keys leftKeys, Keys rightKeys, ByteBuffer[] left, ByteBuffer[] right, int outputSize)
@@ -174,15 +189,15 @@ public class TxnUpdate implements Update
     }
 
     @Override
-    public Write apply(Data data, @Nonnull RepairWrites repairWrites)
+    public TxnWrite apply(Data data, @Nullable RepairWrites repairWrites)
     {
         TxnRepairWrites txnRepairWrites = (TxnRepairWrites)repairWrites;
         boolean conditionResult = checkCondition(data);
-        if (!conditionResult && txnRepairWrites.isEmpty())
+        if (!conditionResult && txnRepairWrites == null)
             return TxnWrite.EMPTY;
 
         List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
-        List<TxnWrite.Update> updates = new ArrayList<>(fragments.size() + txnRepairWrites.size());
+        List<TxnWrite.Update> updates = new ArrayList<>(fragments.size() + (txnRepairWrites != null ? txnRepairWrites.size() : 0));
         QueryOptions options = QueryOptions.forProtocolVersion(ProtocolVersion.CURRENT);
         AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options);
 
@@ -193,14 +208,45 @@ public class TxnUpdate implements Update
                 updates.add(fragment.complete(parameters));
         }
 
-        // Then add in the repair writes
-        for (PartitionUpdate repairWrite : txnRepairWrites)
+        if (txnRepairWrites != null)
         {
-            // TODO I still don't think index matters even when adding it to the list with the other fragments
-            updates.add(new TxnWrite.Update(PartitionKey.of(repairWrite), TxnWrite.Update.REPAIR_UPDATE_INDEX, repairWrite));
+            // Then add in the repair writes
+            for (PartitionUpdate repairWrite : txnRepairWrites)
+            {
+                // TODO Review I still don't think index matters even when adding it to the list with the other fragments
+                updates.add(new TxnWrite.Update(PartitionKey.of(repairWrite), TxnWrite.Update.REPAIR_UPDATE_INDEX, repairWrite));
+            }
         }
 
         return new TxnWrite(updates);
+    }
+
+    @Override
+    public DataConsistencyLevel writeDataCl()
+    {
+        if (cassandraCommitCL == null)
+            return DataConsistencyLevel.UNSPECIFIED;
+
+        switch (cassandraCommitCL)
+        {
+            case ANY:
+                // Safe to let Accord do asynchronous commit
+                return DataConsistencyLevel.UNSPECIFIED;
+            case ONE: // Safe to silently upgrade to QUORUM which is at least ONE, but would be faster to actually wait for one application
+            case SERIAL:
+            case QUORUM:
+                return DataConsistencyLevel.QUORUM;
+                // TODO faster ONE, TWO, THREE, ALL, EACH, LOCAL_* could all be supported with
+                // more logic in Accord, but defering that to supporting LOCAL_*
+            default:
+                throw new IllegalStateException("ConsistencyLevel " + cassandraCommitCL + " is not supported as a transaction commit ConsistencyLevel");
+        }
+    }
+
+    @Override
+    public Collection<Id> requiredContacts()
+    {
+        return requiredContacts();
     }
 
     public static final IVersionedSerializer<TxnUpdate> serializer = new IVersionedSerializer<TxnUpdate>()
@@ -211,6 +257,7 @@ public class TxnUpdate implements Update
             KeySerializers.keys.serialize(update.keys, out, version);
             writeWithVIntLength(update.condition, out);
             serializeArray(update.fragments, out, version, ByteBufferUtil.byteBufferSerializer);
+            serializeNullable(update.cassandraCommitCL, out, version, consistencyLevelSerializer);
         }
 
         @Override
@@ -219,7 +266,9 @@ public class TxnUpdate implements Update
             Keys keys = KeySerializers.keys.deserialize(in, version);
             ByteBuffer condition = readWithVIntLength(in);
             ByteBuffer[] fragments = deserializeArray(in, version, ByteBufferUtil.byteBufferSerializer, ByteBuffer[]::new);
-            return new TxnUpdate(keys, fragments, condition);
+            ConsistencyLevel consistencyLevel = deserializeNullable(in, version, consistencyLevelSerializer);
+            Collection<Id> requiredContacts = null;
+            return new TxnUpdate(keys, fragments, condition, consistencyLevel);
         }
 
         @Override
@@ -228,6 +277,7 @@ public class TxnUpdate implements Update
             long size = KeySerializers.keys.serializedSize(update.keys, version);
             size += serializedSizeWithVIntLength(update.condition);
             size += serializedArraySize(update.fragments, version, ByteBufferUtil.byteBufferSerializer);
+            size += serializedNullableSize(update.cassandraCommitCL, version, consistencyLevelSerializer);
             assert(ByteBufferUtil.serialized(this, update, version).remaining() == size);
             return size;
         }

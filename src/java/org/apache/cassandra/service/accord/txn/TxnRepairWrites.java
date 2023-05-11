@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord.txn;
 import java.util.Collection;
 
 import com.google.common.collect.ForwardingCollection;
-import com.google.common.collect.ImmutableList;
 
 import accord.api.RepairWrites;
 import accord.api.Write;
@@ -30,15 +29,16 @@ import accord.primitives.Seekables;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 
+import static accord.utils.Invariants.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 
 public class TxnRepairWrites extends ForwardingCollection<PartitionUpdate> implements RepairWrites
 {
-    public static final TxnRepairWrites EMPTY = new TxnRepairWrites(ImmutableList.of());
     private final Collection<PartitionUpdate> repairWrites;
 
     public TxnRepairWrites(Collection<PartitionUpdate> repairWrites)
     {
+        checkArgument(repairWrites != null && !repairWrites.isEmpty());
         this.repairWrites = repairWrites;
     }
 

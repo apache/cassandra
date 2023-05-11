@@ -1085,6 +1085,7 @@ public class Config
     public volatile boolean client_request_size_metrics_enabled = true;
 
     public LWTStrategy lwt_strategy = LWTStrategy.migration;
+    public PartitionRepairStrategy partition_repair_strategy = PartitionRepairStrategy.normal;
 
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
@@ -1201,6 +1202,25 @@ public class Config
          * that don't want to accidentally start using legacy Paxos
          * requiring migration to Accord.
          */
+        accord
+    }
+
+    /**
+     * Blocking partition repair from regular quorum reads can read data written by Accord
+     * at some replicas from replicas that are further ahead applying transactions compared to other replicas.
+     *
+     * This can cause recovery coordinators to recover a transaction incorrectly by reading the data from the transaction being already completed
+     * (or subsequent transactions) and producing the wrong writes at other replicas that have not yet applied the transaction.
+     *
+     * By routing repairs through Accord it is guaranteed that the Accord derived contents of the repair have already been applied at any
+     * replica where Accord applies the transaction. This also prevents BRR from breaking atomicity of Accord writes.
+     */
+    public enum PartitionRepairStrategy
+    {
+        // Apply blocking partition repairs normally as mutations via StorageProxy
+        normal,
+        // Apply blocking partitions repairs via Accord transactions to support interoperability
+        // with Accord reads and writes to the same data
         accord
     }
 

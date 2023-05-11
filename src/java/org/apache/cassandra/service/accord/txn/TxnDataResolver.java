@@ -81,7 +81,7 @@ public class TxnDataResolver implements DataResolver
         TxnRead txnRead = (TxnRead)read;
         if (txnRead.readDataCL() == DataConsistencyLevel.UNSPECIFIED)
         {
-            return AsyncChains.success(new ResolveResult((Data) unresolvedData, TxnRepairWrites.EMPTY));
+            return AsyncChains.success(new ResolveResult((Data) unresolvedData, null));
         }
         else
         {
@@ -138,7 +138,7 @@ public class TxnDataResolver implements DataResolver
 
         if (repairs == null)
         {
-            return AsyncChains.success(new ResolveResult(resolvedData, TxnRepairWrites.EMPTY));
+            return AsyncChains.success(new ResolveResult(resolvedData, null));
         }
         checkState(!repairs.isEmpty());
 
@@ -154,7 +154,7 @@ public class TxnDataResolver implements DataResolver
             }
 
             if (repairMutationsFinal.isEmpty())
-                return new ResolveResult(resolvedData, TxnRepairWrites.EMPTY);
+                return new ResolveResult(resolvedData, null);
 
             Mutation repairMutation = Mutation.merge(repairMutationsFinal);
             Collection<PartitionUpdate> partitionUpdates = repairMutation.getPartitionUpdates();

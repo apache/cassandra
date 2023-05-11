@@ -69,7 +69,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public static final String CAS_READ_NAME = "CAS_READ";
     public static final TxnDataName CAS_READ = new TxnDataName(Kind.CAS_READ, CAS_READ_NAME);
 
-    public static final TxnRead EMPTY_READ = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, ConsistencyLevel.ANY);
+    public static final TxnRead EMPTY_READ = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, null);
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null, null));
 
     @Nonnull
@@ -150,11 +150,15 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 
         switch (cassandraConsistencyLevel)
         {
+            case ONE:
+                // Accord defaults to reading from one replica so we can use UNSPECIFIED
+                return DataConsistencyLevel.UNSPECIFIED;
             case SERIAL:
             case QUORUM:
                 return DataConsistencyLevel.QUORUM;
+                // TODO TWO, THREE, ALL, EACH, LOCAL_*
             default:
-                throw new IllegalStateException("ConsistencyLevel " + cassandraConsistencyLevel + " is not supported as an Accord read ConsistencyLevel");
+                throw new IllegalStateException("ConsistencyLevel " + cassandraConsistencyLevel + " is not supported as a transaction read ConsistencyLevel");
         }
     }
 

@@ -45,6 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.Config.PartitionRepairStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -664,6 +665,9 @@ public abstract class ConsensusTableMigrationState
 
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
+
+        if (DatabaseDescriptor.getPartitionRepairStrategy() != PartitionRepairStrategy.accord)
+            throw new IllegalStateException("Partition repairs need to be routed through Accord to safely migrate to Accord");
 
         if (!Paxos.useV2())
             throw new IllegalStateException("Can't do any consensus migrations to/from PaxosV1, switch to V2 first");
