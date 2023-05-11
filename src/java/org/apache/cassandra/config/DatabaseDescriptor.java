@@ -106,6 +106,7 @@ import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.introspector.FieldProperty;
+import org.yaml.snakeyaml.introspector.MethodProperty;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static java.util.Optional.ofNullable;
@@ -414,7 +415,7 @@ public class DatabaseDescriptor
                                                  .entrySet()
                                                  .stream()
                                                  .map(e -> {
-                                                     if (e.getValue() instanceof FieldProperty)
+                                                     if (e.getValue() instanceof FieldProperty || e.getValue() instanceof MethodProperty)
                                                          return new AbstractMap.SimpleEntry<>(e.getKey(), new ListenableProperty<>(e.getValue()));
                                                      else
                                                          return e;
@@ -4775,7 +4776,7 @@ public class DatabaseDescriptor
         if (property.getType().equals(String.class))
             return (String) property.get(conf);
         else
-            return TypeConverterRegistry.instance.get(property.getType(), String.class)
+            return TypeConverterRegistry.instance.get(property.getType(), String.class, TypeConverterRegistry.TypeConverter.TO_STRING)
                                                  .convertNullable(property.get(conf));
     }
 
@@ -4788,20 +4789,6 @@ public class DatabaseDescriptor
      */
     public static void setProperty(String name, Object value)
     {
-        setProperty(name, value, conf);
-    }
-
-    /**
-     * Set configuration property for the given name to {@link #conf} if a safe manner
-     * with handling internal Cassandra exceptions.
-     *
-     * @param name Property name.
-     * @param value Property value.
-     * @param config Configuration instance to set the property on.
-     */
-    @VisibleForTesting
-    public static void setProperty(String name, Object value, Config config)
-    {
         try
         {
             Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
@@ -4811,7 +4798,7 @@ public class DatabaseDescriptor
                                     .map(from -> TypeConverterRegistry.instance.get(from, property.getType())
                                                                       .convert(value))
                                     .orElse(null);
-            property.set(config, convertedValue);
+            property.set(conf, convertedValue);
         }
         catch (ConfigurationException e)
         {

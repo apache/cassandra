@@ -36,7 +36,7 @@ import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.TypeConverter;
+import org.apache.cassandra.config.TypeConverterRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 
@@ -141,9 +141,9 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, TypeConverter.TO_STRING.convertNullable(value), propertyName));
+        assertRowsNet(executeNet(statement, TypeConverterRegistry.TypeConverter.TO_STRING.convertNullable(value), propertyName));
         assertEquals(value, DatabaseDescriptor.getProperty(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.TO_STRING.convertNullable((value)) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverterRegistry.TypeConverter.TO_STRING.convertNullable((value)) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)

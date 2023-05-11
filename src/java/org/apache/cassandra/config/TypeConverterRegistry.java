@@ -22,6 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -123,6 +126,30 @@ public class TypeConverterRegistry
         public int hashCode()
         {
             return Objects.hash(from, to);
+        }
+    }
+
+    /**
+     * Converts configuration value from one type to another, you can use {@link TypeConverterRegistry}
+     * if your input type is String and you want to convert it to an appropriate configuration object type.
+     *
+     * @param <T> Type to convert to.
+     */
+    public interface TypeConverter<T>
+    {
+        TypeConverter<String> TO_STRING = Object::toString;
+
+        /**
+         * Converts a value to the target type.
+         * @param value Value to convert.
+         * @return Converted value.
+         */
+        @Nullable
+        T convert(@Nonnull Object value);
+
+        default @Nullable T convertNullable(@Nullable Object value)
+        {
+            return value == null ? null : convert(value);
         }
     }
 }

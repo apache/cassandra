@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -36,7 +35,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
-import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
@@ -56,25 +54,15 @@ public class SettingsTableTest extends CQLTester
     @Before
     public void config()
     {
-        OverrideConfigurationLoader.override(cfg -> {
-            cfg.client_encryption_options.applyConfig();
-            cfg.server_encryption_options.applyConfig();
-            cfg.sstable_preemptive_open_interval = null;
-            cfg.index_summary_resize_interval = null;
-            cfg.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
-            cfg.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
-            cfg.credentials_update_interval = null;
-            this.config = cfg;
-        });
+        config = DatabaseDescriptor.getRawConfig();
+        config.sstable_preemptive_open_interval = null;
+        config.index_summary_resize_interval = null;
+        config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
+        config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
+        config.credentials_update_interval = null;
         table = new SettingsTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
-    }
-
-    @After
-    public void close()
-    {
-        OverrideConfigurationLoader.closeOverride();
     }
 
     @Test
@@ -83,15 +71,12 @@ public class SettingsTableTest extends CQLTester
         int paging = (int) (Math.random() * 100 + 1);
         ResultSet result = executeNetWithPaging("SELECT * FROM vts.settings", paging);
         Set<String> unprocessedKeys = new HashSet<>();
-        DatabaseDescriptor.accept((key, type, ro) -> unprocessedKeys.add(key));
-        int i = 0;
+        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> unprocessedKeys.add(key)));
         for (Row r : result)
         {
-            i++;
             String name = r.getString("name");
-            String value = r.getString("value");
-            String expected = getValue(DatabaseDescriptor.getProperty(name));
-            Assert.assertEquals("Unexpected result for key: " + name, expected, value);
+            String expectedValue = DatabaseDescriptor.getStringProperty(SettingsTable.getKeyAndWarn(name));
+            Assert.assertEquals("Unexpected result for key: " + name, expectedValue, r.getString("value"));
             unprocessedKeys.remove(name);
         }
         Assert.assertTrue("Configuration fields not processed: " + unprocessedKeys, unprocessedKeys.isEmpty());
@@ -177,11 +162,11 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.accept((key, type, ro) -> {
+        Set<String> expectedNames = new HashSet<>();
+        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
             if (key.startsWith("server_encryption"))
                 expectedNames.add(key);
-        });
+        }));
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
 
         check(pre + "algorithm", null);
@@ -243,10 +228,10 @@ public class SettingsTableTest extends CQLTester
 
         config.audit_logging_options.enabled = true;
         List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.accept((key, type, ro) -> {
+        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
             if (key.startsWith("audit_logging"))
                 expectedNames.add(key);
-        });
+        }));
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
@@ -294,10 +279,10 @@ public class SettingsTableTest extends CQLTester
 
         config.transparent_data_encryption_options.enabled = true;
         List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.accept((key, type, ro) -> {
+        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
             if (key.startsWith("transparent_data_encryption_options"))
                 expectedNames.add(key);
-        });
+        }));
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
@@ -312,10 +297,5 @@ public class SettingsTableTest extends CQLTester
         check(pre + "iv_length", "16");
         config.transparent_data_encryption_options.iv_length = 7;
         check(pre + "iv_length", "7");
-    }
-
-    private static String getValue(Object value)
-    {
-        return value == null ? null : value.toString();
     }
 }

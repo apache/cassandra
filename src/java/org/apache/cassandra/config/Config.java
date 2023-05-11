@@ -201,8 +201,8 @@ public class Config
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
     @Mutable
-    @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateRepairSessionSpace")
+    @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
     public volatile boolean use_offheap_merkle_trees = true;
@@ -332,6 +332,7 @@ public class Config
     @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateConcurrentCompactors")
     public volatile Integer concurrent_compactors;
     @Mutable
+    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("64MiB/s");
     @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
@@ -360,11 +361,14 @@ public class Config
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     @Mutable
+    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     @Mutable
+    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     @Mutable
+    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
 
     public String[] data_file_directories = new String[0];

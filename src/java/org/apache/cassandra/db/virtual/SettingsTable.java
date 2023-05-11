@@ -20,7 +20,6 @@ package org.apache.cassandra.db.virtual;
 import java.util.Optional;
 import java.util.function.Function;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableBiMap;
@@ -34,6 +33,7 @@ import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getStringProperty;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 final class SettingsTable extends AbstractMutableVirtualTable
@@ -42,7 +42,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
     private static final String VALUE = "value";
     private static final BiMap<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableBiMap.copyOf(getBackwardsCompatableNames());
 
-    @VisibleForTesting
     SettingsTable(String keyspace)
     {
         super(TableMetadata.builder(keyspace, "settings")
@@ -81,7 +80,8 @@ final class SettingsTable extends AbstractMutableVirtualTable
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         try
         {
-            result.row(getKeyAndWarn(name)).column(VALUE, DatabaseDescriptor.getStringProperty(name));
+            Object value = getStringProperty(getKeyAndWarn(name));
+            result.row(name).column(VALUE, value);
         }
         catch (PropertyNotFoundException e)
         {
@@ -94,22 +94,28 @@ final class SettingsTable extends AbstractMutableVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        BiMap<String, String> map = BACKWARDS_COMPATABLE_NAMES.inverse();
-        DatabaseDescriptor.accept((key, type, ro) -> {
-                                      if (map.containsKey(key))
-                                          result.row(map.get(key)).column(VALUE, DatabaseDescriptor.getStringProperty(key));
-                                      result.row(key).column(VALUE, DatabaseDescriptor.getStringProperty(key));
-                                  },
+        DatabaseDescriptor.accept(withBackwardsCompatableNamesVisitor((key, type, ro) ->
+                                                                result.row(key).column(VALUE, getStringProperty(BACKWARDS_COMPATABLE_NAMES.getOrDefault(key, key)))),
                                   t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
 
-    private static String getKeyAndWarn(String name)
+    static String getKeyAndWarn(String name)
     {
         String key = BACKWARDS_COMPATABLE_NAMES.getOrDefault(name, name);
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
         return key;
+    }
+
+    static DatabaseDescriptor.ConfigVisitor withBackwardsCompatableNamesVisitor(DatabaseDescriptor.ConfigVisitor visitor)
+    {
+        BiMap<String, String> inversedNames = BACKWARDS_COMPATABLE_NAMES.inverse();
+        return (name, type, readOnly) -> {
+            if (inversedNames.containsKey(name))
+                visitor.visit(inversedNames.get(name), type, readOnly);
+            visitor.visit(name, type, readOnly);
+        };
     }
 
     /**
@@ -137,7 +143,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
      * There were a handle full of properties which had custom names, names not present in the yaml, this map also
      * fixes this and returns the proper (what is accessable via yaml) names.
      */
-    public static BiMap<String, String> getBackwardsCompatableNames()
+    private static BiMap<String, String> getBackwardsCompatableNames()
     {
         BiMap<String, String> names = HashBiMap.create();
         // Names that dont match yaml
