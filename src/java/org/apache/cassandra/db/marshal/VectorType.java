@@ -274,7 +274,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
             {
                 Object value = values.get(i);
                 if (value == null || (value instanceof ByteBuffer && ByteBufferAccessor.instance.isEmpty((ByteBuffer) value)))
-                    throw new MarshalException(String.format("Element at index %d is null", i));
+                    throw new MarshalException(String.format("Element at index %d is null; given %s", i, values));
             }
         }
     }
