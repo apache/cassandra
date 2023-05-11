@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
+import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.management.QueryExp;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
@@ -269,6 +271,18 @@ public class TableMetricTest extends TestBaseImpl
             Object previous = map.remove(mbeanName);
             if (previous == null)
                 onException.handler.accept(new InstanceNotFoundException("MBean " + mbeanName + " was not found"));
+        }
+
+        @Override
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return null;
+        }
+
+        @Override
+        public MBeanServer getMbs()
+        {
+            return null;
         }
     }
 }

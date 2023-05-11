@@ -26,14 +26,15 @@ import java.rmi.server.RMIClientSocketFactory;
 
 /**
  * This class is used to override the local address the JMX client calculates when trying to connect,
- * which can otherwise be influences by the system property "java.rmi.server.hostname" in strange and
+ * which can otherwise be influenced by the system property "java.rmi.server.hostname" in strange and
  * unpredictable ways.
  */
 public class RMIClientSocketFactoryImpl implements RMIClientSocketFactory, Serializable
 {
     private final InetAddress localAddress;
 
-    public RMIClientSocketFactoryImpl(InetAddress localAddress) {
+    public RMIClientSocketFactoryImpl(InetAddress localAddress)
+    {
         this.localAddress = localAddress;
     }
 
