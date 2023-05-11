@@ -64,6 +64,13 @@ public abstract class AbstractTextSerializer extends TypeSerializer<String>
     }
 
     @Override
+    public boolean isNull(ByteBuffer buffer)
+    {
+        // !buffer.hasRemaining() is not "null" for string types, it is the empty string
+        return buffer == null;
+    }
+
+    @Override
     protected String toCQLLiteralNonNull(ByteBuffer buffer)
     {
         return StringUtils.replace(deserialize(buffer), "'", "''");

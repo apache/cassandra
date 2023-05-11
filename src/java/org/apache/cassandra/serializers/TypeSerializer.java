@@ -65,16 +65,21 @@ public abstract class TypeSerializer<T>
         return toString(deserialize(buffer));
     }
 
+    public boolean isNull(ByteBuffer buffer)
+    {
+        return buffer == null || !buffer.hasRemaining();
+    }
+
     public final String toCQLLiteral(ByteBuffer buffer)
     {
-        return buffer == null || !buffer.hasRemaining()
+        return isNull(buffer)
                ? "null"
                :  maybeQuote(toCQLLiteralNonNull(buffer));
     }
 
     public final String toCQLLiteralNoQuote(ByteBuffer buffer)
     {
-        return buffer == null || !buffer.hasRemaining()
+        return isNull(buffer)
                ? "null"
                :  toCQLLiteralNonNull(buffer);
     }
