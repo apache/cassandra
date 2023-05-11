@@ -21,9 +21,11 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.lucene.util.hnsw.ConcurrentNeighborSet;
 import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
@@ -67,14 +69,17 @@ public class ConcurrentHnswGraphWriter
                 + 8L * hnsw.numLevels(); // offsets for each level
             // Write offsets for each level
             long nextLevelOffset = firstLevelOffset;
+            var levelOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
             for (var level = 0; level < hnsw.numLevels(); level++) {
                 out.writeLong(nextLevelOffset);
+                levelOffsets.put(level, nextLevelOffset);
                 nextLevelOffset += levelSize(level);
             }
             assert out.position() == firstLevelOffset : String.format("first level offset mismatch: %s actual vs %s expected", out.position(), firstLevelOffset);
 
             for (var level = 0; level < hnsw.numLevels(); level++) {
-                long levelOffset = out.position();
+                var levelOffset = out.position();
+                assert levelOffset == levelOffsets.get(level) : String.format("level %s offset mismatch: %s actual vs %s expected", level, levelOffset, levelOffsets.get(level));
                 // write the number of nodes on the level
                 var sortedNodes = getSortedNodes(hnsw.getNodesOnLevel(level));
                 out.writeInt(sortedNodes.length);
@@ -82,20 +87,21 @@ public class ConcurrentHnswGraphWriter
                 // write offsets for each node
                 // TODO use VInt and delta encoding
                 long nextNodeOffset = out.position() + (4L + 8L) * sortedNodes.length;
-                var offsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
+                var nodeOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
                 for (var node : sortedNodes)
                 {
                     out.writeInt(node);
                     out.writeLong(nextNodeOffset);
-                    offsets.put(node, nextNodeOffset);
+                    nodeOffsets.put(node, nextNodeOffset);
                     nextNodeOffset += neighborSize(level, node);
                 }
 
                 // for each node on the level, write its neighbors
                 for (var node : sortedNodes)
                 {
-                    assert out.position() == offsets.get(node) : String.format("node %s offset mismatch: %s actual vs %s expected", node, out.position(), offsets.get(node));
+                    assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                     var neighborSet = hnsw.getNeighbors(level, node);
+                    assert neighborSet.size() == countNeighbors(neighborSet) : String.format("level %s node %s neighbor count mismatch: %s actual vs %s expected", level, node, countNeighbors(neighborSet), neighborSet.size());
                     // TODO use VInt and delta encoding
                     out.writeInt(neighborSet.size());
                     neighborSet.forEach((ordinal, score_) -> {
@@ -109,6 +115,22 @@ public class ConcurrentHnswGraphWriter
 
             out.flush();
         }
+    }
+
+    private int countNeighbors(ConcurrentNeighborSet neighborSet)
+    {
+        AtomicInteger count = new AtomicInteger();
+        try
+        {
+            neighborSet.forEach((ordinal_, score_) -> {
+                count.incrementAndGet();
+            });
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return count.get();
     }
 
     private static int[] getSortedNodes(HnswGraph.NodesIterator nodesOnLevel) {
