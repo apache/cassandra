@@ -41,7 +41,6 @@ public class DiskSpaceTest extends SAITester
 
         // create index, disk space should include index components
         String indexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
 
         long indexSize = indexDiskSpaceUse();
         long sstableSizeWithIndex = totalDiskSpaceUsed();

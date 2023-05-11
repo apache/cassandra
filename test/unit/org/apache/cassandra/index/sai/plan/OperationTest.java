@@ -78,7 +78,7 @@ public class OperationTest
     private static final String KS_NAME = "sai";
     private static final String CF_NAME = "test_cf";
     private static final String CLUSTERING_CF_NAME = "clustering_test_cf";
-    private static final String STATIC_CF_NAME = "static_ndi_test_cf";
+    private static final String STATIC_CF_NAME = "static_sai_test_cf";
 
     private static ColumnFamilyStore BACKEND;
     private static ColumnFamilyStore CLUSTERING_BACKEND;

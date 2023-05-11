@@ -40,7 +40,6 @@ public class DuplicateRowIDTest extends SAITester
     {
         createTable("CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 INT)");
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        waitForIndexQueryable();
 
         for (int i = 0; i < 2048; ++i)
         {
