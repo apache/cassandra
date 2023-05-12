@@ -608,6 +608,7 @@ public final class AbstractTypeGenerators
 
     private static int uniqueElementsForDomain(AbstractType<?> type)
     {
+        type = type.unwrap();
         if (type instanceof BooleanType)
             return 2;
         if (type instanceof EmptyType)
@@ -620,6 +621,8 @@ public final class AbstractTypeGenerators
         {
             VectorType<?> vector = (VectorType<?>) type;
             int uniq = uniqueElementsForDomain(vector.elementType);
+            if (uniq == 1)
+                return 1;
             if (uniq != -1)
                 return uniq * vector.dimension;
         }
