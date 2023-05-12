@@ -43,24 +43,28 @@ public class InsertTest extends CQLTester
             execute("TRUNCATE %s");
             assertRows(execute("SELECT * FROM %s"));
         };
-        VectorType<Integer> type = VectorType.getInstance(Int32Type.instance, 2);
+
         createTable(KEYSPACE, "CREATE TABLE %s (pk vector<int, 2> primary key)");
 
         execute("INSERT INTO %s (pk) VALUES ([1, 2])");
         test.run();
 
-//        execute("INSERT INTO %s (pk) VALUES (?)", type.decompose(Arrays.asList(1, 2)));
         execute("INSERT INTO %s (pk) VALUES (?)", vector(1, 2));
         test.run();
 
         execute("INSERT INTO %s (pk) VALUES ([1, 1 + 1])");
         test.run();
 
-//        execute("INSERT INTO %s (pk) VALUES ([1, ?])", 2);
-//        test.run();
+        execute("INSERT INTO %s (pk) VALUES ([1, ?])", 2);
+        test.run();
+
+        execute("INSERT INTO %s (pk) VALUES ([1, (int) ?])", 2);
+        test.run();
 
         execute("INSERT INTO %s (pk) VALUES ([1, 1 + (int) ?])");
         test.run();
+
+        //TODO UPDATE non-pk colum = ?
     }
 
     @Test

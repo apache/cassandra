@@ -92,9 +92,6 @@ public class Vectors
             {
                 Term t = rt.prepare(keyspace, valueSpec);
 
-                if (t.containsBindMarker())
-                    throw new InvalidRequestException(String.format("Invalid vector literal for %s: bind variables are not supported inside vector literals", receiver.name));
-
                 if (t instanceof Term.NonTerminal)
                     allTerminal = false;
 
@@ -192,6 +189,7 @@ public class Vectors
 
         public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
+            elements.forEach(t -> t.collectMarkerSpecification(boundNames));
         }
 
         public Terminal bind(QueryOptions options) throws InvalidRequestException
