@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
@@ -39,6 +40,39 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public final class VectorType<T> extends AbstractType<List<T>>
 {
+    private static class Key
+    {
+        private final AbstractType<?> type;
+        private final int dimension;
+
+        private Key(AbstractType<?> type, int dimension)
+        {
+            this.type = type;
+            this.dimension = dimension;
+        }
+
+        private VectorType<?> create()
+        {
+            return new VectorType<>(type, dimension);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Key key = (Key) o;
+            return dimension == key.dimension && Objects.equals(type, key.type);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(type, dimension);
+        }
+    }
+    private static final ConcurrentHashMap<Key, VectorType<?>> instances = new ConcurrentHashMap<>();
+
     public final AbstractType<T> elementType;
     public final int dimension;
     protected final TypeSerializer<T> elementSerializer;
@@ -63,7 +97,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
     public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimention)
     {
-        return new VectorType<>(elements, dimention);
+        Key key = new Key(elements, dimention);
+        return (VectorType<T>) instances.computeIfAbsent(key, Key::create);
     }
 
     @Override
