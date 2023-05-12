@@ -61,10 +61,12 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -83,9 +85,10 @@ public final class AbstractTypeGenerators
     private static final Gen<Integer> VERY_SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
-    private static final Map<AbstractType<?>, String> UNSUPPORTED_PRIMITIVES = ImmutableMap.<AbstractType<?>, String>builder()
-                                                                               .put(DateType.instance, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
-                                                                                           .build();
+    private static final Map<Class<? extends AbstractType<?>>, String> UNSUPPORTED_PRIMITIVES = ImmutableMap.<Class<? extends AbstractType<?>>, String>builder()
+                                                                                                            .put(DateType.class, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
+                                                                                                            .put(PartitionerDefinedOrder.class, "This is a fake type used for ordering partitions using a Partitioner")
+                                                                                                            .build();
 
 
     private static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
@@ -98,6 +101,7 @@ public final class AbstractTypeGenerators
               TypeSupport.of(DoubleType.instance, SourceDSL.doubles().any()),
               TypeSupport.of(BytesType.instance, Generators.bytes(0, 1024), FastByteOperations::compareUnsigned), // use the faster version...
               TypeSupport.of(UUIDType.instance, Generators.UUID_RANDOM_GEN),
+              TypeSupport.of(TimeUUIDType.instance, Generators.UUID_TIME_GEN.map(TimeUUID::fromUuid)),
               TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN, (a, b) -> FastByteOperations.compareUnsigned(a.getAddress(), b.getAddress())), // serialization strips the hostname, only keeps the address
               /*
               TODO
@@ -151,7 +155,7 @@ public final class AbstractTypeGenerators
         types.addAll(NON_PRIMITIVE_TYPES);
         types.add(FrozenType.class);
         types.add(ReversedType.class);
-        UNSUPPORTED_PRIMITIVES.keySet().forEach(t -> types.add(t.getClass()));
+        types.addAll(UNSUPPORTED_PRIMITIVES.keySet());
         return types;
     }
 

@@ -363,6 +363,12 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         {
             return 16;
         }
+
+        @Override
+        public boolean shouldQuoteCQL()
+        {
+            return false;
+        }
     }
 
     public static class Generator
