@@ -162,7 +162,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public String toCQLString(ByteBuffer bytes)
     {
-        return asCQL3Type().toCQLLiteral(bytes, ProtocolVersion.CURRENT);
+        return asCQL3Type().toCQLLiteral(bytes);
     }
 
     /** get a byte representation of the given string. */

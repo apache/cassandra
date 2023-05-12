@@ -35,6 +35,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -74,7 +75,7 @@ public class AbstractTypeTest
     static
     {
         // make sure blob is always the same
-        System.setProperty("cassandra.test.blob.shared.seed", "42");
+        CassandraRelevantProperties.TEST_BLOB_SHARED_SEED.setInt(42);
     }
 
     //TODO
@@ -218,7 +219,7 @@ public class AbstractTypeTest
                 String str = type.getString(bb);
                 assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
 
-                String literal = type.asCQL3Type().toCQLLiteral(bb, ProtocolVersion.CURRENT);
+                String literal = type.asCQL3Type().toCQLLiteral(bb);
                 ByteBuffer cqlBB = parseLiteralType(type, literal);
                 assertBytesEquals(cqlBB, bb, "Deserializing literal %s did not match expected bytes", literal);
 

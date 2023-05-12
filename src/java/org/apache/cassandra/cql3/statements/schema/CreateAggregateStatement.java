@@ -47,7 +47,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
 import static java.lang.String.join;
@@ -177,7 +176,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             }
 
             // Converts initcond to a CQL literal and parse it back to avoid another CASSANDRA-11064
-            String initialValueString = stateType.asCQL3Type().toCQLLiteral(initialValue, ProtocolVersion.CURRENT);
+            String initialValueString = stateType.asCQL3Type().toCQLLiteral(initialValue);
             if (!Objects.equal(initialValue, stateType.asCQL3Type().fromCQLLiteral(keyspaceName, initialValueString)))
                 throw new AssertionError(String.format("CQL literal '%s' (from type %s) parsed with a different value", initialValueString, stateType.asCQL3Type()));
 
