@@ -709,7 +709,7 @@ public final class AbstractTypeGenerators
         type = type.unwrap();
         if (type instanceof BooleanType)
             return 2;
-        if (type instanceof EmptyType || (!type.subTypes().isEmpty() && type.subTypes().stream().allMatch(t -> t.unwrap() instanceof EmptyType)))
+        if (type instanceof EmptyType)
             return 1;
         if (type instanceof SetType)
             return uniqueElementsForDomain(((SetType<?>) type).getElementsType());
