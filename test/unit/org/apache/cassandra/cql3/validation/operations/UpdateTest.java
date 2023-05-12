@@ -37,36 +37,6 @@ import static org.junit.Assert.assertEquals;
 public class UpdateTest extends CQLTester
 {
     @Test
-    public void testVectors()
-    {
-        Runnable test = () -> {
-            assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2)));
-            execute("TRUNCATE %s");
-            assertRows(execute("SELECT * FROM %s"));
-        };
-
-        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
-
-        execute("UPDATE %s set VALUE = [1, 2] WHERE pk = 0");
-        test.run();
-
-        execute("UPDATE %s set VALUE = ? WHERE pk = 0", vector(1, 2));
-        test.run();
-
-        execute("UPDATE %s set VALUE = [1, 1 + 1] WHERE pk = 0");
-        test.run();
-
-        execute("UPDATE %s set VALUE = [1, ?] WHERE pk = 0", 2);
-        test.run();
-
-        execute("UPDATE %s set VALUE = [1, (int) ?] WHERE pk = 0", 2);
-        test.run();
-
-        execute("UPDATE %s set VALUE = [1, 1 + (int) ?] WHERE pk = 0", 1);
-        test.run();
-    }
-
-    @Test
     public void testTypeCasts() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t text, a ascii, d double, i int)");

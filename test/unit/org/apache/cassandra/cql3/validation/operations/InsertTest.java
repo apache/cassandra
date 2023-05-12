@@ -33,66 +33,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public class InsertTest extends CQLTester
 {
     @Test
-    public void testVectors()
-    {
-        Runnable test = () -> {
-            assertRows(execute("SELECT * FROM %s"), row(list(1, 2)));
-            execute("TRUNCATE %s");
-            assertRows(execute("SELECT * FROM %s"));
-        };
-
-        createTable(KEYSPACE, "CREATE TABLE %s (pk vector<int, 2> primary key)");
-
-        execute("INSERT INTO %s (pk) VALUES ([1, 2])");
-        test.run();
-
-        execute("INSERT INTO %s (pk) VALUES (?)", vector(1, 2));
-        test.run();
-
-        execute("INSERT INTO %s (pk) VALUES ([1, 1 + 1])");
-        test.run();
-
-        execute("INSERT INTO %s (pk) VALUES ([1, ?])", 2);
-        test.run();
-
-        execute("INSERT INTO %s (pk) VALUES ([1, (int) ?])", 2);
-        test.run();
-
-        execute("INSERT INTO %s (pk) VALUES ([1, 1 + (int) ?])", 1);
-        test.run();
-    }
-
-    @Test
-    public void testVectorsNonPK()
-    {
-        Runnable test = () -> {
-            assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2)));
-            execute("TRUNCATE %s");
-            assertRows(execute("SELECT * FROM %s"));
-        };
-
-        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
-
-        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 2])");
-        test.run();
-
-        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1, 2));
-        test.run();
-
-        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 1 + 1])");
-        test.run();
-
-        execute("INSERT INTO %s (pk, value) VALUES (0, [1, ?])", 2);
-        test.run();
-
-        execute("INSERT INTO %s (pk, value) VALUES (0, [1, (int) ?])", 2);
-        test.run();
-
-        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 1 + (int) ?])", 1);
-        test.run();
-    }
-
-    @Test
     public void testInsertZeroDuration() throws Throwable
     {
         Duration expectedDuration = Duration.newInstance(0, 0, 0);
