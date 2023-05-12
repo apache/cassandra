@@ -492,6 +492,16 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return valueLengthIfFixed() != VARIABLE_LENGTH;
     }
 
+    public boolean isNull(ByteBuffer bb)
+    {
+        return isNull(bb, ByteBufferAccessor.instance);
+    }
+
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
+    {
+        return getSerializer().isNull(buffer, accessor);
+    }
+
     // This assumes that no empty values are passed
     public void writeValue(ByteBuffer value, DataOutputPlus out) throws IOException
     {
@@ -501,7 +511,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     // This assumes that no empty values are passed
     public  <V> void writeValue(V value, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
     {
-        assert !getSerializer().isNull(value, accessor) : "bytes should not be null for type " + this;
+        assert !isNull(value, accessor) : "bytes should not be null for type " + this;
         int expectedValueLength = valueLengthIfFixed();
         if (expectedValueLength >= 0)
         {
