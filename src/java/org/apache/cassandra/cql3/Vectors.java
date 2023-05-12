@@ -24,26 +24,21 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Vectors
 {
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
-    }
+    private Vectors() {}
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((VectorType<?>) unwrap(type)).getElementsType();
+        return ((VectorType<?>) type.unwrap()).getElementsType();
     }
 
-    public static ColumnSpecification valueSpecOf(ColumnSpecification column)
+    private static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
     }
@@ -125,34 +120,10 @@ public class Vectors
             this.elements = elements;
         }
 
-        public static <T> Value fromSerialized(ByteBuffer value, VectorType<T> type) throws InvalidRequestException
-        {
-            try
-            {
-                return new Value(type, type.split(value));
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
-        }
-
         public ByteBuffer get(ProtocolVersion version)
         {
             return type.decomposeRaw(elements);
         }
-
-//        public boolean equals(VectorType<?> vt, Value v)
-//        {
-//            if (elements.size() != v.elements.size())
-//                return false;
-//
-//            for (int i = 0; i < elements.size(); i++)
-//                if (vt.getElementsType().compare(elements.get(i), v.elements.get(i)) != 0)
-//                    return false;
-//
-//            return true;
-//        }
 
         public List<ByteBuffer> getElements()
         {
