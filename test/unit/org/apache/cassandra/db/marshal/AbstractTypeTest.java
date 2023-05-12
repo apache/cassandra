@@ -37,7 +37,6 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
@@ -63,6 +62,7 @@ import org.reflections.util.ConfigurationBuilder;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.typeTree;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
 
@@ -413,132 +413,6 @@ public class AbstractTypeTest
             sb.append("\nValues: ").append(e.samples);
             return sb.toString();
         });
-    }
-
-    private static String typeTree(AbstractType<?> type)
-    {
-        StringBuilder sb = new StringBuilder();
-        typeTree(sb, type, 0);
-        return sb.toString().trim();
-    }
-
-    private static void typeTree(StringBuilder sb, AbstractType<?> type, int indent)
-    {
-        if (type.isUDT())
-        {
-            if (indent != 0)
-            {
-                indent += 2;
-                newline(sb, indent);
-            }
-            UserType ut = (UserType) type;
-            sb.append("udt[").append(ColumnIdentifier.maybeQuote(ut.elementName())).append("]:");
-            int elementIndent = indent + 2;
-            for (int i = 0; i < ut.size(); i++)
-            {
-                newline(sb, elementIndent);
-                FieldIdentifier fieldName = ut.fieldName(i);
-                AbstractType<?> fieldType = ut.fieldType(i);
-                sb.append(ColumnIdentifier.maybeQuote(fieldName.toString())).append(": ");
-                typeTree(sb, fieldType, elementIndent);
-            }
-            newline(sb, elementIndent);
-        }
-        else if (type.isTuple())
-        {
-            if (indent != 0)
-            {
-                indent += 2;
-                newline(sb, indent);
-            }
-            TupleType tt = (TupleType) type;
-            sb.append("tuple:");
-            int elementIndent = indent + 2;
-            for (int i = 0; i < tt.size(); i++)
-            {
-                newline(sb, elementIndent);
-                AbstractType<?> fieldType = tt.type(i);
-                sb.append(i).append(": ");
-                typeTree(sb, fieldType, elementIndent);
-            }
-        }
-        else if (type.isVector())
-        {
-            if (indent != 0)
-            {
-                indent += 2;
-                newline(sb, indent);
-            }
-            VectorType<?> vt = (VectorType<?>) type;
-            sb.append("vector[").append(vt.dimension).append("]: ");
-            indent += 2;
-            typeTree(sb, vt.elementType, indent);
-        }
-        else if (type.isCollection())
-        {
-            CollectionType<?> ct = (CollectionType<?>) type;
-            switch (ct.kind)
-            {
-                case MAP:
-                {
-                    if (indent != 0)
-                    {
-                        indent += 2;
-                        newline(sb, indent);
-                    }
-                    MapType<?, ?> mt = (MapType<?, ?>) type;
-                    sb.append("map:");
-                    indent += 2;
-                    newline(sb, indent);
-                    sb.append("key: ");
-                    int subTypeIndent = indent + 2;
-                    typeTree(sb, mt.getKeysType(), subTypeIndent);
-                    newline(sb, indent);
-                    sb.append("value: ");
-                    typeTree(sb, mt.getValuesType(), subTypeIndent);
-                }
-                break;
-                case LIST:
-                {
-                    if (indent != 0)
-                    {
-                        indent += 2;
-                        newline(sb, indent);
-                    }
-                    ListType<?> lt = (ListType<?>) type;
-                    sb.append("list: ");
-                    indent += 2;
-                    typeTree(sb, lt.getElementsType(), indent);
-                }
-                break;
-                case SET:
-                {
-                    if (indent != 0)
-                    {
-                        indent += 2;
-                        newline(sb, indent);
-                    }
-                    SetType<?> st = (SetType<?>) type;
-                    sb.append("set: ");
-                    indent += 2;
-                    typeTree(sb, st.getElementsType(), indent);
-                }
-                break;
-                default:
-                    throw new UnsupportedOperationException("Unknown kind: " + ct.kind);
-            }
-        }
-        else
-        {
-            sb.append(type.asCQL3Type());
-        }
-    }
-
-    private static void newline(StringBuilder sb, int indent)
-    {
-        sb.append('\n');
-        for (int i = 0; i < indent; i++)
-            sb.append(' ');
     }
 
     private static class Example

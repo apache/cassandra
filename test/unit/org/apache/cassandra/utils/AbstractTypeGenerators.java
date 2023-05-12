@@ -41,6 +41,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -50,6 +51,7 @@ import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.DateType;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.DurationType;
@@ -566,7 +568,7 @@ public final class AbstractTypeGenerators
                     for (int attempts = 0; set.contains(generate); attempts++)
                     {
                         if (attempts == 42)
-                            throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", elementSupport.type.asCQL3Type(), size));
+                            throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", typeTree(elementSupport.type), size));
                         rnd = JavaRandom.wrap(rnd);
                         generate = elementSupport.valueGen.generate(rnd);
                     }
@@ -629,7 +631,7 @@ public final class AbstractTypeGenerators
                     for (int attempts = 0; map.containsKey(key); attempts++)
                     {
                         if (attempts == 42)
-                            throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", keySupport.type.asCQL3Type(), size));
+                            throw new AssertionError(String.format("Unable to get unique element for type %s with the size %d", typeTree(keySupport.type), size));
                         rnd = JavaRandom.wrap(rnd);
                         key = keySupport.valueGen.generate(rnd);
                     }
@@ -707,7 +709,7 @@ public final class AbstractTypeGenerators
         type = type.unwrap();
         if (type instanceof BooleanType)
             return 2;
-        if (type instanceof EmptyType)
+        if (type instanceof EmptyType || (!type.subTypes().isEmpty() && type.subTypes().stream().allMatch(t -> t.unwrap() instanceof EmptyType)))
             return 1;
         if (type instanceof SetType)
             return uniqueElementsForDomain(((SetType<?>) type).getElementsType());
@@ -717,10 +719,8 @@ public final class AbstractTypeGenerators
         {
             VectorType<?> vector = (VectorType<?>) type;
             int uniq = uniqueElementsForDomain(vector.elementType);
-            if (uniq == 1)
-                return 1;
             if (uniq != -1)
-                return uniq * vector.dimension;
+                return uniq == 1 ? 1 : uniq * vector.dimension;
         }
         if (type instanceof TupleType)
         {
@@ -761,6 +761,132 @@ public final class AbstractTypeGenerators
             matches.add((UserType) type);
         for (AbstractType<?> t : type.subTypes())
             extractUDTs(t, matches);
+    }
+
+    public static String typeTree(AbstractType<?> type)
+    {
+        StringBuilder sb = new StringBuilder();
+        typeTree(sb, type, 0);
+        return sb.toString().trim();
+    }
+
+    private static void typeTree(StringBuilder sb, AbstractType<?> type, int indent)
+    {
+        if (type.isUDT())
+        {
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
+            UserType ut = (UserType) type;
+            sb.append("udt[").append(ColumnIdentifier.maybeQuote(ut.elementName())).append("]:");
+            int elementIndent = indent + 2;
+            for (int i = 0; i < ut.size(); i++)
+            {
+                newline(sb, elementIndent);
+                FieldIdentifier fieldName = ut.fieldName(i);
+                AbstractType<?> fieldType = ut.fieldType(i);
+                sb.append(ColumnIdentifier.maybeQuote(fieldName.toString())).append(": ");
+                typeTree(sb, fieldType, elementIndent);
+            }
+            newline(sb, elementIndent);
+        }
+        else if (type.isTuple())
+        {
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
+            TupleType tt = (TupleType) type;
+            sb.append("tuple:");
+            int elementIndent = indent + 2;
+            for (int i = 0; i < tt.size(); i++)
+            {
+                newline(sb, elementIndent);
+                AbstractType<?> fieldType = tt.type(i);
+                sb.append(i).append(": ");
+                typeTree(sb, fieldType, elementIndent);
+            }
+        }
+        else if (type.isVector())
+        {
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
+            VectorType<?> vt = (VectorType<?>) type;
+            sb.append("vector[").append(vt.dimension).append("]: ");
+            indent += 2;
+            typeTree(sb, vt.elementType, indent);
+        }
+        else if (type.isCollection())
+        {
+            CollectionType<?> ct = (CollectionType<?>) type;
+            switch (ct.kind)
+            {
+                case MAP:
+                {
+                    if (indent != 0)
+                    {
+                        indent += 2;
+                        newline(sb, indent);
+                    }
+                    MapType<?, ?> mt = (MapType<?, ?>) type;
+                    sb.append("map:");
+                    indent += 2;
+                    newline(sb, indent);
+                    sb.append("key: ");
+                    int subTypeIndent = indent + 2;
+                    typeTree(sb, mt.getKeysType(), subTypeIndent);
+                    newline(sb, indent);
+                    sb.append("value: ");
+                    typeTree(sb, mt.getValuesType(), subTypeIndent);
+                }
+                break;
+                case LIST:
+                {
+                    if (indent != 0)
+                    {
+                        indent += 2;
+                        newline(sb, indent);
+                    }
+                    ListType<?> lt = (ListType<?>) type;
+                    sb.append("list: ");
+                    indent += 2;
+                    typeTree(sb, lt.getElementsType(), indent);
+                }
+                break;
+                case SET:
+                {
+                    if (indent != 0)
+                    {
+                        indent += 2;
+                        newline(sb, indent);
+                    }
+                    SetType<?> st = (SetType<?>) type;
+                    sb.append("set: ");
+                    indent += 2;
+                    typeTree(sb, st.getElementsType(), indent);
+                }
+                break;
+                default:
+                    throw new UnsupportedOperationException("Unknown kind: " + ct.kind);
+            }
+        }
+        else
+        {
+            sb.append(type.asCQL3Type());
+        }
+    }
+
+    private static void newline(StringBuilder sb, int indent)
+    {
+        sb.append('\n');
+        for (int i = 0; i < indent; i++)
+            sb.append(' ');
     }
 
     private static final class TupleGen implements Gen<ByteBuffer>
