@@ -74,12 +74,18 @@ public class HarryHelper
     public static Surjections.Surjection<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
     {
         return new SchemaGenerators.Builder(keyspace, () -> prefix + counter.getAndIncrement())
-               .partitionKeySpec(1, 3,
+               .partitionKeySpec(1, 2,
+                                 ColumnSpec.int8Type,
+                                 ColumnSpec.int16Type,
+                                 ColumnSpec.int32Type,
                                  ColumnSpec.int64Type,
                                  ColumnSpec.doubleType,
                                  ColumnSpec.asciiType,
                                  ColumnSpec.textType)
-               .clusteringKeySpec(1, 3,
+               .clusteringKeySpec(1, 2,
+                                  ColumnSpec.int8Type,
+                                  ColumnSpec.int16Type,
+                                  ColumnSpec.int32Type,
                                   ColumnSpec.int64Type,
                                   ColumnSpec.doubleType,
                                   ColumnSpec.asciiType,
@@ -88,23 +94,22 @@ public class HarryHelper
                                   ColumnSpec.ReversedType.getInstance(ColumnSpec.doubleType),
                                   ColumnSpec.ReversedType.getInstance(ColumnSpec.asciiType),
                                   ColumnSpec.ReversedType.getInstance(ColumnSpec.textType))
-               .regularColumnSpec(3, 5,
+               .regularColumnSpec(1, 5,
                                   ColumnSpec.int8Type,
                                   ColumnSpec.int16Type,
                                   ColumnSpec.int32Type,
                                   ColumnSpec.int64Type,
                                   ColumnSpec.floatType,
                                   ColumnSpec.doubleType,
-                                  ColumnSpec.asciiType(5, 256))
-               .staticColumnSpec(3, 5,
+                                  ColumnSpec.asciiType(4, 128))
+               .staticColumnSpec(0, 5,
                                  ColumnSpec.int8Type,
                                  ColumnSpec.int16Type,
                                  ColumnSpec.int32Type,
                                  ColumnSpec.int64Type,
                                  ColumnSpec.floatType,
                                  ColumnSpec.doubleType,
-                                 ColumnSpec.asciiType(4, 512),
-                                 ColumnSpec.asciiType(4, 2048))
+                                 ColumnSpec.asciiType(4, 128))
                .surjection();
     }
 
@@ -130,8 +135,8 @@ public class HarryHelper
     public static Configuration.CDSelectorConfigurationBuilder defaultClusteringDescriptorSelectorConfiguration()
     {
         return new Configuration.CDSelectorConfigurationBuilder()
-               .setNumberOfModificationsDistribution(new Configuration.ConstantDistributionConfig(2))
-               .setRowsPerModificationDistribution(new Configuration.ConstantDistributionConfig(2))
+               .setNumberOfModificationsDistribution(new Configuration.ConstantDistributionConfig(1))
+               .setRowsPerModificationDistribution(new Configuration.ConstantDistributionConfig(1))
                .setMaxPartitionSize(100)
                .setOperationKindWeights(new Configuration.OperationKindSelectorBuilder()
                                         .addWeight(OpSelectors.OperationKind.DELETE_ROW, 1)
