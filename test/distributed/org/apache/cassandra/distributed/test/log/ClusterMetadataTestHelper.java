@@ -23,8 +23,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -223,6 +225,23 @@ public class ClusterMetadataTestHelper
         {
             throw new RuntimeException(e);
         }
+    }
+
+
+    private static Set<InetAddressAndPort> leaving(ClusterMetadata metadata)
+    {
+        return  metadata.directory.states.entrySet().stream()
+                                         .filter(e -> e.getValue() == NodeState.LEAVING)
+                                         .map(e -> metadata.directory.endpoint(e.getKey()))
+                                         .collect(Collectors.toSet());
+    }
+
+    public static Map<Token, InetAddressAndPort> bootstrapping(ClusterMetadata metadata)
+    {
+        return  metadata.directory.states.entrySet().stream()
+                                         .filter(e -> e.getValue() == NodeState.BOOTSTRAPPING)
+                                         .collect(Collectors.toMap(e -> metadata.tokenMap.tokens(e.getKey()).iterator().next(),
+                                                                   e -> metadata.directory.endpoint(e.getKey())));
     }
 
     public static NodeId register(int nodeIdx)
@@ -791,6 +810,7 @@ public class ClusterMetadataTestHelper
         lazyLeave(endpoint, force)
         .prepareLeave()
         .startLeave()
+        .midLeave()
         .finishLeave();
     }
 

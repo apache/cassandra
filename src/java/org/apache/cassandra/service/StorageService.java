@@ -3871,7 +3871,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.warn("Node {} is already leaving or being removed, continuing removal anyway", endpoint);
 
         if (metadata.inProgressSequences.contains(toRemove))
-            throw new IllegalArgumentException("Can not remove a node that has an in-progress sequence");
+            throw new UnsupportedOperationException("Can not remove a node that has an in-progress sequence");
 
         maybeHandoverCMS(metadata, endpoint);
 

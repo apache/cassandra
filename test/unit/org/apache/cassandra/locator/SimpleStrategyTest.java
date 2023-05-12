@@ -54,7 +54,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.ServerTestUtils.recreateCMS;
-import static org.apache.cassandra.service.LeaveAndBootstrapTest.getWriteEndpoints;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -370,5 +369,12 @@ public class SimpleStrategyTest
         return AbstractReplicationStrategy.createReplicationStrategy(keyspaceName,
                                                                      ksmd.params.replication.klass,
                                                                      ksmd.params.replication.options);
+    }
+
+    public static EndpointsForToken getWriteEndpoints(ClusterMetadata metadata,
+                                                      ReplicationParams replicationParams,
+                                                      Token token)
+    {
+        return metadata.placements.get(replicationParams).writes.forToken(token);
     }
 }

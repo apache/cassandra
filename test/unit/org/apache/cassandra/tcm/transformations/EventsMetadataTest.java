@@ -34,17 +34,13 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
-import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
-import static org.apache.cassandra.service.LeaveAndBootstrapTest.bootstrapping;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -92,9 +88,9 @@ public class EventsMetadataTest
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
-        ClusterMetadata metadata = ClusterMetadataService.instance().commit(register(node1));
-        NodeId nodeId = metadata.directory.peerId(node1);
+        NodeId nodeId = ClusterMetadataTestHelper.register(node1);
         // register adds to directory;
+        ClusterMetadata metadata = ClusterMetadata.current();
         assertEquals(node1, metadata.directory.endpoint(nodeId));
 
         // should not be in tokenMap (no tokens yet)
@@ -110,10 +106,9 @@ public class EventsMetadataTest
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
-        ClusterMetadata metadata = ClusterMetadataService.instance().commit(register(node1));
-        NodeId nodeId = metadata.directory.peerId(node1);
+        NodeId nodeId = ClusterMetadataTestHelper.register(node1);
 
-        metadata = ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
+        ClusterMetadata metadata = ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
 
         assertTrue(metadata.tokenMap.tokens(nodeId).isEmpty());
         assertEquals(NodeState.REGISTERED, metadata.directory.peerState(nodeId));
@@ -125,9 +120,7 @@ public class EventsMetadataTest
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
-        ClusterMetadataService.instance().commit(register(node1));
-
-        NodeId nodeId = ClusterMetadata.current().directory.peerId(node1);
+        NodeId nodeId = ClusterMetadataTestHelper.register(node1);
 
         ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
         BootstrapAndJoin plan = (BootstrapAndJoin) ClusterMetadata.current().inProgressSequences.get(nodeId);
@@ -146,10 +139,10 @@ public class EventsMetadataTest
 
         assertEquals(NodeState.JOINED, ClusterMetadata.current().directory.peerState(nodeId));
         assertTrue(ClusterMetadata.current().lockedRanges.locked.isEmpty());
-        assertTrue(bootstrapping(ClusterMetadata.current()).isEmpty());
+        assertTrue(ClusterMetadataTestHelper.bootstrapping(ClusterMetadata.current()).isEmpty());
 
         // join a second node
-        ClusterMetadataService.instance().commit(register(node2));
+        ClusterMetadataTestHelper.register(node1);
         nodeId = ClusterMetadata.current().directory.peerId(node2);
         ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
 
@@ -169,9 +162,7 @@ public class EventsMetadataTest
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
         ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
-        ClusterMetadataService.instance().commit(register(node1));
-
-        NodeId nodeId = ClusterMetadata.current().directory.peerId(node1);
+        NodeId nodeId = ClusterMetadataTestHelper.register(node1);
 
         ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
         BootstrapAndJoin join = (BootstrapAndJoin) ClusterMetadata.current().inProgressSequences.get(nodeId);
@@ -196,9 +187,5 @@ public class EventsMetadataTest
 
     }
 
-    public static Register register(InetAddressAndPort endpoint)
-    {
-        return new Register(new NodeAddresses(endpoint, endpoint, endpoint), new Location("dc1", "rack1"), NodeVersion.CURRENT);
-    }
 }
 

@@ -157,8 +157,6 @@ public class Util
 {
     private static final Logger logger = LoggerFactory.getLogger(Util.class);
 
-    private static List<UUID> hostIdPool = new ArrayList<>();
-
     public static IPartitioner testPartitioner()
     {
         return DatabaseDescriptor.getPartitioner();
@@ -281,7 +279,8 @@ public class Util
 
     public static void createInitialRing(List<Token> endpointTokens, List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany, boolean bootstrap) throws UnknownHostException
     {
-        // Expand pool of host IDs as necessary
+        // TODO should probably rewrite tests that use this post CEP-21
+        List<UUID> hostIdPool = new ArrayList<>(howMany);
         for (int i = hostIdPool.size(); i < howMany; i++)
         {
             hostIdPool.add(ClusterMetadataTestHelper.register(i + 1).toUUID());
@@ -300,7 +299,7 @@ public class Util
         {
             InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + (i + 1));
             if (bootstrap)
-                ClusterMetadataTestHelper.addEndpoint(ep, keyTokens.get(i));
+                ClusterMetadataTestHelper.join(ep, keyTokens.get(i));
             hosts.add(ep);
         }
 
