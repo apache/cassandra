@@ -239,7 +239,7 @@ public class PrepareLeave implements Transformation
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
             return transformer
-                   .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.MID_LEAVE)))
+                   .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch())))
                    .withNodeState(nodeId, NodeState.LEAVING);
         }
 
@@ -270,7 +270,7 @@ public class PrepareLeave implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.FINISH_LEAVE)));
+            return transformer.with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch())));
         }
 
         public static final class Serializer extends SerializerBase<MidLeave>

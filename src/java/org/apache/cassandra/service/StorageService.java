@@ -760,10 +760,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         NodeId self = Register.maybeRegister();
 
+        startup(finishJoiningRing);
+
+        doAuthSetup();
+
+        maybeInitializeServices();
+        completeInitialization();
+    }
+
+    // todo: move somewhere to sequences?
+    public void startup(boolean finishJoiningRing)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId self = metadata.myNodeId();
+
         // finish in-progress sequences first
         finishInProgressSequences(self);
 
-        ClusterMetadata metadata = ClusterMetadata.current();
         switch (metadata.directory.peerState(self))
         {
             case REGISTERED:
@@ -771,8 +784,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                          (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                          (metadata_) -> null,
                                                          (metadata_, code, reason) -> {
-                                                             throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting startup sequence.",
-                                                                                                           reason));
+                                                             InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
+                                                             // We might have discovered a startup sequence we ourselves committed but got no response for
+                                                             if (sequence == null || !InProgressSequences.STARTUP_SEQUENCE_KINDS.contains(sequence.kind()))
+                                                             {
+                                                                 throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting startup sequence.",
+                                                                                                               reason));
+                                                             }
+                                                             return null;
                                                          });
 
                 finishInProgressSequences(self);
@@ -787,18 +806,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             default:
                 throw new IllegalStateException("Can't proceed from the state " + metadata.directory.peerState(self));
         }
-
-        Startup.maybeExecuteStartupTransformation();
-
-        // TODO: is this a right place? auth setup is currently not serializable!
-        doAuthSetup();
-
-        maybeInitializeServices();
-        completeInitialization();
     }
 
-    @VisibleForTesting
-    public void completeInitialization()
+    private void completeInitialization()
     {
         if (!initialized)
             registerMBeans();
@@ -837,16 +847,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean cancelInProgressSequences(NodeId sequenceOwner)
     {
-        try
-        {
-            ClusterMetadataService.instance().commit(new CancelInProgressSequence(sequenceOwner));
-            return true;
-        }
-        catch (Exception e)
-        {
-            logger.warn("Can not commit sequence cancellation event to metadata service", e);
-            return false;
-        }
+        return ClusterMetadataService.instance().commit(new CancelInProgressSequence(sequenceOwner),
+                                                        (ClusterMetadata metadata) -> metadata.inProgressSequences.contains(sequenceOwner),
+                                                        metadata -> true,
+                                                        (metadata, code, message) -> {
+                                                            // Succeeded following rejection; possibly we raced with another cancellation request
+                                                            // or our initial attempt succeeded but the response was lost
+                                                            if (!metadata.inProgressSequences.contains(sequenceOwner))
+                                                                return true;
+
+                                                            logger.warn(String.format("Could not cancel in-progress sequence: %s", message));
+                                                            return false;
+                                                        });
     }
 
     private boolean servicesInitialized = false;
@@ -3498,6 +3510,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void decommission(boolean force)
     {
+        decommission(force, true);
+    }
+
+    @VisibleForTesting
+    public void decommission(boolean force, boolean shutdownNetworking)
+    {
         if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
             throw new IllegalStateException("This cluster is migrating to cluster metadata, can't decommission until that is done.");
         ClusterMetadata metadata = ClusterMetadata.current();
@@ -3516,8 +3534,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                      (metadata_) -> null,
                                                      (metadata_, code, reason) -> {
-                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting leave sequence.",
-                                                                                                       reason));
+                                                         InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
+                                                         // We might have discovered a sequence we ourselves committed but got no response for
+                                                         if (sequence == null || sequence.kind() != InProgressSequences.Kind.LEAVE)
+                                                         {
+                                                             throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting leave sequence.",
+                                                                                                           reason));
+                                                         }
+                                                         return null;
                                                      });
         }
         else if (!InProgressSequences.isLeave(inProgress))
@@ -3526,10 +3550,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         finishInProgressSequences(self);
-        finishLeaving();
+        if (shutdownNetworking)
+            shutdownNetworking();
     }
 
-    public void finishLeaving()
+    public void shutdownNetworking()
     {
         shutdownClientServers();
         Gossiper.instance.stop();
@@ -3637,8 +3662,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                  (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                  (metadata_) -> null,
                                                  (metadata_, code, reason) -> {
-                                                     throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting leave sequence.",
-                                                                                                   reason));
+                                                     InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
+                                                     // We might have discovered a startup sequence we ourselves committed but got no response for
+                                                     if (sequence == null || sequence.kind() != InProgressSequences.Kind.MOVE)
+                                                     {
+                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting leave sequence.",
+                                                                                                       reason));
+                                                     }
+                                                     return null;
                                                  });
         finishInProgressSequences(self);
 
@@ -3739,8 +3770,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                  (metadata_) -> !metadata_.inProgressSequences.contains(toRemove),
                                                  (metadata_) -> null,
                                                  (metadata_, code, reason) -> {
-                                                     throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting removenode sequence.",
-                                                                                                   reason));
+                                                     InProgressSequence<?> sequence = metadata_.inProgressSequences.get(toRemove);
+                                                     // We might have discovered a startup sequence we ourselves committed but got no response for
+                                                     if (sequence == null || sequence.kind() != InProgressSequences.Kind.REMOVE)
+                                                     {
+                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting removenode sequence.",
+                                                                                                       reason));
+                                                     }
+                                                     return null;
                                                  });
         finishInProgressSequences(toRemove);
     }

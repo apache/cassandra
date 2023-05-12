@@ -24,6 +24,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.datastax.driver.core.ConsistencyLevel;
+import com.datastax.driver.core.exceptions.ReadTimeoutException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -64,7 +67,8 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         // We can not use Paxos to catch-up a member of CMS ownership group, since that'd reduce availability,
         // so instead we allow CMS owners to catch up via inconsistent replay. In other words, from local log
         // of the majority of the CMS replicas.
-        CountDownLatch latch = CountDownLatch.newCountDownLatch(replicas.size() == 1 ? 1 : (replicas.size() / 2) + 1);
+        int blockFor = replicas.size() == 1 ? 1 : (replicas.size() / 2) + 1;
+        CountDownLatch latch = CountDownLatch.newCountDownLatch(blockFor);
         for (Replica replica : replicas)
         {
             // TODO: test applying LogStates from multiple responses
@@ -86,8 +90,9 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             }
         }
 
-        // TODO: it is still possible to exit without catching up here
-        latch.awaitUninterruptibly(10, TimeUnit.SECONDS);
-        return log.waitForHighestConsecutive();
+        if (latch.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+            return log.waitForHighestConsecutive();
+        else
+            throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - latch.count(), blockFor, false);
     }
 }

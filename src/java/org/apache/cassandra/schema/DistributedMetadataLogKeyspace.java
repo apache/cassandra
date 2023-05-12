@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -88,6 +89,11 @@ public final class DistributedMetadataLogKeyspace
 
             return result.one().getBoolean("[applied]");
         }
+        catch (CasWriteTimeoutException t)
+        {
+            logger.warn("Timed out wile trying to CAS", t);
+            return false;
+        }
         catch (Throwable t)
         {
             logger.error("Caught an exception while trying to CAS", t);
@@ -139,6 +145,11 @@ public final class DistributedMetadataLogKeyspace
             }
 
             return result.one().getBoolean("[applied]");
+        }
+        catch (CasWriteTimeoutException t)
+        {
+            logger.warn("Timed out wile trying to CAS", t);
+            return false;
         }
         catch (Throwable t)
         {

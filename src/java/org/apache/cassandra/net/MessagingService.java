@@ -441,6 +441,12 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)
     {
+        if (isShuttingDown)
+        {
+            logger.error("Cannot send the message {} to {}, as messaging service is shutting down", message, to);
+            return;
+        }
+
         if (logger.isTraceEnabled())
         {
             logger.trace("{} sending {} to {}@{}", FBUtilities.getBroadcastAddressAndPort(), message.verb(), message.id(), to);

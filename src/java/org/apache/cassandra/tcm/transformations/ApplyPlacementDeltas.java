@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
 
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Transformation;
@@ -61,6 +62,12 @@ public abstract class ApplyPlacementDeltas implements Transformation
     @Override
     public final Result execute(ClusterMetadata prev)
     {
+        if (!prev.inProgressSequences.contains(nodeId()))
+            return new Rejected(ExceptionCode.INVALID, "Can't find an in-progress sequence for this operation");
+
+        if (prev.inProgressSequences.get(nodeId()).nextStep() != kind())
+            return new Rejected(ExceptionCode.INVALID, String.format("Can't commit sequenced operations out of order. Expected %s, but got %s", prev.inProgressSequences.get(nodeId()).nextStep(), kind()));
+
         ClusterMetadata.Transformer next = prev.transformer();
 
         if (!delta.isEmpty())

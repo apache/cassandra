@@ -21,11 +21,13 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -37,9 +39,9 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.PrepareLeave;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.tcm.sequences.InProgressSequences.Kind.LEAVE;
 
 public class InProgressSequences implements MetadataValue<InProgressSequences>
 {
@@ -140,6 +142,8 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
         return Objects.hash(state, lastModified);
     }
 
+    public static Set<Kind> STARTUP_SEQUENCE_KINDS = ImmutableSet.of(InProgressSequences.Kind.JOIN, InProgressSequences.Kind.REPLACE);
+
     public enum Kind
     {
         JOIN_OWNERSHIP_GROUP(AddToCMS.serializer),
@@ -184,11 +188,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
 
     public static boolean isLeave(InProgressSequence<?> sequence)
     {
-        // TODO only the first is an InProgressSequence
-        return sequence instanceof UnbootstrapAndLeave ||
-               sequence instanceof PrepareLeave.StartLeave ||
-               sequence instanceof PrepareLeave.MidLeave ||
-               sequence instanceof PrepareLeave.FinishLeave;
+        return sequence.kind() == LEAVE;
     }
 
     public static class Serializer implements MetadataSerializer<InProgressSequences>

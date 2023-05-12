@@ -989,6 +989,23 @@ public final class SystemKeyspace
         forceBlockingFlush(LOCAL);
     }
 
+    /**
+     *
+     * This method is used to update the System Keyspace with the new tokens for this node
+     */
+    public static synchronized void updateLocalTokens(Collection<Token> tokens)
+    {
+        assert !tokens.isEmpty() : "removeEndpoint should be used instead";
+
+        Collection<Token> savedTokens = getSavedTokens();
+        if (tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
+            return;
+
+        String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', ?)";
+        executeInternal(format(req, LOCAL, LOCAL), tokensAsSet(tokens));
+        forceBlockingFlush(LOCAL);
+    }
+
     public static void forceBlockingFlush(String ...cfnames)
     {
         if (!DatabaseDescriptor.isUnsafeSystem())

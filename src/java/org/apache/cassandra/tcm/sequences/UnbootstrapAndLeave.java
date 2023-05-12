@@ -25,14 +25,16 @@ import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -41,7 +43,7 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLeave>
+public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
 {
     private static final Logger logger = LoggerFactory.getLogger(UnbootstrapAndLeave.class);
     public static final Serializer serializer = new Serializer();
@@ -72,17 +74,20 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         this.streams = streams;
     }
 
-    public UnbootstrapAndLeave advance(Epoch waitFor, Transformation.Kind next)
+    @Override
+    public UnbootstrapAndLeave advance(Epoch waitFor)
     {
-        return new UnbootstrapAndLeave(waitFor, lockKey, next,
+        return new UnbootstrapAndLeave(waitFor, lockKey, stepFollowing(next),
                                        startLeave, midLeave, finishLeave, streams);
     }
 
+    @Override
     public Transformation.Kind nextStep()
     {
         return next;
     }
 
+    @Override
     public InProgressSequences.Kind kind()
     {
         switch (streams.kind())
@@ -96,6 +101,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         }
     }
 
+    @Override
     public ProgressBarrier barrier()
     {
         ClusterMetadata metadata = ClusterMetadata.current();
@@ -106,6 +112,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             return new ProgressBarrier(latestModification, affectedRanges);
     }
 
+    @Override
     public boolean executeNext()
     {
         switch (next)
@@ -113,7 +120,8 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             case START_LEAVE:
                 try
                 {
-                    ClusterMetadataService.instance().commit(startLeave);
+                    DatabaseDescriptor.getSeverityDuringDecommission().ifPresent(DynamicEndpointSnitch::addSeverity);
+                    commit(startLeave);
                 }
                 catch (Throwable t)
                 {
@@ -128,7 +136,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                                     startLeave.delta(),
                                     midLeave.delta(),
                                     finishLeave.delta());
-                    ClusterMetadataService.instance().commit(midLeave);
+                    commit(midLeave);
                 }
                 catch (ExecutionException e)
                 {
@@ -147,7 +155,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             case FINISH_LEAVE:
                 try
                 {
-                    ClusterMetadataService.instance().commit(finishLeave);
+                    commit(finishLeave);
                 }
                 catch (Throwable t)
                 {
@@ -183,6 +191,31 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                        .with(placements)
                        .with(newLockedRanges)
                        .withNodeState(startLeave.nodeId(), NodeState.JOINED);
+    }
+
+    @Override
+    protected Transformation.Kind stepFollowing(Transformation.Kind kind)
+    {
+        if (kind == null)
+            return null;
+
+        switch (kind)
+        {
+            case START_LEAVE:
+                return Transformation.Kind.MID_LEAVE;
+            case MID_LEAVE:
+                return Transformation.Kind.FINISH_LEAVE;
+            case FINISH_LEAVE:
+                return null;
+            default:
+                throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+        }
+    }
+
+    @Override
+    protected NodeId nodeId()
+    {
+        return startLeave.nodeId();
     }
 
     public String status()

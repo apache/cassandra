@@ -238,7 +238,7 @@ public class PrepareJoin implements Transformation
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
             return transformer.withNodeState(nodeId, NodeState.BOOTSTRAPPING)
-                              .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.MID_JOIN)));
+                              .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch())));
         }
 
         public static final class Serializer extends SerializerBase<StartJoin>
@@ -268,7 +268,7 @@ public class PrepareJoin implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.FINISH_JOIN)));
+            return transformer.with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch())));
         }
 
         public static final class Serializer extends SerializerBase<MidJoin>

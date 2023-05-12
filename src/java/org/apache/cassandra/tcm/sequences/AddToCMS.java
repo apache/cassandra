@@ -60,12 +60,13 @@ import static org.apache.cassandra.tcm.transformations.cms.EntireRange.entireRan
 /**
  * Add this or another node as a member of CMS.
  */
-public class AddToCMS implements InProgressSequence<AddToCMS>
+public class AddToCMS extends InProgressSequence<AddToCMS>
 {
     private static final Logger logger = LoggerFactory.getLogger(AddToCMS.class);
     public static Serializer serializer = new Serializer();
 
     private final Epoch latestModification;
+    private final NodeId toAdd;
     private final List<InetAddressAndPort> streamCandidates;
     private final FinishAddToCMS finishJoin;
 
@@ -81,17 +82,31 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
                                                                        (metadata) -> !metadata.inProgressSequences.contains(nodeId),
                                                                        (metadata) -> metadata.inProgressSequences.get(nodeId),
                                                                        (metadata, code, reason) -> {
-                                                                           throw new IllegalStateException("Can't join ownership group: " + reason);
+                                                                           InProgressSequence<?> sequence_ = metadata.inProgressSequences.get(nodeId);
+
+                                                                           if (sequence_ == null)
+                                                                           {
+                                                                               throw new IllegalStateException("Can't join ownership group: " + reason);
+                                                                           }
+
+                                                                           // We might have discovered a startup sequence we ourselves committed but got no response for
+                                                                           if (sequence_.kind() != JOIN_OWNERSHIP_GROUP)
+                                                                           {
+                                                                               throw new IllegalStateException(String.format("Following accepted initiation of node to CMS, " +
+                                                                                                                             "an incorrect sequence %s was found in progress. %s ",
+                                                                                                                             sequence_.kind(), sequence_));
+                                                                           }
+
+                                                                           return metadata.inProgressSequences.get(nodeId);
                                                                        });
-        if (sequence.kind() != JOIN_OWNERSHIP_GROUP)
-            throw new IllegalStateException(String.format("Following accepted initiation of node to CMS, " +
-                                                          "an incorrect sequence %s was found in progress. %s ",
-                                                          sequence.kind(), sequence));
-        sequence.executeNext();
+
+        InProgressSequences.resume(sequence);
+        repairPaxosTopology();
     }
 
-    public AddToCMS(Epoch latestModification, List<InetAddressAndPort> streamCandidates, FinishAddToCMS join)
+    public AddToCMS(Epoch latestModification, NodeId toAdd, List<InetAddressAndPort> streamCandidates, FinishAddToCMS join)
     {
+        this.toAdd = toAdd;
         this.latestModification = latestModification;
         this.streamCandidates = streamCandidates;
         this.finishJoin = join;
@@ -103,6 +118,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         return ProgressBarrier.immediate();
     }
 
+    @Override
     public Transformation.Kind nextStep()
     {
         return finishJoin.kind();
@@ -133,49 +149,72 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         streamPlan.execute().get();
     }
 
-    private void finishJoin()
+    private static void repairPaxosTopology()
     {
-        NodeId self = ClusterMetadata.current().myNodeId();
-        ClusterMetadataService.instance().commit(finishJoin,
-                                                 (metadata) -> metadata.inProgressSequences.contains(self),
-                                                 (metadata) -> null,
-                                                 (metadata, code, error) -> {
-                                                     throw new IllegalStateException(String.format("Could not finish join due to [%s]: \"%s\". Next transformation in sequence: %s.",
-                                                                                                   code, error,
-                                                                                                   metadata.inProgressSequences.contains(self) ? metadata.inProgressSequences.get(self).nextStep() : null));
-                                                 });
+        Retry.Backoff retry = new Retry.Backoff();
+        while (!retry.reachedMax())
+        {
+            try
+            {
+                ActiveRepairService.instance.repairPaxosForTopologyChange(SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                                          Collections.singletonList(entireRange),
+                                                                          "bootstrap")
+                                            .get();
+                return;
+            }
+            catch (ExecutionException e)
+            {
+                logger.error("Caught an exception while repairing paxos topology.", e);
+                retry.maybeSleep();
+            }
+            catch (InterruptedException e)
+            {
+                return;
+            }
+        }
+        logger.error(String.format("Added node as a CMS, but failed to repair paxos topology after this operation."));
     }
 
-    private void repairPaxosTopology() throws ExecutionException, InterruptedException
-    {
-        ActiveRepairService.instance.repairPaxosForTopologyChange(SchemaConstants.METADATA_KEYSPACE_NAME,
-                                                                  Collections.singletonList(entireRange),
-                                                                  "bootstrap")
-                                    .get();
-    }
-
+    @Override
     public boolean executeNext()
     {
         try
         {
             streamRanges();
-            finishJoin();
+            commit(finishJoin);
             repairPaxosTopology();
         }
         catch (Throwable t)
         {
             logger.error("Could not finish adding the node to the metadata ownership group", t);
-            throw new RuntimeException(t);
+            return true;
         }
 
         return false;
     }
 
-    public AddToCMS advance(Epoch waitForWatermark, Transformation.Kind next)
+    @Override
+    public AddToCMS advance(Epoch waitForWatermark)
     {
         throw new NoSuchElementException();
     }
 
+    @Override
+    protected Transformation.Kind stepFollowing(Transformation.Kind kind)
+    {
+        if (kind == null || kind == Transformation.Kind.FINISH_ADD_TO_CMS)
+            return null;
+
+        throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+    }
+
+    @Override
+    protected NodeId nodeId()
+    {
+        return toAdd;
+    }
+
+    @Override
     public InProgressSequences.Kind kind()
     {
         return JOIN_OWNERSHIP_GROUP;
@@ -204,6 +243,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         public void serialize(InProgressSequence<?> t, DataOutputPlus out, Version version) throws IOException
         {
             AddToCMS seq = (AddToCMS) t;
+            NodeId.serializer.serialize(seq.toAdd,out, version);
             Epoch.serializer.serialize(seq.latestModification, out, version);
             FinishAddToCMS.serializer.serialize(seq.finishJoin, out, version);
             out.writeInt(seq.streamCandidates.size());
@@ -214,6 +254,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         @Override
         public AddToCMS deserialize(DataInputPlus in, Version version) throws IOException
         {
+            NodeId nodeId = NodeId.serializer.deserialize(in, version);
             Epoch barrier = Epoch.serializer.deserialize(in, version);
             FinishAddToCMS finish = FinishAddToCMS.serializer.deserialize(in, version);
             int streamCandidatesSize = in.readInt();
@@ -221,14 +262,15 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
 
             for (int i = 0; i < streamCandidatesSize; i++)
                 streamCandidates.add(InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version));
-            return new AddToCMS(barrier, streamCandidates, finish);
+            return new AddToCMS(barrier, nodeId, streamCandidates, finish);
         }
 
         @Override
         public long serializedSize(InProgressSequence<?> t, Version version)
         {
             AddToCMS seq = (AddToCMS) t;
-            long size = Epoch.serializer.serializedSize(seq.latestModification, version);
+            long size = NodeId.serializer.serializedSize(seq.toAdd, version);
+            size += Epoch.serializer.serializedSize(seq.latestModification, version);
             size += FinishAddToCMS.serializer.serializedSize(seq.finishJoin, version);
             size += sizeof(seq.streamCandidates.size());
             for (InetAddressAndPort ep : seq.streamCandidates)

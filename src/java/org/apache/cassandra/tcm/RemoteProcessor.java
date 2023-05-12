@@ -50,8 +50,6 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -123,19 +121,25 @@ public final class RemoteProcessor implements Processor
     @Override
     public ClusterMetadata replayAndWait()
     {
-        try
+        Retry.Backoff backoff = new Retry.Backoff();
+
+        while (!backoff.reachedMax())
         {
-            return replayAndWaitDebounced.getAsync().get();
+            try
+            {
+                return replayAndWaitDebounced.getAsync().get(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException("Can not replay during shutdown", e);
+            }
+            catch (ExecutionException | TimeoutException e)
+            {
+                backoff.maybeSleep();
+            }
         }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException("Can not replay during shutdown", e);
-        }
-        catch (ExecutionException e)
-        {
-            JVMStabilityInspector.inspectThrowable(e);
-            throw Throwables.throwAsUncheckedException(e);
-        }
+
+        throw new IllegalStateException(String.format("Could not succeed replaying after %d tries", backoff.maxTries));
     }
 
     @SuppressWarnings("resource")

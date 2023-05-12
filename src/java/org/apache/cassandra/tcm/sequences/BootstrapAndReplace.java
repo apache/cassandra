@@ -38,10 +38,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -55,7 +55,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.sequences.BootstrapAndJoin.bootstrap;
 
-public class BootstrapAndReplace implements InProgressSequence<BootstrapAndReplace>
+public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
 {
     private static final Logger logger = LoggerFactory.getLogger(BootstrapAndReplace.class);
     public static final Serializer serializer = new Serializer();
@@ -92,11 +92,12 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
         this.streamData = streamData;
     }
 
-    public BootstrapAndReplace advance(Epoch waitFor, Transformation.Kind next)
+    @Override
+    public BootstrapAndReplace advance(Epoch waitFor)
     {
         return new BootstrapAndReplace(waitFor,
                                        lockKey,
-                                       next,
+                                       stepFollowing(next),
                                        bootstrapTokens,
                                        startReplace, midReplace, finishReplace,
                                        finishJoiningRing,
@@ -128,7 +129,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
             case START_REPLACE:
                 try
                 {
-                    ClusterMetadataService.instance().commit(startReplace);
+                    commit(startReplace);
                 }
                 catch (Throwable e)
                 {
@@ -165,7 +166,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                                  .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.getKeyspaceName()))
                                  .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
 
-                    ClusterMetadataService.instance().commit(midReplace);
+                    commit(midReplace);
                 }
                 catch (Throwable e)
                 {
@@ -182,7 +183,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                         logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
                         return false;
                     }
-                    ClusterMetadataService.instance().commit(finishReplace);
+                    commit(finishReplace);
                 }
                 catch (Throwable e)
                 {
@@ -243,6 +244,31 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                       .withNodeState(startReplace.replacement(), NodeState.REGISTERED)
                       .with(placements)
                       .with(newLockedRanges);
+    }
+
+    @Override
+    protected Transformation.Kind stepFollowing(Transformation.Kind kind)
+    {
+        if (kind == null)
+            return null;
+
+        switch (kind)
+        {
+            case START_REPLACE:
+                return Transformation.Kind.MID_REPLACE;
+            case MID_REPLACE:
+                return Transformation.Kind.FINISH_REPLACE;
+            case FINISH_REPLACE:
+                return null;
+            default:
+                throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+        }
+    }
+
+    @Override
+    protected NodeId nodeId()
+    {
+        return startReplace.nodeId();
     }
 
     public String toString()

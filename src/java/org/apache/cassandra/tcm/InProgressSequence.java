@@ -18,16 +18,17 @@
 
 package org.apache.cassandra.tcm;
 
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 
-public interface InProgressSequence<T extends InProgressSequence<T>>
+public abstract class InProgressSequence<T extends InProgressSequence<T>>
 {
-    InProgressSequences.Kind kind();
+    public abstract InProgressSequences.Kind kind();
 
-    ProgressBarrier barrier();
+    public abstract ProgressBarrier barrier();
 
-    default String status()
+    public String status()
     {
         return "kind: " + kind() + ", next step: " + nextStep() +" barrier: " + barrier();
     }
@@ -35,21 +36,59 @@ public interface InProgressSequence<T extends InProgressSequence<T>>
     /**
      * Returns a kind of the next step
      */
-    public Transformation.Kind nextStep();
+    public abstract Transformation.Kind nextStep();
 
     /**
      * Executes the next step. Returns whether or the sequence can continue / retry safely. Can return
      * false in cases when bootstrap streaming failed, or when the user has requested to halt the bootstrap sequence
      * and avoid joining the ring.
      */
-    public boolean executeNext();
+    public abstract boolean executeNext();
 
-    public T advance(Epoch waitForWatermark, Transformation.Kind next);
+    /**
+     * Advance the state of in-progress sequence after execution
+     */
+    public abstract T advance(Epoch waitForWatermark);
 
     // TODO rename this. It really provides the result of undoing any steps in the sequence
     //      which have already been executed
-    default ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
+    public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns a kind of step that follows the given in the sequence.
+     */
+    protected abstract Transformation.Kind stepFollowing(Transformation.Kind kind);
+
+    protected abstract NodeId nodeId();
+
+    protected ClusterMetadata commit(Transformation transform)
+    {
+        NodeId targetNode = nodeId();
+        assert nextStep() == transform.kind() : String.format(String.format("Expected %s to be next step, but got %s.", nextStep(), transform.kind()));
+        return ClusterMetadataService.instance().commit(transform,
+                      (metadata) -> {
+                          InProgressSequence<?> seq = metadata.inProgressSequences.get(targetNode);
+                          Transformation.Kind actual = seq == null ? null : seq.nextStep();
+
+                          Transformation.Kind nextOp = stepFollowing(transform.kind());
+                          // Haven't committed current operation yet, retry
+                          return actual == nextOp;
+                      },
+                      (metadata) -> metadata,
+                      (metadata, code, reason) -> {
+                          InProgressSequence<?> seq = metadata.inProgressSequences.get(targetNode);
+                          Transformation.Kind actual = seq == null ? null : seq.nextStep();
+
+                          Transformation.Kind nextOp = stepFollowing(transform.kind());
+                          Transformation.Kind nextNextOp = stepFollowing(nextOp);
+                          if (nextNextOp != actual)
+                              throw new IllegalStateException(reason);
+
+                          // Suceeded after retry
+                          return metadata;
+                      });
     }
 }

@@ -113,9 +113,7 @@ public class Register implements Transformation
                                            .commit(new Register(nodeAddresses, location, nodeVersion),
                                                    (metadata) -> !metadata.directory.isRegistered(nodeAddresses.broadcastAddress),
                                                    (metadata) -> metadata.directory.peerId(nodeAddresses.broadcastAddress),
-                                                   (metadata, code, reason) -> {
-                                                       throw new IllegalStateException("Can't register node: " + reason);
-                                                   });
+                                                   (metadata, code, reason) -> metadata.directory.peerId(nodeAddresses.broadcastAddress));
         }
 
         logger.info("Registering with endpoint {}", nodeAddresses.broadcastAddress);

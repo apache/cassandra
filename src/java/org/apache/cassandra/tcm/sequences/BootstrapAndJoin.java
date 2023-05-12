@@ -42,10 +42,10 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -60,7 +60,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
+public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
 {
     private static final Logger logger = LoggerFactory.getLogger(BootstrapAndJoin.class);
     public static final Serializer serializer = new Serializer();
@@ -150,9 +150,9 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     }
 
     @Override
-    public BootstrapAndJoin advance(Epoch waitForWatermark, Transformation.Kind next)
+    public BootstrapAndJoin advance(Epoch waitForWatermark)
     {
-        return new BootstrapAndJoin(waitForWatermark, lockKey, next,
+        return new BootstrapAndJoin(waitForWatermark, lockKey, stepFollowing(next),
                                     toSplitRanges, startJoin, midJoin, finishJoin,
                                     finishJoiningRing, streamData);
     }
@@ -172,8 +172,8 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             case START_JOIN:
                 try
                 {
-                    SystemKeyspace.updateTokens(finishJoin.tokens);
-                    ClusterMetadataService.instance().commit(startJoin);
+                    SystemKeyspace.updateLocalTokens(finishJoin.tokens);
+                    commit(startJoin);
                 }
                 catch (Throwable e)
                 {
@@ -212,7 +212,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                                  .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.getKeyspaceName()))
                                  .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
 
-                    ClusterMetadataService.instance().commit(midJoin);
+                    commit(midJoin);
                 }
                 catch (Throwable e)
                 {
@@ -231,7 +231,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                         return false;
                     }
 
-                    ClusterMetadataService.instance().commit(finishJoin);
+                    commit(finishJoin);
                 }
                 catch (Throwable e)
                 {
@@ -244,6 +244,31 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                 throw new IllegalStateException("Can't proceed with join from " + next);
         }
         return true;
+    }
+
+    @Override
+    protected Transformation.Kind stepFollowing(Transformation.Kind kind)
+    {
+        if (kind == null)
+            return null;
+
+        switch (kind)
+        {
+            case START_JOIN:
+                return Transformation.Kind.MID_JOIN;
+            case MID_JOIN:
+                return Transformation.Kind.FINISH_JOIN;
+            case FINISH_JOIN:
+                return null;
+            default:
+                throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+        }
+    }
+
+    @Override
+    protected NodeId nodeId()
+    {
+        return startJoin.nodeId();
     }
 
     @Override

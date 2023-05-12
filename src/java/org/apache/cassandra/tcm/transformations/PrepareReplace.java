@@ -272,7 +272,7 @@ public class PrepareReplace implements Transformation
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
             return transformer.withNodeState(replacement(), NodeState.BOOT_REPLACING)
-                              .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.MID_REPLACE)));
+                              .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch())));
         }
 
         @Override
@@ -316,7 +316,7 @@ public class PrepareReplace implements Transformation
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
             return transformer
-                   .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch(), Kind.FINISH_REPLACE)));
+                   .with(prev.inProgressSequences.with(nodeId, (plan) -> plan.advance(prev.nextEpoch())));
         }
 
         @Override

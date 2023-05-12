@@ -50,10 +50,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
@@ -66,7 +66,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-public class Move implements InProgressSequence<Move>
+public class Move extends InProgressSequence<Move>
 {
     private static final Logger logger = LoggerFactory.getLogger(Move.class);
     public static final Serializer serializer = new Serializer();
@@ -138,7 +138,7 @@ public class Move implements InProgressSequence<Move>
                                 metadata.directory.endpoint(startMove.nodeId()),
                                 metadata.tokenMap.tokens(startMove.nodeId()),
                                 finishMove.newTokens);
-                    ClusterMetadataService.instance().commit(startMove);
+                    commit(startMove);
                 }
                 catch (Throwable t)
                 {
@@ -200,7 +200,7 @@ public class Move implements InProgressSequence<Move>
 
                 try
                 {
-                    ClusterMetadataService.instance().commit(midMove);
+                    commit(midMove);
                 }
                 catch (Throwable t)
                 {
@@ -211,8 +211,8 @@ public class Move implements InProgressSequence<Move>
             case FINISH_MOVE:
                 try
                 {
-                    SystemKeyspace.updateTokens(tokens);
-                    ClusterMetadataService.instance().commit(finishMove);
+                    SystemKeyspace.updateLocalTokens(tokens);
+                    commit(finishMove);
                 }
                 catch (Throwable t)
                 {
@@ -228,6 +228,31 @@ public class Move implements InProgressSequence<Move>
         return true;
     }
 
+
+    @Override
+    protected Transformation.Kind stepFollowing(Transformation.Kind kind)
+    {
+        if (kind == null)
+            return null;
+
+        switch (kind)
+        {
+            case START_MOVE:
+                return Transformation.Kind.MID_MOVE;
+            case MID_MOVE:
+                return Transformation.Kind.FINISH_MOVE;
+            case FINISH_MOVE:
+                return null;
+            default:
+                throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+        }
+    }
+
+    @Override
+    protected NodeId nodeId()
+    {
+        return startMove.nodeId();
+    }
     /**
      * Returns a mapping of destination -> source*, where the destination is the node that needs to stream from source
      *
@@ -387,11 +412,11 @@ public class Move implements InProgressSequence<Move>
                        .with(newLockedRanges);
     }
 
-    public Move advance(Epoch waitForWatermark, Transformation.Kind next)
+    public Move advance(Epoch waitForWatermark)
     {
         return new Move(waitForWatermark,
                         tokens,
-                        lockKey, next,
+                        lockKey, stepFollowing(next),
                         toSplitRanges, startMove, midMove, finishMove,
                         streamData);
     }

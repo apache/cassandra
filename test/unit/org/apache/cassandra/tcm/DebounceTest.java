@@ -37,16 +37,18 @@ public class DebounceTest
     public void testDebounce() throws Throwable
     {
         int threads = 20;
-        WaitQueue waitQueue = WaitQueue.newWaitQueue();
+        WaitQueue threadsCanCompeteForFutures = WaitQueue.newWaitQueue();
         ExecutorPlus executor = ExecutorFactory.Global.executorFactory().pooled("debounce-test", threads);
 
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 1000; i++)
         {
-            CountDownLatch latch = CountDownLatch.newCountDownLatch(threads);
+            CountDownLatch allThreadsStarted = CountDownLatch.newCountDownLatch(threads);
+            CountDownLatch allThreadsGrabbedFuture = CountDownLatch.newCountDownLatch(threads);
 
             AtomicInteger integer = new AtomicInteger();
             RemoteProcessor.Debounce<Integer> debounce = new RemoteProcessor.Debounce<>(() -> {
                 integer.incrementAndGet();
+                allThreadsGrabbedFuture.awaitUninterruptibly();
                 return integer.get();
             });
 
@@ -54,14 +56,15 @@ public class DebounceTest
             for (int j = 0; j < threads; j++)
             {
                 executor.submit(() -> {
-                    latch.decrement();
-                    waitQueue.register().awaitUninterruptibly();
+                    allThreadsStarted.decrement();
+                    threadsCanCompeteForFutures.register().awaitUninterruptibly();
                     futures.add(debounce.getAsync());
+                    allThreadsGrabbedFuture.decrement();
                 });
             }
 
-            latch.awaitUninterruptibly();
-            waitQueue.signalAll();
+            allThreadsStarted.awaitUninterruptibly();
+            threadsCanCompeteForFutures.signalAll();
 
             while (futures.size() < threads)
                 Thread.sleep(10);
