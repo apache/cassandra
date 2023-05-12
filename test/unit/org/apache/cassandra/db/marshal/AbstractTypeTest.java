@@ -58,6 +58,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.quicktheories.core.Gen;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
@@ -122,6 +123,7 @@ public class AbstractTypeTest
                     // Legacy is a one-way conversion, so for this test ignore
                     if (bcv == ByteComparable.Version.LEGACY)
                         continue;
+                    // Test normal type APIs
                     ByteSource.Peekable comparable = ByteSource.peekable(type.asComparableBytes(bb, bcv));
                     if (comparable == null)
                         throw new NullPointerException();
@@ -135,6 +137,10 @@ public class AbstractTypeTest
                         throw new AssertionError(String.format("Unable to parse comparable bytes for type %s and version %s; value %s", type.asCQL3Type(), bcv, type.toCQLString(bb)), e);
                     }
                     assertBytesEquals(read, bb, "fromComparableBytes(asComparableBytes(bb)) != bb");
+
+                    // test byte[] api
+                    byte[] bytes = ByteSourceInverse.readBytes(type.asComparableBytes(bb, bcv));
+                    assertBytesEquals(type.fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(bytes)), bcv), bb, "fromOrderedBytes(toOrderedBytes(bb)) != bb");
                 }
             }
         });
@@ -282,11 +288,17 @@ public class AbstractTypeTest
             List<ByteBuffer> actual = decompose(type, example.samples);
             Collections.sort(actual, type);
             List<ByteBuffer>[] byteOrdered = new List[ByteComparable.Version.values().length];
+            List<OrderedBytes>[] rawByteOrdered = new List[ByteComparable.Version.values().length];
             for (int i = 0; i < byteOrdered.length; i++)
             {
                 byteOrdered[i] = new ArrayList<>(actual);
                 ByteComparable.Version version = ByteComparable.Version.values()[i];
                 Collections.sort(byteOrdered[i], (a, b) -> ByteComparable.compare(fromBytes(type, a), fromBytes(type, b), version));
+
+                rawByteOrdered[i] = actual.stream()
+                                          .map(bb -> new OrderedBytes(ByteSourceInverse.readBytes(fromBytes(type, bb).asComparableBytes(version)), bb))
+                                          .collect(Collectors.toList());
+                Collections.sort(rawByteOrdered[i]);
             }
 
             Collections.sort(example.samples, comparator(type));
@@ -297,13 +309,41 @@ public class AbstractTypeTest
             List<Object>[] realBytesOrder = new List[byteOrdered.length];
             for (int i = 0; i < realBytesOrder.length; i++)
             {
-                List<ByteBuffer> ordered = byteOrdered[i];
-                List<Object> realOrdered = new ArrayList<>(ordered.size());
-                for (ByteBuffer bb : ordered)
-                    realOrdered.add(type.compose(bb));
-                assertThat(real).describedAs("Bad ordering for type %s", ByteComparable.Version.values()[i]).isEqualTo(realOrdered);
+                ByteComparable.Version version = ByteComparable.Version.values()[i];
+                assertThat(compose(type, byteOrdered[i])).describedAs("Bad ordering for type %s", version).isEqualTo(real);
+                assertThat(compose(type, rawByteOrdered[i].stream().map(ob -> ob.src).collect(Collectors.toList()))).describedAs("Bad ordering for type %s", version).isEqualTo(real);
             }
         });
+    }
+
+    /**
+     * For {@link AbstractType#asComparableBytes(ByteBuffer, ByteComparable.Version)} not all versions can be inverted,
+     * but all versions must be comparable... so this class stores the ordered bytes and the original src.
+     */
+    private static class OrderedBytes implements Comparable<OrderedBytes>
+    {
+        private final byte[] orderedBytes;
+        private final ByteBuffer src;
+
+        private OrderedBytes(byte[] orderedBytes, ByteBuffer src)
+        {
+            this.orderedBytes = orderedBytes;
+            this.src = src;
+        }
+
+        @Override
+        public int compareTo(OrderedBytes o)
+        {
+            return FastByteOperations.compareUnsigned(orderedBytes, o.orderedBytes);
+        }
+    }
+
+    private static List<Object> compose(AbstractType<?> type, List<ByteBuffer> bbs)
+    {
+        List<Object> os = new ArrayList<>(bbs.size());
+        for (ByteBuffer bb : bbs)
+            os.add(type.compose(bb));
+        return os;
     }
 
     private static Comparator<Object> comparator(AbstractType<?> type)
