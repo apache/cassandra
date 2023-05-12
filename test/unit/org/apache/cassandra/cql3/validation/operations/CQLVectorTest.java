@@ -45,6 +45,9 @@ public class CQLVectorTest extends CQLTester.InMemory
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, ?])", 2), row(list(1, 2)));
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, (int) ?])", 2), row(list(1, 2)));
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + (int) ?])", 1), row(list(1, 2)));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk > [0, 0] AND pk < [1, 3] ALLOW FILTERING"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE token(pk) = token([1, 2])"), row(list(1, 2)));
     }
 
     @Test
