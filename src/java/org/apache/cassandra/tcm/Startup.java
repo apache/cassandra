@@ -1,4 +1,4 @@
- /*
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
@@ -57,16 +56,16 @@ import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 
- public class Startup
- {
-     private static final Logger logger = LoggerFactory.getLogger(Startup.class);
+public class Startup
+{
+    private static final Logger logger = LoggerFactory.getLogger(Startup.class);
 
-     public static void initialize(Set<InetAddressAndPort> seeds) throws InterruptedException, ExecutionException, IOException
-     {
-         initialize(seeds,
-                    p -> p,
-                    () -> MessagingService.instance().waitUntilListeningUnchecked());
-     }
+    public static void initialize(Set<InetAddressAndPort> seeds) throws InterruptedException, ExecutionException, IOException
+    {
+        initialize(seeds,
+                   p -> p,
+                   () -> MessagingService.instance().waitUntilListeningUnchecked());
+    }
 
     public static void initialize(Set<InetAddressAndPort> seeds,
                                   Function<Processor, Processor> wrapProcessor,
@@ -102,70 +101,70 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
         }
     }
 
-     /**
-      * Make this node a _first_ CMS node.
-      *
-      *   (1) Append PreInitialize transformation to local in-memory log. When distributed metadata keyspace is initialized, a no-op transformation will
-      *   be added to other nodes. This is required since as of now, no node actually owns distributed metadata keyspace.
-      *   (2) Commit Initialize transformation, which holds a snapshot of metadata as of now.
-      *
-      * This process is applicable for gossip upgrades as well as regular vote-and-startup process.
-      */
-     public static void initializeAsFirstCMSNode()
-     {
-         ClusterMetadataService.instance().log().bootstrap(FBUtilities.getBroadcastAddressAndPort());
-         assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(), ClusterMetadata.current());
-         Initialize initialize = new Initialize(ClusterMetadata.current());
-         ClusterMetadataService.instance().commit(initialize);
-     }
+    /**
+     * Make this node a _first_ CMS node.
+     * <p>
+     * (1) Append PreInitialize transformation to local in-memory log. When distributed metadata keyspace is initialized, a no-op transformation will
+     * be added to other nodes. This is required since as of now, no node actually owns distributed metadata keyspace.
+     * (2) Commit Initialize transformation, which holds a snapshot of metadata as of now.
+     * <p>
+     * This process is applicable for gossip upgrades as well as regular vote-and-startup process.
+     */
+    public static void initializeAsFirstCMSNode()
+    {
+        ClusterMetadataService.instance().log().bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(), ClusterMetadata.current());
+        Initialize initialize = new Initialize(ClusterMetadata.current());
+        ClusterMetadataService.instance().commit(initialize);
+    }
 
-     public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor)
-     {
-         ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-         initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
-                                                                       initial,
-                                                                       wrapProcessor,
-                                                                       ClusterMetadataService::state,
-                                                                       false));
-         ClusterMetadataService.instance().initRecentlySealedPeriodsIndex();
-         ClusterMetadataService.instance().log().replayPersisted();
-         ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
-         DistributedSchema schema = ClusterMetadata.current().schema;
-         schema.getKeyspaces().forEach(ksm -> {
-             Keyspace ks = schema.getKeyspace(ksm.name);
-             ks.getColumnFamilyStores().forEach(cfs -> {
-                 cfs.concatWithIndexes().forEach(ColumnFamilyStore::loadInitialSSTables);
-             });
-         });
-         ClusterMetadataService.instance().log().addListener(new SchemaListener());
-         NodeId nodeId = ClusterMetadata.current().myNodeId();
-         UUID currentHostId = SystemKeyspace.getLocalHostId();
-         if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
-         {
-             logger.info("NodeId is wrong, updating from {} to {}", currentHostId, nodeId.toUUID());
-             SystemKeyspace.setLocalHostId(nodeId.toUUID());
-         }
-     }
+    public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor)
+    {
+        ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
+                                                                      initial,
+                                                                      wrapProcessor,
+                                                                      ClusterMetadataService::state,
+                                                                      false));
+        ClusterMetadataService.instance().initRecentlySealedPeriodsIndex();
+        ClusterMetadataService.instance().log().replayPersisted();
+        ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
+        DistributedSchema schema = ClusterMetadata.current().schema;
+        schema.getKeyspaces().forEach(ksm -> {
+            Keyspace ks = schema.getKeyspace(ksm.name);
+            ks.getColumnFamilyStores().forEach(cfs -> {
+                cfs.concatWithIndexes().forEach(ColumnFamilyStore::loadInitialSSTables);
+            });
+        });
+        ClusterMetadataService.instance().log().addListener(new SchemaListener());
+        NodeId nodeId = ClusterMetadata.current().myNodeId();
+        UUID currentHostId = SystemKeyspace.getLocalHostId();
+        if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
+        {
+            logger.info("NodeId is wrong, updating from {} to {}", currentHostId, nodeId.toUUID());
+            SystemKeyspace.setLocalHostId(nodeId.toUUID());
+        }
+    }
 
-     public static void initializeForDiscovery(Runnable initMessaging)
-     {
-         initMessaging.run();
-         logger.debug("Discovering other nodes in the system");
-         Discovery.DiscoveredNodes candidates = Discovery.instance.discover();
-         if (candidates.kind() == Discovery.DiscoveredNodes.Kind.KNOWN_PEERS)
-         {
-             logger.debug("Got candidates: " + candidates);
-             InetAddressAndPort min = candidates.nodes().stream().min(InetAddressAndPort::compareTo).get();
-             // identify if you need to start the vote
-             if (min.equals(FBUtilities.getBroadcastAddressAndPort()) || FBUtilities.getBroadcastAddressAndPort().compareTo(min) < 0)
-             {
-                 Election.instance.nominateSelf(candidates.nodes(),
-                                                Collections.singleton(FBUtilities.getBroadcastAddressAndPort()),
-                                                (cm) -> true,
-                                                null);
-             }
-         }
+    public static void initializeForDiscovery(Runnable initMessaging)
+    {
+        initMessaging.run();
+        logger.debug("Discovering other nodes in the system");
+        Discovery.DiscoveredNodes candidates = Discovery.instance.discover();
+        if (candidates.kind() == Discovery.DiscoveredNodes.Kind.KNOWN_PEERS)
+        {
+            logger.debug("Got candidates: " + candidates);
+            InetAddressAndPort min = candidates.nodes().stream().min(InetAddressAndPort::compareTo).get();
+            // identify if you need to start the vote
+            if (min.equals(FBUtilities.getBroadcastAddressAndPort()) || FBUtilities.getBroadcastAddressAndPort().compareTo(min) < 0)
+            {
+                Election.instance.nominateSelf(candidates.nodes(),
+                                               Collections.singleton(FBUtilities.getBroadcastAddressAndPort()),
+                                               (cm) -> true,
+                                               null);
+            }
+        }
 
         while (!ClusterMetadata.current().epoch.isAfter(Epoch.FIRST))
         {
@@ -182,106 +181,106 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
 
-         assert ClusterMetadata.current().epoch.isAfter(Epoch.FIRST);
-         Election.instance.migrated();
-     }
+        assert ClusterMetadata.current().epoch.isAfter(Epoch.FIRST);
+        Election.instance.migrated();
+    }
 
-     /**
-      * This should only be called during startup.
-      */
-     public static void initializeFromGossip(Function<Processor, Processor> wrapProcessor, Runnable initMessaging)
-     {
-         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
-         emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
-                                                                       emptyFromSystemTables,
-                                                                       wrapProcessor,
-                                                                       ClusterMetadataService::state,
-                                                                       false));
-         initMessaging.run();
-         try
-         {
-             CommitLog.instance.recoverSegmentsOnDisk();
-         }
-         catch (IOException e)
-         {
-             throw new RuntimeException(e);
-         }
+    /**
+     * This should only be called during startup.
+     */
+    public static void initializeFromGossip(Function<Processor, Processor> wrapProcessor, Runnable initMessaging)
+    {
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
+        emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
+                                                                      emptyFromSystemTables,
+                                                                      wrapProcessor,
+                                                                      ClusterMetadataService::state,
+                                                                      false));
+        initMessaging.run();
+        try
+        {
+            CommitLog.instance.recoverSegmentsOnDisk();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
 
-         logger.debug("Starting to initialize ClusterMetadata from gossip");
-         Map<InetAddressAndPort, EndpointState> epStates = NewGossiper.instance.doShadowRound();
-         logger.debug("Got epStates {}", epStates);
-         ClusterMetadata initial = fromEndpointStates(emptyFromSystemTables.schema, epStates);
-         logger.debug("Created initial ClusterMetadata {}", initial);
-         SystemKeyspace.setLocalHostId(initial.myNodeId().toUUID());
-         ClusterMetadataService.instance().setFromGossip(initial);
-         Gossiper.instance.clearUnsafe();
-         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-         GossipHelper.mergeAllNodeStatesToGossip(initial);
-         // double check that everything was added, can remove once we are confident
-         ClusterMetadata cmGossip = fromEndpointStates(emptyFromSystemTables.schema, Gossiper.instance.getEndpointStates());
-         assert cmGossip.equals(initial) : cmGossip + " != " + initial;
-     }
+        logger.debug("Starting to initialize ClusterMetadata from gossip");
+        Map<InetAddressAndPort, EndpointState> epStates = NewGossiper.instance.doShadowRound();
+        logger.debug("Got epStates {}", epStates);
+        ClusterMetadata initial = fromEndpointStates(emptyFromSystemTables.schema, epStates);
+        logger.debug("Created initial ClusterMetadata {}", initial);
+        SystemKeyspace.setLocalHostId(initial.myNodeId().toUUID());
+        ClusterMetadataService.instance().setFromGossip(initial);
+        Gossiper.instance.clearUnsafe();
+        Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
+        GossipHelper.mergeAllNodeStatesToGossip(initial);
+        // double check that everything was added, can remove once we are confident
+        ClusterMetadata cmGossip = fromEndpointStates(emptyFromSystemTables.schema, Gossiper.instance.getEndpointStates());
+        assert cmGossip.equals(initial) : cmGossip + " != " + initial;
+    }
 
-     public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException
-     {
-         // First set a minimal ClusterMetadata as some deserialization depends
-         // on ClusterMetadata.current() to access the partitioner
-         StubClusterMetadataService initial = StubClusterMetadataService.forClientTools();
-         ClusterMetadataService.unsetInstance();
-         StubClusterMetadataService.setInstance(initial);
+    public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException
+    {
+        // First set a minimal ClusterMetadata as some deserialization depends
+        // on ClusterMetadata.current() to access the partitioner
+        StubClusterMetadataService initial = StubClusterMetadataService.forClientTools();
+        ClusterMetadataService.unsetInstance();
+        StubClusterMetadataService.setInstance(initial);
 
-         ClusterMetadata metadata = ClusterMetadataService.deserializeClusterMetadata(fileName);
-         // if the partitioners are mismatching, we probably won't even get this far
-         if (metadata.partitioner != DatabaseDescriptor.getPartitioner())
-             throw new IllegalStateException(String.format("When reinitializing with cluster metadata, the same " +
-                                                           "partitioner must be used. Configured: %s, Serialized: %s",
-                                                           DatabaseDescriptor.getPartitioner().getClass().getCanonicalName(),
-                                                           metadata.partitioner.getClass().getCanonicalName()));
+        ClusterMetadata metadata = ClusterMetadataService.deserializeClusterMetadata(fileName);
+        // if the partitioners are mismatching, we probably won't even get this far
+        if (metadata.partitioner != DatabaseDescriptor.getPartitioner())
+            throw new IllegalStateException(String.format("When reinitializing with cluster metadata, the same " +
+                                                          "partitioner must be used. Configured: %s, Serialized: %s",
+                                                          DatabaseDescriptor.getPartitioner().getClass().getCanonicalName(),
+                                                          metadata.partitioner.getClass().getCanonicalName()));
 
-         if (!metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
-             throw new IllegalStateException("When reinitializing with cluster metadata, we must be in the CMS");
-         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
-         metadata.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());
-         ClusterMetadataService.unsetInstance();
-         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
-                                                                       metadata,
-                                                                       wrapProcessor,
-                                                                       ClusterMetadataService::state,
-                                                                       true));
-         ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
-         ClusterMetadataService.instance().log().addListener(new SchemaListener());
-         ClusterMetadataService.instance().log().notifyListeners(emptyFromSystemTables);
-         initMessaging.run();
-         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
-         ClusterMetadataService.instance().sealPeriod();
-         CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
-         assert ClusterMetadataService.state() == LOCAL;
-         assert ClusterMetadataService.instance() != initial : "Aborting startup as temporary metadata service is still active";
-     }
+        if (!metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+            throw new IllegalStateException("When reinitializing with cluster metadata, we must be in the CMS");
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
+        metadata.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
+                                                                      metadata,
+                                                                      wrapProcessor,
+                                                                      ClusterMetadataService::state,
+                                                                      true));
+        ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
+        ClusterMetadataService.instance().log().addListener(new SchemaListener());
+        ClusterMetadataService.instance().log().notifyListeners(emptyFromSystemTables);
+        initMessaging.run();
+        ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
+        ClusterMetadataService.instance().sealPeriod();
+        CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
+        assert ClusterMetadataService.state() == LOCAL;
+        assert ClusterMetadataService.instance() != initial : "Aborting startup as temporary metadata service is still active";
+    }
 
-     /**
-      * Initialization process:
-      */
+    /**
+     * Initialization process:
+     */
 
-     enum StartupMode
-     {
-         NORMAL,
-         UPGRADE,
-         VOTE,
-         FIRST_CMS,
-         BOOT_WITH_CLUSTERMETADATA;
+    enum StartupMode
+    {
+        NORMAL,
+        UPGRADE,
+        VOTE,
+        FIRST_CMS,
+        BOOT_WITH_CLUSTERMETADATA;
 
-         static StartupMode get(Set<InetAddressAndPort> seeds)
-         {
-             if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
-             {
-                 logger.warn("Booting with ClusterMetadata from file: " + CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString());
-                 return BOOT_WITH_CLUSTERMETADATA;
-             }
-             if (seeds.isEmpty())
-                 throw new IllegalArgumentException("Can not initialize CMS without any seeds");
+        static StartupMode get(Set<InetAddressAndPort> seeds)
+        {
+            if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
+            {
+                logger.warn("Booting with ClusterMetadata from file: " + CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString());
+                return BOOT_WITH_CLUSTERMETADATA;
+            }
+            if (seeds.isEmpty())
+                throw new IllegalArgumentException("Can not initialize CMS without any seeds");
 
             boolean hasAnyEpoch = SystemKeyspaceStorage.hasAnyEpoch();
             // For CCM and local dev clusters

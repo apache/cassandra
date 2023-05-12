@@ -58,13 +58,21 @@ public class UnbootstrapStreams implements LeaveStreams
     @Override
     public void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave) throws ExecutionException, InterruptedException
     {
-        MovementMap movements =  movementMap(ClusterMetadata.current().directory.endpoint(leaving),
-                                             startLeave,
-                                             midLeave,
-                                             finishLeave);
+        MovementMap movements = movementMap(ClusterMetadata.current().directory.endpoint(leaving),
+                                            startLeave,
+                                            midLeave,
+                                            finishLeave);
         movements.forEach((params, eps) -> logger.info("Unbootstrap movements: {}: {}", params, eps));
         started.set(true);
-        unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(), movements);
+        try
+        {
+            unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(), movements);
+        }
+        catch (ExecutionException e)
+        {
+            logger.error("Error while decommissioning node", e);
+            throw e;
+        }
     }
 
     private static MovementMap movementMap(InetAddressAndPort leaving, PlacementDeltas startDelta, PlacementDeltas midDelta, PlacementDeltas finishDelta)

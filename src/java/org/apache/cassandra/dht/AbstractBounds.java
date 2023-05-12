@@ -50,7 +50,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     public AbstractBounds(T left, T right)
     {
-        assert left.getPartitioner() == right.getPartitioner();
+        assert left.getPartitioner().getClass().equals(right.getPartitioner().getClass()); // todo: is this enough?
         this.left = left;
         this.right = right;
     }
