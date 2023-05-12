@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,10 +29,40 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class InsertTest extends CQLTester
 {
+    @Test
+    public void testVectors()
+    {
+        Runnable test = () -> {
+            assertRows(execute("SELECT * FROM %s"), row(list(1, 2)));
+            execute("TRUNCATE %s");
+            assertRows(execute("SELECT * FROM %s"));
+        };
+        VectorType<Integer> type = VectorType.getInstance(Int32Type.instance, 2);
+        createTable(KEYSPACE, "CREATE TABLE %s (pk vector<int, 2> primary key)");
+
+        execute("INSERT INTO %s (pk) VALUES ([1, 2])");
+        test.run();
+
+//        execute("INSERT INTO %s (pk) VALUES (?)", type.decompose(Arrays.asList(1, 2)));
+        execute("INSERT INTO %s (pk) VALUES (?)", vector(1, 2));
+        test.run();
+
+        execute("INSERT INTO %s (pk) VALUES ([1, 1 + 1])");
+        test.run();
+
+//        execute("INSERT INTO %s (pk) VALUES ([1, ?])", 2);
+//        test.run();
+
+        execute("INSERT INTO %s (pk) VALUES ([1, 1 + (int) ?])");
+        test.run();
+    }
+
     @Test
     public void testInsertZeroDuration() throws Throwable
     {
