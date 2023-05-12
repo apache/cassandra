@@ -31,20 +31,26 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AbstractTypeTest;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.DateType;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.EmptyType;
@@ -58,6 +64,7 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -76,6 +83,11 @@ public final class AbstractTypeGenerators
     private static final Gen<Integer> VERY_SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
+    private static final Map<AbstractType<?>, String> UNSUPPORTED_PRIMITIVES = ImmutableMap.<AbstractType<?>, String>builder()
+                                                                               .put(DateType.instance, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
+                                                                                           .build();
+
+
     private static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
     Stream.of(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),
               TypeSupport.of(ByteType.instance, SourceDSL.integers().between(0, Byte.MAX_VALUE * 2 + 1).map(Integer::byteValue)),
@@ -84,23 +96,26 @@ public final class AbstractTypeGenerators
               TypeSupport.of(LongType.instance, SourceDSL.longs().all()),
               TypeSupport.of(FloatType.instance, SourceDSL.floats().any()),
               TypeSupport.of(DoubleType.instance, SourceDSL.doubles().any()),
-              TypeSupport.of(BytesType.instance, Generators.bytes(0, 1024)),
+              TypeSupport.of(BytesType.instance, Generators.bytes(0, 1024), FastByteOperations::compareUnsigned), // use the faster version...
               TypeSupport.of(UUIDType.instance, Generators.UUID_RANDOM_GEN),
-              TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN), // serialization strips the hostname, only keeps the address
+              TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN, (a, b) -> FastByteOperations.compareUnsigned(a.getAddress(), b.getAddress())), // serialization strips the hostname, only keeps the address
+              /*
+              TODO
+              if (type instanceof StringType)
+        {
+            StringType st = (StringType) type;
+            return (Comparator<Object>) (Comparator<?>) (String a, String b) -> FastByteOperations.compareUnsigned(st.decompose(a), st.decompose(b));
+        }
+               */
               TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(0, 1024)),
               TypeSupport.of(UTF8Type.instance, Generators.utf8(0, 1024)),
               TypeSupport.of(TimestampType.instance, Generators.DATE_GEN),
+              TypeSupport.of(SimpleDateType.instance, SourceDSL.integers().between(0, Integer.MAX_VALUE)), // can't use time gen as this is an int, and in Milliseconds... so overflows...
               // null is desired here as #decompose will call org.apache.cassandra.serializers.EmptySerializer.serialize which ignores the input and returns empty bytes
-              TypeSupport.of(EmptyType.instance, rnd -> null),
-              TypeSupport.of(DurationType.instance, CassandraGenerators.duration())
-              //TODO add the following
-              // IntegerType.instance,
-              // DecimalType.instance,
-              // TimeUUIDType.instance,
-              // LexicalUUIDType.instance,
-              // SimpleDateType.instance,
-              // TimeType.instance,
-              // DurationType.instance,
+              TypeSupport.of(EmptyType.instance, rnd -> null, (a, b) -> 0),
+              TypeSupport.of(DurationType.instance, CassandraGenerators.duration(), Comparator.comparingInt(Duration::getMonths)
+                                                                                              .thenComparingInt(Duration::getDays)
+                                                                                              .thenComparingLong(Duration::getNanoseconds))
     ).collect(Collectors.toMap(t -> t.type, t -> t));
     // NOTE not supporting reversed as CQL doesn't allow nested reversed types
     // when generating part of the clustering key, it would be good to allow reversed types as the top level
@@ -136,6 +151,7 @@ public final class AbstractTypeGenerators
         types.addAll(NON_PRIMITIVE_TYPES);
         types.add(FrozenType.class);
         types.add(ReversedType.class);
+        UNSUPPORTED_PRIMITIVES.keySet().forEach(t -> types.add(t.getClass()));
         return types;
     }
 
@@ -501,8 +517,7 @@ public final class AbstractTypeGenerators
     {
         Objects.requireNonNull(sizeGen, "sizeGen");
         // this doesn't affect the data, only sort order, so drop it
-        if (type.isReversed())
-            type = ((ReversedType<T>) type).baseType;
+        type = type.unwrap();
         // cast is safe since type is a constant and was type cast while inserting into the map
         @SuppressWarnings("unchecked")
         TypeSupport<T> gen = (TypeSupport<T>) PRIMITIVE_TYPE_DATA_GENS.get(type);
@@ -513,7 +528,16 @@ public final class AbstractTypeGenerators
         {
             // T = Set<A> so can not use T here
             SetType<Object> setType = (SetType<Object>) type;
-            TypeSupport<?> elementSupport = getTypeSupport(setType.getElementsType(), sizeGen, nulls);
+            TypeSupport<Object> elementSupport = getTypeSupport(setType.getElementsType(), sizeGen, nulls);
+            Comparator<Object> elComparator = elementSupport.valueComparator;
+            Comparator<List<Object>> setComparator = listComparator(elComparator);
+            Comparator<Set<Object>> comparator = (Set<Object> a, Set<Object> b) -> {
+                List<Object> as = new ArrayList<>(a);
+                Collections.sort(as, elComparator);
+                List<Object> bs = new ArrayList<>(b);
+                Collections.sort(bs, elComparator);
+                return setComparator.compare(as, bs);
+            };
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(setType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -533,14 +557,14 @@ public final class AbstractTypeGenerators
                     set.add(generate);
                 }
                 return set;
-            });
+            }, comparator);
             return support;
         }
         else if (type instanceof ListType)
         {
             // T = List<A> so can not use T here
             ListType<Object> listType = (ListType<Object>) type;
-            TypeSupport<?> elementSupport = getTypeSupport(listType.getElementsType(), sizeGen, nulls);
+            TypeSupport<Object> elementSupport = getTypeSupport(listType.getElementsType(), sizeGen, nulls);
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(listType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -548,15 +572,34 @@ public final class AbstractTypeGenerators
                 for (int i = 0; i < size; i++)
                     list.add(elementSupport.valueGen.generate(rnd));
                 return list;
-            });
+            }, listComparator(elementSupport.valueComparator));
             return support;
         }
         else if (type instanceof MapType)
         {
             // T = Map<A, B> so can not use T here
             MapType<Object, Object> mapType = (MapType<Object, Object>) type;
-            TypeSupport<?> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, nulls);
-            TypeSupport<?> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, nulls);
+            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, nulls);
+            Comparator<Object> keyType = keySupport.valueComparator;
+            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, nulls);
+            Comparator<Object> valueType = valueSupport.valueComparator;
+            Comparator<Map<Object, Object>> comparator = (Map<Object, Object> a, Map<Object, Object> b) -> {
+                List<Object> ak = new ArrayList<>(a.keySet());
+                Collections.sort(ak, keyType);
+                List<Object> bk = new ArrayList<>(b.keySet());
+                Collections.sort(bk, keyType);
+                for (int i = 0, size = Math.min(ak.size(), bk.size()); i < size; i++)
+                {
+                    int rc = keyType.compare(ak.get(i), bk.get(i));
+                    if (rc != 0)
+                        return rc;
+                    Object key = ak.get(i);
+                    rc = valueType.compare(a.get(key), b.get(key));
+                    if (rc != 0)
+                        return rc;
+                }
+                return Integer.compare(a.size(), b.size());
+            };
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(mapType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -576,21 +619,30 @@ public final class AbstractTypeGenerators
                     map.put(key, valueSupport.valueGen.generate(rnd));
                 }
                 return map;
-            });
+            }, comparator);
             return support;
         }
         else if (type instanceof TupleType) // includes UserType
         {
             // T is ByteBuffer
             TupleType tupleType = (TupleType) type;
-            @SuppressWarnings("unchecked")
-            TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, nulls));
-            return support;
+            List<Comparator<Object>> columns = (List<Comparator<Object>>) (List<?>) tupleType.allTypes().stream().map(AbstractTypeGenerators::comparator).collect(Collectors.toList());
+            Comparator<List<Object>> listCompar = listComparator((i, a, b) -> columns.get(i).compare(a, b));
+            Comparator<ByteBuffer> comparator = (ByteBuffer a, ByteBuffer b) -> {
+                ByteBuffer[] abb = tupleType.split(ByteBufferAccessor.instance, a);
+                List<Object> av = IntStream.range(0, abb.length).mapToObj(i -> tupleType.type(i).compose(abb[i])).collect(Collectors.toList());
+
+                ByteBuffer[] bbb = tupleType.split(ByteBufferAccessor.instance, b);
+                List<Object> bv = IntStream.range(0, bbb.length).mapToObj(i -> tupleType.type(i).compose(bbb[i])).collect(Collectors.toList());
+                return listCompar.compare(av, bv);
+            };
+            TypeSupport<ByteBuffer> support = TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, nulls), comparator);
+            return (TypeSupport<T>) support;
         }
         else if (type instanceof VectorType)
         {
             VectorType<Object> vectorType = (VectorType<Object>) type;
-            TypeSupport<?> elementSupport = getTypeSupport(vectorType.elementType, sizeGen, nulls);
+            TypeSupport<Object> elementSupport = getTypeSupport(vectorType.elementType, sizeGen, nulls);
             return (TypeSupport<T>) TypeSupport.of(vectorType, rnd -> {
                 List<Object> list = new ArrayList<>(vectorType.dimension);
                 for (int i = 0; i < vectorType.dimension; i++)
@@ -601,9 +653,36 @@ public final class AbstractTypeGenerators
                     list.add(generate);
                 }
                 return list;
-            });
+            }, listComparator(elementSupport.valueComparator));
         }
         throw new UnsupportedOperationException("Unsupported type: " + type);
+    }
+
+    public static <T> Comparator<T> comparator(AbstractType<T> type)
+    {
+        return getTypeSupport(type).valueComparator;
+    }
+
+    private static <T> Comparator<List<T>> listComparator(Comparator<T> elements)
+    {
+        return listComparator((ignore, a, b) -> elements.compare(a, b));
+    }
+
+    private interface IndexComparator<T>
+    {
+        int compare(int index, T a, T b);
+    }
+    private static <T> Comparator<List<T>> listComparator(IndexComparator<T> ordering)
+    {
+        return (a, b) -> {
+            for (int i = 0, size = Math.min(a.size(), b.size()); i < size; i++)
+            {
+                int rc = ordering.compare(i, a.get(i), b.get(i));
+                if (rc != 0)
+                    return rc;
+            }
+            return Integer.compare(a.size(), b.size());
+        };
     }
 
     private static int uniqueElementsForDomain(AbstractType<?> type)
@@ -699,16 +778,23 @@ public final class AbstractTypeGenerators
     {
         public final AbstractType<T> type;
         public final Gen<T> valueGen;
+        public final Comparator<T> valueComparator;
 
-        private TypeSupport(AbstractType<T> type, Gen<T> valueGen)
+        private TypeSupport(AbstractType<T> type, Gen<T> valueGen, Comparator<T> valueComparator)
         {
             this.type = Objects.requireNonNull(type);
             this.valueGen = Objects.requireNonNull(valueGen);
+            this.valueComparator = Objects.requireNonNull(valueComparator);
         }
 
-        public static <T> TypeSupport<T> of(AbstractType<T> type, Gen<T> valueGen)
+        public static <T extends Comparable<T>> TypeSupport<T> of(AbstractType<T> type, Gen<T> valueGen)
         {
-            return new TypeSupport<>(type, valueGen);
+            return new TypeSupport<>(type, valueGen, Comparator.naturalOrder());
+        }
+
+        public static <T> TypeSupport<T> of(AbstractType<T> type, Gen<T> valueGen, Comparator<T> valueComparator)
+        {
+            return new TypeSupport<>(type, valueGen, valueComparator);
         }
 
         /**

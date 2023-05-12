@@ -303,9 +303,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
-    public AbstractType<?> unwrap()
+    public AbstractType<T> unwrap()
     {
-        return isReversed() ? ((ReversedType<?>) this).baseType.unwrap() : this;
+        return isReversed() ? ((ReversedType<T>) this).baseType.unwrap() : this;
     }
 
     public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws SyntaxException
@@ -405,6 +405,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     public boolean isTuple()
+    {
+        return false;
+    }
+
+    public boolean isVector()
     {
         return false;
     }

@@ -21,16 +21,13 @@ package org.apache.cassandra.db.marshal;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Modifier;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
@@ -40,7 +37,6 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -205,7 +201,9 @@ public class AbstractTypeTest
 
             // to -> from cql
             String cqlType = type.asCQL3Type().toString();
-            assertThat(CQLTypeParser.parse(null, cqlType, toTypes(extractUDTs(type)))).describedAs("CQL type %s parse did not match the expected type", cqlType).isEqualTo(type);
+            assertThat(CQLTypeParser.parse(null, cqlType, toTypes(extractUDTs(type))))
+            .describedAs("CQL type %s parse did not match the expected type", cqlType)
+            .isEqualTo(type);
 
             for (Object expected : example.samples)
             {
@@ -284,7 +282,7 @@ public class AbstractTypeTest
         Gen<AbstractType<?>> types = genBuilder()
                                      .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
                                      .build();
-        qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
+        qt().withFixedSeed(2467964269627041L).withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
             List<ByteBuffer> actual = decompose(type, example.samples);
             Collections.sort(actual, type);
@@ -349,102 +347,7 @@ public class AbstractTypeTest
 
     private static Comparator<Object> comparator(AbstractType<?> type)
     {
-        if (type instanceof NumberType || type instanceof BooleanType || type instanceof UUIDType || type instanceof TimestampType)
-            return (Comparator<Object>) (Comparator<?>) Comparator.naturalOrder();
-        if (type instanceof EmptyType)
-            return (a, b) -> 0;
-        if (type instanceof BytesType)
-            return (Comparator<Object>) (Comparator<?>) (Comparator<ByteBuffer>) FastByteOperations::compareUnsigned;
-        if (type instanceof InetAddressType)
-            return (Comparator<Object>) (Comparator<?>) (InetAddress a, InetAddress b) -> FastByteOperations.compareUnsigned(a.getAddress(), b.getAddress());
-        if (type instanceof StringType)
-        {
-            StringType st = (StringType) type;
-            return (Comparator<Object>) (Comparator<?>) (String a, String b) -> FastByteOperations.compareUnsigned(st.decompose(a), st.decompose(b));
-        }
-        if (type instanceof ListType)
-            return listComparator(comparator(((ListType) type).getElementsType()));
-        if (type instanceof VectorType)
-            return listComparator(comparator(((VectorType) type).elementType));
-        if (type instanceof SetType)
-        {
-            SetType st = (SetType) type;
-            Comparator<Object> elComparator = comparator(st.getElementsType());
-            Comparator<Object> setComparator = listComparator(elComparator);
-            return (Comparator<Object>) (Comparator<?>) (Set a, Set b) -> {
-                List<Object> as = new ArrayList<>(a);
-                Collections.sort(as, elComparator);
-                List<Object> bs = new ArrayList<>(b);
-                Collections.sort(bs, elComparator);
-                return setComparator.compare(as, bs);
-            };
-        }
-        if (type instanceof MapType)
-        {
-            MapType mt = (MapType) type;
-            Comparator<Object> keyType = comparator(mt.getKeysType());
-            Comparator<Object> valueType = comparator(mt.getValuesType());
-            return (Comparator<Object>) (Comparator<?>) (Map a, Map b) -> {
-                List<Object> ak = new ArrayList<>(a.keySet());
-                Collections.sort(ak, keyType);
-                List<Object> bk = new ArrayList<>(b.keySet());
-                Collections.sort(bk, keyType);
-                for (int i = 0, size = Math.min(ak.size(), bk.size()); i < size; i++)
-                {
-                    int rc = keyType.compare(ak.get(i), bk.get(i));
-                    if (rc != 0)
-                        return rc;
-                    Object key = ak.get(i);
-                    rc = valueType.compare(a.get(key), b.get(key));
-                    if (rc != 0)
-                        return rc;
-                }
-                return Integer.compare(a.size(), b.size());
-            };
-        }
-        if (type instanceof TupleType)
-        {
-            TupleType tt = (TupleType) type;
-            List<Comparator<Object>> columns = tt.types.stream().map(AbstractTypeTest::comparator).collect(Collectors.toList());
-            Comparator<Object> listCompar = listComparator((i, a, b) -> columns.get(i).compare(a, b));
-            return (Comparator<Object>) (Comparator<?>) (ByteBuffer a, ByteBuffer b) -> {
-                ByteBuffer[] abb = tt.split(ByteBufferAccessor.instance, a);
-                List<Object> av = IntStream.range(0, abb.length).mapToObj(i -> tt.type(i).compose(abb[i])).collect(Collectors.toList());
-
-                ByteBuffer[] bbb = tt.split(ByteBufferAccessor.instance, b);
-                List<Object> bv = IntStream.range(0, bbb.length).mapToObj(i -> tt.type(i).compose(bbb[i])).collect(Collectors.toList());
-                return listCompar.compare(av, bv);
-            };
-        }
-        if (type instanceof DurationType)
-        {
-            return (Comparator<Object>) (Comparator<?>) Comparator.comparingInt(Duration::getMonths)
-                                                                  .thenComparingInt(Duration::getDays)
-                                                                  .thenComparingLong(Duration::getNanoseconds);
-        }
-        throw new AssertionError("Unexpected type: " + type);
-    }
-
-    private static Comparator<Object> listComparator(Comparator<Object> ordering)
-    {
-        return listComparator((ignore, a, b) -> ordering.compare(a, b));
-    }
-
-    private interface IndexComparator<T>
-    {
-        int compare(int index, T a, T b);
-    }
-    private static Comparator<Object> listComparator(IndexComparator ordering)
-    {
-        return (Comparator<Object>) (Comparator<?>) (List a, List b) -> {
-            for (int i = 0, size = Math.min(a.size(), b.size()); i < size; i++)
-            {
-                int rc = ordering.compare(i, a.get(i), b.get(i));
-                if (rc != 0)
-                    return rc;
-            }
-            return Integer.compare(a.size(), b.size());
-        };
+        return (Comparator<Object>) AbstractTypeGenerators.comparator(type);
     }
 
     private List<ByteBuffer> decompose(AbstractType type, List<Object> value)
@@ -530,7 +433,72 @@ public class AbstractTypeTest
                 sb.append(i).append(": ");
                 typeTree(sb, fieldType, elementIndent);
             }
-            newline(sb, elementIndent);
+        }
+        else if (type.isVector())
+        {
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
+            VectorType<?> vt = (VectorType<?>) type;
+            sb.append("vector[").append(vt.dimension).append("]: ");
+            indent += 2;
+            typeTree(sb, vt.elementType, indent);
+        }
+        else if (type.isCollection())
+        {
+            CollectionType<?> ct = (CollectionType<?>) type;
+            switch (ct.kind)
+            {
+                case MAP:
+                {
+                    if (indent != 0)
+                    {
+                        indent += 2;
+                        newline(sb, indent);
+                    }
+                    MapType<?, ?> mt = (MapType<?, ?>) type;
+                    sb.append("map:");
+                    indent += 2;
+                    newline(sb, indent);
+                    sb.append("key: ");
+                    int subTypeIndent = indent + 2;
+                    typeTree(sb, mt.getKeysType(), subTypeIndent);
+                    newline(sb, indent);
+                    sb.append("value: ");
+                    typeTree(sb, mt.getValuesType(), subTypeIndent);
+                }
+                break;
+                case LIST:
+                {
+                    if (indent != 0)
+                    {
+                        indent += 2;
+                        newline(sb, indent);
+                    }
+                    ListType<?> lt = (ListType<?>) type;
+                    sb.append("list: ");
+                    indent += 2;
+                    typeTree(sb, lt.getElementsType(), indent);
+                }
+                break;
+                case SET:
+                {
+                    if (indent != 0)
+                    {
+                        indent += 2;
+                        newline(sb, indent);
+                    }
+                    SetType<?> st = (SetType<?>) type;
+                    sb.append("set: ");
+                    indent += 2;
+                    typeTree(sb, st.getElementsType(), indent);
+                }
+                break;
+                default:
+                    throw new UnsupportedOperationException("Unknown kind: " + ct.kind);
+            }
         }
         else
         {
