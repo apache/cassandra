@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -53,7 +54,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
     static
     {
         // make sure blob is always the same
-        System.setProperty("cassandra.test.blob.shared.seed", "42");
+        CassandraRelevantProperties.TEST_BLOB_SHARED_SEED.setInt(42);
     }
 
     @Test
