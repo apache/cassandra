@@ -29,7 +29,6 @@ import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -167,9 +166,6 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
             Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(ksDiff, FBUtilities.timestampMicros());
             SchemaKeyspace.applyChanges(mutations);
         }
-
-        QueryProcessor.clearInternalStatementsCache();
-        QueryProcessor.clearPreparedStatementsCache();
     }
 
     public static void maybeRebuildViews(DistributedSchema prev, DistributedSchema current)
