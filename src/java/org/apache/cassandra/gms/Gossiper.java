@@ -674,29 +674,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         }
     }
 
-    /**
-     * Handles switching the endpoint's state from REMOVING_TOKEN to REMOVED_TOKEN
-     * This should only be called after advertiseRemoving
-     *
-     * @param endpoint
-     * @param hostId
-     */
-    public void advertiseTokenRemoved(InetAddressAndPort endpoint, UUID hostId)
-    {
-        EndpointState epState = endpointStateMap.get(endpoint);
-        epState.updateTimestamp(); // make sure we don't evict it too soon
-        epState.getHeartBeatState().forceNewerGenerationUnsafe();
-        long expireTime = computeExpireTime();
-        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
-        logger.info("Completing removal of {}", endpoint);
-        addExpireTimeForEndpoint(endpoint, expireTime);
-        endpointStateMap.put(endpoint, epState);
-        // ensure at least one gossip round occurs before returning
-        // todo; do we need this?
-        Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
-    }
-
     public void unsafeAssassinateEndpoint(String address) throws UnknownHostException
     {
         logger.warn("Gossiper.unsafeAssassinateEndpoint is deprecated and will be removed in the next release; use assassinateEndpoint instead");
@@ -713,57 +690,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
      */
     public void assassinateEndpoint(String address) throws UnknownHostException
     {
-        InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
-        runInGossipStageBlocking(() -> {
-            EndpointState epState = endpointStateMap.get(endpoint);
-            logger.warn("Assassinating {} via gossip", endpoint);
-
-            if (epState == null)
-            {
-                epState = new EndpointState(new HeartBeatState((int) ((currentTimeMillis() + 60000) / 1000), 9999));
-            }
-            else
-            {
-                int generation = epState.getHeartBeatState().getGeneration();
-                int heartbeat = epState.getHeartBeatState().getHeartBeatVersion();
-                logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY_MILLIS, endpoint);
-                Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-                // make sure it did not change
-                EndpointState newState = endpointStateMap.get(endpoint);
-                if (newState == null)
-                    logger.warn("Endpoint {} disappeared while trying to assassinate, continuing anyway", endpoint);
-                else if (newState.getHeartBeatState().getGeneration() != generation)
-                    throw new RuntimeException("Endpoint still alive: " + endpoint + " generation changed while trying to assassinate it");
-                else if (newState.getHeartBeatState().getHeartBeatVersion() != heartbeat)
-                    throw new RuntimeException("Endpoint still alive: " + endpoint + " heartbeat changed while trying to assassinate it");
-                epState.updateTimestamp(); // make sure we don't evict it too soon
-                epState.getHeartBeatState().forceNewerGenerationUnsafe();
-            }
-
-            Collection<Token> tokens = null;
-            ClusterMetadata metadata = ClusterMetadata.current();
-            try
-            {
-                NodeId nodeId = metadata.directory.peerId(endpoint);
-                tokens = metadata.tokenMap.tokens(nodeId);
-            }
-            catch (Throwable th)
-            {
-                JVMStabilityInspector.inspectThrowable(th);
-            }
-            if (tokens == null || tokens.isEmpty())
-            {
-                logger.warn("Trying to assassinate an endpoint {} that does not have any tokens assigned. This should not have happened, trying to continue with a random token.", address);
-                tokens = Collections.singletonList(metadata.tokenMap.partitioner().getRandomToken());
-            }
-
-            long expireTime = computeExpireTime();
-            epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
-            epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
-            handleMajorStateChange(endpoint, epState);
-            Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
-            logger.warn("Finished assassinating {}", endpoint);
-        });
+        StorageService.instance.assassinateEndpoint(address);
     }
 
     public boolean isKnownEndpoint(InetAddressAndPort endpoint)

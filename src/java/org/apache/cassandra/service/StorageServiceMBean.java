@@ -519,6 +519,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void removeNode(String token);
     public void removeNode(String token, boolean force);
 
+    public void assassinateEndpoint(String addr);
+
     public boolean cancelInProgressSequences(String sequenceOwner, String expectedSequenceKind);
 
     /**

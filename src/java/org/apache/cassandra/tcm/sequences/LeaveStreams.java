@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
+import org.apache.cassandra.tcm.transformations.Assassinate;
 
 public interface LeaveStreams
 {
@@ -33,7 +34,8 @@ public interface LeaveStreams
     enum Kind
     {
         UNBOOTSTRAP(UnbootstrapStreams::new),
-        REMOVENODE(RemoveNodeStreams::new);
+        REMOVENODE(RemoveNodeStreams::new),
+        ASSASSINATE(() -> Assassinate.LEAVE_STREAMS);
 
         public final Supplier<LeaveStreams> supplier;
 

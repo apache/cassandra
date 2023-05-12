@@ -1035,7 +1035,7 @@ public class NodeProbe implements AutoCloseable
 
     public void assassinateEndpoint(String address) throws UnknownHostException
     {
-        gossProxy.assassinateEndpoint(address);
+        ssProxy.assassinateEndpoint(address);
     }
 
     public List<String> reloadSeeds()

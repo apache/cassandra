@@ -26,6 +26,7 @@ import java.net.UnknownHostException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
+@Deprecated
 @Command(name = "assassinate", description = "Forcefully remove a dead node without re-replicating any data.  Use as a last resort if you cannot removenode")
 public class Assassinate extends NodeToolCmd
 {

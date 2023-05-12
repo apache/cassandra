@@ -204,6 +204,7 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
+import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
@@ -3780,6 +3781,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      return null;
                                                  });
         finishInProgressSequences(toRemove);
+    }
+
+    public void assassinateEndpoint(String address)
+    {
+        try
+        {
+            InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
+            NodeId nodeId = ClusterMetadata.current().directory.peerId(endpoint);
+            ClusterMetadataService.instance().commit(new Assassinate(nodeId,
+                                                                     ClusterMetadataService.instance().placementProvider()),
+                                                     (metadata) -> !metadata.directory.peerIds().contains(nodeId),
+                                                     (metadata) -> null,
+                                                     (metadata, code, reason) -> {
+                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
+                                                                                                       reason));
+                                                     });
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException("Could not assassinate an unresolvable endpoint");
+        }
     }
 
     public void confirmReplication(InetAddressAndPort node)

@@ -18,52 +18,38 @@
 
 package org.apache.cassandra.tcm.transformations;
 
-import java.util.Set;
-
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
-import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 
-public class UnsafeJoin extends PrepareJoin
+public class Assassinate extends PrepareLeave
 {
-    public static final Serializer<UnsafeJoin> serializer = new Serializer<UnsafeJoin>()
+    public static final Serializer<Assassinate> serializer = new Serializer<Assassinate>()
     {
-        public UnsafeJoin construct(NodeId nodeId, Set<Token> tokens, PlacementProvider placementProvider, boolean joinTokenRing, boolean streamData)
+        @Override
+        public Assassinate construct(NodeId leaving, boolean force, PlacementProvider placementProvider, LeaveStreams.Kind streamKind)
         {
-            assert joinTokenRing;
-            assert !streamData;
-            return new UnsafeJoin(nodeId, tokens, placementProvider);
+            return new Assassinate(leaving, placementProvider);
         }
     };
 
-    public UnsafeJoin(NodeId nodeId, Set<Token> tokens, PlacementProvider placementProvider)
+    public Assassinate(NodeId leaving, PlacementProvider placementProvider)
     {
-        super(nodeId, tokens, placementProvider, true, false);
-    }
-
-    @Override
-    public String toString()
-    {
-        return "UnsafeJoin{" +
-               "nodeId=" + nodeId +
-               ", tokens=" + tokens +
-               ", joinTokenRing=" + joinTokenRing +
-               ", streamData=" + streamData +
-               "}";
+        super(leaving, true, placementProvider, LeaveStreams.Kind.ASSASSINATE);
     }
 
     @Override
     public Kind kind()
     {
-        return Kind.UNSAFE_JOIN;
+        return Kind.ASSASSINATE;
     }
 
     @Override
@@ -76,20 +62,20 @@ public class UnsafeJoin extends PrepareJoin
         ClusterMetadata metadata = result.success().metadata;
         Epoch forceEpoch = metadata.epoch;
 
-        BootstrapAndJoin plan = (BootstrapAndJoin) metadata.inProgressSequences.get(nodeId());
+        UnbootstrapAndLeave plan = (UnbootstrapAndLeave) metadata.inProgressSequences.get(nodeId());
 
         Success success;
         ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
 
-        success = plan.startJoin.execute(metadata).success();
+        success = plan.startLeave.execute(metadata).success();
         metadata = success.metadata;
         modifiedKeys.addAll(success.affectedMetadata);
 
-        success = plan.midJoin.execute(metadata).success();
+        success = plan.midLeave.execute(metadata).success();
         metadata = success.metadata;
         modifiedKeys.addAll(success.affectedMetadata);
 
-        success = plan.finishJoin.execute(metadata).success();
+        success = plan.finishLeave.execute(metadata).success();
         metadata = success.metadata;
         modifiedKeys.addAll(success.affectedMetadata);
 
@@ -98,9 +84,23 @@ public class UnsafeJoin extends PrepareJoin
         return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
     }
 
-    public static void unsafeJoin(NodeId nodeId, Set<Token> tokens)
+    public static LeaveStreams LEAVE_STREAMS = new LeaveStreams()
     {
-        UnsafeJoin join = new UnsafeJoin(nodeId, tokens, ClusterMetadataService.instance().placementProvider());
-        ClusterMetadataService.instance().commit(join);
-    }
+        @Override
+        public void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave)
+        {
+
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.ASSASSINATE;
+        }
+
+        public String status()
+        {
+            return "streaming finished";
+        }
+    };
 }

@@ -50,12 +50,19 @@ import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 public class PrepareLeave implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(PrepareLeave.class);
-    public static final Serializer serializer = new Serializer();
+    public static final Serializer<PrepareLeave> serializer = new Serializer<PrepareLeave>()
+    {
+        @Override
+        public PrepareLeave construct(NodeId leaving, boolean force, PlacementProvider placementProvider, LeaveStreams.Kind streamKind)
+        {
+            return new PrepareLeave(leaving, force, placementProvider, streamKind);
+        }
+    };
 
-    private final NodeId leaving;
-    private final boolean force;
-    private final PlacementProvider placementProvider;
-    private final LeaveStreams.Kind streamKind;
+    protected final NodeId leaving;
+    protected final boolean force;
+    protected final PlacementProvider placementProvider;
+    protected final LeaveStreams.Kind streamKind;
 
     public PrepareLeave(NodeId leaving, boolean force, PlacementProvider placementProvider, LeaveStreams.Kind streamKind)
     {
@@ -178,37 +185,38 @@ public class PrepareLeave implements Transformation
         return (int)endpoints.stream().filter(i -> directory.peerState(i) == NodeState.JOINED).count();
     }
 
-    public static final class Serializer implements AsymmetricMetadataSerializer<Transformation, PrepareLeave>
+    public static abstract class Serializer<T extends PrepareLeave> implements AsymmetricMetadataSerializer<Transformation, T>
     {
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
-            assert t instanceof PrepareLeave;
-            PrepareLeave transformation = (PrepareLeave) t;
+            T transformation = (T) t;
             NodeId.serializer.serialize(transformation.leaving, out, version);
             out.writeBoolean(transformation.force);
             out.writeUTF(transformation.streamKind.toString());
         }
 
-        public PrepareLeave deserialize(DataInputPlus in, Version version) throws IOException
+        public T deserialize(DataInputPlus in, Version version) throws IOException
         {
             NodeId id = NodeId.serializer.deserialize(in, version);
             boolean force = in.readBoolean();
             LeaveStreams.Kind streamsKind = LeaveStreams.Kind.valueOf(in.readUTF());
 
-            return new PrepareLeave(id,
-                                    force,
-                                    ClusterMetadataService.instance().placementProvider(),
-                                    streamsKind);
+            return construct(id,
+                             force,
+                             ClusterMetadataService.instance().placementProvider(),
+                             streamsKind);
         }
 
-       public long serializedSize(Transformation t, Version version)
+        public long serializedSize(Transformation t, Version version)
         {
-            assert t instanceof PrepareLeave;
-            PrepareLeave transformation = (PrepareLeave) t;
+            T transformation = (T) t;
             return NodeId.serializer.serializedSize(transformation.leaving, version)
                    + TypeSizes.sizeof(transformation.force)
                    + TypeSizes.sizeof(transformation.streamKind.toString());
         }
+
+        public abstract T construct(NodeId leaving, boolean force, PlacementProvider placementProvider, LeaveStreams.Kind streamKind);
+
     }
 
     @Override

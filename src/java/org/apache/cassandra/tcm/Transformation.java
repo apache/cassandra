@@ -164,6 +164,7 @@ public interface Transformation
         START_LEAVE(() -> PrepareLeave.StartLeave.serializer),
         MID_LEAVE(() -> PrepareLeave.MidLeave.serializer),
         FINISH_LEAVE(() -> PrepareLeave.FinishLeave.serializer),
+        ASSASSINATE(() -> Assassinate.serializer),
 
         PREPARE_REPLACE(() -> PrepareReplace.serializer),
         START_REPLACE(() -> PrepareReplace.StartReplace.serializer),
