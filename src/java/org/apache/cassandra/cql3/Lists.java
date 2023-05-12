@@ -29,7 +29,6 @@ import java.util.stream.StreamSupport;
 
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.cql3.functions.Function;
@@ -155,8 +154,6 @@ public abstract class Lists
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (receiver.type instanceof VectorType)
-                return new Vectors.Literal(elements).prepare(keyspace, receiver);
             validateAssignableTo(keyspace, receiver);
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
@@ -195,8 +192,6 @@ public abstract class Lists
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            if (receiver.type instanceof VectorType)
-                return new Vectors.Literal(elements).testAssignment(keyspace, receiver);
             return testListAssignment(receiver, elements);
         }
 

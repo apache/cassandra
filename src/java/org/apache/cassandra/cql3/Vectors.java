@@ -107,13 +107,14 @@ public class Vectors
         @Override
         public String getText()
         {
-            throw new UnsupportedOperationException("TODO");
+            return Lists.listToString(elements, Term.Raw::getText);
         }
 
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            throw new UnsupportedOperationException("TODO");
+            // not enough information to know dimension
+            return null;
         }
     }
 
