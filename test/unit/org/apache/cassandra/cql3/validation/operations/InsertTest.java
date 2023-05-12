@@ -63,8 +63,36 @@ public class InsertTest extends CQLTester
 
         execute("INSERT INTO %s (pk) VALUES ([1, 1 + (int) ?])", 1);
         test.run();
+    }
 
-        //TODO UPDATE non-pk colum = ?
+    @Test
+    public void testVectorsNonPK()
+    {
+        Runnable test = () -> {
+            assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2)));
+            execute("TRUNCATE %s");
+            assertRows(execute("SELECT * FROM %s"));
+        };
+
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 2])");
+        test.run();
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1, 2));
+        test.run();
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 1 + 1])");
+        test.run();
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, [1, ?])", 2);
+        test.run();
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, [1, (int) ?])", 2);
+        test.run();
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 1 + (int) ?])", 1);
+        test.run();
     }
 
     @Test
