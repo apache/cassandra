@@ -1,4 +1,5 @@
 5.0
+ * Add keyspace_name column to system_views.clients (CASSANDRA-18525)
  * Moved system properties and envs to CassandraRelevantProperties and CassandraRelevantEnv respectively (CASSANDRA-17797)
  * Add sstablepartitions offline tool to find large partitions in sstables (CASSANDRA-8720)
  * Replace usages of json-simple dependency by Jackson (CASSANDRA-16855)
