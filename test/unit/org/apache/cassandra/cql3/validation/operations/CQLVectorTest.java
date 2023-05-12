@@ -25,7 +25,30 @@ import org.apache.cassandra.cql3.CQLTester;
 public class CQLVectorTest extends CQLTester.InMemory
 {
     @Test
-    public void testInsertVectors()
+    public void select()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk vector<int, 2> primary key)");
+
+        execute("INSERT INTO %s (pk) VALUES ([1, 2])");
+
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 2]"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", vector(1, 2)), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 1 + 1]"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, ?]", 2), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, (int) ?]", 2), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 1 + (int) ?]", 1), row(list(1, 2)));
+
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2])"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2], [1, 2])"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN (?)", vector(1, 2)), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + 1])"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, ?])", 2), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, (int) ?])", 2), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + (int) ?])", 1), row(list(1, 2)));
+    }
+
+    @Test
+    public void insert()
     {
         Runnable test = () -> {
             assertRows(execute("SELECT * FROM %s"), row(list(1, 2)));
@@ -55,7 +78,7 @@ public class CQLVectorTest extends CQLTester.InMemory
     }
 
     @Test
-    public void testInsertVectorsNonPK()
+    public void insertNonPK()
     {
         Runnable test = () -> {
             assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2)));
@@ -85,7 +108,7 @@ public class CQLVectorTest extends CQLTester.InMemory
     }
 
     @Test
-    public void testUpdateVectors()
+    public void update()
     {
         Runnable test = () -> {
             assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2)));
