@@ -345,6 +345,12 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             return (Class) List.class;
         }
+
+        @Override
+        public boolean shouldQuoteCQL()
+        {
+            return false;
+        }
     }
 
     private class FixedLengthSerializer extends VectorSerializer
