@@ -46,8 +46,8 @@ public class Startup implements Transformation
     private final NodeAddresses addresses;
 
     public Startup(NodeId nodeId,
-                   NodeVersion nodeVersion,
-                   NodeAddresses addresses)
+                   NodeAddresses addresses,
+                   NodeVersion nodeVersion)
     {
         this.nodeId = nodeId;
         this.nodeVersion = nodeVersion;
@@ -91,7 +91,7 @@ public class Startup implements Transformation
         if (!Objects.equals(directory.addresses.get(localNodeId), NodeAddresses.current()) ||
             !Objects.equals(directory.versions.get(localNodeId), NodeVersion.CURRENT))
         {
-            ClusterMetadataService.instance().commit(new Startup(localNodeId, NodeVersion.CURRENT, NodeAddresses.current()),
+            ClusterMetadataService.instance().commit(new Startup(localNodeId, NodeAddresses.current(), NodeVersion.CURRENT),
                                                      (metadata) -> null,
                                                      (metadata, code, reason) -> {
                                                          throw new IllegalStateException(String.format("Startup transformations should be executed unconditionally, " +
@@ -117,7 +117,7 @@ public class Startup implements Transformation
             NodeId nodeId = NodeId.serializer.deserialize(in, version);
             NodeVersion nodeVersion = NodeVersion.serializer.deserialize(in, version);
             NodeAddresses addresses = NodeAddresses.serializer.deserialize(in, version);
-            return new Startup(nodeId, nodeVersion, addresses);
+            return new Startup(nodeId, addresses, nodeVersion);
         }
 
         @Override

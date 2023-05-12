@@ -584,6 +584,14 @@ public class Directory implements MetadataValue<Directory>
                isEquivalent(directory);
     }
 
+    public Optional<NodeVersion> minVersion()
+    {
+        return versions.values()
+                       .stream()
+                       .sorted()
+                       .min(NodeVersion::compareTo);
+    }
+
     @Override
     public int hashCode()
     {

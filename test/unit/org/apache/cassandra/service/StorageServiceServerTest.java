@@ -558,7 +558,7 @@ public class StorageServiceServerTest
         String newNativeString = "127.1.1.2:19012";
         InetAddressAndPort newNativeAddress = InetAddressAndPort.getByName(newNativeString);
         NodeAddresses newAddresses = new NodeAddresses(oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress);
-        ClusterMetadataService.instance().commit(new Startup(node2, NodeVersion.CURRENT, newAddresses));
+        ClusterMetadataService.instance().commit(new Startup(node2, newAddresses, NodeVersion.CURRENT));
         assertEquals(newNativeString, StorageService.instance.getNativeaddress(id2, true));
     }
 
@@ -574,7 +574,7 @@ public class StorageServiceServerTest
         String newNativeString = "[0:0:0:0:0:0:0:3]:666";
         InetAddressAndPort newNativeAddress = InetAddressAndPort.getByName(newNativeString);
         NodeAddresses newAddresses = new NodeAddresses(oldAddresses.broadcastAddress, oldAddresses.localAddress, newNativeAddress);
-        ClusterMetadataService.instance().commit(new Startup(node2, NodeVersion.CURRENT, newAddresses));
+        ClusterMetadataService.instance().commit(new Startup(node2, newAddresses, NodeVersion.CURRENT));
         assertEquals(newNativeString, StorageService.instance.getNativeaddress(id2, true));
         //Default to using the provided address with the configured port
         assertEquals(newNativeString, StorageService.instance.getNativeaddress(id2, true));

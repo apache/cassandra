@@ -82,7 +82,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.RecomputingSupplier;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -300,8 +299,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         }
     }
 
-    private final RecomputingSupplier<CassandraVersion> minVersionSupplier = new RecomputingSupplier<>(this::computeMinVersion, executor);
-
     @VisibleForTesting
     public Gossiper(boolean registerJmx)
     {
@@ -328,17 +325,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 maybeRecompute(state);
             }
 
-            private void maybeRecompute(EndpointState state)
-            {
-                if (state.getApplicationState(ApplicationState.RELEASE_VERSION) != null)
-                    minVersionSupplier.recompute();
-            }
+            private void maybeRecompute(EndpointState state) {}
 
-            public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
-            {
-                if (state == ApplicationState.RELEASE_VERSION)
-                    minVersionSupplier.recompute();
-            }
+            public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
         });
     }
 
@@ -1624,7 +1613,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         ClusterMetadata metadata = ClusterMetadata.current();
         if (mergeLocalStates && metadata.myNodeId() != null)
             GossipHelper.mergeNodeToGossip(metadata.myNodeId(), metadata);
-        minVersionSupplier.recompute();
 
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
@@ -1972,26 +1960,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     {
         stop();
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
-    }
-
-    @Nullable
-    public CassandraVersion getMinVersion(long delay, TimeUnit timeUnit)
-    {
-        try
-        {
-            return minVersionSupplier.get(delay, timeUnit);
-        }
-        catch (TimeoutException e)
-        {
-            // Timeouts here are harmless: they won't cause reprepares and may only
-            // cause the old version of the hash to be kept for longer
-            return null;
-        }
-        catch (Throwable e)
-        {
-            logger.error("Caught an exception while waiting for min version", e);
-            return null;
-        }
     }
 
     @Nullable
