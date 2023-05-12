@@ -153,8 +153,7 @@ public class Vectors
 
         public boolean containsBindMarker()
         {
-            // False since we don't support them in vector
-            return false;
+            return elements.stream().anyMatch(Term::containsBindMarker);
         }
 
         public void collectMarkerSpecification(VariableSpecifications boundNames)
