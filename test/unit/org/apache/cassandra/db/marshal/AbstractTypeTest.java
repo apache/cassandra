@@ -477,28 +477,71 @@ public class AbstractTypeTest
         };
         return gen.describedAs(e -> {
             StringBuilder sb = new StringBuilder();
-            sb.append("Type: ").append(humanReadableType(e.type));
+            sb.append("Type:\n").append(typeTree(e.type));
             sb.append("\nValues: ").append(e.samples);
             return sb.toString();
         });
     }
 
-    private static String humanReadableType(AbstractType<?> type)
+    private static String typeTree(AbstractType<?> type)
     {
-        if (!type.isUDT()) return type.asCQL3Type().toString();
         StringBuilder sb = new StringBuilder();
-        UserType ut = (UserType) type;
-        sb.append(ut.asCQL3Type()).append('(');
-        for (int i = 0; i < ut.size(); i++)
+        typeTree(sb, type, 0);
+        return sb.toString().trim();
+    }
+
+    private static void typeTree(StringBuilder sb, AbstractType<?> type, int indent)
+    {
+        if (type.isUDT())
         {
-            FieldIdentifier fieldName = ut.fieldName(i);
-            AbstractType<?> fieldType = ut.fieldType(i);
-            if (i > 0)
-                sb.append(", ");
-            sb.append(ColumnIdentifier.maybeQuote(fieldName.toString())).append(": ").append(humanReadableType(fieldType));
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
+            UserType ut = (UserType) type;
+            sb.append("udt[").append(ColumnIdentifier.maybeQuote(ut.elementName())).append("]:");
+            int elementIndent = indent + 2;
+            for (int i = 0; i < ut.size(); i++)
+            {
+                newline(sb, elementIndent);
+                FieldIdentifier fieldName = ut.fieldName(i);
+                AbstractType<?> fieldType = ut.fieldType(i);
+                sb.append(ColumnIdentifier.maybeQuote(fieldName.toString())).append(": ");
+                typeTree(sb, fieldType, elementIndent);
+            }
+            newline(sb, elementIndent);
         }
-        sb.append(')');
-        return sb.toString();
+        else if (type.isTuple())
+        {
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
+            TupleType tt = (TupleType) type;
+            sb.append("tuple:");
+            int elementIndent = indent + 2;
+            for (int i = 0; i < tt.size(); i++)
+            {
+                newline(sb, elementIndent);
+                AbstractType<?> fieldType = tt.type(i);
+                sb.append(i).append(": ");
+                typeTree(sb, fieldType, elementIndent);
+            }
+            newline(sb, elementIndent);
+        }
+        else
+        {
+            sb.append(type.asCQL3Type());
+        }
+    }
+
+    private static void newline(StringBuilder sb, int indent)
+    {
+        sb.append('\n');
+        for (int i = 0; i < indent; i++)
+            sb.append(' ');
     }
 
     private static class Example
