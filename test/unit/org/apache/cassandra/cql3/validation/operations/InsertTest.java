@@ -61,7 +61,7 @@ public class InsertTest extends CQLTester
         execute("INSERT INTO %s (pk) VALUES ([1, (int) ?])", 2);
         test.run();
 
-        execute("INSERT INTO %s (pk) VALUES ([1, 1 + (int) ?])");
+        execute("INSERT INTO %s (pk) VALUES ([1, 1 + (int) ?])", 1);
         test.run();
 
         //TODO UPDATE non-pk colum = ?
