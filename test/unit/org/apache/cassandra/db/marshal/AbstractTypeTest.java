@@ -189,6 +189,29 @@ public class AbstractTypeTest
         });
     }
 
+    /**
+     * @see <pre>CASSANDRA-18526: TupleType getString and fromString are not safe with string types</pre>
+     */
+    private static boolean containsTupleWithString(AbstractType<?> type)
+    {
+        type = type.unwrap();
+        if (type instanceof TupleType)
+        {
+            TupleType tt = (TupleType) type;
+            for (AbstractType<?> e : tt.subTypes())
+            {
+                if (e.unwrap() instanceof StringType)
+                    return true;
+            }
+        }
+        for (AbstractType<?> e : type.subTypes())
+        {
+            if (containsTupleWithString(e))
+                return true;
+        }
+        return false;
+    }
+
     @Test
     public void serde()
     {
@@ -205,6 +228,8 @@ public class AbstractTypeTest
             .describedAs("CQL type %s parse did not match the expected type", cqlType)
             .isEqualTo(type);
 
+            boolean getStringIsSafe = !containsTupleWithString(type);
+
             for (Object expected : example.samples)
             {
                 ByteBuffer bb = type.decompose(expected);
@@ -214,8 +239,11 @@ public class AbstractTypeTest
                 assertThat(bb.position()).describedAs("ByteBuffer was mutated by %s", type).isEqualTo(position);
                 assertThat(read).isEqualTo(expected);
 
-                String str = type.getString(bb);
-                assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
+                if (getStringIsSafe)
+                {
+                    String str = type.getString(bb);
+                    assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
+                }
 
                 String literal = type.asCQL3Type().toCQLLiteral(bb);
                 ByteBuffer cqlBB = parseLiteralType(type, literal);

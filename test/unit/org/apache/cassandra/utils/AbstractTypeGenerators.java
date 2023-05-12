@@ -58,6 +58,8 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.FrozenType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LegacyTimeUUIDType;
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -87,6 +89,7 @@ public final class AbstractTypeGenerators
 
     private static final Map<Class<? extends AbstractType<?>>, String> UNSUPPORTED_PRIMITIVES = ImmutableMap.<Class<? extends AbstractType<?>>, String>builder()
                                                                                                             .put(DateType.class, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
+                                                                                                            .put(LegacyTimeUUIDType.class, "Says its CQL timeuuid type, but that maps to TimeUUIDType; is this actually dead code at this point?")
                                                                                                             .put(PartitionerDefinedOrder.class, "This is a fake type used for ordering partitions using a Partitioner")
                                                                                                             .build();
 
@@ -102,6 +105,7 @@ public final class AbstractTypeGenerators
               TypeSupport.of(BytesType.instance, Generators.bytes(0, 1024), FastByteOperations::compareUnsigned), // use the faster version...
               TypeSupport.of(UUIDType.instance, Generators.UUID_RANDOM_GEN),
               TypeSupport.of(TimeUUIDType.instance, Generators.UUID_TIME_GEN.map(TimeUUID::fromUuid)),
+              TypeSupport.of(LexicalUUIDType.instance, Generators.UUID_RANDOM_GEN.mix(Generators.UUID_TIME_GEN)),
               TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN, (a, b) -> FastByteOperations.compareUnsigned(a.getAddress(), b.getAddress())), // serialization strips the hostname, only keeps the address
               /*
               TODO
@@ -292,8 +296,12 @@ public final class AbstractTypeGenerators
             return this;
         }
 
+        // used during iteration, not something pluggable for users
+        private Gen<String> udtName = null;
+
         public Gen<AbstractType<?>> build()
         {
+            udtName = Generators.unique(IDENTIFIER_GEN);
             return buildRecursive(maxDepth);
         }
 
@@ -339,7 +347,7 @@ public final class AbstractTypeGenerators
                     case TUPLE:
                         return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
-                        return userTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen).generate(rnd);
+                        return userTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName).generate(rnd);
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
@@ -471,6 +479,11 @@ public final class AbstractTypeGenerators
 
     public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen)
     {
+        return userTypeGen(elementGen, sizeGen, ksGen, IDENTIFIER_GEN);
+    }
+
+    public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen)
+    {
         Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
         return rnd -> {
             boolean multiCell = BOOLEAN_GEN.generate(rnd);
@@ -478,7 +491,7 @@ public final class AbstractTypeGenerators
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
             LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
             String ks = ksGen.generate(rnd);
-            ByteBuffer name = AsciiType.instance.decompose(IDENTIFIER_GEN.generate(rnd));
+            ByteBuffer name = AsciiType.instance.decompose(nameGen.generate(rnd));
 
             Gen<FieldIdentifier> distinctNameGen = Generators.filter(fieldNameGen, 30, e -> !fieldNames.contains(e));
             // UDTs don't allow duplicate names, so make sure all names are unique

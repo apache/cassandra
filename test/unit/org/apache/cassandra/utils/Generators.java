@@ -25,7 +25,9 @@ import java.sql.Timestamp;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -371,6 +373,12 @@ public final class Generators
                  .basicMultilingualPlaneAlphabet()
                  .ofLengthBetween(min, max)
                  .map(s -> new String(s.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
+    }
+
+    public static <T> Gen<T> unique(Gen<T> gen)
+    {
+        Set<T> dedup = new HashSet<>();
+        return filter(gen, dedup::add);
     }
 
     private static boolean isDash(char c)
