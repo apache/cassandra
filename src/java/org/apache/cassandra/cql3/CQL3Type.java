@@ -68,7 +68,7 @@ public interface CQL3Type
      */
     default ByteBuffer fromCQLLiteral(String literal)
     {
-        return Terms.asBytes("--dummy--", literal, getType());
+        return fromCQLLiteral("--dummy--", literal);
     }
 
     /**
