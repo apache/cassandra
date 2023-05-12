@@ -310,7 +310,7 @@ public class AbstractTypeTest
         Gen<AbstractType<?>> types = genBuilder()
                                      .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
                                      .build();
-        qt().withFixedSeed(2467964269627041L).withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
+        qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
             List<ByteBuffer> actual = decompose(type, example.samples);
             Collections.sort(actual, type);
