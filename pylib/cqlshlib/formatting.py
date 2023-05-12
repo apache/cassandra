@@ -167,8 +167,13 @@ class CqlType:
                     typestring = m.group(2)
                     continue
 
-                name = m.group(1)  # a composite type, parse sub types
-                return name, self.parse_sub_types(m.group(2), ksmeta), self._get_formatter(name)
+                name = m.group(1)  # a composite or vector type, parse sub types
+                try:
+                    # Vector types are parameterized as name<size> so add custom handling for that here
+                    vector_size = int(m.group(2))
+                    return name, [CqlType('float') for i in range(vector_size)], self._get_formatter(name)
+                except ValueError:
+                    return name, self.parse_sub_types(m.group(2), ksmeta), self._get_formatter(name)
 
     @staticmethod
     def _get_formatter(name):
