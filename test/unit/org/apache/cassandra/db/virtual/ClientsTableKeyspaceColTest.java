@@ -33,10 +33,9 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
-public class ClientsTableKeyspaceColTest extends CQLTester
+public class ClientsTableKeyspaceColTest
 {
 
     private static Cluster cluster;
