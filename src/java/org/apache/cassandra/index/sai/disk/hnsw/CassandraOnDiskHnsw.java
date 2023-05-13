@@ -46,7 +46,7 @@ public class CassandraOnDiskHnsw
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
         vectorValues = new OnDiskVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-        ordinalsMap = new OnDiskOrdinalsMap(descriptor.fileFor(IndexComponent.POSTING_LISTS, context), vectorValues.dimension());
+        ordinalsMap = new OnDiskOrdinalsMap(descriptor.fileFor(IndexComponent.POSTING_LISTS, context));
         hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
     }
 
@@ -118,23 +118,22 @@ public class CassandraOnDiskHnsw
     private static class OnDiskOrdinalsMap
     {
         private final RandomAccessReader reader;
-        private final int dimension;
         private final int size;
 
-        public OnDiskOrdinalsMap(File file, int dimension) throws IOException
+        public OnDiskOrdinalsMap(File file) throws IOException
         {
             this.reader = RandomAccessReader.open(file);
             this.size = reader.readInt();
-            this.dimension = dimension;
         }
 
-        // TODO in the degenerate case it is not a good idea to read all the ordinals into memory
         public int[] getRowIdsMatching(int vectorOrdinal) throws IOException
         {
             Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
 
+            // read index entry
             reader.seek(4L + vectorOrdinal * 8L);
             long offset = reader.readLong();
+            // seek to and read ordinals
             reader.seek(offset);
             int postingsSize = reader.readInt();
             int[] ordinals = new int[postingsSize];
