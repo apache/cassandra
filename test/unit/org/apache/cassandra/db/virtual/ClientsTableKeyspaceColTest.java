@@ -35,6 +35,10 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 public class ClientsTableKeyspaceColTest
 {
 
@@ -58,10 +62,16 @@ public class ClientsTableKeyspaceColTest
     @AfterClass
     public static void tearDown()
     {
-        if (cluster != null)
-            cluster.close();
-        if (cassandra != null)
-            cassandra.stop();
+        try
+        {
+            if (cluster != null)
+                cluster.close();
+        }
+        finally
+        {
+            if (cassandra != null)
+                cassandra.stop();
+        }
     }
 
     @Test
@@ -70,12 +80,9 @@ public class ClientsTableKeyspaceColTest
         try (Session session = cluster.connect())
         {
             List<Row> rows = session.execute("SELECT * from " + KS_NAME + ".clients").all();
-            Assert.assertTrue("At least one client should be returned.", rows.size() > 0);
+            assertTrue("At least one client should be returned.", rows.size() > 0);
             for (Row r : rows)
-            {
-                // No keyspace is specifed while connecting. 'keyspace' column should be null.
-                Assert.assertNull(r.getString("keyspace_name"));
-            }
+                assertNull(r.getString("keyspace_name")); // No keyspace is specifed while connecting. It should be null.
         }
     }
 
@@ -89,17 +96,17 @@ public class ClientsTableKeyspaceColTest
 
             InetAddress poolConnection = null;
             int port = -1;
-            List<Row> rows = session.execute("SELECT * from " + KS_NAME + ".clients").all();
-            for (Row r : rows)
+            for (Row r : session.execute("SELECT * from " + KS_NAME + ".clients").all())
             {
                 // Keyspace is used for pool connection only (control connection is not using keyspace).
-                // Using keyspace != null as a hint to identify a pool connection as we can't identify
+                // Using r["keyspace_name"] == keyspace1 as a hint to identify a pool connection as we can't identify
                 // control connection based on information in this table.
                 String keyspace = r.getString("keyspace_name");
                 if (keyspace1.equals(keyspace))
                 {
                     poolConnection = r.getInet("address");
                     port = r.getInt("port");
+                    break;
                 }
             }
 
@@ -108,16 +115,17 @@ public class ClientsTableKeyspaceColTest
 
             session.execute("USE " + keyspace2);
 
-            String actualKeyspace = null;
+            String usedKeyspace = null;
             for (Row r : session.execute("SELECT * from " + KS_NAME + ".clients").all())
             {
                 if (poolConnection.equals(r.getInet("address")) && port == r.getInt("port"))
                 {
-                    actualKeyspace = r.getString("keyspace_name");
+                    usedKeyspace = r.getString("keyspace_name");
+                    break;
                 }
             }
 
-            Assert.assertEquals(keyspace2, actualKeyspace);
+            assertEquals(keyspace2, usedKeyspace);
         }
     }
 }
