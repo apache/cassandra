@@ -55,37 +55,38 @@ public class ConcurrentHnswGraphWriter
     private long neighborSize(int level, int node)
     {
         // node neighbor count, and node neighbors
-        return 4L * (1 + countNeighbors(hnsw.getNeighbors(level, node)));
+        return 4L * (1 + hnsw.getNeighbors(level, node).size());
     }
 
     public void write(File file) throws IOException {
-        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
+        try (var out = new SequentialWriter(file, WRITER_OPTION))
+        {
             // hnsw info we want to be able to provide without reading the whole thing
             out.writeInt(hnsw.size());
             out.writeInt(hnsw.numLevels());
             out.writeInt(hnsw.entryNode());
 
             long firstLevelOffset = 12 // header
-                + 8L * hnsw.numLevels(); // offsets for each level
+                                    + 8L * hnsw.numLevels(); // offsets for each level
             // Write offsets for each level
             long nextLevelOffset = firstLevelOffset;
             var levelOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
-            for (var level = 0; level < hnsw.numLevels(); level++) {
+            for (var level = 0; level < hnsw.numLevels(); level++)
+            {
                 out.writeLong(nextLevelOffset);
                 levelOffsets.put(level, nextLevelOffset);
                 nextLevelOffset += levelSize(level);
             }
             assert out.position() == firstLevelOffset : String.format("first level offset mismatch: %s actual vs %s expected", out.position(), firstLevelOffset);
 
-            for (var level = 0; level < hnsw.numLevels(); level++) {
+            for (var level = 0; level < hnsw.numLevels(); level++)
+            {
                 var levelOffset = out.position();
                 assert levelOffset == levelOffsets.get(level) : String.format("level %s offset mismatch: %s actual vs %s expected", level, levelOffset, levelOffsets.get(level));
                 // write the number of nodes on the level
                 var sortedNodes = getSortedNodes(hnsw.getNodesOnLevel(level));
                 out.writeInt(sortedNodes.length);
 
-                // write offsets for each node
-                // TODO use VInt and delta encoding
                 long nextNodeOffset = out.position() + (4L + 8L) * sortedNodes.length;
                 var nodeOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
                 for (var node : sortedNodes)
@@ -101,35 +102,14 @@ public class ConcurrentHnswGraphWriter
                 {
                     assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                     var neighborSet = hnsw.getNeighbors(level, node);
-                    // TODO use VInt and delta encoding
-                    out.writeInt(countNeighbors(neighborSet)); // FIXME neighborSet.size() is broken
-                    neighborSet.forEach((ordinal, score_) -> {
-                        out.writeInt(ordinal);
-                    });
+                    out.writeInt(neighborSet.size());
+                    neighborSet.forEach((ordinal, score_) -> out.writeInt(ordinal));
                 }
                 long expectedPosition = levelOffset + levelSize(level);
                 assert out.position() == expectedPosition : String.format("level %s offset mismatch: %s actual vs %s expected", level, out.position(), expectedPosition);
             }
             assert out.position() == nextLevelOffset : String.format("final level offset mismatch: %s actual vs %s expected", out.position(), nextLevelOffset);
-
-            out.flush();
         }
-    }
-
-    private int countNeighbors(ConcurrentNeighborSet neighborSet)
-    {
-        AtomicInteger count = new AtomicInteger();
-        try
-        {
-            neighborSet.forEach((ordinal_, score_) -> {
-                count.incrementAndGet();
-            });
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return count.get();
     }
 
     private static int[] getSortedNodes(HnswGraph.NodesIterator nodesOnLevel) {

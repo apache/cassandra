@@ -46,9 +46,11 @@ public class OnDiskHnswGraph extends HnswGraph
 
     @Override
     public void seek(int level, int target) throws IOException {
+        // seek to the level
         reader.seek(12L + 8L * level);
         long offset = reader.readLong();
         reader.seek(offset);
+        // binary search for the node's index entry within the level
         int numNodes = reader.readInt();
         long firstOffset = reader.getFilePointer();
         long lastOffset = firstOffset + numNodes * 12L;
@@ -56,6 +58,7 @@ public class OnDiskHnswGraph extends HnswGraph
         reader.seek(entryOffset);
         var diskNodeId = reader.readInt();
         assert diskNodeId == target : String.format("Expected node %d, but found %d", target, diskNodeId);
+        // seek to the neighbor list
         long neighborsOffset = reader.readLong();
         reader.seek(neighborsOffset);
         currentNeighborCount = reader.readInt();
