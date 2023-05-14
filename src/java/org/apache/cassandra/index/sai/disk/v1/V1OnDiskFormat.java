@@ -63,7 +63,9 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                                  IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
     private static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                             IndexComponent.META,
-                                                                            IndexComponent.VECTOR);
+                                                                            IndexComponent.VECTOR,
+                                                                            IndexComponent.TERMS_DATA, // okay to re-use this for the hnsw graph?
+                                                                            IndexComponent.POSTING_LISTS);
     private static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
                                                                              IndexComponent.TERMS_DATA,
