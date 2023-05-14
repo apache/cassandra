@@ -321,7 +321,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * are not set to null.
      */
     @VisibleForTesting
-    static class PropertiesChecker extends PropertyUtils
+    private static class PropertiesChecker extends PropertyUtils
     {
         private final Loader loader = Properties.defaultLoader();
         private final Set<String> missingProperties = new HashSet<>();

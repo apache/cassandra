@@ -108,7 +108,10 @@ public class UpdateSettingsTableTest extends CQLTester
         try
         {
             updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                        ConfigFields.STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND).toString());
+                                        ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+                                        DatabaseDescriptor.propertyToStringConverter()
+                                                          // This is the value for the property that overflows property's limit in bytes bet second.
+                                                          .convert(new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND)));
         }
         catch (InvalidQueryException ex)
         {
@@ -126,6 +129,12 @@ public class UpdateSettingsTableTest extends CQLTester
     {
         for (String propertyName : updatableProperties)
             doUpdateSettingAndRevertBack(String.format("INSERT INTO %s.settings (value, name) VALUES (?, ?);", KS_NAME), propertyName);
+    }
+
+    @Test
+    public void testBactchUpdateSettings() throws Exception
+    {
+
     }
 
     private void doUpdateSettingAndRevertBack(String statement, String propertyName) throws Throwable
