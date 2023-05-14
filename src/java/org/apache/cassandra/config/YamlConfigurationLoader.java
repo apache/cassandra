@@ -39,8 +39,10 @@ import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -48,10 +50,13 @@ import org.yaml.snakeyaml.composer.Composer;
 import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
+import org.yaml.snakeyaml.introspector.BeanAccess;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
@@ -61,6 +66,7 @@ import static org.apache.cassandra.config.Replacements.getNameReplacements;
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
+    private static final YamlFactory yamlFactory = YamlFactory.instance;
 
     /**
      * This is related to {@link Config#PROPERTY_PREFIX} but is different to make sure Config properties updated via
@@ -130,12 +136,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
-            constructor.setPropertyUtils(propertiesChecker);
-            Yaml yaml = new Yaml(constructor);
+            Yaml yaml = yamlFactory.newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
+                                                    propertiesChecker);
             Config result = loadConfig(yaml, configBytes);
             propertiesChecker.check();
             maybeAddSystemProperties(result);
@@ -218,7 +223,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
-        Yaml yaml = new Yaml(constructor);
+        Yaml yaml = yamlFactory.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
@@ -252,7 +257,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
-        Yaml yaml = new Yaml(constructor);
+        Yaml yaml = yamlFactory.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
@@ -316,7 +321,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * are not set to null.
      */
     @VisibleForTesting
-    private static class PropertiesChecker extends PropertyUtils
+    static class PropertiesChecker extends PropertyUtils
     {
         private final Loader loader = Properties.defaultLoader();
         private final Set<String> missingProperties = new HashSet<>();
@@ -422,6 +427,89 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             if (!deprecationWarnings.isEmpty())
                 logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
+        }
+    }
+
+    /**
+     * Creates a YAML instance based on Cassandra's custom configuration classes and types.
+     */
+    public static class YamlFactory
+    {
+        private static final List<TypeDescription> cassandraTypes = new ArrayList<>();
+        public static final YamlFactory instance = new YamlFactory();
+
+        private YamlFactory()
+        {
+            loadTypeDescriptions(cassandraTypes);
+        }
+
+        /**
+         * Creates a new Yaml instance with the given root class.
+         * @param root The class (usually JavaBean) to be constructed.
+         * @return A new Yaml instance with the given root class.
+         */
+        public Yaml newYamlInstance(Class<?> root)
+        {
+            PropertyUtils propertyUtils = new PropertyUtils();
+            propertyUtils.setBeanAccess(BeanAccess.FIELD);
+            propertyUtils.setAllowReadOnlyProperties(true);
+            return newYamlInstance(new CustomConstructor(root, Config.class.getClassLoader()), propertyUtils);
+        }
+
+        public Yaml newYamlInstance(SafeConstructor constructor, PropertyUtils propertyUtils)
+        {
+            return create(constructor, propertyUtils);
+        }
+
+        private static Yaml create(SafeConstructor constructor, PropertyUtils propertyUtils)
+        {
+            Representer representer = new CassandraRepresenter(cassandraTypes, new DumperOptions());
+            representer.setPropertyUtils(propertyUtils);
+            constructor.setPropertyUtils(propertyUtils);
+            Yaml yaml = new Yaml(constructor, representer);
+            cassandraTypes.forEach(yaml::addTypeDescription);
+            return yaml;
+        }
+
+        private static void loadTypeDescriptions(List<TypeDescription> types)
+        {
+            types.add(createTypeDescription(ConsistencyLevel.class));
+            types.add(createTypeDescription(DataRateSpec.LongBytesPerSecondBound.class));
+            types.add(createTypeDescription(DataStorageSpec.IntBytesBound.class));
+            types.add(createTypeDescription(DataStorageSpec.IntKibibytesBound.class));
+            types.add(createTypeDescription(DataStorageSpec.IntMebibytesBound.class));
+            types.add(createTypeDescription(DataStorageSpec.LongBytesBound.class));
+            types.add(createTypeDescription(DataStorageSpec.LongMebibytesBound.class));
+            types.add(createTypeDescription(DurationSpec.IntMillisecondsBound.class));
+            types.add(createTypeDescription(DurationSpec.IntMinutesBound.class));
+            types.add(createTypeDescription(DurationSpec.IntSecondsBound.class));
+            types.add(createTypeDescription(DurationSpec.LongMillisecondsBound.class));
+            types.add(createTypeDescription(DurationSpec.LongNanosecondsBound.class));
+            types.add(createTypeDescription(DurationSpec.LongSecondsBound.class));
+            types.add(createTypeDescription(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.class));
+
+            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
+            seedDesc.putMapPropertyType("parameters", String.class, String.class);
+            types.add(seedDesc);
+
+            TypeDescription memtableDesc = new TypeDescription(Config.MemtableOptions.class);
+            memtableDesc.addPropertyParameters("configurations", String.class, InheritingClass.class);
+            types.add(memtableDesc);
+        }
+
+        private static TypeDescription createTypeDescription(Class<?> clazz)
+        {
+            return new TypeDescription(clazz, new Tag(clazz));
+        }
+
+        private static class CassandraRepresenter extends Representer
+        {
+            public CassandraRepresenter(List<TypeDescription> types, DumperOptions options)
+            {
+                super(options);
+                for (TypeDescription desc : types)
+                    representers.computeIfAbsent(desc.getType(), clazz -> o -> representScalar(Tag.STR, o.toString()));
+            }
         }
     }
 }

@@ -71,7 +71,7 @@ public class SettingsTableTest extends CQLTester
         int paging = (int) (Math.random() * 100 + 1);
         ResultSet result = executeNetWithPaging("SELECT * FROM vts.settings", paging);
         Set<String> unprocessedKeys = new HashSet<>();
-        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> unprocessedKeys.add(key)));
+        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> unprocessedKeys.add(key)));
         for (Row r : result)
         {
             String name = r.getString("name");
@@ -85,7 +85,7 @@ public class SettingsTableTest extends CQLTester
     @Test
     public void testSelectPartition() throws Throwable
     {
-        DatabaseDescriptor.accept((key, type, ro) -> {
+        DatabaseDescriptor.visit((key, type, ro) -> {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
             assertRowsNet(executeNet(q), new Object[] { key, DatabaseDescriptor.getStringProperty(key) });
         });
@@ -163,7 +163,7 @@ public class SettingsTableTest extends CQLTester
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
         Set<String> expectedNames = new HashSet<>();
-        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
+        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
             if (key.startsWith("server_encryption"))
                 expectedNames.add(key);
         }));
@@ -228,7 +228,7 @@ public class SettingsTableTest extends CQLTester
 
         config.audit_logging_options.enabled = true;
         List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
+        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
             if (key.startsWith("audit_logging"))
                 expectedNames.add(key);
         }));
@@ -279,7 +279,7 @@ public class SettingsTableTest extends CQLTester
 
         config.transparent_data_encryption_options.enabled = true;
         List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.accept(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
+        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
             if (key.startsWith("transparent_data_encryption_options"))
                 expectedNames.add(key);
         }));

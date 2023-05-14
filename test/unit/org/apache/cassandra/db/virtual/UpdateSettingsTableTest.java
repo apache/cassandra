@@ -36,7 +36,6 @@ import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.TypeConverterRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 
@@ -60,7 +59,7 @@ public class UpdateSettingsTableTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        DatabaseDescriptor.accept((key, type, readOnly) -> {
+        DatabaseDescriptor.visit((key, type, readOnly) -> {
             propertyTypes.put(key, type);
             if (!readOnly)
                 updatableProperties.add(key);
@@ -109,15 +108,16 @@ public class UpdateSettingsTableTest extends CQLTester
         try
         {
             updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                        ConfigFields.STREAM_THROUGHPUT_OUTBOUND, Integer.MAX_VALUE + 1L);
+                                        ConfigFields.STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND).toString());
         }
         catch (InvalidQueryException ex)
         {
             e = ex;
         }
         assertNotNull(e);
-        assertEquals("Invalid update request for property 'stream_throughput_outbound'. Invalid data rate: " +
-                     "2147483648 Accepted units: MiB/s, KiB/s, B/s where case matters and only non-negative values are valid",
+        assertEquals("Unexpected error: " + e.getMessage(),
+                     "Invalid update request for property 'stream_throughput_outbound'. " +
+                     "Invalid value of 'stream_throughput_outbound': '2147483647MiB/s'",
                      e.getMessage());
     }
 
@@ -141,9 +141,9 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, TypeConverterRegistry.TypeConverter.TO_STRING.convertNullable(value), propertyName));
+        assertRowsNet(executeNet(statement, DatabaseDescriptor.propertyToStringConverter().convertNullable(value), propertyName));
         assertEquals(value, DatabaseDescriptor.getProperty(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverterRegistry.TypeConverter.TO_STRING.convertNullable((value)) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, DatabaseDescriptor.TypeConverter.TO_STRING.convertNullable((value)) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)

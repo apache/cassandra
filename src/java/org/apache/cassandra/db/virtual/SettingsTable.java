@@ -94,7 +94,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        DatabaseDescriptor.accept(withBackwardsCompatableNamesVisitor((key, type, ro) ->
+        DatabaseDescriptor.visit(withBackwardsCompatableNamesVisitor((key, type, ro) ->
                                                                 result.row(key).column(VALUE, getStringProperty(BACKWARDS_COMPATABLE_NAMES.getOrDefault(key, key)))),
                                   t -> new ConfigurationException(t.getMessage(), false));
         return result;

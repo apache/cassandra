@@ -50,6 +50,7 @@ import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -158,6 +159,11 @@ public class DatabaseDescriptor
      */
     private static final int MAX_NUM_TOKENS = 1536;
 
+    /**
+     * Yaml factory here is used to {@link org.yaml.snakeyaml.Yaml#dumpAs} and {@link org.yaml.snakeyaml.Yaml#load(String)}
+     * given object or string respectively, that in turn is used to serialize and deserialize configuration properties.
+     */
+    private static final YamlConfigurationLoader.YamlFactory yamlFactory = YamlConfigurationLoader.YamlFactory.instance;
     /**
      * The metadata source of configuration properties. It is used to access the configuration class instance loaded
      * from the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
@@ -4746,12 +4752,12 @@ public class DatabaseDescriptor
                OptionalDouble.empty();
     }
 
-    public static void accept(ConfigVisitor visitor)
+    public static void visit(ConfigVisitor visitor)
     {
-        accept(visitor, RuntimeException::new);
+        visit(visitor, RuntimeException::new);
     }
 
-    public static void accept(ConfigVisitor visitor, Function<Throwable, ? extends RuntimeException> handler)
+    public static void visit(ConfigVisitor visitor, Function<Throwable, ? extends RuntimeException> handler)
     {
         try
         {
@@ -4797,11 +4803,9 @@ public class DatabaseDescriptor
     {
         Property property = ofNullable(confValueAccessors.get(name))
                             .orElseThrow(() -> new PropertyNotFoundException(name));
-        if (property.getType().equals(String.class))
-            return (String) property.get(conf);
-        else
-            return TypeConverterRegistry.instance.get(property.getType(), String.class, TypeConverterRegistry.TypeConverter.TO_STRING)
-                                                 .convertNullable(property.get(conf));
+        return property.getType().equals(String.class) ?
+               (String) property.get(conf) :
+               propertyToStringConverter().convertNullable(property.get(conf));
     }
 
     /**
@@ -4811,18 +4815,24 @@ public class DatabaseDescriptor
      * @param name Property name.
      * @param value Property value.
      */
-    public static void setProperty(String name, Object value)
+    public static synchronized void setProperty(String name, Object value)
     {
         try
         {
             Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
-            // Do conversion if the value is not null and the type is not the same as the property type.
-            Object convertedValue = ofNullable(value)
-                                    .map(Object::getClass)
-                                    .map(from -> TypeConverterRegistry.instance.get(from, property.getType())
-                                                                      .convert(value))
-                                    .orElse(null);
-            property.set(conf, convertedValue);
+            if (value == null)
+            {
+                property.set(conf, null);
+                return;
+            }
+
+            if (property.getType().isAssignableFrom(value.getClass()))
+                property.set(conf, value);
+            else if (String.class.equals(value.getClass()))
+                property.set(conf, propertyFromStringConverter(property.getType()).convert((String) value));
+            else
+                throw new ConfigurationException(String.format("Cannot convert value '%s' to type '%s'.",
+                                                               value, property.getType().getSimpleName()), false);
         }
         catch (ConfigurationException e)
         {
@@ -4834,8 +4844,53 @@ public class DatabaseDescriptor
         }
     }
 
+    /**
+     * @return A converter that converts given object to a string.
+     * @param <T> Type to convert from.
+     */
+    public static <T> TypeConverter<T, String> propertyToStringConverter()
+    {
+        return obj -> yamlFactory.newYamlInstance(Config.class).dump(obj).trim();
+    }
+
+    /**
+     * @param toClass Class to convert to.
+     * @return A converter that converts given string to an object of the given class.
+     * @param <R> Type to convert to.
+     */
+    public static <R> TypeConverter<String, R> propertyFromStringConverter(Class<R> toClass)
+    {
+        return obj -> yamlFactory.newYamlInstance(toClass).loadAs(obj, toClass);
+    }
+
+    /**
+     * Visitor for all configuration properties available in {@link #conf} object with their types and mutability.
+     * Use {@link #visit(ConfigVisitor)} to iterate over all properties.
+     */
     public interface ConfigVisitor
     {
         void visit(String name, Class<?> type, boolean readOnly) throws Throwable;
+    }
+
+    /**
+     * Type conveter interface that is used to convert configuration values from one type to another.
+     * @param <T> Type to convert from.
+     * @param <R> Type to convert to.
+     */
+    public interface TypeConverter<T, R>
+    {
+        TypeConverter<Object, String> TO_STRING = Object::toString;
+
+        /**
+         * Converts a value to the target type.
+         * @param value Value to convert.
+         * @return Converted value.
+         */
+        R convert(@Nonnull T value);
+
+        default R convertNullable(@Nullable T value)
+        {
+            return value == null ? null : convert(value);
+        }
     }
 }
