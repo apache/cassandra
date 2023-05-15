@@ -192,7 +192,7 @@ public class AbstractTypeTest
     /**
      * @see <pre>CASSANDRA-18526: TupleType getString and fromString are not safe with string types</pre>
      */
-    private static boolean containsTupleWithString(AbstractType<?> type)
+    private static boolean containsUnsafeGetString(AbstractType<?> type)
     {
         type = type.unwrap();
         if (type instanceof TupleType)
@@ -200,13 +200,14 @@ public class AbstractTypeTest
             TupleType tt = (TupleType) type;
             for (AbstractType<?> e : tt.subTypes())
             {
-                if (e.unwrap() instanceof StringType)
+                AbstractType<?> unwrap = e.unwrap();
+                if (unwrap instanceof StringType || unwrap instanceof TupleType)
                     return true;
             }
         }
         for (AbstractType<?> e : type.subTypes())
         {
-            if (containsTupleWithString(e))
+            if (containsUnsafeGetString(e))
                 return true;
         }
         return false;
@@ -228,7 +229,7 @@ public class AbstractTypeTest
             .describedAs("CQL type %s parse did not match the expected type", cqlType)
             .isEqualTo(type);
 
-            boolean getStringIsSafe = !containsTupleWithString(type);
+            boolean getStringIsSafe = !containsUnsafeGetString(type);
 
             for (Object expected : example.samples)
             {
