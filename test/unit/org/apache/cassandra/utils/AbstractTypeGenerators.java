@@ -108,14 +108,6 @@ public final class AbstractTypeGenerators
               TypeSupport.of(TimeUUIDType.instance, Generators.UUID_TIME_GEN.map(TimeUUID::fromUuid)),
               TypeSupport.of(LexicalUUIDType.instance, Generators.UUID_RANDOM_GEN.mix(Generators.UUID_TIME_GEN)),
               TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN, (a, b) -> FastByteOperations.compareUnsigned(a.getAddress(), b.getAddress())), // serialization strips the hostname, only keeps the address
-              /*
-              TODO
-              if (type instanceof StringType)
-        {
-            StringType st = (StringType) type;
-            return (Comparator<Object>) (Comparator<?>) (String a, String b) -> FastByteOperations.compareUnsigned(st.decompose(a), st.decompose(b));
-        }
-               */
               TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(0, 1024)),
               TypeSupport.of(UTF8Type.instance, Generators.utf8(0, 1024)),
               TypeSupport.of(TimestampType.instance, Generators.DATE_GEN),
