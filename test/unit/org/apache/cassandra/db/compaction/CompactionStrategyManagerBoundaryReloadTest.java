@@ -21,20 +21,18 @@ package org.apache.cassandra.db.compaction;
 import java.net.UnknownHostException;
 import java.util.List;
 
-import com.google.common.collect.Sets;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DiskBoundaries;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -43,9 +41,23 @@ import static org.junit.Assert.assertTrue;
 
 public class CompactionStrategyManagerBoundaryReloadTest extends CQLTester
 {
+
+    // This method will be run instead of CQLTester#setUpClass
+    @BeforeClass
+    public static void setUpClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
+        ServerTestUtils.markCMS();
+    }
+
     @Test
     public void testNoReload()
     {
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataTestHelper.join(FBUtilities.getBroadcastAddressAndPort(),
+                                       DatabaseDescriptor.getPartitioner().getRandomToken());
         createTable("create table %s (id int primary key)");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         List<List<AbstractCompactionStrategy>> strategies = cfs.getCompactionStrategyManager().getStrategies();
@@ -71,16 +83,11 @@ public class CompactionStrategyManagerBoundaryReloadTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         List<List<AbstractCompactionStrategy>> strategies = cfs.getCompactionStrategyManager().getStrategies();
         DiskBoundaries db = cfs.getDiskBoundaries();
-        IPartitioner partitioner = ClusterMetadata.current().partitioner;
-        NodeId self = Register.register(NodeAddresses.current());
-        ClusterMetadataService.instance().commit(new UnsafeJoin(self,
-                                                                Sets.newHashSet(partitioner.getRandomToken()),
-                                                                ClusterMetadataService.instance().placementProvider()));
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataTestHelper.join(FBUtilities.getBroadcastAddressAndPort(), new Murmur3Partitioner.LongToken(1));
         InetAddressAndPort otherEp = InetAddressAndPort.getByName("127.0.0.2");
-        NodeId other = Register.register(new NodeAddresses(otherEp, otherEp, otherEp));
-        ClusterMetadataService.instance().commit(new UnsafeJoin(other,
-                                                                Sets.newHashSet(partitioner.getRandomToken()),
-                                                                ClusterMetadataService.instance().placementProvider()));
+        ClusterMetadataTestHelper.register(otherEp);
+        ClusterMetadataTestHelper.join(otherEp, new Murmur3Partitioner.LongToken(1000));
         // make sure the strategy instances have been reloaded
         assertFalse(isSame(strategies,
                            cfs.getCompactionStrategyManager().getStrategies()));
