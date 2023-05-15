@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -300,6 +301,8 @@ public final class AbstractTypeGenerators
 
         private Gen<AbstractType<?>> buildRecursive(int maxDepth)
         {
+            if (udtName == null)
+                udtName = Generators.unique(IDENTIFIER_GEN);
             Gen<TypeKind> kindGen;
             if (typeKindGen != null)
                 kindGen = typeKindGen;
@@ -320,6 +323,7 @@ public final class AbstractTypeGenerators
                 return primitiveGen;
             assert maxDepth >= 0 : "max depth must be positive or zero; given " + maxDepth;
             boolean atBottom = maxDepth == 0;
+            Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen);
             return rnd -> {
                 // figure out type to get
                 TypeKind kind = typeKindGen.generate(rnd);
@@ -330,23 +334,23 @@ public final class AbstractTypeGenerators
                     case SET:
                         if (defaultSetKeyFunc != null)
                             return setTypeGen(defaultSetKeyFunc.apply(maxDepth - 1)).generate(rnd);
-                        return setTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen)).generate(rnd);
+                        return setTypeGen(next.get()).generate(rnd);
                     case LIST:
-                        return listTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen)).generate(rnd);
+                        return listTypeGen(next.get()).generate(rnd);
                     case MAP:
                         if (defaultSetKeyFunc != null)
-                            return mapTypeGen(defaultSetKeyFunc.apply(maxDepth - 1), buildRecursive(maxDepth - 1, typeKindGen)).generate(rnd);
-                        return mapTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen)).generate(rnd);
+                            return mapTypeGen(defaultSetKeyFunc.apply(maxDepth - 1), next.get()).generate(rnd);
+                        return mapTypeGen(next.get()).generate(rnd);
                     case TUPLE:
-                        return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
+                        return tupleTypeGen(next.get(), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
-                        return userTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName).generate(rnd);
+                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName).generate(rnd);
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
                         if (!atBottom && vectorSizeNonPrimitiveGen != null)
                             sizeGen = vectorSizeNonPrimitiveGen;
-                        return vectorTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen), sizeGen).generate(rnd);
+                        return vectorTypeGen(next.get(), sizeGen).generate(rnd);
                     }
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
