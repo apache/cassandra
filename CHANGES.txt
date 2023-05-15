@@ -1,3 +1,5 @@
+3.0.30
+
 3.0.29
  * Suppress CVE-2023-2251 (CASSANDRA-18497)
  * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
