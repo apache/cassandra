@@ -413,7 +413,7 @@ public class VIntCoding
             }
             else
             {
-                written += accessor.putBytes(output, offset, VIntCoding.encodeUnsignedVInt(value, size));
+                written += accessor.putBytes(output, offset, VIntCoding.encodeUnsignedVInt(value, size), 0, size);
             }
         }
         else if (size == 9)
