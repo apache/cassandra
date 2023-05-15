@@ -266,6 +266,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
             "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
         List<?> list = (List<?>) parsed;
+        if (list.size() != dimension)
+            throw new MarshalException(String.format("List had incorrect size: expected %d but given %d; %s", dimension, list.size(), list));
         List<Term> terms = new ArrayList<>(list.size());
         for (Object element : list)
         {
