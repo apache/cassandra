@@ -22,6 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 
@@ -60,29 +63,29 @@ public abstract class TypeSerializer<T>
 
     public abstract Class<T> getType();
 
-    protected String toCQLLiteralNonNull(ByteBuffer buffer)
+    protected String toCQLLiteralNonNull(@Nonnull ByteBuffer buffer)
     {
         return toString(deserialize(buffer));
     }
 
-    public final boolean isNull(ByteBuffer buffer)
+    public final boolean isNull(@Nullable ByteBuffer buffer)
     {
         return isNull(buffer, ByteBufferAccessor.instance);
     }
 
-    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
+    public <V> boolean isNull(@Nullable V buffer, ValueAccessor<V> accessor)
     {
         return buffer == null || accessor.isEmpty(buffer);
     }
 
-    public final String toCQLLiteral(ByteBuffer buffer)
+    public final @Nonnull String toCQLLiteral(@Nullable ByteBuffer buffer)
     {
         return isNull(buffer)
                ? "null"
                :  maybeQuote(toCQLLiteralNonNull(buffer));
     }
 
-    public final String toCQLLiteralNoQuote(ByteBuffer buffer)
+    public final @Nonnull String toCQLLiteralNoQuote(@Nullable ByteBuffer buffer)
     {
         return isNull(buffer)
                ? "null"
