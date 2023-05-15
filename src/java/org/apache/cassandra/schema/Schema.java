@@ -34,6 +34,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -292,6 +293,8 @@ public final class Schema implements SchemaProvider
                                                         (metadata, code, reason) -> {
                                                             switch (code)
                                                             {
+                                                                case ALREADY_EXISTS:
+                                                                    throw new AlreadyExistsException(reason);
                                                                 case CONFIG_ERROR:
                                                                     throw new ConfigurationException(reason);
                                                                 case SYNTAX_ERROR:

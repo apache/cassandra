@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -52,6 +53,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
@@ -96,6 +98,10 @@ public class AlterSchema implements Transformation
                                                                        prev.nextEpoch().getEpoch()));
                });
             });
+        }
+        catch (AlreadyExistsException t)
+        {
+            return new Rejected(ALREADY_EXISTS, t.getMessage());
         }
         catch (ConfigurationException t)
         {
