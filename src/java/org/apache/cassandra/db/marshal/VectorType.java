@@ -300,7 +300,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         StringBuilder sb = new StringBuilder();
         sb.append(getClass().getName());
         sb.append('(');
-        sb.append(elementType.toString());
+        sb.append(elementType);
         sb.append(", ");
         sb.append(dimension);
         sb.append(')');
