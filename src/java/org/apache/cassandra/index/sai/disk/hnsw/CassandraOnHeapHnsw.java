@@ -37,9 +37,9 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -48,8 +48,6 @@ import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
-
-import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.WRITER_OPTION;
 
 /**
  * This class needs to
@@ -194,7 +192,8 @@ public class CassandraOnHeapHnsw
                                  "Expected %s rows, but found %s", keyToRowId.size(), rowCount());
         Preconditions.checkState(postingsMap.size() == vectorValues.size(),
                                  "Postings entries %s do not match vectors entries %s", postingsMap.size(), vectorValues.size());
-        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
+        try (var iow = IndexFileUtils.instance.openOutput(file)) {
+            var out = iow.asSequentialWriter();
             // total number of vectors
             out.writeInt(vectorValues.size());
 
@@ -215,8 +214,6 @@ public class CassandraOnHeapHnsw
                     out.writeInt(keyToRowId.get(key));
                 }
             }
-
-            out.flush();
         }
     }
 
@@ -228,7 +225,8 @@ public class CassandraOnHeapHnsw
     // TODO should we just save references to the vectors in the sstable itself?
     private void writeVectors(File file) throws IOException
     {
-        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
+        try (var iow = IndexFileUtils.instance.openOutput(file)) {
+            var out = iow.asSequentialWriter();
             out.writeInt(vectorValues.size());
             out.writeInt(vectorValues.dimension());
 
@@ -236,8 +234,6 @@ public class CassandraOnHeapHnsw
                 var buffer = vectorValues.bufferValue(i);
                 out.write(buffer);
             }
-
-            out.flush();
         }
     }
 

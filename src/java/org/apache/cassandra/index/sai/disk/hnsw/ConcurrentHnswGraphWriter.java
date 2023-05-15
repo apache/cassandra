@@ -27,8 +27,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
-import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.WRITER_OPTION;
-
 public class ConcurrentHnswGraphWriter
 {
     private final ConcurrentOnHeapHnswGraph hnsw;
