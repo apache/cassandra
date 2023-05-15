@@ -309,14 +309,13 @@ public final class VectorType<T> extends AbstractType<List<T>>
     {
         if (values.size() != dimension)
             throw new MarshalException(String.format("Required %d elements, but saw %d", dimension, values.size()));
+
+        // This code base always works with a list that is RandomAccess, so can use .get to avoid allocation
+        for (int i = 0; i < dimension; i++)
         {
-            // This code base always works with a list that is RandomAccess, so can use .get to avoid allocation
-            for (int i = 0; i < dimension; i++)
-            {
-                Object value = values.get(i);
-                if (value == null || (value instanceof ByteBuffer && elementSerializer.isNull((ByteBuffer) value)))
-                    throw new MarshalException(String.format("Element at index %d is null (expected type %s); given %s", i, elementType.asCQL3Type(), values));
-            }
+            Object value = values.get(i);
+            if (value == null || (value instanceof ByteBuffer && elementSerializer.isNull((ByteBuffer) value)))
+                throw new MarshalException(String.format("Element at index %d is null (expected type %s); given %s", i, elementType.asCQL3Type(), values));
         }
     }
 
