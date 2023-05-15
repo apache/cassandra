@@ -145,7 +145,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         if (!(elementType instanceof FloatType))
             throw new IllegalStateException("Attempted to read as float, but element type is " + elementType.asCQL3Type());
 
-        if (accessor.isEmpty(input))
+        if (isNull(input, accessor))
             return null;
         float[] array = new float[dimension];
         int offset = 0;
