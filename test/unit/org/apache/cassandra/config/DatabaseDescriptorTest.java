@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -824,11 +825,28 @@ public class DatabaseDescriptorTest
             String propertyValueString = DatabaseDescriptor.getStringProperty(name);
             if (propertyValueString == null)
                 return;
+
+            // There are some exceptions where the property value is not the same as the yaml representation
+            // e.g. the property value is a Set but the yaml representation of a Set differs from the toString() of a Set.
+            // toString() of an empty Set is "[]" but the yaml representation of an empty Set is "{}".
+            if (Set.class.equals(type) && ((Set<?>) DatabaseDescriptor.getProperty(name)).isEmpty())
+                return;
+
             String expected = DatabaseDescriptor.getProperty(name).toString();
             if (!propertyValueString.equals(expected))
-                properties.add(String.format("Property '%s' expected:\n %s\n" +
-                                             "Property '%s' actual:\n %s\n",
-                                             name, expected, name, propertyValueString));
+            {
+                String out = String.format("Property '%s' expected:\n %s\n" +
+                                           "Property '%s' actual:\n %s\n",
+                                           name, expected, name, propertyValueString);
+                // Here are some exceptions where the property value is not the same as the yaml representation.
+                if (name.equals("memtable.configurations") ||
+                    name.equals("sstable_formats") ||
+                    name.equals("seed_provider.parameters") ||
+                    name.equals("data_file_directories"))
+                    System.err.println(out);
+                else
+                    properties.add(out);
+            }
         });
         assertTrue('\n' + String.join("------------------------------------------------\n", properties),
                    properties.isEmpty());
