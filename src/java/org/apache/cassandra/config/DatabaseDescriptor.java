@@ -4752,12 +4752,12 @@ public class DatabaseDescriptor
                OptionalDouble.empty();
     }
 
-    public static void visit(ConfigVisitor visitor)
+    public static void visit(PropertyVisitor visitor)
     {
         visit(visitor, RuntimeException::new);
     }
 
-    public static void visit(ConfigVisitor visitor, Function<Throwable, ? extends RuntimeException> handler)
+    public static void visit(PropertyVisitor visitor, Function<Throwable, ? extends RuntimeException> handler)
     {
         try
         {
@@ -4815,7 +4815,7 @@ public class DatabaseDescriptor
      * @param name Property name.
      * @param value Property value.
      */
-    public static synchronized void setProperty(String name, Object value)
+    public static void setProperty(String name, Object value)
     {
         try
         {
@@ -4865,9 +4865,9 @@ public class DatabaseDescriptor
 
     /**
      * Visitor for all configuration properties available in {@link #conf} object with their types and mutability.
-     * Use {@link #visit(ConfigVisitor)} to iterate over all properties.
+     * Use {@link #visit(PropertyVisitor)} to iterate over all properties.
      */
-    public interface ConfigVisitor
+    public interface PropertyVisitor
     {
         void visit(String name, Class<?> type, boolean readOnly) throws Throwable;
     }

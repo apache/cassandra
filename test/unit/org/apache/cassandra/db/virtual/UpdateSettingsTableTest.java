@@ -40,6 +40,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.config.DatabaseDescriptor.propertyToStringConverter;
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -109,9 +110,9 @@ public class UpdateSettingsTableTest extends CQLTester
         {
             updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                         ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
-                                        DatabaseDescriptor.propertyToStringConverter()
-                                                          // This is the value for the property that overflows property's limit in bytes bet second.
-                                                          .convert(new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND)));
+                                        propertyToStringConverter()
+                                        // This is the value for the property that overflows property's limit in bytes bet second.
+                                        .convert(new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND)));
         }
         catch (InvalidQueryException ex)
         {
@@ -132,9 +133,26 @@ public class UpdateSettingsTableTest extends CQLTester
     }
 
     @Test
-    public void testBactchUpdateSettings() throws Exception
+    public void testBactchUpdateSettings() throws Throwable
     {
-
+        Integer newConcurrnetCompactors = 5;
+        DataRateSpec.LongBytesPerSecondBound newCompactionThroughput = new DataRateSpec.LongBytesPerSecondBound("44MiB/s");
+        DataRateSpec.LongBytesPerSecondBound newStreamThroughputOutbound = new DataRateSpec.LongBytesPerSecondBound("14MiB/s");
+        // LOGGED BATCH statements with virtual tables are not supported.
+        execute("BEGIN UNLOGGED BATCH " +
+                String.format("UPDATE vts.settings SET value = '%s' WHERE name = '%s'; ",
+                              newConcurrnetCompactors, ConfigFields.CONCURRENT_COMPACTORS) +
+                String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
+                              propertyToStringConverter().convert(newCompactionThroughput), ConfigFields.COMPACTION_THROUGHPUT) +
+                String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
+                              propertyToStringConverter().convert(newStreamThroughputOutbound), ConfigFields.STREAM_THROUGHPUT_OUTBOUND) +
+                "APPLY BATCH ");
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.CONCURRENT_COMPACTORS),
+                      new Object[]{ ConfigFields.CONCURRENT_COMPACTORS, String.valueOf(newConcurrnetCompactors) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.COMPACTION_THROUGHPUT),
+                      new Object[]{ ConfigFields.COMPACTION_THROUGHPUT, newCompactionThroughput.toString() });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.STREAM_THROUGHPUT_OUTBOUND),
+                      new Object[]{ ConfigFields.STREAM_THROUGHPUT_OUTBOUND, newStreamThroughputOutbound.toString() });
     }
 
     private void doUpdateSettingAndRevertBack(String statement, String propertyName) throws Throwable
@@ -150,7 +168,7 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, DatabaseDescriptor.propertyToStringConverter().convertNullable(value), propertyName));
+        assertRowsNet(executeNet(statement, propertyToStringConverter().convertNullable(value), propertyName));
         assertEquals(value, DatabaseDescriptor.getProperty(propertyName));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, DatabaseDescriptor.TypeConverter.TO_STRING.convertNullable((value)) });
     }

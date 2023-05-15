@@ -108,7 +108,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         return key;
     }
 
-    static DatabaseDescriptor.ConfigVisitor withBackwardsCompatableNamesVisitor(DatabaseDescriptor.ConfigVisitor visitor)
+    static DatabaseDescriptor.PropertyVisitor withBackwardsCompatableNamesVisitor(DatabaseDescriptor.PropertyVisitor visitor)
     {
         BiMap<String, String> inversedNames = BACKWARDS_COMPATABLE_NAMES.inverse();
         return (name, type, readOnly) -> {

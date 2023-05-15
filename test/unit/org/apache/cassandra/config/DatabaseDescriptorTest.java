@@ -22,10 +22,13 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 
 import com.google.common.base.Throwables;
@@ -811,5 +814,23 @@ public class DatabaseDescriptorTest
     public void testInvalidSub1DefaultRFs() throws IllegalArgumentException
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
+    }
+
+    @Test
+    public void testCompareYamlRepresentWithPropertyToString()
+    {
+        List<String> properties = new ArrayList<>();
+        DatabaseDescriptor.visit((name, type, readOnly) -> {
+            String propertyValueString = DatabaseDescriptor.getStringProperty(name);
+            if (propertyValueString == null)
+                return;
+            String expected = DatabaseDescriptor.getProperty(name).toString();
+            if (!propertyValueString.equals(expected))
+                properties.add(String.format("Property '%s' expected:\n %s\n" +
+                                             "Property '%s' actual:\n %s\n",
+                                             name, expected, name, propertyValueString));
+        });
+        assertTrue('\n' + String.join("------------------------------------------------\n", properties),
+                   properties.isEmpty());
     }
 }

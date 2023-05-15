@@ -39,7 +39,6 @@ import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.DumperOptions;
@@ -54,8 +53,10 @@ import org.yaml.snakeyaml.introspector.BeanAccess;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
 import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Represent;
 import org.yaml.snakeyaml.representer.Representer;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
@@ -435,12 +436,14 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      */
     public static class YamlFactory
     {
-        private static final List<TypeDescription> cassandraTypes = new ArrayList<>();
+        private static final List<TypeDescription> scalarCassandraTypes = new ArrayList<>();
+        private static final List<TypeDescription> javaBeanCassandraTypes = new ArrayList<>();
         public static final YamlFactory instance = new YamlFactory();
 
         private YamlFactory()
         {
-            loadTypeDescriptions(cassandraTypes);
+            loadScalarTypeDescriptions(scalarCassandraTypes);
+            loadJavaBeanTypeDescriptions(javaBeanCassandraTypes);
         }
 
         /**
@@ -463,17 +466,24 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private static Yaml create(SafeConstructor constructor, PropertyUtils propertyUtils)
         {
-            Representer representer = new CassandraRepresenter(cassandraTypes, new DumperOptions());
+            DumperOptions options = new DumperOptions();
+            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            options.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
+            options.setSplitLines(true);
+            options.setPrettyFlow(true); // to remove brackets around
+            Representer representer = new CassandraRepresenter(scalarCassandraTypes, options);
             representer.setPropertyUtils(propertyUtils);
             constructor.setPropertyUtils(propertyUtils);
             Yaml yaml = new Yaml(constructor, representer);
-            cassandraTypes.forEach(yaml::addTypeDescription);
+
+            scalarCassandraTypes.forEach(yaml::addTypeDescription);
+            javaBeanCassandraTypes.forEach(yaml::addTypeDescription);
             return yaml;
         }
 
-        private static void loadTypeDescriptions(List<TypeDescription> types)
+        private static void loadScalarTypeDescriptions(List<TypeDescription> types)
         {
-            types.add(createTypeDescription(ConsistencyLevel.class));
+            // Enum types resolved with a custom overridden method #representScalar() as a smiple string.
             types.add(createTypeDescription(DataRateSpec.LongBytesPerSecondBound.class));
             types.add(createTypeDescription(DataStorageSpec.IntBytesBound.class));
             types.add(createTypeDescription(DataStorageSpec.IntKibibytesBound.class));
@@ -486,13 +496,19 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             types.add(createTypeDescription(DurationSpec.LongMillisecondsBound.class));
             types.add(createTypeDescription(DurationSpec.LongNanosecondsBound.class));
             types.add(createTypeDescription(DurationSpec.LongSecondsBound.class));
-            types.add(createTypeDescription(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.class));
+        }
 
-            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
-            seedDesc.putMapPropertyType("parameters", String.class, String.class);
+        private static void loadJavaBeanTypeDescriptions(List<TypeDescription> types)
+        {
+            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class, Tag.MAP);
+            seedDesc.addPropertyParameters("parameters", String.class, String.class);
             types.add(seedDesc);
 
-            TypeDescription memtableDesc = new TypeDescription(Config.MemtableOptions.class);
+            TypeDescription inheritingClass = new TypeDescription(InheritingClass.class, Tag.MAP);
+            inheritingClass.addPropertyParameters("parameters", String.class, String.class);
+            types.add(inheritingClass);
+
+            TypeDescription memtableDesc = new TypeDescription(Config.MemtableOptions.class, Tag.MAP);
             memtableDesc.addPropertyParameters("configurations", String.class, InheritingClass.class);
             types.add(memtableDesc);
         }
@@ -507,8 +523,33 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             public CassandraRepresenter(List<TypeDescription> types, DumperOptions options)
             {
                 super(options);
+                multiRepresenters.put(Enum.class, new DefaultRepresentEnum());
                 for (TypeDescription desc : types)
                     representers.computeIfAbsent(desc.getType(), clazz -> o -> representScalar(Tag.STR, o.toString()));
+            }
+
+            @Override
+            protected Node representMapping(Tag tag, Map<?, ?> mapping, DumperOptions.FlowStyle flowStyle)
+            {
+                return super.representMapping(Tag.MAP, mapping, DumperOptions.FlowStyle.BLOCK);
+            }
+
+            protected class DefaultRepresentEnum implements Represent
+            {
+                public Node representData(Object data) {
+                    return representScalar(Tag.STR, ((Enum<?>) data).name());
+                }
+            }
+
+            @Override
+            protected MappingNode representJavaBean(Set<Property> properties, Object javaBean)
+            {
+                // We want to represent all java beans as maps, even if they are not maps themselves
+                // For example, we want to represent a ParameterizedClass as a map with a "class" and "parameters" keys.
+                if (!classTags.containsKey(javaBean.getClass()))
+                    addClassTag(javaBean.getClass(), Tag.MAP);
+
+                return super.representJavaBean(properties, javaBean);
             }
         }
     }
