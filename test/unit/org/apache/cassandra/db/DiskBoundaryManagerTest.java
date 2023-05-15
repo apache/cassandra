@@ -33,22 +33,26 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.MockSchema;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
@@ -65,9 +69,15 @@ public class DiskBoundaryManagerTest extends CQLTester
     private Path tmpDir;
 
     @BeforeClass
-    public static void beforeClass()
+    public static void setUpClass()
     {
-        UnsafeJoin.unsafeJoin(Register.maybeRegister(), BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
+        ServerTestUtils.daemonInitialization();
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataTestHelper.join(FBUtilities.getBroadcastAddressAndPort(),
+                                       BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
+        ServerTestUtils.markCMS();
     }
 
     @Before
