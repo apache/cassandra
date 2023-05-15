@@ -93,8 +93,8 @@ public class ConsistentLeaveTest extends FuzzTestBase
             new Thread(() -> leavingInstance.runOnInstance(() -> StorageService.instance.decommission(true))).start();
             pending.call();
 
+            waitForCMSToQuiesce(cluster, cmsInstance);
             assertGossipStatus(cluster, leavingInstance.config().num(), "LEAVING");
-            // TODO: rewrite the test to check only PENDING ranges.
             visitor = new GeneratingVisitor(run, new MutatingVisitor.MutatingVisitExecutor(run, new MutatingRowVisitor(run), SystemUnderTest.ConsistencyLevel.ALL));
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();

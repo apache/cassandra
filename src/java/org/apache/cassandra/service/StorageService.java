@@ -3491,7 +3491,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        return keyspaceMetadata != null && metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).containsSelf();
+        return keyspaceMetadata != null && metadata.placements.get(keyspaceMetadata.params.replication).writes.forToken(token).containsSelf();
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
