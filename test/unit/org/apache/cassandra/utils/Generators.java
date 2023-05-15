@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -401,6 +402,20 @@ public final class Generators
                 randomBits[0] &= (1 << (8-excessBits)) - 1;
             }
             return new BigInteger(signum, randomBits);
+        };
+    }
+
+    public static Gen<BigDecimal> bigDecimal()
+    {
+        return bigDecimal(SourceDSL.integers().between(1, 100), bigInt());
+    }
+
+    public static Gen<BigDecimal> bigDecimal(Gen<Integer> scaleGen, Gen<BigInteger> bigIntegerGen)
+    {
+        return rnd -> {
+            int scale = scaleGen.generate(rnd);
+            BigInteger bigInt = bigIntegerGen.generate(rnd);
+            return new BigDecimal(bigInt, scale);
         };
     }
 

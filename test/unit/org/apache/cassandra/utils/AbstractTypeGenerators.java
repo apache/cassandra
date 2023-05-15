@@ -53,6 +53,7 @@ import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.DateType;
+import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.EmptyType;
@@ -119,7 +120,8 @@ public final class AbstractTypeGenerators
               TypeSupport.of(DurationType.instance, CassandraGenerators.duration(), Comparator.comparingInt(Duration::getMonths)
                                                                                               .thenComparingInt(Duration::getDays)
                                                                                               .thenComparingLong(Duration::getNanoseconds)),
-              TypeSupport.of(IntegerType.instance, Generators.bigInt())
+              TypeSupport.of(IntegerType.instance, Generators.bigInt()),
+              TypeSupport.of(DecimalType.instance, Generators.bigDecimal())
     ).collect(Collectors.toMap(t -> t.type, t -> t));
     // NOTE not supporting reversed as CQL doesn't allow nested reversed types
     // when generating part of the clustering key, it would be good to allow reversed types as the top level
@@ -609,8 +611,9 @@ public final class AbstractTypeGenerators
                     int rc = keyType.compare(ak.get(i), bk.get(i));
                     if (rc != 0)
                         return rc;
-                    Object key = ak.get(i);
-                    rc = valueType.compare(a.get(key), b.get(key));
+                    // why can't we use the same key?  DecimalType uses BigDecimal.compareTo, which doesn't account for scale differences
+                    // so equality won't match, but comparator says they do!
+                    rc = valueType.compare(a.get(ak.get(i)), b.get(bk.get(i)));
                     if (rc != 0)
                         return rc;
                 }

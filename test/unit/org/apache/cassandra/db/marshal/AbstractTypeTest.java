@@ -133,7 +133,7 @@ public class AbstractTypeTest
                     {
                         throw new AssertionError(String.format("Unable to parse comparable bytes for type %s and version %s; value %s", type.asCQL3Type(), bcv, type.toCQLString(bb)), e);
                     }
-                    assertBytesEquals(read, bb, "fromComparableBytes(asComparableBytes(bb)) != bb");
+                    assertBytesEquals(read, bb, "fromComparableBytes(asComparableBytes(bb)) != bb; version %s", bcv);
 
                     // test byte[] api
                     byte[] bytes = ByteSourceInverse.readBytes(type.asComparableBytes(bb, bcv));
@@ -155,7 +155,11 @@ public class AbstractTypeTest
     @Test
     public void json()
     {
-        qt().withShrinkCycles(0).forAll(examples(1)).checkAssert(es -> {
+        Gen<AbstractType<?>> typeGen = genBuilder()
+                                       // toCQLLiteral is lossy, which causes deserialization to produce different bytes
+                                     .withoutPrimitive(DecimalType.instance)
+                                     .build();
+        qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(es -> {
             AbstractType type = es.type;
             for (Object example : es.samples)
             {
@@ -213,6 +217,20 @@ public class AbstractTypeTest
         return false;
     }
 
+    private boolean containsUnsafeToLiteral(AbstractType<?> type)
+    {
+        type = type.unwrap();
+        if (type instanceof DecimalType)
+            // toCQLLiteral is loss
+            return true;
+        for (AbstractType<?> e : type.subTypes())
+        {
+            if (containsUnsafeToLiteral(e))
+                return true;
+        }
+        return false;
+    }
+
     @Test
     public void serde()
     {
@@ -230,6 +248,7 @@ public class AbstractTypeTest
             .isEqualTo(type);
 
             boolean getStringIsSafe = !containsUnsafeGetString(type);
+            boolean toLiteralIsSafe = !containsUnsafeToLiteral(type);
 
             for (Object expected : example.samples)
             {
@@ -246,9 +265,12 @@ public class AbstractTypeTest
                     assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
                 }
 
-                String literal = type.asCQL3Type().toCQLLiteral(bb);
-                ByteBuffer cqlBB = parseLiteralType(type, literal);
-                assertBytesEquals(cqlBB, bb, "Deserializing literal %s did not match expected bytes", literal);
+                if (toLiteralIsSafe)
+                {
+                    String literal = type.asCQL3Type().toCQLLiteral(bb);
+                    ByteBuffer cqlBB = parseLiteralType(type, literal);
+                    assertBytesEquals(cqlBB, bb, "Deserializing literal %s did not match expected bytes", literal);
+                }
 
                 try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                 {
@@ -310,6 +332,7 @@ public class AbstractTypeTest
     {
         Gen<AbstractType<?>> types = genBuilder()
                                      .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
+                                     .withMaxDepth(0)
                                      .build();
         qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
