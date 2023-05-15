@@ -131,11 +131,6 @@ public class Vectors
     /**
      * Basically similar to a Value, but with some non-pure function (that need
      * to be evaluated at execution time) in it.
-     *
-     * Note: this would also work for a list with bind markers, but we don't support
-     * that because 1) it's not excessively useful and 2) we wouldn't have a good
-     * column name to return in the ColumnSpecification for those markers (not a
-     * blocker per-se but we don't bother due to 1)).
      */
     public static class DelayedValue<T> extends Term.NonTerminal
     {
