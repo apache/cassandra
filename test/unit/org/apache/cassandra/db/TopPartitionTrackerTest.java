@@ -35,12 +35,10 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -273,10 +271,9 @@ public class TopPartitionTrackerTest extends CQLTester
             collector.trackPartitionSize(entry.left, entry.right);
         }
         tpt.merge(collector);
-        InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep1, ep1, ep1)), singleton(t(0)));
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)), singleton(t(Long.MAX_VALUE - 1 )));
+        ClusterMetadataTestHelper.register(ep2);
+        ClusterMetadataTestHelper.join(ep2, singleton(t(Long.MAX_VALUE - 1)));
         Iterator<TopPartitionTracker.TopPartition> trackedTop = tpt.topSizes().top.iterator();
         Collection<Range<Token>> localRanges = StorageService.instance.getLocalReplicas(keyspace()).ranges();
         int outOfRangeCount = 0;
