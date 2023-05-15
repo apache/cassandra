@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 
+import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
@@ -57,8 +57,9 @@ public class ConcurrentHnswGraphWriter
     }
 
     public void write(File file) throws IOException {
-        try (var out = new SequentialWriter(file, WRITER_OPTION))
+        try (var indexOutputWriter = IndexFileUtils.instance.openOutput(file))
         {
+            var out = indexOutputWriter.asSequentialWriter();
             // hnsw info we want to be able to provide without reading the whole thing
             out.writeInt(hnsw.size());
             out.writeInt(hnsw.numLevels());
