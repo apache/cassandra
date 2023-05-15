@@ -60,6 +60,7 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.FrozenType;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LegacyTimeUUIDType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -117,7 +118,8 @@ public final class AbstractTypeGenerators
               TypeSupport.of(EmptyType.instance, rnd -> null, (a, b) -> 0),
               TypeSupport.of(DurationType.instance, CassandraGenerators.duration(), Comparator.comparingInt(Duration::getMonths)
                                                                                               .thenComparingInt(Duration::getDays)
-                                                                                              .thenComparingLong(Duration::getNanoseconds))
+                                                                                              .thenComparingLong(Duration::getNanoseconds)),
+              TypeSupport.of(IntegerType.instance, Generators.bigInt())
     ).collect(Collectors.toMap(t -> t.type, t -> t));
     // NOTE not supporting reversed as CQL doesn't allow nested reversed types
     // when generating part of the clustering key, it would be good to allow reversed types as the top level

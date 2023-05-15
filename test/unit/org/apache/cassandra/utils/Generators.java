@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -373,6 +374,34 @@ public final class Generators
                  .basicMultilingualPlaneAlphabet()
                  .ofLengthBetween(min, max)
                  .map(s -> new String(s.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
+    }
+
+    public static Gen<BigInteger> bigInt()
+    {
+        return bigInt(SourceDSL.integers().between(1, 32));
+    }
+
+    public static Gen<BigInteger> bigInt(Gen<Integer> numBitsGen)
+    {
+        Gen<Integer> signumGen = SourceDSL.arbitrary().pick(-1, 0, 1);
+        return rnd -> {
+            int signum = signumGen.generate(rnd);
+            if (signum == 0)
+                return BigInteger.ZERO;
+            int numBits = numBitsGen.generate(rnd);
+            if (numBits < 0)
+                throw new IllegalArgumentException("numBits must be non-negative");
+            int numBytes = (int)(((long)numBits+7)/8); // avoid overflow
+
+            // Generate random bytes and mask out any excess bits
+            byte[] randomBits = new byte[0];
+            if (numBytes > 0) {
+                randomBits = bytes(numBytes, numBytes).map(bb -> ByteBufferUtil.getArray(bb)).generate(rnd);
+                int excessBits = 8*numBytes - numBits;
+                randomBits[0] &= (1 << (8-excessBits)) - 1;
+            }
+            return new BigInteger(signum, randomBits);
+        };
     }
 
     public static <T> Gen<T> unique(Gen<T> gen)
