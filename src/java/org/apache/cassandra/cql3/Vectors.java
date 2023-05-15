@@ -160,7 +160,7 @@ public class Vectors
             {
                 ByteBuffer bytes = t.bindAndGet(options);
 
-                if (bytes == null || bytes == ByteBufferUtil.UNSET_BYTE_BUFFER || type.elementType.getSerializer().isNull(bytes))
+                if (bytes == null || bytes == ByteBufferUtil.UNSET_BYTE_BUFFER || type.elementType.isNull(bytes))
                     throw new InvalidRequestException("null is not supported inside vectors");
 
                 buffers.add(bytes);
