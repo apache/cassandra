@@ -588,10 +588,7 @@ public interface Index
 
     /**
      * Used to validate the various parameters of a supplied {@code}ReadCommand{@code},
-     * this is called prior to execution. In theory, any command instance may be checked
-     * by any {@code}Index{@code} instance, but in practice the index will be the one
-     * returned by a call to the {@code}getIndex(ColumnFamilyStore cfs){@code} method on
-     * the supplied command.
+     * this is called prior to execution.
      *
      * Custom index implementations should perform any validation of query expressions here and throw a meaningful
      * InvalidRequestException when any expression or other parameter is invalid.
@@ -865,8 +862,10 @@ public interface Index
          * The function takes a PartitionIterator of the results from the replicas which has already been collated
          * and reconciled, along with the command being executed. It returns another PartitionIterator containing the results
          * of the transformation (which may be the same as the input if the transformation is a no-op).
+         *
+         * @param command the read command being executed
          */
-        default Function<PartitionIterator, PartitionIterator> postProcessor()
+        default Function<PartitionIterator, PartitionIterator> postProcessor(ReadCommand command)
         {
             return partitions -> partitions;
         }
@@ -899,6 +898,14 @@ public interface Index
         default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
         {
             return true;
+        }
+
+        /**
+         * @return true if given index query plan is a top-k request
+         */
+        default boolean isTopK()
+        {
+            return false;
         }
     }
 

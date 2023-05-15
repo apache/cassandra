@@ -18,18 +18,10 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
 import com.google.common.collect.Lists;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
 
@@ -38,14 +30,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class VectorTypeTest extends SAITester
 {
-    private int dimensionCount;
-
-    @Before
-    public void setup() throws Throwable
-    {
-        dimensionCount = getRandom().nextIntBetween(1, 2048);
-    }
-
     @Test
     public void endToEndTest() throws Throwable
     {
@@ -181,99 +165,5 @@ public class VectorTypeTest extends SAITester
         result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2 ALLOW FILTERING");
         assertThat(result).hasSize(2);
         System.out.println(makeRowStrings(result));
-    }
-
-    @Test
-    public void randomizedTest() throws Throwable
-    {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        int vectorCount = getRandom().nextIntBetween(100, 1000);
-        List<float[]> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
-
-        int pk = 0;
-        for (float[] vector : vectors)
-            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(vector) + " )", pk++);
-
-        // query memtable index
-        int limit = Math.min(getRandom().nextIntBetween(5, 100), vectorCount);
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of " + randomVectorAsString() + "  LIMIT " + limit);
-        verifyResultVectors(result, limit, vectors);
-
-        flush();
-
-        // query on-disk index
-        limit = Math.min(getRandom().nextIntBetween(5, 100), vectors.size());
-        result = execute("SELECT * FROM %s WHERE val ann of " + randomVectorAsString() + " LIMIT " + limit);
-        verifyResultVectors(result, limit, vectors);
-
-        // populate some more vectors
-        int additionalVectorCount = getRandom().nextIntBetween(100, 1000);
-        List<float[]> additionalVectors = IntStream.range(0, additionalVectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
-        vectors.addAll(additionalVectors);
-
-        // query both memtable index and on-disk index
-        limit = Math.min(getRandom().nextIntBetween(5, 100), vectors.size());
-        result = execute("SELECT * FROM %s WHERE val ann of " + randomVectorAsString() + "  LIMIT " + limit);
-        verifyResultVectors(result, limit, vectors);
-
-        flush();
-        compact();
-
-        // query compacted on-disk index
-        limit = Math.min(getRandom().nextIntBetween(5, 100), vectors.size());
-        result = execute("SELECT * FROM %s WHERE val ann of " + randomVectorAsString() + "  LIMIT " + limit);
-        verifyResultVectors(result, limit, vectors);
-    }
-
-    private void verifyResultVectors(UntypedResultSet result, int limit, List<float[]> insertedVectors)
-    {
-        assertThat(result).hasSize(limit);
-
-        VectorType vectorType = VectorType.getInstance(dimensionCount);
-
-        // verify results are part of inserted vectors
-        for (UntypedResultSet.Row row : result)
-        {
-            ByteBuffer buffer = row.getBytes("val");
-            assertThat(insertedVectors).contains(vectorType.compose(buffer));
-        }
-    }
-
-    private String vectorString(float[] vector)
-    {
-        return Arrays.toString(vector);
-    }
-
-    private String randomVectorAsString()
-    {
-        float[] rawVector = new float[dimensionCount];
-        for (int i = 0; i < dimensionCount; i++)
-        {
-            rawVector[i] = getRandom().nextFloat();
-        }
-        return vectorString(rawVector);
-    }
-
-    private float[] randomVector()
-    {
-        float[] rawVector = new float[dimensionCount];
-        for (int i = 0; i < dimensionCount; i++)
-        {
-            rawVector[i] = getRandom().nextFloat();
-        }
-        return rawVector;
-    }
-
-    private ByteBuffer randomVectorBuffer()
-    {
-        float[] rawVector = new float[dimensionCount];
-        for (int i = 0; i < dimensionCount; i++)
-        {
-            rawVector[i] = getRandom().nextFloat();
-        }
-        return VectorType.getInstance(dimensionCount).getSerializer().serialize(rawVector);
     }
 }

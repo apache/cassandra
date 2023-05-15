@@ -93,6 +93,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
+
 public class StorageAttachedIndex implements Index
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
@@ -495,6 +497,18 @@ public class StorageAttachedIndex implements Index
     {
         // it should be executed from the SAI query plan, this is only used by the singleton index query plan
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void validate(ReadCommand command) throws InvalidRequestException
+    {
+        if (!getIndexContext().isVector())
+            return;
+
+        // to avoid overflow HNSW internal data structure and avoid OOM when filtering top-k
+        if (command.limits().isUnlimited() || command.limits().count() >= MAX_TOP_K)
+            throw new InvalidRequestException(String.format("Vector search for index %s requires specifying LIMIT that is not greater than %s, found: %s",
+                                                            getIndexMetadata().name, MAX_TOP_K, command.limits().count()));
     }
 
     @Override

@@ -78,6 +78,8 @@ public class RangeCommands
                                                                    command.indexQueryPlan(),
                                                                    keyspace,
                                                                    consistencyLevel);
+        if (command.isTopK())
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), queryStartNanoTime);
 
         // our estimate of how many result rows there will be per-range
         float resultsPerRange = estimateResultsPerRange(command, keyspace);

@@ -62,14 +62,14 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
     public static final ClientRangeRequestMetrics rangeMetrics = new ClientRangeRequestMetrics("RangeSlice");
 
-    private final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
-    private final int totalRangeCount;
-    private final PartitionRangeReadCommand command;
-    private final boolean enforceStrictLiveness;
+    final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
+    final int totalRangeCount;
+    final PartitionRangeReadCommand command;
+    final boolean enforceStrictLiveness;
 
     private final long startTime;
-    private final long queryStartNanoTime;
-    private DataLimits.Counter counter;
+    final long queryStartNanoTime;
+    DataLimits.Counter counter;
     private PartitionIterator sentQueryIterator;
 
     private final int maxConcurrencyFactor;
@@ -77,8 +77,8 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     // The two following "metric" are maintained to improve the concurrencyFactor
     // when it was not good enough initially.
     private int liveReturned;
-    private int rangesQueried;
-    private int batchesRequested = 0;
+    int rangesQueried;
+    int batchesRequested = 0;
 
     RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                          PartitionRangeReadCommand command,
@@ -220,7 +220,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         return new SingleRangeResponse(resolver, handler, readRepair);
     }
 
-    private PartitionIterator sendNextRequests()
+    protected PartitionIterator sendNextRequests()
     {
         List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
         List<ReadRepair<?, ?>> readRepairs = new ArrayList<>(concurrencyFactor);

@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -319,6 +318,8 @@ public class IndexContext
         switch (columnMetadata.kind)
         {
             case PARTITION_KEY:
+                if (key == null)
+                    return null;
                 return partitionKeyType instanceof CompositeType
                        ? CompositeType.extractComponent(key.getKey(), columnMetadata.position())
                        : key.getKey();
@@ -517,28 +518,5 @@ public class IndexContext
                         .stream()
                         .mapToLong(SSTableIndex::indexFileCacheSize)
                         .sum();
-    }
-
-    public FieldInfo createFieldInfoForVector(int vectorDimension)
-    {
-        String name = this.getIndexName();
-        int number = 0;
-        boolean storeTermVector = false;
-        boolean omitNorms = false;
-        boolean storePayloads = false;
-        IndexOptions indexOptions = IndexOptions.NONE;
-        DocValuesType docValues = DocValuesType.NONE;
-        long dvGen = -1;
-        Map<String, String> attributes = Map.of();
-        int pointDimensionCount = 0;
-        int pointIndexDimensionCount = 0;
-        int pointNumBytes = 0;
-        VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
-        VectorSimilarityFunction vectorSimilarityFunction = indexWriterConfig.getSimilarityFunction();
-        boolean softDeletesField = false;
-
-        return new FieldInfo(name, number, storeTermVector, omitNorms, storePayloads, indexOptions, docValues,
-                             dvGen, attributes, pointDimensionCount, pointIndexDimensionCount, pointNumBytes,
-                             vectorDimension, vectorEncoding, vectorSimilarityFunction, softDeletesField);
     }
 }

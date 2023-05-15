@@ -25,6 +25,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
+
 /**
  * Per-index config for storage-attached index writers.
  */
@@ -39,6 +41,9 @@ public class IndexWriterConfig
 
     public static final int DEFAULT_MAXIMUM_NODE_CONNECTIONS = 16;
     public static final int DEFAULT_CONSTRUCTION_BEAM_WIDTH = 100;
+
+    public static final int MAX_TOP_K = SAI_VECTOR_SEARCH_MAX_TOP_K.getInt();
+
     public static final VectorSimilarityFunction DEFAULT_SIMILARITY_FUNCTION = VectorSimilarityFunction.COSINE;
 
     public static final String validSimilarityFunctions = Arrays.stream(VectorSimilarityFunction.values())

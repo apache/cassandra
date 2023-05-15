@@ -1,0 +1,314 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.distributed.test.sai;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.lucene.index.VectorSimilarityFunction;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.index.sai.SAITester.getRandom;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+public class VectorDistributedTest extends TestBaseImpl
+{
+
+    private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
+    private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val float vector[%d])";
+    private static final String CREATE_TABLE_TWO_VECTORS = "CREATE TABLE %%s (pk int primary key, val1 float vector[%d], val2 float vector[%d])";
+    private static final String CREATE_INDEX = "CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'";
+
+    private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
+
+    private static final String INVALID_LIMIT_MESSAGE = "requires specifying LIMIT that is not greater than 1000";
+
+    private static final double MIN_RECALL = 0.8;
+
+    private static final int NUM_REPLICAS = 3;
+    private static final int RF = 2;
+
+    private static final AtomicInteger seq = new AtomicInteger();
+    private static String table;
+
+    private static Cluster cluster;
+
+    private static int dimensionCount;
+
+    @BeforeClass
+    public static void setupCluster() throws Exception
+    {
+        cluster = Cluster.build(NUM_REPLICAS)
+                         .withTokenCount(8)
+                         .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                         .start();
+
+        cluster.schemaChange(withKeyspace(String.format(CREATE_KEYSPACE, RF)));
+    }
+
+    @AfterClass
+    public static void closeCluster()
+    {
+        if (cluster != null)
+            cluster.close();
+    }
+
+    @Before
+    public void before()
+    {
+        table = "table_" + seq.getAndIncrement();
+        dimensionCount = getRandom().nextIntBetween(100, 2048);
+    }
+
+    @After
+    public void after()
+    {
+        cluster.schemaChange(formatQuery("DROP TABLE IF EXISTS %s"));
+    }
+
+    @Test
+    public void testVectorSearch()
+    {
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
+
+        int vectorCount = getRandom().nextIntBetween(500, 1000);
+        List<float[]> vectors = generateVectors(vectorCount);
+
+        int pk = 0;
+        for (float[] vector : vectors)
+            execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ", " + vectorString(vector) + " )");
+
+        // query memtable index
+        int limit = Math.min(getRandom().nextIntBetween(10, 50), vectors.size());
+        float[] queryVector = randomVector();
+        Object[][] result = searchWithLimit(queryVector, limit);
+        double memtableRecall = getRecall(vectors, queryVector, getVectors(result));
+        assertThat(memtableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
+
+        assertThatThrownBy(() -> searchWithoutLimit(queryVector, vectorCount))
+        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+
+        // Recall is lower with page size:
+        int pageSize = getRandom().nextIntBetween(2, 10);
+        limit = getRandom().nextIntBetween(20, 50);
+        result = searchWithPageAndLimit(queryVector, pageSize, limit);
+        double memtableRecallWithPaging = getRecall(vectors, queryVector, getVectors(result));
+        assertThat(memtableRecallWithPaging).isGreaterThanOrEqualTo(0).isLessThan(memtableRecall);
+
+        assertThatThrownBy(() -> searchWithPageWithoutLimit(queryVector, 10))
+        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+    }
+
+    @Test
+    public void testMultiVectorIndexesSearch()
+    {
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE_TWO_VECTORS, dimensionCount, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val1")));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val2")));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
+
+        int vectorCount = getRandom().nextIntBetween(500, 1000);
+        List<float[]> vectorsColumn1 = generateVectors(vectorCount);
+        List<float[]> vectorsColumn2 = generateVectors(vectorCount);
+
+        int pk = 0;
+        for (int i = 0; i < vectorCount; i++)
+            execute("INSERT INTO %s (pk, val1, val2) VALUES (" + (pk++) + ", " + vectorString(vectorsColumn1.get(i)) + ", " + vectorString(vectorsColumn2.get(i)) + " )");
+
+        // use large limit to make sure there are intersections between top-k per indexes.
+        int limit = vectorCount;
+        Object[][] result = execute("SELECT val1, val2 FROM %s WHERE val1 ann of " + randomVectorString()
+                                    + " AND val2 ann of " + randomVectorString()
+                                    + " LIMIT " + limit + " ALLOW FILTERING");
+
+        assertThat(result.length).isGreaterThan(0);
+    }
+
+    @Test
+    public void testPartitionRestrictedVectorSearch()
+    {
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
+
+        int vectorCount = getRandom().nextIntBetween(500, 1000);
+        List<float[]> vectors = generateVectors(vectorCount);
+
+        int pk = 0;
+        for (float[] vector : vectors)
+            execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ", " + vectorString(vector) + " )");
+
+        // query memtable index
+        float[] queryVector = randomVector();
+
+        assertThatThrownBy(() -> searchByKeyWithoutLimit(10, queryVector, vectors))
+        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+
+        assertThatThrownBy(() -> searchByKeyWithLimit(10, queryVector, 5001, vectors))
+        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+
+        searchByKeyWithLimit(10, queryVector, 1, vectors);
+
+        // TODO: on-disk index doesn't support Bits filtering yet
+//        cluster.forEach(n -> n.flush(KEYSPACE));
+//        queryVector = randomVector();
+//        searchByKeyWithLimit(10, queryVector, 1, vectors);
+    }
+
+    private Object[][] searchWithLimit(float[] queryVector, int limit)
+    {
+        Object[][] result = execute("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        assertThat(result).hasSize(limit);
+        return result;
+    }
+
+    private Object[][] searchWithoutLimit(float[] queryVector, int results)
+    {
+        Object[][] result = execute("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector));
+        assertThat(result).hasSize(results);
+        return result;
+    }
+
+
+    private Object[][] searchWithPageWithoutLimit(float[] queryVector, int pageSize)
+    {
+        return executeWithPaging("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector), pageSize);
+    }
+
+    private Object[][] searchWithPageAndLimit(float[] queryVector, int pageSize, int limit)
+    {
+        // we don't know how many will be returned in case of paging, because coordinator resumes from last-returned-row's partiton
+        return executeWithPaging("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, pageSize);
+    }
+
+    private void searchByKeyWithoutLimit(int key, float[] queryVector, List<float[]> vectors)
+    {
+        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " AND val ann of " + Arrays.toString(queryVector));
+        assertThat(result).hasSize(1);
+        float[] output = getVectors(result).get(0);
+        assertThat(output).isEqualTo(vectors.get(key));
+    }
+
+    private void searchByKeyWithLimit(int key, float[] queryVector, int limit, List<float[]> vectors)
+    {
+        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        assertThat(result).hasSize(1);
+        float[] output = getVectors(result).get(0);
+        assertThat(output).isEqualTo(vectors.get(key));
+    }
+
+    private double getRecall(List<float[]> vectors, float[] query, List<float[]> result)
+    {
+        List<float[]> sortedVectors = new ArrayList<>(vectors);
+        sortedVectors.sort((a, b) -> Double.compare(function.compare(b, query), function.compare(a, query)));
+
+        assertThat(sortedVectors).containsAll(result);
+
+        List<float[]> nearestNeighbors = sortedVectors.subList(0, result.size());
+
+        int matches = 0;
+        for (float[] in : nearestNeighbors)
+        {
+            for (float[] out : result)
+            {
+                if (Arrays.compare(in, out) ==0)
+                {
+                    matches++;
+                    break;
+                }
+            }
+        }
+
+        return matches * 1.0 / result.size();
+    }
+
+    private List<float[]> generateVectors(int vectorCount)
+    {
+        return IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
+    }
+
+    private List<float[]> getVectors(Object[][] result)
+    {
+        List<float[]> vectors = new ArrayList<>();
+
+        // verify results are part of inserted vectors
+        for (Object[] obj: result)
+            vectors.add((float[]) obj[0]);
+
+        return vectors;
+    }
+
+    private String vectorString(float[] vector)
+    {
+        return Arrays.toString(vector);
+    }
+
+    private String randomVectorString()
+    {
+        return vectorString(randomVector());
+    }
+
+    private float[] randomVector()
+    {
+        float[] rawVector = new float[dimensionCount];
+        for (int i = 0; i < dimensionCount; i++)
+        {
+            rawVector[i] = getRandom().nextFloat();
+        }
+        return rawVector;
+    }
+
+    private static Object[][] execute(String query)
+    {
+        return cluster.coordinator(1).execute(formatQuery(query), ConsistencyLevel.QUORUM);
+    }
+
+    private static Object[][] executeWithPaging(String query, int pageSize)
+    {
+        Iterator<Object[]> iterator = cluster.coordinator(1).executeWithPaging(formatQuery(query), ConsistencyLevel.QUORUM, pageSize);
+        List<Object[]> list = new ArrayList<>();
+        iterator.forEachRemaining(list::add);
+
+        return list.toArray(new Object[0][]);
+    }
+
+    private static String formatQuery(String query)
+    {
+        return String.format(query, KEYSPACE + '.' + table);
+    }
+}
