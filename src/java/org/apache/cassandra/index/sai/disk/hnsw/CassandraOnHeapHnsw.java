@@ -238,8 +238,6 @@ public class CassandraOnHeapHnsw
         {
             try (var out = descriptor.openPerSSTableOutput(IndexComponent.VECTOR, false))
             {
-                // writeVectors gets a SequentialWriter since it wants to write ByteBuffers
-                // and doesn't care about writing vints
                 writeVectors(out);
             }
             try (var out = descriptor.openPerSSTableOutput(IndexComponent.POSTING_LISTS, false))

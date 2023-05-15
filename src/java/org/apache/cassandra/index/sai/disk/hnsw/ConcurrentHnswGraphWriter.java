@@ -22,13 +22,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 
-import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.io.util.File;
 import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph;
-
-import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.WRITER_OPTION;
 
 public class ConcurrentHnswGraphWriter
 {
