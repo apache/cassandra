@@ -144,7 +144,9 @@ public class Keyspace
     public static Keyspace open(String keyspaceName)
     {
         assert initialized || SchemaConstants.isLocalSystemKeyspace(keyspaceName) : "Initialized: " + initialized;
-        return Schema.instance.getKeyspaceInstance(keyspaceName);
+        Keyspace ks = Schema.instance.getKeyspaceInstance(keyspaceName);
+        assert ks != null : "Unknown keyspace " + keyspaceName;
+        return ks;
     }
 
     // to only be used by org.apache.cassandra.tools.Standalone* classes
