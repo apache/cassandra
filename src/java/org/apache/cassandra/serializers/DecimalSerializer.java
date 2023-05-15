@@ -71,10 +71,4 @@ public class DecimalSerializer extends TypeSerializer<BigDecimal>
     {
         return BigDecimal.class;
     }
-
-    @Override
-    public boolean shouldQuoteCQL()
-    {
-        return false;
-    }
 }

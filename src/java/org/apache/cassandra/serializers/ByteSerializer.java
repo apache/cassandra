@@ -52,10 +52,4 @@ public class ByteSerializer extends TypeSerializer<Byte>
     {
         return Byte.class;
     }
-
-    @Override
-    public boolean shouldQuoteCQL()
-    {
-        return false;
-    }
 }

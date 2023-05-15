@@ -52,10 +52,4 @@ public class ShortSerializer extends TypeSerializer<Short>
     {
         return Short.class;
     }
-
-    @Override
-    public boolean shouldQuoteCQL()
-    {
-        return false;
-    }
 }

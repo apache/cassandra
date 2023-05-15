@@ -52,10 +52,4 @@ public class Int32Serializer extends TypeSerializer<Integer>
     {
         return Integer.class;
     }
-
-    @Override
-    public boolean shouldQuoteCQL()
-    {
-        return false;
-    }
 }

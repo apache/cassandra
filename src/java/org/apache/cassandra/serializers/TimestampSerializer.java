@@ -198,6 +198,12 @@ public class TimestampSerializer extends TypeSerializer<Date>
     }
 
     @Override
+    public boolean shouldQuoteCQL()
+    {
+        return true;
+    }
+
+    @Override
     protected String toCQLLiteralNonNull(ByteBuffer buffer)
     {
         return FORMATTER_UTC.get().format(deserialize(buffer));

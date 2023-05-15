@@ -94,7 +94,7 @@ public abstract class TypeSerializer<T>
 
     public boolean shouldQuoteCQL()
     {
-        return true;
+        return false;
     }
 
     private String maybeQuote(String value)

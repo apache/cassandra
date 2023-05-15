@@ -58,10 +58,4 @@ public class BooleanSerializer extends TypeSerializer<Boolean>
     {
         return Boolean.class;
     }
-
-    @Override
-    public boolean shouldQuoteCQL()
-    {
-        return false;
-    }
 }
