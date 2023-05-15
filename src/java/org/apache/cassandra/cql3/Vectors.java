@@ -74,16 +74,13 @@ public class Vectors
                 throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s; expected %d elements, but given %d", receiver.name, receiver.type.asCQL3Type(), type.dimension, elements.size()));
 
             ColumnSpecification valueSpec = valueSpecOf(receiver);
-            for (Term.Raw rt : elements)
-            {
-                if (!rt.testAssignment(keyspace, valueSpec).isAssignable())
-                    throw new InvalidRequestException(String.format("Invalid vector literal for %s: value %s is not of type %s", receiver.name, rt, valueSpec.type.asCQL3Type()));
-            }
-
             List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (Term.Raw rt : elements)
             {
+                if (!rt.testAssignment(keyspace, valueSpec).isAssignable())
+                    throw new InvalidRequestException(String.format("Invalid vector literal for %s: value %s is not of type %s", receiver.name, rt, valueSpec.type.asCQL3Type()));
+
                 Term t = rt.prepare(keyspace, valueSpec);
 
                 if (t instanceof Term.NonTerminal)
