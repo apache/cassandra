@@ -420,7 +420,6 @@ public final class VectorType<T> extends AbstractType<List<T>>
         @Override
         public ByteBuffer serialize(List<T> value)
         {
-            //TODO delegate to serializeRaw?
             if (value == null)
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
             check(value);
