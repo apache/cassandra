@@ -170,7 +170,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     @Override
     public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V value, ByteComparable.Version version)
     {
-        if (accessor.isEmpty(value))
+        if (isNull(value, accessor))
             return null;
         ByteSource[] srcs = new ByteSource[dimension];
         List<V> split = split(value, accessor);
