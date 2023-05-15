@@ -569,7 +569,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         @Override
         public <V> List<T> deserialize(V input, ValueAccessor<V> accessor)
         {
-            if (accessor.isEmpty(input))
+            if (isNull(input, accessor))
                 return null;
             List<T> result = new ArrayList<>(dimension);
             int offset = 0;
