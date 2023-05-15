@@ -37,9 +37,8 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -48,8 +47,6 @@ import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
-
-import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.WRITER_OPTION;
 
 /**
  * This class needs to
@@ -188,56 +185,49 @@ public class CassandraOnHeapHnsw
         return postingsMap.values().stream().mapToInt(p -> p.keys.size()).sum();
     }
 
-    private void writeOrdinalToRowMapping(File file, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    private void writeOrdinalToRowMapping(IndexOutputWriter out, Map<PrimaryKey, Integer> keyToRowId) throws IOException
     {
         Preconditions.checkState(keyToRowId.size() == rowCount(),
                                  "Expected %s rows, but found %s", keyToRowId.size(), rowCount());
         Preconditions.checkState(postingsMap.size() == vectorValues.size(),
                                  "Postings entries %s do not match vectors entries %s", postingsMap.size(), vectorValues.size());
-        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
-            // total number of vectors
-            out.writeInt(vectorValues.size());
+        // total number of vectors
+        out.writeInt(vectorValues.size());
 
-            // Write the offsets of the postings for each ordinal
-            long offset = 4L + 8L * vectorValues.size();
-            for (var i = 0; i < vectorValues.size(); i++) {
-                // (ordinal is implied; don't need to write it)
-                out.writeLong(offset);
-                var postings = postingsMap.get(vectorValues.bufferValue(i));
-                offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
+        // Write the offsets of the postings for each ordinal
+        long offset = 4L + 8L * vectorValues.size();
+        for (var i = 0; i < vectorValues.size(); i++) {
+            // (ordinal is implied; don't need to write it)
+            out.writeLong(offset);
+            var postings = postingsMap.get(vectorValues.bufferValue(i));
+            offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
+        }
+
+        // Write postings lists
+        for (var i = 0; i < vectorValues.size(); i++) {
+            var postings = postingsMap.get(vectorValues.bufferValue(i));
+            out.writeInt(postings.keys.size());
+            for (var key : postings.keys) {
+                out.writeInt(keyToRowId.get(key));
             }
-
-            // Write postings lists
-            for (var i = 0; i < vectorValues.size(); i++) {
-                var postings = postingsMap.get(vectorValues.bufferValue(i));
-                out.writeInt(postings.keys.size());
-                for (var key : postings.keys) {
-                    out.writeInt(keyToRowId.get(key));
-                }
-            }
-
-            out.flush();
         }
     }
 
-    private void writeGraph(File file) throws IOException
+    private void writeGraph(IndexOutputWriter out) throws IOException
     {
-        new ConcurrentHnswGraphWriter(builder.getGraph()).write(file);
+        new ConcurrentHnswGraphWriter(builder.getGraph()).write(out);
     }
 
     // TODO should we just save references to the vectors in the sstable itself?
-    private void writeVectors(File file) throws IOException
+    private void writeVectors(IndexOutputWriter indexOutputWriter) throws IOException
     {
-        try (var out = new SequentialWriter(file, WRITER_OPTION)) {
-            out.writeInt(vectorValues.size());
-            out.writeInt(vectorValues.dimension());
+        var out = indexOutputWriter.asSequentialWriter();
+        out.writeInt(vectorValues.size());
+        out.writeInt(vectorValues.dimension());
 
-            for (var i = 0; i < vectorValues.size(); i++) {
-                var buffer = vectorValues.bufferValue(i);
-                out.write(buffer);
-            }
-
-            out.flush();
+        for (var i = 0; i < vectorValues.size(); i++) {
+            var buffer = vectorValues.bufferValue(i);
+            out.write(buffer);
         }
     }
 
@@ -246,9 +236,20 @@ public class CassandraOnHeapHnsw
         lock.writeLock().lock();
         try
         {
-            writeVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-            writeOrdinalToRowMapping(descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
-            writeGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
+            try (var out = descriptor.openPerSSTableOutput(IndexComponent.VECTOR, false))
+            {
+                // writeVectors gets a SequentialWriter since it wants to write ByteBuffers
+                // and doesn't care about writing vints
+                writeVectors(out);
+            }
+            try (var out = descriptor.openPerSSTableOutput(IndexComponent.POSTING_LISTS, false))
+            {
+                writeOrdinalToRowMapping(out, keyToRowId);
+            }
+            try (var out = descriptor.openPerSSTableOutput(IndexComponent.TERMS_DATA, false))
+            {
+                writeGraph(out);
+            }
         }
         finally
         {
