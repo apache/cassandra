@@ -54,7 +54,8 @@ public class ConcurrentHnswGraphWriter
         return 4L * (1 + hnsw.getNeighbors(level, node).size());
     }
 
-    public void write(File file) throws IOException {
+    public void write(File file) throws IOException
+    {
         try (var indexOutputWriter = IndexFileUtils.instance.openOutput(file))
         {
             var out = indexOutputWriter.asSequentialWriter();
@@ -100,7 +101,12 @@ public class ConcurrentHnswGraphWriter
                     assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                     var neighborSet = hnsw.getNeighbors(level, node);
                     out.writeInt(neighborSet.size());
-                    neighborSet.forEach((ordinal, score_) -> out.writeInt(ordinal));
+                    var it = neighborSet.nodeIterator();
+                    while (it.hasNext())
+                    {
+                        var neighbor = it.nextInt();
+                        out.writeInt(neighbor);
+                    }
                 }
                 long expectedPosition = levelOffset + levelSize(level);
                 assert out.position() == expectedPosition : String.format("level %s offset mismatch: %s actual vs %s expected", level, out.position(), expectedPosition);

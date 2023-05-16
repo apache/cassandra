@@ -65,6 +65,52 @@ public class VectorTypeTest extends SAITester
     }
 
     @Test
+    public void testSameVectorMultipleRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'A', [1.0, 2.0, 3.0])");
+
+        var result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(3);
+
+        flush();
+        compact();
+
+        result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(3);
+        System.out.println(makeRowStrings(result));
+    }
+
+    @Test
+    public void testQueryEmptyTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        var result = execute("SELECT * FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(0);
+    }
+
+    @Test
+    public void testQueryMoreRowsThanInserted() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+
+        var result = execute("SELECT * FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
     public void cannotInsertWrongNumberOfDimensions()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
