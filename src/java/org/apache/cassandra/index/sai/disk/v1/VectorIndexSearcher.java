@@ -74,12 +74,10 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
         if (exp.getOp() != Expression.IndexOperator.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
-        String field = indexContext.getIndexName();
-
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
 
-        return toIterator(new BatchPostingList(field, queryVector, limit), context);
+        return toIterator(new BatchPostingList(queryVector, limit), context);
     }
 
     @Override
@@ -101,10 +99,10 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
         private final float[] queryVector;
         private final PriorityQueue<Long> queue;
 
-        private int limit;
+        private final int limit;
         private BitSet bitset;
 
-        BatchPostingList(String field, float[] queryVector, int limit)
+        BatchPostingList(float[] queryVector, int limit)
         {
             this.queryVector = queryVector;
             this.limit = limit;
@@ -134,7 +132,7 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
             return rowId;
         }
 
-        private long computeNextPosting() throws IOException
+        private long computeNextPosting()
         {
             if (queue.isEmpty())
             {
@@ -146,7 +144,7 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
             return queue.poll();
         }
 
-        private void readBatch() throws IOException
+        private void readBatch()
         {
             var results = graph.search(queryVector, limit, new InvertedBits(bitset), Integer.MAX_VALUE);
             if (bitset == null)
