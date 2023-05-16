@@ -26,7 +26,6 @@ import java.util.Map;
 
 import org.junit.After;
 
-import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
@@ -270,7 +269,6 @@ public class SchemaLoader
         DatabaseDescriptor.setAuthorizer(authorizer);
         DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
         DatabaseDescriptor.setCIDRAuthorizer(cidrAuthorizer);
-        SchemaTestUtil.announceNewKeyspace(AuthKeyspace.metadata());
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getInternodeAuthenticator().setupInternode();
