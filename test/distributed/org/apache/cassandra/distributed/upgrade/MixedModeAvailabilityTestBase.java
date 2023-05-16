@@ -23,7 +23,6 @@ import java.util.concurrent.RejectedExecutionException;
 
 import org.junit.Test;
 
-import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.exceptions.ReadFailureException;
@@ -51,13 +50,11 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
     private static final String INSERT = withKeyspace("INSERT INTO %s.t (k, c, v) VALUES (?, ?, ?)");
     private static final String SELECT = withKeyspace("SELECT * FROM %s.t WHERE k = ?");
 
-    private final Semver initial;
     private final ConsistencyLevel writeConsistencyLevel;
     private final ConsistencyLevel readConsistencyLevel;
 
-    public MixedModeAvailabilityTestBase(Semver initial, ConsistencyLevel writeConsistencyLevel, ConsistencyLevel readConsistencyLevel)
+    public MixedModeAvailabilityTestBase(ConsistencyLevel writeConsistencyLevel, ConsistencyLevel readConsistencyLevel)
     {
-        this.initial = initial;
         this.writeConsistencyLevel = writeConsistencyLevel;
         this.readConsistencyLevel = readConsistencyLevel;
     }
@@ -65,32 +62,30 @@ public abstract class MixedModeAvailabilityTestBase extends UpgradeTestBase
     @Test
     public void testAvailabilityCoordinatorNotUpgraded() throws Throwable
     {
-        testAvailability(false, initial, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(false, writeConsistencyLevel, readConsistencyLevel);
     }
 
     @Test
     public void testAvailabilityCoordinatorUpgraded() throws Throwable
     {
-        testAvailability(true, initial, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(true, writeConsistencyLevel, readConsistencyLevel);
     }
 
-    protected static void testAvailability(Semver initial,
-                                           ConsistencyLevel writeConsistencyLevel,
+    protected static void testAvailability(ConsistencyLevel writeConsistencyLevel,
                                            ConsistencyLevel readConsistencyLevel) throws Throwable
     {
-        testAvailability(true, initial, writeConsistencyLevel, readConsistencyLevel);
-        testAvailability(false, initial, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(true, writeConsistencyLevel, readConsistencyLevel);
+        testAvailability(false, writeConsistencyLevel, readConsistencyLevel);
     }
 
     private static void testAvailability(boolean upgradedCoordinator,
-                                         Semver initial,
                                          ConsistencyLevel writeConsistencyLevel,
                                          ConsistencyLevel readConsistencyLevel) throws Throwable
     {
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
-        .upgradesToCurrentFrom(initial)
+        .upgradesToCurrentFrom(v30)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(5))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(5)))
         // use retry of 10ms so that each check is consistent

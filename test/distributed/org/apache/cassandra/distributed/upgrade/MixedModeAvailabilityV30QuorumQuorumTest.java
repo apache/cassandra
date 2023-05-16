@@ -27,6 +27,6 @@ public class MixedModeAvailabilityV30QuorumQuorumTest extends MixedModeAvailabil
 {
     public MixedModeAvailabilityV30QuorumQuorumTest()
     {
-        super(v30, ConsistencyLevel.QUORUM, ConsistencyLevel.QUORUM);
+        super(ConsistencyLevel.QUORUM, ConsistencyLevel.QUORUM);
     }
 }
