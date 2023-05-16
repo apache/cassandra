@@ -141,7 +141,7 @@ public class AccordService implements IAccordService, Shutdownable
                              messageSink,
                              configService,
                              AccordService::uniqueNow,
-                             () -> null,
+                             () -> AccordDataStore.INSTANCE,
                              new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
                              agent,
                              new DefaultRandom(),
