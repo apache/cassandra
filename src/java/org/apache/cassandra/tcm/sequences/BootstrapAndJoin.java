@@ -109,7 +109,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                                     MovementMap movements,
                                     MovementMap strictMovements)
     {
-        SystemKeyspace.updateTokens(tokens);
+        SystemKeyspace.updateLocalTokens(tokens);
         assert beingReplaced == null || strictMovements == null : "Can't have strict movements during replacements";
 
         if (CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS.getBoolean())

@@ -61,7 +61,7 @@ public class SystemKeyspaceTest
         // Remove all existing tokens
         Collection<Token> current = SystemKeyspace.loadTokens().asMap().get(FBUtilities.getLocalAddressAndPort());
         if (current != null && !current.isEmpty())
-            SystemKeyspace.updateTokens(current);
+            SystemKeyspace.updateLocalTokens(current);
 
         List<Token> tokens = new ArrayList<Token>()
         {{
@@ -69,7 +69,7 @@ public class SystemKeyspaceTest
                 add(new BytesToken(ByteBufferUtil.bytes(String.format("token%d", i))));
         }};
 
-        SystemKeyspace.updateTokens(tokens);
+        SystemKeyspace.updateLocalTokens(tokens);
         int count = 0;
 
         for (Token tok : SystemKeyspace.getSavedTokens())

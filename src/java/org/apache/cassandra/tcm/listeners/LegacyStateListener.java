@@ -95,7 +95,7 @@ public class LegacyStateListener implements ChangeListener
                         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                         break;
                     case JOINED:
-                        SystemKeyspace.updateTokens(next.tokenMap.tokens());
+                        SystemKeyspace.updateTokens(next.directory.endpoint(change), next.tokenMap.tokens(change));
                         // needed if we miss the REGISTERED above; Does nothing if we are already in epStateMap:
                         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);

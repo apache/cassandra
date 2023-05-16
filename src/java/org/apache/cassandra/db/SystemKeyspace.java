@@ -877,7 +877,10 @@ public final class SystemKeyspace
     public static synchronized void updateTokens(InetAddressAndPort ep, Collection<Token> tokens)
     {
         if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
+        {
+            updateLocalTokens(tokens);
             return;
+        }
 
         String req = "INSERT INTO system.%s (peer, tokens) VALUES (?, ?)";
         executeInternal(String.format(req, LEGACY_PEERS), ep.getAddress(), tokensAsSet(tokens));
@@ -971,22 +974,6 @@ public final class SystemKeyspace
         req = String.format("DELETE FROM system.%s WHERE peer = ? AND peer_port = ?", PEERS_V2);
         executeInternal(req, ep.getAddress(), ep.getPort());
         forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
-    }
-
-    /**
-     * This method is used to update the System Keyspace with the new tokens for this node
-     */
-    public static synchronized void updateTokens(Collection<Token> tokens)
-    {
-        assert !tokens.isEmpty() : "removeEndpoint should be used instead";
-
-        Collection<Token> savedTokens = getSavedTokens();
-        if (tokens.containsAll(savedTokens) && tokens.size() == savedTokens.size())
-            return;
-
-        String req = "INSERT INTO system.%s (key, tokens) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), tokensAsSet(tokens));
-        forceBlockingFlush(LOCAL);
     }
 
     /**

@@ -107,7 +107,7 @@ public class UnsafeGossipHelper
                     }
 
                     SystemKeyspace.setLocalHostId(hostId);
-                    SystemKeyspace.updateTokens(singleton(token));
+                    SystemKeyspace.updateLocalTokens(singleton(token));
                 }
                 else
                 {
