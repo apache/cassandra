@@ -74,6 +74,7 @@ import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -99,6 +100,20 @@ public final class AbstractTypeGenerators
                                                                                                             .put(PartitionerDefinedOrder.class, "This is a fake type used for ordering partitions using a Partitioner")
                                                                                                             .build();
 
+    /**
+     * Java does a char by char compare, but Cassandra does a byte ordered compare.  This mostly overlaps but some cases
+     * where chars are mixed between 1 and 2 bytes, you can get a different ordering than java's.  One argument in favor
+     * of this is that byte order is far faster than char order, which only violates a few cases but not the general case:
+     * {@code "David" > "david"}.  Without more research, it also isn't clear if this at all violates any UTF-8 spec (wikipedia
+     * mentions "sorting the corresponding byte sequences").
+     *
+     * @see <a href="https://the-asf.slack.com/archives/CK23JSY2K/p1684257304714649">Slack</a>
+     */
+    private static Comparator<String> stringComparator(StringType st)
+    {
+        return (String a, String b) -> FastByteOperations.compareUnsigned(st.decompose(a), st.decompose(b));
+    }
+
 
     private static final Map<AbstractType<?>, TypeSupport<?>> PRIMITIVE_TYPE_DATA_GENS =
     Stream.of(TypeSupport.of(BooleanType.instance, BOOLEAN_GEN),
@@ -113,8 +128,8 @@ public final class AbstractTypeGenerators
               TypeSupport.of(TimeUUIDType.instance, Generators.UUID_TIME_GEN.map(TimeUUID::fromUuid)),
               TypeSupport.of(LexicalUUIDType.instance, Generators.UUID_RANDOM_GEN.mix(Generators.UUID_TIME_GEN)),
               TypeSupport.of(InetAddressType.instance, Generators.INET_ADDRESS_UNRESOLVED_GEN, (a, b) -> FastByteOperations.compareUnsigned(a.getAddress(), b.getAddress())), // serialization strips the hostname, only keeps the address
-              TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(0, 1024)),
-              TypeSupport.of(UTF8Type.instance, Generators.utf8(0, 1024)),
+              TypeSupport.of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(0, 1024), stringComparator(AsciiType.instance)),
+              TypeSupport.of(UTF8Type.instance, Generators.utf8(0, 1024), stringComparator(UTF8Type.instance)),
               TypeSupport.of(TimestampType.instance, Generators.DATE_GEN),
               TypeSupport.of(SimpleDateType.instance, SourceDSL.integers().between(0, Integer.MAX_VALUE)), // can't use time gen as this is an int, and in Milliseconds... so overflows...
               // null is desired here as #decompose will call org.apache.cassandra.serializers.EmptySerializer.serialize which ignores the input and returns empty bytes
