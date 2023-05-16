@@ -28,6 +28,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.introspector.Property;
 
@@ -36,6 +39,7 @@ import org.yaml.snakeyaml.introspector.Property;
  */
 public class ListenableProperty<T> extends Property
 {
+    private static final Logger logger = LoggerFactory.getLogger(ListenableProperty.class);
     private final Property delegate;
     private final Invoker<T> validateInvoker;
     private final List<PropertyListener<T>> listeners = new CopyOnWriteArrayList<>();
@@ -82,6 +86,8 @@ public class ListenableProperty<T> extends Property
         delegate.set(config, validatedValue);
         while (iterator.hasNext())
             iterator.next().onAfterChange(oldValue, validatedValue);
+        if (logger.isInfoEnabled())
+            logger.info("Updated {} from {} to {}", getName(), oldValue, validatedValue);
     }
 
     @SuppressWarnings("unchecked")
