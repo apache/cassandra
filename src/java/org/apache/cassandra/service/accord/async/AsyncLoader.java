@@ -203,7 +203,9 @@ public class AsyncLoader
                                       loadCommandsPerKeyFunction(),
                                       readRunnables,
                                       chains);
-
+            // all keys are already loaded
+            if (chains.isEmpty())
+                return AsyncChains.success(null);
             // runnable results are already contained in the chains collection
             if (!readRunnables.isEmpty())
                 AsyncChains.ofRunnables(Stage.READ.executor(), readRunnables).begin(commandStore.agent());
