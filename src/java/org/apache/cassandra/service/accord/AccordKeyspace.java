@@ -624,20 +624,6 @@ public class AccordKeyspace
         return deserializeTimestampOrNull(row.getBlob(name), factory);
     }
 
-    private static <T extends Token> T deserializeTokenOr(UntypedResultSet.Row row, String name, Supplier<T> defaultSupplier) throws IOException
-    {
-        ByteBuffer bytes = row.getBlob(name);
-        if (bytes == null)
-            return defaultSupplier.get();
-        T token = deserializeTokenOrNull(bytes);
-        return token != null ? token : defaultSupplier.get();
-    }
-
-    private static <T extends Token> T deserializeTokenOrNull(ByteBuffer bytes)
-    {
-        return null;
-    }
-
     private static ByteBuffer bytesOrNull(Row row, ColumnMetadata column)
     {
         Cell<?> cell = row.getCell(column);
