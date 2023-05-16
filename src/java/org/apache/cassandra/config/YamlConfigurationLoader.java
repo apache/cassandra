@@ -540,17 +540,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                     return representScalar(Tag.STR, ((Enum<?>) data).name());
                 }
             }
-
-            @Override
-            protected MappingNode representJavaBean(Set<Property> properties, Object javaBean)
-            {
-                // We want to represent all java beans as maps, even if they are not maps themselves
-                // For example, we want to represent a ParameterizedClass as a map with a "class" and "parameters" keys.
-                if (!classTags.containsKey(javaBean.getClass()))
-                    addClassTag(javaBean.getClass(), Tag.MAP);
-
-                return super.representJavaBean(properties, javaBean);
-            }
         }
     }
 }
