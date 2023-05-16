@@ -73,6 +73,7 @@ import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SigarLibrary;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
@@ -257,7 +258,7 @@ public class StartupChecks
                 logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
                 jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT.toString();
                 if (jmxPort == null)
-                    logger.error("cassandra.jmx.local.port missing from cassandra-env.sh, unable to start local JMX service.");
+                    logger.error(CASSANDRA_JMX_LOCAL_PORT.getKey() + " missing from cassandra-env.sh, unable to start local JMX service.");
             }
             else
             {
@@ -681,7 +682,7 @@ public class StartupChecks
                 logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
                                           "use startup check configuration in cassandra.yaml",
                                           CassandraRelevantProperties.IGNORE_DC.getKey()));
-                enabled = !Boolean.getBoolean(CassandraRelevantProperties.IGNORE_DC.getKey());
+                enabled = !CassandraRelevantProperties.IGNORE_DC.getBoolean();
             }
             if (enabled)
             {
@@ -718,7 +719,7 @@ public class StartupChecks
                 logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
                                           "use startup check configuration in cassandra.yaml",
                                           CassandraRelevantProperties.IGNORE_RACK.getKey()));
-                enabled = !Boolean.getBoolean(CassandraRelevantProperties.IGNORE_RACK.getKey());
+                enabled = !CassandraRelevantProperties.IGNORE_RACK.getBoolean();
             }
             if (enabled)
             {

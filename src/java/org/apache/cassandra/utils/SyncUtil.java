@@ -27,10 +27,13 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.config.Config;
-
 import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.config.CassandraRelevantEnv;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,8 +90,8 @@ public class SyncUtil
         fdUseCountField = fdUseCountTemp;
 
         //If skipping syncing is requested by any means then skip them.
-        boolean skipSyncProperty = Boolean.getBoolean(Config.PROPERTY_PREFIX + "skip_sync");
-        boolean skipSyncEnv = Boolean.valueOf(System.getenv().getOrDefault("CASSANDRA_SKIP_SYNC", "false"));
+        boolean skipSyncProperty = CassandraRelevantProperties.TEST_CASSANDRA_SKIP_SYNC.getBoolean();
+        boolean skipSyncEnv = CassandraRelevantEnv.CASSANDRA_SKIP_SYNC.getBoolean();
         SKIP_SYNC = skipSyncProperty || skipSyncEnv;
         if (SKIP_SYNC)
         {
@@ -99,6 +102,12 @@ public class SyncUtil
     public static MappedByteBuffer force(MappedByteBuffer buf)
     {
         Preconditions.checkNotNull(buf);
+        Object attachment = MemoryUtil.getAttachment(buf);
+        if (attachment instanceof Runnable)
+        {
+            ((Runnable) attachment).run();
+            return buf;
+        }
         if (SKIP_SYNC)
         {
             Object fd = null;

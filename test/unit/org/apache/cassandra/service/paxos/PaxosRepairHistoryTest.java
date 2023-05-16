@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.Token;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.dht.Range.deoverlap;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Ballot.none;
@@ -62,7 +63,7 @@ public class PaxosRepairHistoryTest
     private static final AtomicInteger tableNum = new AtomicInteger();
     static
     {
-        System.setProperty("cassandra.partitioner", Murmur3Partitioner.class.getName());
+        PARTITIONER.setString(Murmur3Partitioner.class.getName());
         DatabaseDescriptor.daemonInitialization();
         assert DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner;
     }

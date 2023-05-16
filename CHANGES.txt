@@ -1,4 +1,7 @@
 5.0
+ * Add keyspace_name column to system_views.clients (CASSANDRA-18525)
+ * Moved system properties and envs to CassandraRelevantProperties and CassandraRelevantEnv respectively (CASSANDRA-17797)
+ * Add sstablepartitions offline tool to find large partitions in sstables (CASSANDRA-8720)
  * Replace usages of json-simple dependency by Jackson (CASSANDRA-16855)
  * When decommissioning should set Severity to limit traffic (CASSANDRA-18430)
  * For Java11 and Java17 remove -XX:-UseBiasedLocking as it is the default already (CASSANDRA-17869)
@@ -130,11 +133,10 @@
  * Add new CQL function maxWritetime (CASSANDRA-17425)
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
-Merged from 4.0:
- * Incremental repairs fail on mixed IPv4/v6 addresses serializing SyncRequest (CASSANDRA-18474)
- * Deadlock updating sstable metadata if disk boundaries need reloading (CASSANDRA-18443)
+
 
 4.1.2
+ * NPE when deserializing malformed collections from client (CASSANDRA-18505)
  * Allow keystore and trustrore passwords to be nullable (CASSANDRA-18124)
  * Return snapshots with dots in their name in nodetool listsnapshots (CASSANDRA-18371)
  * Fix NPE when loading snapshots and data directory is one directory from root (CASSANDRA-18359)
@@ -142,10 +144,28 @@ Merged from 4.0:
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
 Merged from 4.0:
+ * Fix quoting in toCqlString methods of UDTs and aggregates (CASSANDRA-17918)
+ * Improve 'Not enough space for compaction' logging messages (CASSANDRA-18260)
+ * Incremental repairs fail on mixed IPv4/v6 addresses serializing SyncRequest (CASSANDRA-18474)
+ * Deadlock updating sstable metadata if disk boundaries need reloading (CASSANDRA-18443)
  * Fix nested selection of reversed collections (CASSANDRA-17913)
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
 Merged from 3.11:
  * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
+Merged from 3.0:
+ * Suppress CVE-2023-2251 (CASSANDRA-18497)
+ * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
+ * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
+
+4.0.9
+ * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
+ * Backport CASSANDRA-17205 to 4.0 branch - Remove self-reference in SSTableTidier (CASSANDRA-18332)
+ * Avoid loading the preferred IP for BulkLoader streaming (CASSANDRA-18370)
+ * Fix BufferPool incorrect memoryInUse when putUnusedPortion is used (CASSANDRA-18311)
+ * Improve memtable allocator accounting when updating AtomicBTreePartition (CASSANDRA-18125)
+ * Update zstd-jni to version 1.5.4-1 (CASSANDRA-18259)
+ * Split and order IDEA workspace template VM_PARAMETERS (CASSANDRA-18242)
+Merged from 3.11:
  * Fix sstable_count metric missing from tablestats json/yaml output (CASSANDRA-18448)
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
