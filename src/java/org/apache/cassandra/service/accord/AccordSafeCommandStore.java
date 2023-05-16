@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -36,13 +38,18 @@ import accord.impl.CommandTimeseries.CommandLoader;
 import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
+import accord.local.Command;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommonAttributes;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Keys;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
@@ -51,12 +58,15 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
+import org.apache.cassandra.utils.Interval;
+import org.apache.cassandra.utils.IntervalTree;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey>
 {
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
+    private IntervalTree.Builder<RoutableKey, AccordCommandStore.RangeCommandSummary, Interval<RoutableKey, AccordCommandStore.RangeCommandSummary>> builder = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
@@ -256,12 +266,39 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public CommonAttributes completeRegistration(Seekable seekable, Ranges ranges, AccordSafeCommand liveCommand, CommonAttributes attrs)
     {
-        Key key = (Key) seekable;
-        if (ranges.contains(key))
+        switch (seekable.domain())
         {
-            AccordSafeCommandsForKey cfk = commandsForKey(key);
-            cfk.register(liveCommand.current());
-            attrs = attrs.mutable().addListener(new CommandsForKey.Listener(key));
+            case Key:
+            {
+                Key key = seekable.asKey();
+                if (ranges.contains(key))
+                {
+                    AccordSafeCommandsForKey cfk = commandsForKey(key);
+                    cfk.register(liveCommand.current());
+                    attrs = attrs.mutable().addListener(new CommandsForKey.Listener(key));
+                }
+            }
+            break;
+            case Range:
+                Command current = liveCommand.current();
+                if (current.saveStatus() == SaveStatus.NotWitnessed)
+                    return attrs; // don't know the range/dependencies, so can't cache
+                ranges = ranges.slice(Ranges.single(seekable.asRange()), Routables.Slice.Minimal);
+                if (ranges.isEmpty())
+                    return attrs;
+                PartialDeps deps = current.partialDeps();
+                List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
+                AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(liveCommand.txnId(), current.saveStatus(), current.executeAt(), dependsOn);
+                if (builder == null)
+                    builder = commandStore.unbuild();
+
+                //TODO Interval is BETWEEN semantics, but Range tends not to be... fix this
+                //TODO this does NOT update the value, but causes 2 elements to exist (history + update); need to purge history
+                for (Range range : ranges)
+                    builder.add(new Interval<>(range.start(), range.end(), summary));
+            break;
+            default:
+                throw new UnsupportedOperationException("Unknown domain: " + seekable.domain());
         }
         return attrs;
     }
@@ -285,5 +322,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         postExecute();
         commands.values().forEach(AccordSafeState::postExecute);
         commandsForKeys.values().forEach(AccordSafeState::postExecute);
+        if (builder != null)
+            commandStore.updateRanges(builder.build());
     }
 }

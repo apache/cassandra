@@ -86,14 +86,14 @@ public class AccordCommandStore extends CommandStore
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
 
-    private static final class RangeCommandSummary
+    static final class RangeCommandSummary
     {
         private final TxnId txnId;
         private final SaveStatus status;
         private final @Nullable Timestamp executeAt;
         private final List<TxnId> deps;
 
-        private RangeCommandSummary(TxnId txnId, SaveStatus status, @Nullable Timestamp executeAt, List<TxnId> deps)
+        RangeCommandSummary(TxnId txnId, SaveStatus status, @Nullable Timestamp executeAt, List<TxnId> deps)
         {
             this.txnId = txnId;
             this.status = status;
@@ -407,7 +407,6 @@ public class AccordCommandStore extends CommandStore
                                   Map<RoutableKey, AccordSafeCommandsForKey> commandsForKeys)
     {
         Invariants.checkState(current == store);
-        maybeUpdateRangeIndex(commands);
         current.complete();
         current = null;
     }
@@ -480,38 +479,14 @@ public class AccordCommandStore extends CommandStore
         return accumulate;
     }
 
-    private void maybeUpdateRangeIndex(Map<TxnId, AccordSafeCommand> commands)
+    IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> unbuild()
     {
-        for (Map.Entry<TxnId, AccordSafeCommand> e : commands.entrySet())
-        {
-            TxnId txnId = e.getKey();
-            if (txnId.domain() != Routable.Domain.Range)
-                continue;
-            Command current = e.getValue().current();
-            if (current.saveStatus() == SaveStatus.NotWitnessed)
-                continue; // don't know the range/dependencies, so can't cache
-            PartialTxn txn = current.partialTxn();
-            Seekables<?, ?> keys = txn.keys();
-            if (keys.domain() != Routable.Domain.Range)
-                throw new AssertionError("Found a Range Transaction that had non-Range keys: " + current);
-            if (keys.isEmpty())
-                throw new AssertionError("Found a Range Transaction that has empty keys: " + current);
-            PartialDeps deps = current.partialDeps();
-            List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
-
-            RangeCommandSummary summary = new RangeCommandSummary(txnId, current.saveStatus(), current.executeAt(), dependsOn);
-            Ranges ranges = (Ranges) keys;
-            put(ranges, summary);
-        }
+        return rangesToCommands.unbuild();
     }
 
-    private void put(Ranges ranges, RangeCommandSummary summary)
+    void updateRanges(IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> build)
     {
-        IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder = rangesToCommands.unbuild();
-        //TODO double check this tree has same inclusive/exclusive semantics as this range...
-        for (Range range : ranges)
-            builder.add(new Interval<>(range.start(), range.end(), summary));
-        rangesToCommands = builder.build();
+        rangesToCommands = build;
     }
 
     public void abortCurrentOperation()
