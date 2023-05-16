@@ -192,6 +192,8 @@ public class AsyncLoader
     {
         AsyncChain<Set<? extends RoutableKey>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
         return overlappingKeys.flatMap(keys -> {
+            if (keys.isEmpty())
+                return AsyncChains.success(null);
             // TODO (duplicate code): repeat of referenceAndDispatchReads
             List<Runnable> readRunnables = new ArrayList<>();
             List<AsyncChain<?>> chains = new ArrayList<>();
