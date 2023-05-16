@@ -20,10 +20,12 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -76,7 +79,12 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                                                                .withDefaultSetKey(nonEmptyNoDuration)
                                                                                .build())
                                      .withPartitionColumnsCount(1)
-                                     .withPrimaryColumnTypeGen(new TypeGenBuilder(nonEmptyNoDuration).withMaxDepth(2).build())
+                                     .withPrimaryColumnTypeGen(new TypeGenBuilder(nonEmptyNoDuration)
+                                                               // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
+                                                               // see CASSANDRA-18530
+                                                               .withoutPrimitive(DecimalType.instance)
+                                                               .withMaxDepth(2)
+                                                               .build())
                                      .withClusteringColumnsBetween(1, 2)
                                      .build(random);
             maybeCreateUDTs(metadata);
@@ -90,10 +98,26 @@ public class RandomSchemaTest extends CQLTester.InMemory
             for (int i = 0; i < 1000; i++)
             {
                 ByteBuffer[] expected = dataGen.generate(random);
-                ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
-                execute(insertStmt, expected);
-                UntypedResultSet row = execute(selectStmt, rowKey);
-                assertRows(row, expected);
+                try
+                {
+                    ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
+                    execute(insertStmt, expected);
+                    UntypedResultSet row = execute(selectStmt, rowKey);
+                    assertRows(row, expected);
+                }
+                catch (Throwable t)
+                {
+                    Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
+                    List<String> cql = new ArrayList<>(expected.length);
+                    for (int idx = 0; idx < expected.length; idx++)
+                    {
+                        assert it.hasNext();
+                        ColumnMetadata meta = it.next();
+                        cql.add(meta.type.asCQL3Type().toCQLLiteral(expected[idx]));
+                    }
+                    AssertionError error = new AssertionError(String.format("Failure for values %s with schema\n%s", cql, metadata.toCqlString(false, false)), t);
+                    throw error;
+                }
             }
         });
     }

@@ -42,6 +42,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -252,6 +254,13 @@ public final class AbstractTypeGenerators
             if (!PRIMITIVE_TYPE_DATA_GENS.keySet().contains(instance))
                 throw new IllegalArgumentException("Type " + instance + " is not a primitive type, or PRIMITIVE_TYPE_DATA_GENS needs to add support");
             primitiveGen = Generators.filter(primitiveGen, t -> t != instance);
+            return this;
+        }
+
+        public TypeGenBuilder withPrimitives(AbstractType<?> first, AbstractType<?>... remaining)
+        {
+            // any previous filters will be ignored...
+            primitiveGen = SourceDSL.arbitrary().pick(ArrayUtils.add(remaining, first));
             return this;
         }
 
