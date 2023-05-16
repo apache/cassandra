@@ -211,7 +211,10 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         protected PrimaryKey computeNext()
         {
-            return doComputeNext() == null ? null : keyQueue.poll();
+            if (doComputeNext() == null) {
+                return endOfData();
+            }
+            return keyQueue.poll();
         }
 
         private PrimaryKey doComputeNext()
