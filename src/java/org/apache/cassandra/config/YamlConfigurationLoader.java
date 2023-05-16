@@ -483,7 +483,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private static void loadScalarTypeDescriptions(List<TypeDescription> types)
         {
-            // Enum types resolved with a custom overridden method #representScalar() as a smiple string.
+            // Enum types resolved with a custom overridden handler DefaultRepresentEnum() as a smiple string.
             types.add(createTypeDescription(DataRateSpec.LongBytesPerSecondBound.class));
             types.add(createTypeDescription(DataStorageSpec.IntBytesBound.class));
             types.add(createTypeDescription(DataStorageSpec.IntKibibytesBound.class));
@@ -531,9 +531,15 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             @Override
             protected Node representMapping(Tag tag, Map<?, ?> mapping, DumperOptions.FlowStyle flowStyle)
             {
+                // Tag.MAP is used to represent with a simple map, without the class name in front.
                 return super.representMapping(Tag.MAP, mapping, DumperOptions.FlowStyle.BLOCK);
             }
 
+            /**
+             * Represents an enum as a simple string by its key. This is useful for backward compatibility,
+             * but if you want to use custom enum representations, you should add them to the {@link #representers}
+             * map as scalar representations.
+             */
             protected class DefaultRepresentEnum implements Represent
             {
                 public Node representData(Object data) {
