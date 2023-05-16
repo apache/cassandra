@@ -24,6 +24,7 @@ import java.util.Objects;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
@@ -31,10 +32,10 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 
@@ -62,16 +63,36 @@ public class Startup implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
-        for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
+        ClusterMetadata.Transformer next = prev.transformer();
+        if (!prev.directory.addresses.get(nodeId).equals(addresses))
         {
-            NodeAddresses existingAddresses = entry.getValue();
-            NodeId existingNodeId = entry.getKey();
-            if (!nodeId.equals(existingNodeId) && addresses.conflictsWith(existingAddresses))
-                return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
+            if (!prev.inProgressSequences.isEmpty())
+                return new Rejected(INVALID, "Cannot update address of the node while there are in-progress sequences");
+
+            for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
+            {
+                NodeAddresses existingAddresses = entry.getValue();
+                NodeId existingNodeId = entry.getKey();
+                if (!nodeId.equals(existingNodeId) && addresses.conflictsWith(existingAddresses))
+                    return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
+            }
+
+            next = next.withNewAddresses(nodeId, addresses);
+            Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(prev.schema.getKeyspaces());
+
+            DataPlacements newPlacement = ClusterMetadataService.instance()
+                                                                .placementProvider()
+                                                                .calculatePlacements(prev.tokenMap.toRanges(),
+                                                                                     next.build().metadata,
+                                                                                     allKeyspaces);
+
+            next = next.with(newPlacement);
         }
 
-        return success(prev.transformer().withNodeInformation(nodeId, nodeVersion, addresses),
-                       LockedRanges.AffectedRanges.EMPTY);
+        if (!prev.directory.versions.get(nodeId).equals(nodeVersion))
+            next = next.withVersion(nodeId, nodeVersion);
+
+        return success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
     @Override

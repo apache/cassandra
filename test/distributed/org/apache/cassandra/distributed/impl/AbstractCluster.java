@@ -806,7 +806,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public void deliverMessage(InetSocketAddress to, IMessage message)
     {
         IMessageSink sink = messageSink;
-        if (sink == null) get(to).receiveMessage(message);
+        if (sink == null)
+        {
+            I i = get(to);
+            if (i != null)
+                i.receiveMessage(message);
+        }
         else sink.accept(to, message);
     }
 

@@ -192,7 +192,24 @@ public class Directory implements MetadataValue<Directory>
     {
         if (Objects.equals(addresses.get(id), nodeAddresses))
             return this;
-        return new Directory(nextId, lastModified, peers, locations, states, versions, hostIds, addresses.withForce(id, nodeAddresses), endpointsByDC, racksByDC);
+
+        InetAddressAndPort oldEp = addresses.get(id).broadcastAddress;
+        BTreeMultimap<String, InetAddressAndPort> updatedEndpointsByDC = endpointsByDC.without(location(id).datacenter, oldEp)
+                                                                                      .with(location(id).datacenter, nodeAddresses.broadcastAddress);
+
+        Location location = location(id);
+        BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
+        if (rackEP == null)
+            rackEP = BTreeMultimap.empty();
+
+        rackEP = rackEP.without(location.rack, oldEp)
+                       .with(location.rack, nodeAddresses.broadcastAddress);
+        BTreeMap<String, Multimap<String, InetAddressAndPort>> updatedEndpointsByRack = racksByDC.withForce(location(id).datacenter, rackEP);
+
+        return new Directory(nextId, lastModified,
+                             peers.withForce(id,nodeAddresses.broadcastAddress), locations, states, versions, hostIds, addresses.withForce(id, nodeAddresses),
+                             updatedEndpointsByDC,
+                             updatedEndpointsByRack);
     }
 
     public Directory withRackAndDC(NodeId id)

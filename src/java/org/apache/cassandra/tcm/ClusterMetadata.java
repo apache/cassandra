@@ -402,6 +402,18 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer withNewAddresses(NodeId nodeId, NodeAddresses addresses)
+        {
+            directory = directory.withNodeAddresses(nodeId, addresses);
+            return this;
+        }
+
+        public Transformer withVersion(NodeId nodeId, NodeVersion version)
+        {
+            directory = directory.withNodeVersion(nodeId, version);
+            return this;
+        }
+
         public Transformer withNodeState(NodeId id, NodeState state)
         {
             directory = directory.withNodeState(id, state);
@@ -513,15 +525,6 @@ public class ClusterMetadata
                                                    "not using the associated MetadataKey");
             if (extensions.remove(key) != null)
                 modifiedKeys.add(key);
-            return this;
-        }
-
-        public Transformer withNodeInformation(NodeId nodeId,
-                                               NodeVersion nodeVersion,
-                                               NodeAddresses addresses)
-        {
-            // todo: update placements with potential new broadcast address
-            directory = directory.withNodeVersion(nodeId, nodeVersion).withNodeAddresses(nodeId, addresses);
             return this;
         }
 

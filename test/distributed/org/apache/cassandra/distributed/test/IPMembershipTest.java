@@ -69,9 +69,8 @@ public class IPMembershipTest extends TestBaseImpl
                 // we need to override the host id because otherwise the node will not be considered as a new node
                 ((InstanceConfig) nodeToReplace.config()).setHostId(UUID.randomUUID());
 
-                Assertions.assertThatThrownBy(() -> nodeToReplace.startup())
-                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use " +
-                                      REPLACE_ADDRESS.getKey() + " if you want to replace this node.");
+                Assertions.assertThatThrownBy(nodeToReplace::startup)
+                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.");
             }
         }
     }
@@ -80,7 +79,7 @@ public class IPMembershipTest extends TestBaseImpl
      * Tests the behavior if a node restarts with a different IP.
      */
     @Test
-    public void startupNewIP() throws IOException, InterruptedException
+    public void startupNewIP() throws IOException
     {
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)

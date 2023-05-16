@@ -92,7 +92,8 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
                 throw new IllegalStateException(err);
             }
 
-            if (ClusterMetadata.current().epoch.is(Epoch.UPGRADE_STARTUP) && !allowedDuringStartup.contains(message.header.verb))
+            ClusterMetadata metadata = ClusterMetadata.currentNullable();
+            if (metadata != null && metadata.epoch.is(Epoch.UPGRADE_STARTUP) && !allowedDuringStartup.contains(message.header.verb))
             {
                 noSpamLogger.info("Ignoring message from {} with verb="+message.header.verb, message.from());
                 return;

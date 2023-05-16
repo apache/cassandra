@@ -63,7 +63,7 @@ public class GossipCMSListener implements IEndpointStateChangeSubscriber
             {
                 NodeVersion newNodeVersion = NodeVersion.fromCassandraVersion(gossipVersion);
                 ClusterMetadata newCM = metadata.transformer()
-                                                .withNodeInformation(nodeId, newNodeVersion, metadata.directory.getNodeAddresses(nodeId))
+                                                .withVersion(nodeId, newNodeVersion)
                                                 .buildForGossipMode();
                 if (ClusterMetadataService.instance().applyFromGossip(metadata, newCM))
                     return;

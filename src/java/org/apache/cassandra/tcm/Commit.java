@@ -165,6 +165,8 @@ public class Commit
             }
             public Failure(ExceptionCode code, String message, boolean rejected)
             {
+                if (message == null)
+                    message = "";
                 this.code = code;
                 this.message = message;
                 this.rejected = rejected;

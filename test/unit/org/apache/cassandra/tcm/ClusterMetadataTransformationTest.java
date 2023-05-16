@@ -93,7 +93,7 @@ public class ClusterMetadataTransformationTest
         NodeId n1 = transformed.metadata.directory.peerId(addresses.broadcastAddress);
 
         NodeAddresses updated = getNonConflictingAddresses(random, transformed.metadata.directory);
-        transformed = transformed.metadata.transformer().withNodeInformation(n1, NodeVersion.CURRENT, updated).build();
+        transformed = transformed.metadata.transformer().withNewAddresses(n1, updated).build();
         assertModifications(transformed, NODE_DIRECTORY);
 
         transformed = transformed.metadata.transformer().proposeToken(n1, Collections.singleton(token(100))).build();

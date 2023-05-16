@@ -89,20 +89,25 @@ public class Register implements Transformation
         return register(false);
     }
 
+    // Registers the node or return host id currently associated with its endpoint address
     @VisibleForTesting
-    public static NodeId forceRegister()
+    public static NodeId registerUnsafe()
     {
-        return register(true);
+        return register(new NodeAddresses(FBUtilities.getBroadcastAddressAndPort()), NodeVersion.CURRENT, false);
     }
 
     @VisibleForTesting
     public static NodeId register(NodeAddresses nodeAddresses)
     {
-        return register(nodeAddresses, NodeVersion.CURRENT);
+        return register(nodeAddresses, NodeVersion.CURRENT, true);
     }
 
-    @VisibleForTesting
     public static NodeId register(NodeAddresses nodeAddresses, NodeVersion nodeVersion)
+    {
+        return register(nodeAddresses, NodeVersion.CURRENT, true);
+    }
+
+    private static NodeId register(NodeAddresses nodeAddresses, NodeVersion nodeVersion, boolean throwIfAlreadyRegistered)
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         Location location = new Location(snitch.getLocalDatacenter(), snitch.getLocalRack());
@@ -117,6 +122,10 @@ public class Register implements Transformation
                                            .commit(new Register(nodeAddresses, location, nodeVersion),
                                                    (metadata_) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress),
                                                    (metadata_, code, reason) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress));
+        }
+        else if (throwIfAlreadyRegistered)
+        {
+            throw new IllegalStateException(String.format("A node with address %s already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.", nodeAddresses.broadcastAddress));
         }
 
         logger.info("Registering with endpoint {}", nodeAddresses.broadcastAddress);

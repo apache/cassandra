@@ -167,6 +167,14 @@ public class PeersTable extends AbstractVirtualTable
         else
         {
             NodeAddresses addresses = next.directory.getNodeAddresses(nodeId);
+            NodeAddresses oldAddresses = prev.directory.getNodeAddresses(nodeId);
+            if (oldAddresses != null && !oldAddresses.equals(addresses))
+            {
+                logger.debug("Purging {} from system.peers_v2 table", oldAddresses);
+                QueryProcessor.executeInternal(String.format(peers_delete_query, SYSTEM_KEYSPACE_NAME, PEERS_V2), oldAddresses.broadcastAddress.getAddress(), oldAddresses.broadcastAddress.getPort());
+                QueryProcessor.executeInternal(String.format(legacy_peers_delete_query, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS), oldAddresses.broadcastAddress.getAddress());
+            }
+
             Location location = next.directory.location(nodeId);
 
             Set<String> tokens = SystemKeyspace.tokensAsSet(next.tokenMap.tokens(nodeId));
