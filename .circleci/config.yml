@@ -12813,8 +12813,11 @@ workflows:
     - j8_simulator_dtests:
         requires:
         - j8_build
+    - start_j8_cqlshlib_tests:
+        type: approval
     - j8_cqlshlib_tests:
         requires:
+        - start_j8_cqlshlib_tests
         - j8_build
     - start_j8_cqlshlib_cython_tests:
         type: approval
@@ -12849,11 +12852,17 @@ workflows:
     - j8_jvm_upgrade_dtests:
         requires:
         - j8_dtest_jars_build
+    - start_j8_dtests:
+        type: approval
     - j8_dtests:
         requires:
+        - start_j8_dtests
         - j8_build
+    - start_j8_dtests_vnode:
+        type: approval
     - j8_dtests_vnode:
         requires:
+        - start_j8_dtests_vnode
         - j8_build
     - start_j8_dtests_offheap:
         type: approval
@@ -12873,26 +12882,37 @@ workflows:
         requires:
         - start_j8_dtests_large_vnode
         - j8_build
+    - start_upgrade_dtests:
+        type: approval
     - j8_upgrade_dtests:
         requires:
+        - start_upgrade_dtests
         - j8_build
+    - start_j8_cqlsh_tests:
+        type: approval
     - j8_cqlsh_dtests_py3:
         requires:
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py3_vnode:
         requires:
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py38:
         requires:
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py311:
         requires:
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py38_vnode:
         requires:
+        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py311_vnode:
         requires:
+        - start_j8_cqlsh_tests
         - j8_build
     - start_j8_cqlsh_tests_offheap:
         type: approval
