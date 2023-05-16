@@ -176,10 +176,10 @@ public class VectorMemtableIndex implements MemtableIndex
     private class BatchKeyRangeIterator extends KeyRangeIterator
     {
         private final float[] queryVector;
-        private int limit;
+        private final int limit;
 
         private Bits bits;
-        private PriorityQueue<PrimaryKey> keyQueue = new PriorityQueue<>();
+        private final PriorityQueue<PrimaryKey> keyQueue = new PriorityQueue<>();
 
         BatchKeyRangeIterator(float[] queryVector, int limit, AbstractBounds<PartitionPosition> keyRange)
         {
@@ -204,7 +204,7 @@ public class VectorMemtableIndex implements MemtableIndex
         }
 
         @Override
-        public void close() throws IOException
+        public void close()
         {
         }
 
