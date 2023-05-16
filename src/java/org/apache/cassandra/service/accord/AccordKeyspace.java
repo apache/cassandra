@@ -268,23 +268,24 @@ public class AccordKeyspace
     }
 
     private static final TableMetadata CommandsForKeys =
-    parse(COMMANDS_FOR_KEY,
-          "accord commands per key",
-          "CREATE TABLE %s ("
-          + "store_id int, "
-          + "key_hash blob, " // can't use "token" as this is restricted word in CQL
-          + format("key %s, ", KEY_TUPLE)
-          + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
-          + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
-          + "last_executed_micros bigint static, "
-          + format("last_write_timestamp %s static, ", TIMESTAMP_TUPLE)
-          + format("blind_witnessed set<%s> static, ", TIMESTAMP_TUPLE)
-          + "series int, "
-          + format("timestamp %s, ", TIMESTAMP_TUPLE)
-          + "data blob, "
-          + "PRIMARY KEY((store_id, key_hash, key), series, timestamp)"
-          + ')')
-    .build();
+        parse(COMMANDS_FOR_KEY,
+              "accord commands per key",
+              "CREATE TABLE %s ("
+              + "store_id int, "
+              + "key_hash blob, " // can't use "token" as this is restricted word in CQL
+              + format("key %s, ", KEY_TUPLE)
+              + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
+              + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
+              + "last_executed_micros bigint static, "
+              + format("last_write_timestamp %s static, ", TIMESTAMP_TUPLE)
+              + format("blind_witnessed set<%s> static, ", TIMESTAMP_TUPLE)
+              + "series int, "
+              + format("timestamp %s, ", TIMESTAMP_TUPLE)
+              + "data blob, "
+              + "PRIMARY KEY((store_id, key_hash, key), series, timestamp)"
+              + ')')
+        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
+        .build();
 
     private static class CommandsForKeyColumns
     {
