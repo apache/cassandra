@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -819,34 +818,7 @@ public class AccordKeyspace
                                            AccordKeyspace.serializeToken(start), startInclusive,
                                            AccordKeyspace.serializeToken(end), endInclusive,
                                            ImmutableSet.of("key"),
-                                           Stage.READ.executor(), new Observable<UntypedResultSet.Row>()
-        {
-            Set<PartitionKey> keys = new HashSet<>();
-
-            @Override
-            public void onNext(UntypedResultSet.Row value) throws Exception
-            {
-                PartitionKey key = AccordKeyspace.deserializeKey(value);
-                if (keys.add(key))
-                    callback.onNext(key);
-            }
-
-            @Override
-            public void onError(Throwable t)
-            {
-                keys.clear();
-                keys = null;
-                callback.onError(t);
-            }
-
-            @Override
-            public void onCompleted()
-            {
-                keys.clear();
-                keys = null;
-                callback.onCompleted();
-            }
-        });
+                                           Stage.READ.executor(), Observable.distinct(callback).map(value -> AccordKeyspace.deserializeKey(value)));
         work.schedule();
     }
 
