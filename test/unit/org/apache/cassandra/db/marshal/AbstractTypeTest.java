@@ -109,7 +109,12 @@ public class AbstractTypeTest
     @Test
     public void comparableBytes()
     {
-        qt().withShrinkCycles(0).forAll(examples(1)).checkAssert(example -> {
+        Gen<AbstractType<?>> gen = genBuilder()
+                                   // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
+                                   // see CASSANDRA-18530
+                                   .withoutPrimitive(DecimalType.instance)
+                                   .build();
+        qt().withShrinkCycles(0).forAll(examples(1, gen)).checkAssert(example -> {
             AbstractType type = example.type;
             for (Object value : example.samples)
             {
