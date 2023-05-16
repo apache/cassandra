@@ -21,12 +21,12 @@ package org.apache.cassandra.service.accord.async;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -101,7 +101,7 @@ public class AsyncLoader
         return Iterables.concat(Collections.singleton(primaryid), additionalIds);
     }
 
-    private <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReads(Iterable<K> keys,
+    private <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReads(Iterable<? extends K> keys,
                                                                                    Map<K, S> context,
                                                                                    AccordStateCache.Instance<K, V, S> cache,
                                                                                    Function<K, V> loadFunction,
@@ -190,7 +190,7 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
     {
-        AsyncChain<Set<RoutableKey>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
+        AsyncChain<Set<? extends RoutableKey>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
         return overlappingKeys.flatMap(keys -> {
             // TODO (duplicate code): repeat of referenceAndDispatchReads
             List<Runnable> readRunnables = new ArrayList<>();
@@ -209,50 +209,24 @@ public class AsyncLoader
         }, commandStore);
     }
 
-    private AsyncChain<Set<RoutableKey>> findOverlappingKeys(Ranges ranges)
+    private AsyncChain<Set<? extends RoutableKey>> findOverlappingKeys(Ranges ranges)
     {
         assert !ranges.isEmpty();
 
-        List<AsyncChain<Set<RoutableKey>>> chains = new ArrayList<>(ranges.size());
+        List<AsyncChain<Set<PartitionKey>>> chains = new ArrayList<>(ranges.size());
         for (Range range : ranges)
             chains.add(findOverlappingKeys(range));
         return AsyncChains.reduce(chains, (a, b) -> ImmutableSet.<RoutableKey>builder().addAll(a).addAll(b).build());
     }
 
-    private AsyncChain<Set<RoutableKey>> findOverlappingKeys(Range range)
+    private AsyncChain<Set<PartitionKey>> findOverlappingKeys(Range range)
     {
-        return new AsyncChains.Head<Set<RoutableKey>>()
-        {
-            @Override
-            protected void start(BiConsumer<? super Set<RoutableKey>, Throwable> callback)
-            {
-                AccordKeyspace.findAllKeysBetween(commandStore.id(),
-                                                  toTokenKey(range.start()).token(), range.startInclusive(),
-                                                  toTokenKey(range.end()).token(), range.endInclusive(),
-                                                  new Observable<PartitionKey>()
-                                                  {
-                                                      Set<RoutableKey> distinct = new HashSet<>();
-
-                                                      @Override
-                                                      public void onNext(PartitionKey value)
-                                                      {
-                                                          distinct.add(value);
-                                                      }
-
-                                                      @Override
-                                                      public void onError(Throwable t)
-                                                      {
-                                                          callback.accept(null, t);
-                                                      }
-
-                                                      @Override
-                                                      public void onCompleted()
-                                                      {
-                                                          callback.accept(distinct, null);
-                                                      }
-                                                  });
-            }
-        };
+        return Observable.asChain(callback ->
+                                  AccordKeyspace.findAllKeysBetween(commandStore.id(),
+                                                                    toTokenKey(range.start()).token(), range.startInclusive(),
+                                                                    toTokenKey(range.end()).token(), range.endInclusive(),
+                                                                    callback),
+                                  Collectors.toSet());
     }
 
     private static TokenKey toTokenKey(RoutingKey start)
