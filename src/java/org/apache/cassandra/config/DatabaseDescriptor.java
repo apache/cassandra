@@ -160,11 +160,6 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     /**
-     * Yaml factory here is used to {@link org.yaml.snakeyaml.Yaml#dumpAs} and {@link org.yaml.snakeyaml.Yaml#load(String)}
-     * given object or string respectively, that in turn is used to serialize and deserialize configuration properties.
-     */
-    private static final YamlConfigurationLoader.YamlFactory yamlFactory = YamlConfigurationLoader.YamlFactory.instance;
-    /**
      * The metadata source of configuration properties. It is used to access the configuration class instance loaded
      * from the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
      * by calling {@link #toolInitialization()}, {@link #daemonInitialization()} or {@link #clientInitialization()}.
@@ -4850,7 +4845,7 @@ public class DatabaseDescriptor
      */
     public static <T> TypeConverter<T, String> propertyToStringConverter()
     {
-        return obj -> yamlFactory.newYamlInstance(Config.class).dump(obj).trim();
+        return obj -> YamlConfigurationLoader.YamlFactory.getInstance().newYamlInstance(Config.class).dump(obj).trim();
     }
 
     /**
@@ -4860,7 +4855,7 @@ public class DatabaseDescriptor
      */
     public static <R> TypeConverter<String, R> propertyFromStringConverter(Class<R> toClass)
     {
-        return obj -> yamlFactory.newYamlInstance(toClass).loadAs(obj, toClass);
+        return obj -> YamlConfigurationLoader.YamlFactory.getInstance().newYamlInstance(toClass).loadAs(obj, toClass);
     }
 
     /**

@@ -66,7 +66,6 @@ import static org.apache.cassandra.config.Replacements.getNameReplacements;
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
-    private static final YamlFactory yamlFactory = YamlFactory.instance;
 
     /**
      * This is related to {@link Config#PROPERTY_PREFIX} but is different to make sure Config properties updated via
@@ -139,7 +138,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
-            Yaml yaml = yamlFactory.newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
+            Yaml yaml = YamlFactory.getInstance().newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
                                                     propertiesChecker);
             Config result = loadConfig(yaml, configBytes);
             propertiesChecker.check();
@@ -223,7 +222,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
-        Yaml yaml = yamlFactory.newYamlInstance(constructor, propertiesChecker);
+        Yaml yaml = YamlFactory.getInstance().newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
@@ -257,7 +256,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
-        Yaml yaml = yamlFactory.newYamlInstance(constructor, propertiesChecker);
+        Yaml yaml = YamlFactory.getInstance().newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
@@ -431,18 +430,35 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     }
 
     /**
-     * Creates a YAML instance based on Cassandra's custom configuration classes and types.
+     * Creates a YAML instance based on Cassandra's custom configuration classes and types. Yaml factory here is used
+     * to {@link org.yaml.snakeyaml.Yaml#dumpAs} and {@link org.yaml.snakeyaml.Yaml#load(String)} given object or
+     * string respectively, that in turn is used to serialize and deserialize configuration properties.
      */
     public static class YamlFactory
     {
         private static final List<TypeDescription> scalarCassandraTypes = new ArrayList<>();
         private static final List<TypeDescription> javaBeanCassandraTypes = new ArrayList<>();
-        public static final YamlFactory instance = new YamlFactory();
+        private static volatile YamlFactory instance;
 
         private YamlFactory()
         {
             loadScalarTypeDescriptions(scalarCassandraTypes);
             loadJavaBeanTypeDescriptions(javaBeanCassandraTypes);
+        }
+
+        public static YamlFactory getInstance()
+        {
+            YamlFactory instance0 = instance;
+            if (instance0 == null)
+            {
+                synchronized (YamlFactory.class)
+                {
+                    instance0 = instance;
+                    if (instance0 == null)
+                        instance = instance0 = new YamlFactory();
+                }
+            }
+            return instance0;
         }
 
         /**
