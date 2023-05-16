@@ -75,13 +75,13 @@ public class VectorTypeTest extends SAITester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'A', [1.0, 2.0, 3.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'A', [1.0, 2.0, 3.0])");
 
-        var result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        var result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
 
         flush();
         compact();
 
-        result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
         System.out.println(makeRowStrings(result));
     }
