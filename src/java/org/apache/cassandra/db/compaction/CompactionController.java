@@ -116,7 +116,7 @@ public class CompactionController extends AbstractCompactionController
         }
     }
 
-    private void refreshOverlaps()
+    void refreshOverlaps()
     {
         if (NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
             return;
