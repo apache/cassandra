@@ -455,7 +455,11 @@ public class AccordCommandStore extends CommandStore
                 {
                     if (!slice.contains(key)) continue;
 
-                    accumulate = map.apply(fromRangeSummary(key, rangesToCommands.search(key)), accumulate);
+                    List<RangeCommandSummary> matches = rangesToCommands.search(key);
+                    if (matches.isEmpty())
+                        continue;
+                    CommandTimeseriesHolder summary = fromRangeSummary(key, matches);
+                    accumulate = map.apply(summary, accumulate);
                     if (accumulate.equals(terminalValue))
                         return accumulate;
                 }
@@ -467,7 +471,11 @@ public class AccordCommandStore extends CommandStore
                 ranges = ranges.slice(slice, Routables.Slice.Minimal);
                 for (Range range : ranges)
                 {
-                    accumulate = map.apply(fromRangeSummary(range, rangesToCommands.search(Interval.create(range.start(), range.end()))), accumulate);
+                    List<RangeCommandSummary> matches = rangesToCommands.search(Interval.create(range.start(), range.end()));
+                    if (matches.isEmpty())
+                        continue;
+                    CommandTimeseriesHolder summary = fromRangeSummary(range, matches);
+                    accumulate = map.apply(summary, accumulate);
                     if (accumulate.equals(terminalValue))
                         return accumulate;
                 }
