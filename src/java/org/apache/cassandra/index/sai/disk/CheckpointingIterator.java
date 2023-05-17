@@ -17,23 +17,15 @@
  */
 package org.apache.cassandra.index.sai.disk;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Throwables;
 
 public class CheckpointingIterator extends KeyRangeIterator
 {
@@ -43,58 +35,13 @@ public class CheckpointingIterator extends KeyRangeIterator
     private final KeyRangeIterator union;
     private final Collection<SSTableIndex> referencedIndexes;
 
-    private CheckpointingIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    public CheckpointingIterator(KeyRangeIterator wrapped, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
     {
-        super(union.getMinimum(), union.getMaximum(), union.getCount());
+        super(wrapped.getMinimum(), wrapped.getMaximum(), wrapped.getCount());
 
-        this.union = union;
+        this.union = wrapped;
         this.referencedIndexes = referencedIndexes;
         this.context = queryContext;
-    }
-
-    /**
-     * Builds a new {@link CheckpointingIterator} that wraps a {@link KeyRangeUnionIterator} over the
-     * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex} and the {@link SSTableIndex}es.
-     */
-    @SuppressWarnings({"resource", "RedundantSuppression"})
-    public static CheckpointingIterator build(Expression expression,
-                                              Collection<SSTableIndex> sstableIndexes,
-                                              AbstractBounds<PartitionPosition> keyRange,
-                                              QueryContext queryContext,
-                                              int limit)
-    {
-        List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
-
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange, limit);
-        if (memtableIterator != null)
-            subIterators.add(memtableIterator);
-
-        for (SSTableIndex sstableIndex : sstableIndexes)
-        {
-            try
-            {
-                queryContext.checkpoint();
-                queryContext.sstablesHit++;
-
-                if (sstableIndex.isReleased())
-                    throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
-
-                List<KeyRangeIterator> segmentIterators = sstableIndex.search(expression, keyRange, queryContext, limit);
-
-                if (!segmentIterators.isEmpty())
-                    subIterators.addAll(segmentIterators);
-            }
-            catch (Throwable e)
-            {
-                if (!(e instanceof QueryCancelledException))
-                    logger.debug(sstableIndex.getIndexContext().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
-
-                throw Throwables.cleaned(e);
-            }
-        }
-
-        KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators);
-        return new CheckpointingIterator(union, sstableIndexes, queryContext);
     }
 
     protected PrimaryKey computeNext()

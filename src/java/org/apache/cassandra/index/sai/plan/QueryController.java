@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.index.sai.plan;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.Lists;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,6 +44,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -47,14 +52,18 @@ import org.apache.cassandra.index.sai.disk.CheckpointingIterator;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 
 public class QueryController
 {
+    private static final Logger logger = LoggerFactory.getLogger(QueryController.class);
+
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
     private final QueryContext queryContext;
@@ -175,8 +184,9 @@ public class QueryController
         {
             for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView)
             {
+                KeyRangeIterator union = getUnionIterator(queryViewPair.left, queryViewPair.right);
                 @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
-                KeyRangeIterator index = CheckpointingIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, command.limits().count());
+                KeyRangeIterator index = new CheckpointingIterator(union, queryViewPair.right, queryContext);
 
                 builder.add(index);
             }
@@ -189,6 +199,42 @@ public class QueryController
             throw t;
         }
         return builder;
+    }
+
+    private KeyRangeIterator getUnionIterator(Expression expression, Collection<SSTableIndex> indexes)
+    {
+        int limit = command.limits().count();
+        List<KeyRangeIterator> subIterators = new ArrayList<>(1 + indexes.size());
+
+        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, mergeRange, limit);
+        if (memtableIterator != null)
+            subIterators.add(memtableIterator);
+
+        for (SSTableIndex sstableIndex : indexes)
+        {
+            try
+            {
+                queryContext.checkpoint();
+                queryContext.sstablesHit++;
+
+                if (sstableIndex.isReleased())
+                    throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
+
+                List<KeyRangeIterator> segmentIterators = sstableIndex.search(expression, mergeRange, queryContext, limit);
+
+                if (!segmentIterators.isEmpty())
+                    subIterators.addAll(segmentIterators);
+            }
+            catch (Throwable e)
+            {
+                if (!(e instanceof QueryCancelledException))
+                    logger.debug(sstableIndex.getIndexContext().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
+
+                throw Throwables.cleaned(e);
+            }
+        }
+
+        return KeyRangeUnionIterator.build(subIterators);
     }
 
     /**
