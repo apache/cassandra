@@ -29,7 +29,11 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.junit.Assert;
+
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeType;
@@ -37,6 +41,7 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher;
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 import org.hamcrest.Matchers;
 
 import static org.junit.Assert.assertEquals;
@@ -356,17 +361,19 @@ public class IndexQuerySupport
             andQuery(tester, model,
                      BaseDataModel.TEXT_COLUMN, Operator.EQ, "Alaska",
                      firstPartitionKey, Operator.EQ, 0,
-                     true);
+                     false);
+
+            boolean hasSimplePartitionKey = !(model instanceof BaseDataModel.CompositePartitionKeyDataModel);
 
             andQuery(tester, model,
                      BaseDataModel.TEXT_COLUMN, Operator.EQ, "Kentucky",
                      firstPartitionKey, Operator.GT, 4,
-                     true);
+                     hasSimplePartitionKey);
 
             andQuery(tester, model,
                      BaseDataModel.TEXT_COLUMN, Operator.EQ, "Wyoming",
                      firstPartitionKey, Operator.LT, 200,
-                     true);
+                     hasSimplePartitionKey);
 
             if (model.keyColumns().size() > 1)
             {
@@ -375,40 +382,42 @@ public class IndexQuerySupport
                 andQuery(tester, model,
                          BaseDataModel.BIGINT_COLUMN, Operator.EQ, 4800000000L,
                          secondPrimaryKey, Operator.EQ, 0,
-                         true);
+                         hasSimplePartitionKey);
 
                 andQuery(tester, model,
                          BaseDataModel.DOUBLE_COLUMN, Operator.EQ, 82169.60,
                          secondPrimaryKey, Operator.GT, 0,
-                         true);
+                         hasSimplePartitionKey);
 
                 andQuery(tester, model,
                          BaseDataModel.DOUBLE_COLUMN, Operator.LT, 1948.54,
                          secondPrimaryKey, Operator.LTE, 2,
-                         true);
+                         hasSimplePartitionKey);
 
                 andQuery(tester, model,
                          BaseDataModel.TEXT_COLUMN, Operator.EQ, "Alaska",
                          firstPartitionKey, Operator.EQ, 0,
-                         secondPrimaryKey, Operator.GTE, -1);
+                         secondPrimaryKey, Operator.GTE, -1,
+                         false);
 
                 andQuery(tester, model,
                          BaseDataModel.TEXT_COLUMN, Operator.EQ, "Kentucky",
                          firstPartitionKey, Operator.GT, 4,
-                         secondPrimaryKey, Operator.LT, 50);
+                         secondPrimaryKey, Operator.LT, 50,
+                         hasSimplePartitionKey);
 
                 andQuery(tester, model,
                          BaseDataModel.TEXT_COLUMN, Operator.EQ, "Wyoming",
                          firstPartitionKey, Operator.LT, 200,
-                         secondPrimaryKey, Operator.GT, 0);
+                         secondPrimaryKey, Operator.GT, 0,
+                         hasSimplePartitionKey);
             }
         }
 
         void query(BaseDataModel.Executor tester, BaseDataModel model, String column, Operator operator, Object value)
         {
             String query = String.format(BaseDataModel.SIMPLE_SELECT_TEMPLATE, BaseDataModel.ASCII_COLUMN, column, operator);
-            String queryValidator = String.format(BaseDataModel.SIMPLE_SELECT_WITH_FILTERING_TEMPLATE, BaseDataModel.ASCII_COLUMN, column, operator);
-            validate(tester, model, query, queryValidator, value, limit);
+            validate(tester, model, query, false, value, limit);
         }
 
         void andQuery(BaseDataModel.Executor tester, BaseDataModel model,
@@ -416,55 +425,59 @@ public class IndexQuerySupport
                       String column2, Operator operator2, Object value2,
                       boolean filtering)
         {
-            String query = String.format(filtering ? BaseDataModel.TWO_CLAUSE_AND_QUERY_FILTERING_TEMPLATE : BaseDataModel.TWO_CLAUSE_AND_QUERY_TEMPLATE,
+            String query = String.format(BaseDataModel.TWO_CLAUSE_AND_QUERY_TEMPLATE,
                                          BaseDataModel.ASCII_COLUMN, column1, operator1, column2, operator2);
 
-            String queryValidator = String.format(BaseDataModel.TWO_CLAUSE_AND_QUERY_FILTERING_TEMPLATE,
-                                                  BaseDataModel.ASCII_COLUMN, column1, operator1, column2, operator2);
-
-            validate(tester, model,query, queryValidator, value1, value2, limit);
+            validate(tester, model, query, filtering, value1, value2, limit);
         }
 
         void andQuery(BaseDataModel.Executor tester, BaseDataModel model,
                       String column1, Operator operator1, Object value1,
                       String column2, Operator operator2, Object value2,
-                      String column3, Operator operator3, Object value3)
+                      String column3, Operator operator3, Object value3,
+                      boolean filtering)
         {
-            // TODO: If we support indexes in all columns, ALLOW FILTERING might go away here...
-            String query = String.format(BaseDataModel.THREE_CLAUSE_AND_QUERY_FILTERING_TEMPLATE,
+            String query = String.format(BaseDataModel.THREE_CLAUSE_AND_QUERY_TEMPLATE,
                                          BaseDataModel.ASCII_COLUMN, column1, operator1, column2, operator2, column3, operator3);
 
-            String queryValidator = String.format(BaseDataModel.THREE_CLAUSE_AND_QUERY_FILTERING_TEMPLATE,
-                                                  BaseDataModel.ASCII_COLUMN, column1, operator1, column2, operator2, column3, operator3);
-
-            validate(tester, model, query, queryValidator, value1, value2, value3, limit);
+            validate(tester, model, query, filtering, value1, value2, value3, limit);
         }
 
         void rangeQuery(BaseDataModel.Executor tester, BaseDataModel model, String column, Object value1, Object value2)
         {
-            String template = "SELECT %s FROM %%s WHERE %s > ? AND %s < ? LIMIT ? ALLOW FILTERING";
-            String templateWithFiltering = "SELECT %s FROM %%s WHERE %s > ? AND %s < ? LIMIT ? ALLOW FILTERING";
-
-            String query = String.format(template, BaseDataModel.ASCII_COLUMN, column, column);
-            String queryValidator = String.format(templateWithFiltering, BaseDataModel.ASCII_COLUMN, column, column);
-            validate(tester, model, query, queryValidator, value1, value2, limit);
+            String query = String.format(BaseDataModel.RANGE_QUERY_TEMPLATE, BaseDataModel.ASCII_COLUMN, column);
+            validate(tester, model, query, false, value1, value2, limit);
         }
 
-        private void validate(BaseDataModel.Executor tester, BaseDataModel model, String query, String validator, Object... values)
+        private void validate(BaseDataModel.Executor tester, BaseDataModel model, String query, boolean needsAllowFiltering, Object... values)
         {
             try
             {
                 tester.counterReset();
 
-                List<Object> actual = model.executeIndexed(tester, query, fetchSize, values);
+                // The non indexed query we use to validate the indexed query results is just the very same query but
+                // with ALLOW FILTERING appended. It might happen that the non indexed query also requires ALLOW
+                // FILTERING because it combines indexed and unindexed columns.
+                Assert.assertFalse(query.contains("ALLOW FILTERING"));
+                String validationQuery = query + " ALLOW FILTERING";
+                String indexedQuery = needsAllowFiltering ? validationQuery : query;
+
+                List<Object> actual = model.executeIndexed(tester, indexedQuery, fetchSize, values);
 
                 // This could be more strict, but it serves as a reasonable paging-aware lower bound:
                 int pageCount = (int) Math.ceil(actual.size() / (double) Math.min(actual.size(), fetchSize));
                 assertThat("Expected more calls to " + StorageAttachedIndexSearcher.class, tester.getCounter(), Matchers.greaterThanOrEqualTo((long) Math.max(1, pageCount)));
 
-                List<Object> expected = model.executeNonIndexed(tester, validator, fetchSize, values);
-
+                List<Object> expected = model.executeNonIndexed(tester, validationQuery, fetchSize, values);
                 assertEquals(expected, actual);
+
+                // verify that the query actually requires ALLOW FILTERING
+                if (needsAllowFiltering)
+                {
+                    Assertions.assertThatThrownBy(() -> model.executeIndexed(tester, query, fetchSize, values))
+                              .isInstanceOf(InvalidQueryException.class)
+                              .hasMessageContaining(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+                }
             }
             catch (Throwable ex)
             {

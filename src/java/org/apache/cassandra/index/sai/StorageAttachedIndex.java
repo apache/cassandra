@@ -487,6 +487,12 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
+    public boolean filtersMultipleContains()
+    {
+        return false;
+    }
+
+    @Override
     public AbstractType<?> customExpressionValueType()
     {
         return null;
