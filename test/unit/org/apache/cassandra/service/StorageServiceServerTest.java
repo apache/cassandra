@@ -27,6 +27,7 @@ import java.net.InetAddress;
 import java.util.*;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,9 +53,11 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -589,5 +592,44 @@ public class StorageServiceServerTest
     public void testGetConcurrentCompactors() throws Exception
     {
         assert StorageService.instance.getConcurrentCompactors() == 4;
+    }
+
+    @Test
+    public void testRebuildFailOnNonExistingDatacenter() throws Exception
+    {
+        String nonExistentDC = "NON_EXISTENT_DC";
+
+        try
+        {
+            getStorageService().rebuild(nonExistentDC);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                       nonExistentDC,
+                                       "datacenter1"),
+                         ex.getMessage());
+        }
+    }
+
+    private StorageService getStorageService() throws Exception
+    {
+        ImmutableMultimap.Builder<String, InetAddress> builder = ImmutableMultimap.builder();
+        builder.put("datacenter1", InetAddress.getByName("127.0.0.1"));
+
+        TokenMetadata.Topology tokenMetadataTopology = Mockito.mock(TokenMetadata.Topology.class);
+        Mockito.when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
+
+        TokenMetadata metadata = new TokenMetadata();
+        TokenMetadata spiedMetadata = Mockito.spy(metadata);
+
+        Mockito.when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
+
+        StorageService spiedStorageService = Mockito.spy(StorageService.instance);
+        Mockito.when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
+        Mockito.when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
+
+        return spiedStorageService;
     }
 }
