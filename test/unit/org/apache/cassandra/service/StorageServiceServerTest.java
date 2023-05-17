@@ -33,6 +33,7 @@ import java.util.Random;
 import java.util.UUID;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 
 import org.junit.BeforeClass;
@@ -60,9 +61,11 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.utils.FBUtilities;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -598,5 +601,58 @@ public class StorageServiceServerTest
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
         assert repairRangeFrom.size() == 0;
+    }
+
+    @Test
+    public void testRebuildFailOnNonExistingDatacenter() throws Exception
+    {
+        String nonExistentDC = "NON_EXISTENT_DC";
+
+        try
+        {
+            getStorageService().rebuild(nonExistentDC, "StorageServiceServerTest", null, null);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                       nonExistentDC,
+                                       "datacenter1"),
+                         ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testRebuildingWithTokensWithoutKeyspace() throws Exception
+    {
+        try
+        {
+            getStorageService().rebuild("datacenter1", null, "123", null);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals("Cannot specify tokens without keyspace.", ex.getMessage());
+        }
+    }
+
+    private StorageService getStorageService() throws Exception
+    {
+        ImmutableMultimap.Builder<String, InetAddress> builder = ImmutableMultimap.builder();
+        builder.put("datacenter1", InetAddress.getByName("127.0.0.1"));
+
+        TokenMetadata.Topology tokenMetadataTopology = Mockito.mock(TokenMetadata.Topology.class);
+        Mockito.when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
+
+        TokenMetadata metadata = new TokenMetadata();
+        TokenMetadata spiedMetadata = Mockito.spy(metadata);
+
+        Mockito.when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
+
+        StorageService spiedStorageService = Mockito.spy(StorageService.instance);
+        Mockito.when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
+        Mockito.when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
+
+        return spiedStorageService;
     }
 }

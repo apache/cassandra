@@ -1,5 +1,6 @@
 3.11.16
 Merged from 3.0:
+ * Validate the existence of a datacenter in nodetool rebuild (CASSANDRA-14319)
  * Suppress CVE-2023-2251 (CASSANDRA-18497)
 
 3.11.15
