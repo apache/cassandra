@@ -154,6 +154,7 @@ Merged from 4.0:
 Merged from 3.11:
  * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
 Merged from 3.0:
+ * Validate the existence of a datacenter in nodetool rebuild (CASSANDRA-14319)
  * Suppress CVE-2023-2251 (CASSANDRA-18497)
  * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
  * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
