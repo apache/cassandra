@@ -35,15 +35,15 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
 
-public class IndexSearchResultIterator extends KeyRangeIterator
+public class CheckpointingIterator extends KeyRangeIterator
 {
-    private static final Logger logger = LoggerFactory.getLogger(IndexSearchResultIterator.class);
+    private static final Logger logger = LoggerFactory.getLogger(CheckpointingIterator.class);
 
     private final QueryContext context;
     private final KeyRangeIterator union;
     private final Collection<SSTableIndex> referencedIndexes;
 
-    private IndexSearchResultIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    private CheckpointingIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
     {
         super(union.getMinimum(), union.getMaximum(), union.getCount());
 
@@ -53,15 +53,15 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     }
 
     /**
-     * Builds a new {@link IndexSearchResultIterator} that wraps a {@link KeyRangeUnionIterator} over the
+     * Builds a new {@link CheckpointingIterator} that wraps a {@link KeyRangeUnionIterator} over the
      * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex} and the {@link SSTableIndex}es.
      */
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public static IndexSearchResultIterator build(Expression expression,
-                                                  Collection<SSTableIndex> sstableIndexes,
-                                                  AbstractBounds<PartitionPosition> keyRange,
-                                                  QueryContext queryContext,
-                                                  int limit)
+    public static CheckpointingIterator build(Expression expression,
+                                              Collection<SSTableIndex> sstableIndexes,
+                                              AbstractBounds<PartitionPosition> keyRange,
+                                              QueryContext queryContext,
+                                              int limit)
     {
         List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
 
@@ -94,7 +94,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
         }
 
         KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators);
-        return new IndexSearchResultIterator(union, sstableIndexes, queryContext);
+        return new CheckpointingIterator(union, sstableIndexes, queryContext);
     }
 
     protected PrimaryKey computeNext()
@@ -124,7 +124,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     public void close()
     {
         FileUtils.closeQuietly(union);
-        referencedIndexes.forEach(IndexSearchResultIterator::releaseQuietly);
+        referencedIndexes.forEach(CheckpointingIterator::releaseQuietly);
         referencedIndexes.clear();
     }
 

@@ -43,7 +43,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.disk.IndexSearchResultIterator;
+import org.apache.cassandra.index.sai.disk.CheckpointingIterator;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -156,11 +156,11 @@ public class QueryController
      * the {@link SSTableIndex}s that will satisfy the expression.
      * <p>
      * Each (expression, SSTable indexes) pair is then passed to
-     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
+     * {@link CheckpointingIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
      * to search the in-memory index associated with the expression and the SSTable indexes, the results of
      * which are unioned and returned.
      * <p>
-     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
+     * The results from each call to {@link CheckpointingIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
      * are added to a {@link KeyRangeIntersectionIterator} and returned.
      */
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
@@ -176,7 +176,7 @@ public class QueryController
             for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView)
             {
                 @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
-                KeyRangeIterator index = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, command.limits().count());
+                KeyRangeIterator index = CheckpointingIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, command.limits().count());
 
                 builder.add(index);
             }
