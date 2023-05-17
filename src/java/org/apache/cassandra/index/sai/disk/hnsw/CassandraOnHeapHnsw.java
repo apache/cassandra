@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -87,26 +88,27 @@ public class CassandraOnHeapHnsw<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var initialBytesUsed = ramBytesUsed();
-
         var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
+        var bytesUsed = new AtomicLong(VectorPostings.bytesPerPosting()); // the new posting
         var postings = postingsMap.computeIfAbsent(vector, v -> {
+            var bytes = RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
             var ordinal = nextOrdinal.getAndIncrement();
-            vectorValues.add(ordinal, vector);
+            bytes += vectorValues.add(ordinal, vector);
             try
             {
-                builder.addGraphNode(ordinal, vectorValues);
+                bytes += builder.addGraphNode(ordinal, vectorValues);
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
+            bytes += VectorPostings.emptyBytesUsed();
+            bytesUsed.addAndGet(bytes);
             return new VectorPostings<>(ordinal);
         });
         postings.append(key);
 
-        // hnsw is too much of a black box for us to be able to estimate how many additional bytes are used other than this way
-        return ramBytesUsed() - initialBytesUsed;
+        return bytesUsed.get();
     }
 
     public Collection<T> keysFromOrdinal(int node)
@@ -165,9 +167,7 @@ public class CassandraOnHeapHnsw<T>
 
     private long postingsBytesUsed()
     {
-        // looping through vectorPostings entries is expensive, we assume there's one per entry
-        return RamEstimation.concurrentHashMapRamUsed(postingsMap.size())
-               + postingsMap.size() * VectorPostings.bytesPerPosting();
+        return postingsMap.values().stream().mapToLong(VectorPostings::ramBytesUsed).sum();
     }
 
     private long exactRamBytesUsed()

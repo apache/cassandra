@@ -44,16 +44,21 @@ public class VectorPostings<T>
         postings.add(key);
     }
 
-    // we can't do this exactly without reflection, because keys could be Long or PrimaryKey.
-    // PK is larger, so we'll take that and return an upper bound.
-    // we already count the float[] vector in vectorValues, so leave it out here
     public long ramBytesUsed()
+    {
+        return emptyBytesUsed() + postings.size() * bytesPerPosting();
+    }
+
+    public static long emptyBytesUsed()
     {
         long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         long AH_BYTES = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-        return Integer.BYTES + REF_BYTES + AH_BYTES + postings.size() * bytesPerPosting();
+        return Integer.BYTES + REF_BYTES + AH_BYTES;
     }
 
+    // we can't do this exactly without reflection, because keys could be Long or PrimaryKey.
+    // PK is larger, so we'll take that and return an upper bound.
+    // we already count the float[] vector in vectorValues, so leave it out here
     public static long bytesPerPosting()
     {
         long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;

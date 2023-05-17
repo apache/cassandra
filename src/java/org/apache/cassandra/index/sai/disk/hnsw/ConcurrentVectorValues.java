@@ -58,9 +58,11 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
         return values.get(i);
     }
 
-    public void add(int ordinal, float[] vector)
+    /** return approximate bytes used by the new vector */
+    public long add(int ordinal, float[] vector)
     {
         values.put(ordinal, vector);
+        return RamEstimation.concurrentHashMapRamUsed(1) + oneVectorBytesUsed();
     }
 
     @Override
@@ -91,6 +93,11 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
         long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         return 2 * REF_BYTES
                + RamEstimation.concurrentHashMapRamUsed(values.size())
-               + values.size() * (Integer.BYTES + Integer.BYTES + (long) dimension() * Float.BYTES);
+               + values.size() * oneVectorBytesUsed();
+    }
+
+    private long oneVectorBytesUsed()
+    {
+        return Integer.BYTES + Integer.BYTES + (long) dimension() * Float.BYTES;
     }
 }

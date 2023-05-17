@@ -39,17 +39,15 @@ public class RamEstimation
         // CHM has a striped counter Cell implementation, we expect at most one per core
         long chmCounters = AH_BYTES + CORES * (REF_BYTES + Long.BYTES);
 
-        long nodeCount = (long) (externalNodeCount / chmLoadFactor);
+        double nodeCount = externalNodeCount / chmLoadFactor;
 
-        long chmSize =
-        nodeCount * chmNodeBytes // nodes
-        + nodeCount * REF_BYTES
+        return
+        (long) nodeCount * (chmNodeBytes + REF_BYTES)// nodes
         + AH_BYTES // nodes array
         + Long.BYTES
         + 3 * Integer.BYTES
         + 3 * REF_BYTES // extra internal fields
         + chmCounters
         + REF_BYTES; // the Map reference itself
-        return chmSize;
     }
 }
