@@ -31,6 +31,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 public @interface Validate
 {
-    String useClass() default "";
-    String useClassMethod() default "";
+    String useClass();
+    String useClassMethod();
 }
