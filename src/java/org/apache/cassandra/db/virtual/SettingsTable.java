@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -40,7 +42,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
-    private static final BiMap<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableBiMap.copyOf(getBackwardsCompatableNames());
+    static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
 
     SettingsTable(String keyspace)
     {
@@ -51,6 +53,18 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
+        Set<String> unprocessed = new HashSet<>(BACKWARDS_COMPATABLE_NAMES.values());
+        DatabaseDescriptor.visit((key, type, ro) -> {
+            if (BACKWARDS_COMPATABLE_NAMES.containsKey(key))
+            {
+                throw new AssertionError(String.format("Name '%s' is present in Config, this adds a conflict as this " +
+                                                       "name had a different meaning in the '%s",
+                                                       key, SettingsTable.class.getSimpleName()));
+            }
+            unprocessed.remove(key);
+        });
+        if (!unprocessed.isEmpty())
+            throw new AssertionError("The following keys must be present in the Config: " + unprocessed);
     }
 
     @Override
@@ -94,9 +108,13 @@ final class SettingsTable extends AbstractMutableVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        DatabaseDescriptor.visit(withBackwardsCompatableNamesVisitor((key, type, ro) ->
-                                                                result.row(key).column(VALUE, getStringProperty(BACKWARDS_COMPATABLE_NAMES.getOrDefault(key, key)))),
-                                  t -> new ConfigurationException(t.getMessage(), false));
+        DatabaseDescriptor.visit((key, type, ro) ->
+                                 result.row(key).column(VALUE, getStringProperty(key)),
+                                 t -> new ConfigurationException(t.getMessage(), false));
+
+        runExceptionally(() -> BACKWARDS_COMPATABLE_NAMES.forEach((oldName, newName) ->
+                                           result.row(oldName).column(VALUE, getStringProperty(newName))),
+                         t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
 
@@ -106,16 +124,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
         return key;
-    }
-
-    static DatabaseDescriptor.PropertyVisitor withBackwardsCompatableNamesVisitor(DatabaseDescriptor.PropertyVisitor visitor)
-    {
-        BiMap<String, String> inversedNames = BACKWARDS_COMPATABLE_NAMES.inverse();
-        return (name, type, readOnly) -> {
-            if (inversedNames.containsKey(name))
-                visitor.visit(inversedNames.get(name), type, readOnly);
-            visitor.visit(name, type, readOnly);
-        };
     }
 
     /**
@@ -143,9 +151,9 @@ final class SettingsTable extends AbstractMutableVirtualTable
      * There were a handle full of properties which had custom names, names not present in the yaml, this map also
      * fixes this and returns the proper (what is accessable via yaml) names.
      */
-    private static BiMap<String, String> getBackwardsCompatableNames()
+    private static Map<String, String> getBackwardsCompatableNames()
     {
-        BiMap<String, String> names = HashBiMap.create();
+        Map<String, String> names = new HashMap<>();
         // Names that dont match yaml
         names.put("audit_logging_options_logger", "audit_logging_options.logger.class_name");
         names.put("server_encryption_options_client_auth", "server_encryption_options.require_client_auth");

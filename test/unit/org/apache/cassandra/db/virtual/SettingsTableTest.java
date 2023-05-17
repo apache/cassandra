@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
@@ -42,6 +43,7 @@ import org.apache.cassandra.security.SSLFactory;
 public class SettingsTableTest extends CQLTester
 {
     public static final String KS_NAME = "vts";
+    private static final Set<String> settingsTableKeys = new HashSet<>();
     private SettingsTable table;
     private Config config;
 
@@ -49,6 +51,8 @@ public class SettingsTableTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
+        DatabaseDescriptor.visit((key, type, ro) -> settingsTableKeys.add(key));
+        settingsTableKeys.addAll(SettingsTable.BACKWARDS_COMPATABLE_NAMES.keySet());
     }
 
     @Before
@@ -70,8 +74,7 @@ public class SettingsTableTest extends CQLTester
     {
         int paging = (int) (Math.random() * 100 + 1);
         ResultSet result = executeNetWithPaging("SELECT * FROM vts.settings", paging);
-        Set<String> unprocessedKeys = new HashSet<>();
-        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> unprocessedKeys.add(key)));
+        Set<String> unprocessedKeys = new HashSet<>(settingsTableKeys);
         for (Row r : result)
         {
             String name = r.getString("name");
@@ -162,11 +165,7 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        Set<String> expectedNames = new HashSet<>();
-        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
-            if (key.startsWith("server_encryption"))
-                expectedNames.add(key);
-        }));
+        Set<String> expectedNames = settingsTableKeys.stream().filter(k -> k.startsWith("server_encryption")).collect(Collectors.toSet());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
 
         check(pre + "algorithm", null);
@@ -227,11 +226,7 @@ public class SettingsTableTest extends CQLTester
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
         config.audit_logging_options.enabled = true;
-        List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
-            if (key.startsWith("audit_logging"))
-                expectedNames.add(key);
-        }));
+        Set<String> expectedNames = settingsTableKeys.stream().filter(k -> k.startsWith("audit_logging")).collect(Collectors.toSet());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
@@ -278,11 +273,7 @@ public class SettingsTableTest extends CQLTester
                      "name < 'transparent_data_encryption_optionsz' ALLOW FILTERING";
 
         config.transparent_data_encryption_options.enabled = true;
-        List<String> expectedNames = new ArrayList<>();
-        DatabaseDescriptor.visit(SettingsTable.withBackwardsCompatableNamesVisitor((key, type, ro) -> {
-            if (key.startsWith("transparent_data_encryption_options"))
-                expectedNames.add(key);
-        }));
+        Set<String> expectedNames = settingsTableKeys.stream().filter(k -> k.startsWith("transparent_data_encryption_options")).collect(Collectors.toSet());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
