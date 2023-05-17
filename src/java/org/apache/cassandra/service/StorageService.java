@@ -1412,16 +1412,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
     {
-        // check ongoing rebuild
-        if (!isRebuilding.compareAndSet(false, true))
+        try
         {
-            throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
-        }
+            // check ongoing rebuild
+            if (!isRebuilding.compareAndSet(false, true))
+            {
+                throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
+            }
 
-        // fail if source DC is local and --exclude-local-dc is set
-        if (sourceDc != null && sourceDc.equals(DatabaseDescriptor.getLocalDataCenter()) && excludeLocalDatacenterNodes)
+            // fail if source DC is local and --exclude-local-dc is set
+            if (sourceDc != null && sourceDc.equals(DatabaseDescriptor.getLocalDataCenter()) && excludeLocalDatacenterNodes)
+            {
+                throw new IllegalArgumentException("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set");
+            }
+
+            if (sourceDc != null)
+            {
+                TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
+                Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
+                if (!availableDCs.contains(sourceDc))
+                {
+                    throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                                     sourceDc, String.join(",", availableDCs)));
+                }
+            }
+        }
+        catch (Throwable ex)
         {
-            throw new IllegalArgumentException("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set");
+            isRebuilding.set(false);
+            throw ex;
         }
 
         try
