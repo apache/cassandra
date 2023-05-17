@@ -21,9 +21,11 @@ package org.apache.cassandra.index.sai.memory;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -115,23 +117,13 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public KeyRangeIterator searchMemtableIndexes(Expression e, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public List<KeyRangeIterator> iteratorsForSearch(Expression e, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
-
-        if (memtableIndexes.isEmpty())
-        {
-            return KeyRangeIterator.empty();
-        }
-
-        KeyRangeIterator.Builder builder = KeyRangeUnionIterator.builder(memtableIndexes.size());
-
-        for (MemtableIndex memtableIndex : memtableIndexes)
-        {
-            builder.add(memtableIndex.search(e, keyRange, limit));
-        }
-
-        return builder.build();
+        return memtableIndexes
+               .stream()
+               .map(mi -> mi.search(e, keyRange, limit))
+               .collect(Collectors.toList());
     }
 
     public long liveMemtableWriteCount()
