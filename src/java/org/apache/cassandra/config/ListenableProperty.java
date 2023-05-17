@@ -168,7 +168,6 @@ public class ListenableProperty<T> extends Property
             }
             catch (Exception e)
             {
-                e.printStackTrace();
                 if (e.getCause() instanceof ConfigurationException)
                     throw (ConfigurationException) e.getCause();
                 throw new ConfigurationException(String.format("Failed to call validation method '%s' for property '%s'.", validateMethod.getName(), name), e);
