@@ -48,7 +48,6 @@ import accord.local.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
-import accord.primitives.PartialTxn;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
