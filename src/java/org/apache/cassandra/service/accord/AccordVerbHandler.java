@@ -43,6 +43,12 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     public void doVerb(Message<T> message) throws IOException
     {
         logger.debug("Receiving {} from {}", message.payload, message.from());
-        message.payload.process(node, EndpointMapping.getId(message.from()), message);
+        T request = message.payload;
+        Node.Id from = EndpointMapping.getId(message.from());
+        // CMS updates received in another messaging thread can race with node upates
+        if (node.epoch() < request.waitForEpoch())
+            node.withEpoch(request.waitForEpoch(), () -> request.process(node, from, message));
+        else
+            request.process(node, from, message);
     }
 }
