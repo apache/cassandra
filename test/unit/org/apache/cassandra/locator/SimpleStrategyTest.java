@@ -32,6 +32,7 @@ import org.junit.*;
 import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -77,7 +78,7 @@ public class SimpleStrategyTest
     public static void withPartitioner(IPartitioner partitioner)
     {
         DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
         SchemaLoader.createKeyspace(MULTIDC, KeyspaceParams.simple(3));

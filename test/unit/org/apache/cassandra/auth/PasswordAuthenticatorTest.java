@@ -27,12 +27,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.ServerTestUtils;
 import org.mindrot.jbcrypt.BCrypt;
 
 import com.datastax.driver.core.Authenticator;
 import com.datastax.driver.core.EndPoint;
 import com.datastax.driver.core.PlainTextAuthProvider;
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -60,7 +60,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         DatabaseDescriptor.daemonInitialization();
         StorageService.instance.initServer();
     }

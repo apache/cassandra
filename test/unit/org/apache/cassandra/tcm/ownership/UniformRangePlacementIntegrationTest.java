@@ -28,7 +28,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.distributed.test.log.MetadataChangeSimulationTest;
@@ -46,7 +46,7 @@ public class UniformRangePlacementIntegrationTest
     @BeforeClass
     public static void beforeClass()
     {
-        SchemaLoader.prepareServerNoRegister();
+        ServerTestUtils.prepareServerNoRegister();
     }
 
     @Before

@@ -68,7 +68,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
     @BeforeClass
     public static void init() throws Exception
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
         ServerTestUtils.markCMS();
         StorageService.instance.unsafeSetInitialized();
@@ -78,8 +78,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
     public void setup() throws Exception
     {
         ServerTestUtils.resetCMS();
-        // local node is pre-registered via SchemaLoader::loadSchema
-        ClusterMetadataTestHelper.join(broadcastAddress, bytesToken(100));
+        ClusterMetadataTestHelper.addEndpoint(broadcastAddress, bytesToken(100));
         ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
 
         MessagingService.instance().inboundSink.clear();
@@ -133,6 +132,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
         // join the localhost one to emulate pending ranges
         ServerTestUtils.resetCMS();
         ClusterMetadataTestHelper.addEndpoint(node1, bytesToken(0));
+        ClusterMetadataTestHelper.register(broadcastAddress);
         ClusterMetadataTestHelper.joinPartially(broadcastAddress, bytesToken(100));
         assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(broadcastAddress));
 

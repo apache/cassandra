@@ -121,18 +121,27 @@ public final class ServerTestUtils
         });
     }
 
-    public static void prepareServer()
+    public static NodeId registerLocal()
     {
-        prepareServerNoRegister();
         NodeId nodeId = Register.maybeRegister();
         ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
                                                                 Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()),
                                                                 ClusterMetadataService.instance().placementProvider()));
+        SystemKeyspace.setLocalHostId(nodeId.toUUID());
+        return nodeId;
+    }
+
+    public static void prepareServer()
+    {
+        prepareServerNoRegister();
+        registerLocal();
         markCMS();
     }
 
     public static void prepareServerNoRegister()
     {
+        daemonInitialization();
+
         if (isServerPrepared)
             return;
 
@@ -173,11 +182,6 @@ public final class ServerTestUtils
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
 
-        NodeId nodeId = Register.maybeRegister();
-        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
-                                                                Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()),
-                                                                ClusterMetadataService.instance().placementProvider()));
-        markCMS();
         isServerPrepared = true;
     }
 

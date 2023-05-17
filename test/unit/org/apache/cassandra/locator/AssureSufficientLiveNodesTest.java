@@ -37,10 +37,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -80,10 +82,12 @@ public class AssureSufficientLiveNodesTest
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
         // Register peers with expected DC for NetworkTopologyStrategy.
-//        metadata.clearUnsafe();
 
+        // TODO shouldn't require the snitch setup
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {
             public String getRack(InetAddressAndPort endpoint)
@@ -110,8 +114,9 @@ public class AssureSufficientLiveNodesTest
         for (int i = 0; i < instances.size(); i++)
         {
             InetAddressAndPort ip = instances.get(i);
-//            metadata.updateHostId(UUID.randomUUID(), ip);
-//            metadata.updateNormalToken(new Murmur3Partitioner.LongToken(i), ip);
+            String dc = "datacenter" + ip.addressBytes[1];
+            String rack = "rake" + ip.addressBytes[1];
+            ClusterMetadataTestHelper.addEndpoint(ip, new Murmur3Partitioner.LongToken(i), dc, rack);
         }
     }
 

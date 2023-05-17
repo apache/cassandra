@@ -35,7 +35,6 @@ import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
-import org.apache.cassandra.utils.CassandraVersion;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -74,18 +73,12 @@ public class InsertUpdateIfConditionTest extends CQLTester
     
     public static void beforeSetup(String clusterMinVersion)
     {
-<<<<<<< HEAD
         // setUpgradeFromVersion adds node2 to the Gossiper. On slow CI envs the Gossiper might auto-remove it after some
         // timeout if it thinks it's a fat client making the test fail. Just retry C18393.
         Util.spinAssertEquals(Boolean.TRUE, () -> {
             Util.setUpgradeFromVersion(clusterMinVersion);
-            assertion.run();
             return true;
-        },
-                              5);
-=======
-        Util.setUpgradeFromVersion(clusterMinVersion);
->>>>>>> f62ba685b6 ([CEP-21] Bulk update of unit and dtests)
+        }, 5);
     }
 
     @AfterClass

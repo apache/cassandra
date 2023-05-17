@@ -36,6 +36,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
@@ -50,6 +51,7 @@ import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.reads.range.TokenUpdater;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -81,7 +83,7 @@ public class CleanupTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -163,8 +165,9 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-//        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-//        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
 
         CompactionManager.instance.performCleanup(cfs, 2);
 
@@ -192,8 +195,9 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-//        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-//        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
         CompactionManager.instance.performCleanup(cfs, 2);
 
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
@@ -214,9 +218,9 @@ public class CleanupTest
     private void testCleanupWithNoTokenRange(boolean isUserDefined) throws Exception
     {
 
-//        tmd.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.1"));
         byte[] tk1 = {2};
-//        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .update();
 
 
         Keyspace keyspace = Keyspace.open(KEYSPACE2);
@@ -261,8 +265,9 @@ public class CleanupTest
         Keyspace keyspace = Keyspace.open(KEYSPACE3);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD3);
         cfs.disableAutoCompaction();
-//        tmd.clearUnsafe();
-//        tmd.updateNormalToken(token(new byte[]{ 50 }), InetAddressAndPort.getByName("127.0.0.1"));
+        byte[] tk1 = new byte[] { 50 };
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .update();
 
         for (byte i = 0; i < 100; i++)
         {
@@ -292,7 +297,9 @@ public class CleanupTest
         // single token - 127.0.0.1 owns everything, cleanup should be noop
         cfs.forceCleanup(2);
         assertEquals(beforeFirstCleanup, cfs.getLiveSSTables());
-//        tmd.updateNormalToken(token(new byte[]{ 120 }), InetAddressAndPort.getByName("127.0.0.2"));
+        byte[] tk2 = new byte[] { 120 };
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
 
         cfs.forceCleanup(2);
         for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -309,8 +316,6 @@ public class CleanupTest
     @Test
     public void testuserDefinedCleanupWithNewToken() throws ExecutionException, InterruptedException, UnknownHostException
     {
-//        StorageService.instance.getTokenMetadata().clearUnsafe();
-
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
@@ -322,9 +327,9 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-//        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-//        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
-//
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
         for(SSTableReader r: cfs.getLiveSSTables())
             CompactionManager.instance.forceUserDefinedCleanup(r.getFilename());
 
@@ -335,7 +340,6 @@ public class CleanupTest
     public void testNeedsCleanup() throws Exception
     {
         // setup
-//        StorageService.instance.getTokenMetadata().clearUnsafe();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         fillCF(cfs, "val", LOOPS);

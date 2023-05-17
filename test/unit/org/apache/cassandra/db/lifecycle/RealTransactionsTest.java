@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -65,7 +67,7 @@ public class RealTransactionsTest extends SchemaLoader
     @BeforeClass
     public static void setUp()
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, REWRITE_FINISHED_CF),

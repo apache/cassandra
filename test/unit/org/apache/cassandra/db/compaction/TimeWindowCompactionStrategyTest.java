@@ -32,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -68,8 +69,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         // Disable tombstone histogram rounding for tests
         CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.setInt(1);
         ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.setBoolean(true);
-
-
+        ServerTestUtils.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));

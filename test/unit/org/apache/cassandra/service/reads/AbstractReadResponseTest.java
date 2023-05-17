@@ -150,7 +150,7 @@ public abstract class AbstractReadResponseTest
                      .addPartitionKeyColumn("k", ByteType.instance)
                      .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true));
 
-        SchemaLoader.prepareServerNoRegister();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(2), builder1, builder2);
         SchemaLoader.createKeyspace(KEYSPACE3, KeyspaceParams.simple(4), builder3);
 

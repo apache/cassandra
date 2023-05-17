@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.After;
-import org.junit.BeforeClass;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthSchemaChangeListener;
@@ -47,7 +46,6 @@ import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.schema.*;
-import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -58,10 +56,14 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class SchemaLoader
 {
-    @BeforeClass
     public static void loadSchema()
     {
         prepareServer();
+    }
+
+    public static void prepareServer()
+    {
+        ServerTestUtils.prepareServer();
     }
 
     @After
@@ -71,18 +73,6 @@ public class SchemaLoader
         System.gc();
         System.gc();
         Thread.sleep(10);
-    }
-
-    public static void prepareServer()
-    {
-        prepareServerNoRegister();
-        Register.forceRegister();
-    }
-
-    public static void prepareServerNoRegister()
-    {
-        ServerTestUtils.daemonInitialization();
-        ServerTestUtils.prepareServerNoRegister();
     }
 
     public static void startGossiper()

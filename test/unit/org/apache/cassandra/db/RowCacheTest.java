@@ -44,8 +44,10 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -54,6 +56,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.range.TokenUpdater;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT;
@@ -307,8 +310,9 @@ public class RowCacheTest
         byte[] tk1, tk2;
         tk1 = "key1000".getBytes();
         tk2 = "key1050".getBytes();
-//        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-//        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
         store.cleanupCache();
         assertEquals(50, CacheService.instance.rowCache.size());
         CacheService.instance.setRowCacheCapacityInMB(0);

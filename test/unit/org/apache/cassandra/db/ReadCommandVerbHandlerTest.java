@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -69,7 +70,7 @@ public class ReadCommandVerbHandlerTest
     @BeforeClass
     public static void init() throws Throwable
     {
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.schemaDefinition(TEST_NAME);
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         metadata_with_transient = Schema.instance.getTableMetadata(KEYSPACE_WITH_TRANSIENT, TABLE);

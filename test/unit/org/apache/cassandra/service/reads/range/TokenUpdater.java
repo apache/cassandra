@@ -64,6 +64,13 @@ public class TokenUpdater
         return this;
     }
 
+    public TokenUpdater withTokens(InetAddressAndPort endpoint, Token... tokens)
+    {
+        for (Token token : tokens)
+            endpointTokens.put(endpoint, token);
+        return this;
+    }
+
     public TokenUpdater withKeys(int... keys)
     {
         return withKeys(localEndpoint(), keys);

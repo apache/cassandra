@@ -28,9 +28,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -61,9 +60,8 @@ public class MessageTest
     @BeforeClass
     public static void setUpClass() throws Exception
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServer();
         DatabaseDescriptor.daemonInitialization();
-        ClusterMetadataTestHelper.setInstanceForTest();
         DatabaseDescriptor.setCrossNodeTimeout(true);
 
         Verb._TEST_2.unsafeSetSerializer(() -> new IVersionedSerializer<Integer>()

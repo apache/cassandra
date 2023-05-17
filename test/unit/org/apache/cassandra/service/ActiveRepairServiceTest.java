@@ -42,6 +42,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.Config;
@@ -101,7 +102,7 @@ public class ActiveRepairServiceTest
     public static void defineSchema() throws ConfigurationException, UnknownHostException
     {
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.startGossiper();
     }
 

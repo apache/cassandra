@@ -29,7 +29,7 @@ import java.util.UUID;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
@@ -65,7 +65,7 @@ public class GossipHelperTest
     @BeforeClass
     public static void beforeClass()
     {
-        SchemaLoader.prepareServerNoRegister();
+        ServerTestUtils.prepareServerNoRegister();
         KSM = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));
         KSM_NTS = KeyspaceMetadata.create("ks_nts", KeyspaceParams.nts("dc1", 3, "dc2", 3));
     }
