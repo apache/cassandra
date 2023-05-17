@@ -1327,16 +1327,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
     {
-        // check ongoing rebuild
-        if (!isRebuilding.compareAndSet(false, true))
+        try
         {
-            throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
-        }
+            // check ongoing rebuild
+            if (!isRebuilding.compareAndSet(false, true))
+            {
+                throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
+            }
 
-        // check the arguments
-        if (keyspace == null && tokens != null)
+            if (sourceDc != null)
+            {
+                TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
+                Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
+                if (!availableDCs.contains(sourceDc))
+                {
+                    throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                                     sourceDc, String.join(",", availableDCs)));
+                }
+            }
+
+            // check the arguments
+            if (keyspace == null && tokens != null)
+            {
+                throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+            }
+        }
+        catch (Throwable ex)
         {
-            throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+            isRebuilding.set(false);
+            throw ex;
         }
 
         logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
