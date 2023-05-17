@@ -153,7 +153,7 @@ public class CollectionFcts
     {
         ListType<V> outputType = ListType.getInstance(inputType.getValuesType(), false);
 
-        return new NativeScalarFunction(name, outputType, inputType)
+        return new  NativeScalarFunction(name, outputType, inputType)
         {
             @Override
             public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)

@@ -212,4 +212,17 @@ public class VectorTypeTest extends SAITester
         assertThat(result).hasSize(2);
         System.out.println(makeRowStrings(result));
     }
+
+    @Test
+    public void similarityFunctionTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", Lists.newArrayList(1.0, 2.0 ,3.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", Lists.newArrayList(2.0 ,3.0, 4.0));
+
+        UntypedResultSet result = execute("SELECT pk, val, cosine_similarity(val, ?) FROM %s", Lists.newArrayList(2.5, 3.5, 4.5));
+        assertThat(result).hasSize(2);
+        System.out.println(makeRowStrings(result));
+    }
 }
