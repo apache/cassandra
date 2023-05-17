@@ -475,7 +475,12 @@ public class DatabaseDescriptor
         //InetAddressAndPort and get the right defaults
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
-        validateUpperBoundStreamingConfig();
+        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
+        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND, conf.stream_throughput_outbound);
+        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.inter_dc_stream_throughput_outbound);
+        setProperty(ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_stream_throughput_outbound);
+        setProperty(ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_inter_dc_stream_throughput_outbound);
+        setProperty(ConfigFields.COMPACTION_THROUGHPUT, conf.compaction_throughput);
 
         if (conf.auto_snapshot_ttl != null)
         {
@@ -605,7 +610,7 @@ public class DatabaseDescriptor
             conf.repair_session_max_tree_depth = 20;
         }
 
-        conf.repair_session_space = validateRepairSessionSpace(conf, ConfigFields.REPAIR_SESSION_SPACE, conf.repair_session_space);
+        setProperty(ConfigFields.REPAIR_SESSION_SPACE, conf.repair_session_space);
         checkForLowestAcceptedTimeouts(conf);
 
         long valueInBytes = conf.native_transport_max_frame_size.toBytes();
@@ -765,7 +770,7 @@ public class DatabaseDescriptor
         if (conf.memtable_cleanup_threshold < 0.1f)
             logger.warn("memtable_cleanup_threshold is set very low [{}], which may cause performance degradation", conf.memtable_cleanup_threshold);
 
-        conf.concurrent_compactors = validateConcurrentCompactors(conf, ConfigFields.CONCURRENT_COMPACTORS, conf.concurrent_compactors);
+        setProperty(ConfigFields.CONCURRENT_COMPACTORS, conf.concurrent_compactors);
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
         applyReadThresholdsValidations(conf);
@@ -976,19 +981,6 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
-    }
-
-    /**
-     * Validates that the given value is a valid throughput upper bound in megabits (mebibytes) per second.
-     */
-    public static void validateUpperBoundStreamingConfig()
-    {
-        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
-        validateThroughputUpperBoundMbits(conf, ConfigFields.STREAM_THROUGHPUT_OUTBOUND, conf.stream_throughput_outbound);
-        validateThroughputUpperBoundMbits(conf, ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.inter_dc_stream_throughput_outbound);
-        validateThroughputUpperBoundMbytes(conf, ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_stream_throughput_outbound);
-        validateThroughputUpperBoundMbytes(conf, ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_inter_dc_stream_throughput_outbound);
-        validateThroughputUpperBoundMbytes(conf, ConfigFields.COMPACTION_THROUGHPUT, conf.compaction_throughput);
     }
 
     public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(Config conf, String name, DataRateSpec.LongBytesPerSecondBound value)
