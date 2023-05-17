@@ -18,16 +18,12 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-
 import accord.api.DataStore;
 import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
-import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncResult;
+import accord.primitives.Timestamp;
 import accord.utils.async.AsyncResults;
 
 public enum AccordDataStore implements DataStore
@@ -38,54 +34,14 @@ public enum AccordDataStore implements DataStore
     public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback)
     {
         //TODO (implement): do real work
-        callback.starting(ranges);
+        callback.starting(ranges).started(Timestamp.NONE);
         callback.fetched(ranges);
-        return new FakeFetchResult(ranges);
+        return new ImmediateFetchFuture(ranges);
     }
 
-    private static final class FakeFetchResult implements FetchResult
+    private static class ImmediateFetchFuture extends AsyncResults.SettableResult<Ranges> implements FetchResult
     {
-        private final AsyncResult<Ranges> delegate;
-
-        private FakeFetchResult(Ranges ranges)
-        {
-            delegate = AsyncResults.success(ranges);
-        }
-
-        @Override
-        public void abort(Ranges ranges)
-        {
-            // ignore
-        }
-
-        @Override
-        public <T> AsyncChain<T> map(Function<? super Ranges, ? extends T> mapper)
-        {
-            return delegate.map(mapper);
-        }
-
-        @Override
-        public <T> AsyncChain<T> flatMap(Function<? super Ranges, ? extends AsyncChain<T>> mapper)
-        {
-            return delegate.flatMap(mapper);
-        }
-
-        @Override
-        public AsyncResult<Ranges> addCallback(BiConsumer<? super Ranges, Throwable> callback)
-        {
-            return delegate.addCallback(callback);
-        }
-
-        @Override
-        public boolean isDone()
-        {
-            return delegate.isDone();
-        }
-
-        @Override
-        public boolean isSuccess()
-        {
-            return delegate.isSuccess();
-        }
+        ImmediateFetchFuture(Ranges ranges) { setSuccess(ranges); }
+        @Override public void abort(Ranges abort) { }
     }
 }
