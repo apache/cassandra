@@ -871,6 +871,17 @@ public interface Index
         }
 
         /**
+         * Return a function which performs post processing on the results of local index query before results are passed
+         * to coordinator. This is used by vector index to return top-k results to coordinator.
+         *
+         * @param command the read command being executed
+         */
+        default Function<UnfilteredPartitionIterator, UnfilteredPartitionIterator> postIndexQueryProcessor(ReadCommand command)
+        {
+            return partitions -> partitions;
+        }
+
+        /**
          * Transform an initial {@link RowFilter} into the filter that will still need to applied to a set of Rows after
          * the index has performed it's initial scan.
          *

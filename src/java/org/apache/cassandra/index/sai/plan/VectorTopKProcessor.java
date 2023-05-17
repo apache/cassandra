@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -34,21 +33,25 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.BasePartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.BaseRowIterator;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
+import org.apache.cassandra.index.sai.utils.InMemoryUnfilteredPartitionIterator;
+import org.apache.cassandra.index.sai.utils.PartitionInfo;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * Processor that scans all rows from reconciled query result and selects rows with top-k scores based on vector indexes.
+ * Processor that scans all rows from given partitions and selects rows with top-k scores based on vector indexes.
  *
  * This processor performs the following steps:
  * - collect rows with score into PriorityQueue that sorts rows based on score. If there are multiple vector indexes,
@@ -75,28 +78,43 @@ public class VectorTopKProcessor
         this.limit = command.limits().count();
     }
 
-    public PartitionIterator filter(PartitionIterator partitions)
+    /**
+     * Filter given partitions and keep the rows with highest scores. In case of {@link UnfilteredPartitionIterator},
+     * all tombstones will be kept.
+     */
+    public <U extends Unfiltered, R extends BaseRowIterator<U>, P extends BasePartitionIterator<R>> BasePartitionIterator<?> filter(P partitions)
     {
         // priority queue ordered by score in ascending order
-        PriorityQueue<Triple<Pair<DecoratedKey, Row>, Row, Float>> topK = new PriorityQueue<>(limit, Comparator.comparing(Triple::getRight));
+        PriorityQueue<Triple<PartitionInfo, Row, Float>> topK = new PriorityQueue<>(limit, Comparator.comparing(Triple::getRight));
+        // to store top-k results in primary key order
+        TreeMap<PartitionInfo, TreeSet<Unfiltered>> unfilteredByPartition = new TreeMap<>(Comparator.comparing(p -> p.key));
 
         Map<StorageAttachedIndex, float[]> queryVectorPerIndex = getQueryVectorPerIndex(command);
-
         while (partitions.hasNext())
         {
-            try (RowIterator partition = partitions.next())
+            try (R partition = partitions.next())
             {
                 DecoratedKey key = partition.partitionKey();
                 Row staticRow = partition.staticRow();
-                Pair<DecoratedKey, Row> keyAndStatic = Pair.create(key, staticRow);
+                PartitionInfo partitionInfo = PartitionInfo.create(partition);
                 // compute key and static row score once per partition
                 float keyAndStaticScore = getScoreForRow(queryVectorPerIndex, key, staticRow);
 
                 while (partition.hasNext())
                 {
-                    Row row = partition.next();
+                    Unfiltered unfiltered = partition.next();
+                    // Always include tombstones for coordinator. It relies on ReadCommand#withMetricsRecording to throw
+                    // TombstoneOverwhelmingException to prevent OOM.
+                    if (!unfiltered.isRow())
+                    {
+                        unfilteredByPartition.computeIfAbsent(partitionInfo, k -> new TreeSet<>(command.metadata().comparator))
+                                             .add(unfiltered);
+                        continue;
+                    }
+
+                    Row row = (Row) unfiltered;
                     float rowScore = getScoreForRow(queryVectorPerIndex, null, row);
-                    topK.add(Triple.of(keyAndStatic, row, keyAndStaticScore + rowScore));
+                    topK.add(Triple.of(partitionInfo, row, keyAndStaticScore + rowScore));
 
                     // when exceeding limit, remove row with low score
                     while (topK.size() > limit)
@@ -107,12 +125,13 @@ public class VectorTopKProcessor
         partitions.close();
 
         // reorder rows in partition/clustering order
-        TreeMap<Pair<DecoratedKey, Row>, TreeSet<Row>> rowsByPartition = new TreeMap<>(Comparator.comparing(p -> p.left));
-        for (Triple<Pair<DecoratedKey, Row>, Row, Float> triple : topK)
-            rowsByPartition.computeIfAbsent(triple.getLeft(), k -> new TreeSet<>(command.metadata().comparator))
-                           .add(triple.getMiddle());
+        for (Triple<PartitionInfo, Row, Float> triple : topK)
+            unfilteredByPartition.computeIfAbsent(triple.getLeft(), k -> new TreeSet<>(command.metadata().comparator))
+                                 .add(triple.getMiddle());
 
-        return new InMemoryPartitionIterator(rowsByPartition);
+        if (partitions instanceof PartitionIterator)
+            return new InMemoryPartitionIterator(command, unfilteredByPartition);
+        return new InMemoryUnfilteredPartitionIterator(command, unfilteredByPartition);
     }
 
     private Map<StorageAttachedIndex, float[]> getQueryVectorPerIndex(ReadCommand command)
@@ -176,93 +195,5 @@ public class VectorTopKProcessor
         }
 
         return null;
-    }
-
-    private class InMemoryPartitionIterator implements PartitionIterator
-    {
-        private final Iterator<Map.Entry<Pair<DecoratedKey, Row>, TreeSet<Row>>> partitions;
-
-        public InMemoryPartitionIterator(TreeMap<Pair<DecoratedKey, Row>, TreeSet<Row>> rowsByPartitions)
-        {
-            this.partitions = rowsByPartitions.entrySet().iterator();
-        }
-
-        @Override
-        public void close()
-        {
-        }
-
-        @Override
-        public boolean hasNext()
-        {
-            return partitions.hasNext();
-        }
-
-        @Override
-        public RowIterator next()
-        {
-            return new InMemoryRowIterator(partitions.next());
-        }
-    }
-
-    private class InMemoryRowIterator implements RowIterator
-    {
-        private final DecoratedKey decoratedKey;
-        private final Row staticRow;
-        private final Iterator<Row> rows;
-
-        public InMemoryRowIterator(Map.Entry<Pair<DecoratedKey, Row>, TreeSet<Row>> rows)
-        {
-            this.rows = rows.getValue().iterator();
-            this.decoratedKey = rows.getKey().left;
-            this.staticRow = rows.getKey().right;
-        }
-
-        @Override
-        public void close()
-        {
-        }
-
-        @Override
-        public boolean hasNext()
-        {
-            return rows.hasNext();
-        }
-
-        @Override
-        public Row next()
-        {
-            return rows.next();
-        }
-
-        @Override
-        public TableMetadata metadata()
-        {
-            return command.metadata();
-        }
-
-        @Override
-        public boolean isReverseOrder()
-        {
-            return command.isReversed();
-        }
-
-        @Override
-        public RegularAndStaticColumns columns()
-        {
-            return command.metadata().regularAndStaticColumns();
-        }
-
-        @Override
-        public DecoratedKey partitionKey()
-        {
-            return decoratedKey;
-        }
-
-        @Override
-        public Row staticRow()
-        {
-            return staticRow;
-        }
     }
 }

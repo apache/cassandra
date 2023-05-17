@@ -30,11 +30,14 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
@@ -46,6 +49,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class VectorDistributedTest extends TestBaseImpl
 {
+
+    @Rule
+    public SAITester.FailureWatcher failureRule = new SAITester.FailureWatcher();
 
     private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
     private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val float vector[%d])";
@@ -73,6 +79,7 @@ public class VectorDistributedTest extends TestBaseImpl
     {
         cluster = Cluster.build(NUM_REPLICAS)
                          .withTokenCount(8)
+                         .withDataDirCount(1) // TODO vector memtable flush doesn't support multiple directories yet
                          .withConfig(config -> config.with(GOSSIP).with(NETWORK))
                          .start();
 
@@ -132,6 +139,44 @@ public class VectorDistributedTest extends TestBaseImpl
 
         assertThatThrownBy(() -> searchWithPageWithoutLimit(queryVector, 10))
         .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+    }
+
+    @Test
+    public void testMultiSSTablesVectorSearch()
+    {
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
+        // disable compaction
+        String tableName = table;
+        cluster.forEach(n -> n.runOnInstance(() -> {
+            Keyspace keyspace = Keyspace.open(KEYSPACE);
+            keyspace.getColumnFamilyStore(tableName).disableAutoCompaction();
+        }));
+
+        int vectorCountPerSSTable = getRandom().nextIntBetween(200, 500);
+        int sstableCount = getRandom().nextIntBetween(3, 5);
+        List<float[]> allVectors = new ArrayList<>(sstableCount * vectorCountPerSSTable);
+
+        int pk = 0;
+        for (int i = 0; i < sstableCount; i++)
+        {
+            List<float[]> vectors = generateVectors(vectorCountPerSSTable);
+            for (float[] vector : vectors)
+                execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ", " + vectorString(vector) + " )");
+
+            allVectors.addAll(vectors);
+            cluster.forEach(n -> n.flush(KEYSPACE));
+        }
+
+        // query multiple sstable indexes in multiple node
+        int limit = Math.min(getRandom().nextIntBetween(50, 100), allVectors.size());
+        float[] queryVector = randomVector();
+        Object[][] result = searchWithLimit(queryVector, limit);
+
+        // expect recall to be at least 0.8
+        double recall = getRecall(allVectors, queryVector, getVectors(result));
+        assertThat(recall).isGreaterThanOrEqualTo(MIN_RECALL);
     }
 
     @Test
@@ -295,7 +340,17 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static Object[][] execute(String query)
     {
-        return cluster.coordinator(1).execute(formatQuery(query), ConsistencyLevel.QUORUM);
+        return execute(query, ConsistencyLevel.QUORUM);
+    }
+
+    private static Object[][] executeAll(String query)
+    {
+        return execute(query, ConsistencyLevel.ALL);
+    }
+
+    private static Object[][] execute(String query, ConsistencyLevel consistencyLevel)
+    {
+        return cluster.coordinator(1).execute(formatQuery(query), consistencyLevel);
     }
 
     private static Object[][] executeWithPaging(String query, int pageSize)
