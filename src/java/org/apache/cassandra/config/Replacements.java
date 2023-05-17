@@ -83,7 +83,7 @@ public final class Replacements
         }
     }
 
-    private static List<Replacement> getReplacements(Class<?> klass)
+    public static List<Replacement> getReplacements(Class<?> klass)
     {
         List<Replacement> replacements = new ArrayList<>();
         for (Field field : klass.getDeclaredFields())

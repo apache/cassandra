@@ -228,6 +228,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.PropertyListener$Remover",
     "org.apache.cassandra.config.Replacement",
     "org.apache.cassandra.config.Replacement$1",
+    "org.apache.cassandra.config.Replacement$ReplacementProperty",
     "org.apache.cassandra.config.Replacements",
     "org.apache.cassandra.config.Replaces",
     "org.apache.cassandra.config.ReplacesList",

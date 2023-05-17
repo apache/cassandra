@@ -66,26 +66,43 @@ public final class Replacement
         this.deprecated = deprecated;
     }
 
-    public Property toProperty(Property newProperty)
+    public ReplacementProperty toProperty(Property newProperty)
     {
-        return new ForwardingProperty(oldName, oldType, newProperty)
-        {
-            @Override
-            public void set(Object o, Object o1) throws Exception
-            {
-                newProperty.set(o, converter.convert(o1));
-            }
-
-            @Override
-            public Object get(Object o)
-            {
-                return converter.unconvert(newProperty.get(o));
-            }
-        };
+        return new ReplacementProperty(this, newProperty);
     }
 
     public boolean isValueFormatReplacement()
     {
         return oldName.equals(newName);
+    }
+
+    public static class ReplacementProperty extends ForwardingProperty
+    {
+        private final Replacement replacement;
+        private final Property newProperty;
+
+        public ReplacementProperty(Replacement replacement, Property newProperty)
+        {
+            super(replacement.oldName, replacement.oldType, newProperty);
+            this.replacement = replacement;
+            this.newProperty = newProperty;
+        }
+
+        @Override
+        public void set(Object o, Object o1) throws Exception
+        {
+            newProperty.set(o, replacement.converter.convert(o1));
+        }
+
+        @Override
+        public Object get(Object o)
+        {
+            return replacement.converter.unconvert(newProperty.get(o));
+        }
+
+        public Replacement replacement()
+        {
+            return replacement;
+        }
     }
 }

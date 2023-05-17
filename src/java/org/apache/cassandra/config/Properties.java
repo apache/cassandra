@@ -134,12 +134,12 @@ public final class Properties
      */
     public static Loader defaultLoader()
     {
-        return defaultLoader(false);
+        return new DefaultLoader();
     }
 
-    public static Loader defaultLoader(boolean withReplacement)
+    public static Loader withReplacementsLoader()
     {
-        return withReplacement ? new WithReplacementLoader() : new DefaultLoader();
+        return new WithReplacementLoader(defaultLoader());
     }
 
     /**

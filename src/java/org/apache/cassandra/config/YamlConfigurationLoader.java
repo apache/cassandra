@@ -22,12 +22,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -138,7 +136,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             verifyReplacements(replacements, configBytes);
-            PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
+            PropertiesChecker propertiesChecker = new PropertiesChecker();
             Yaml yaml = YamlFactory.instance.newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
                                                     propertiesChecker);
             Config result = loadConfig(yaml, configBytes);
@@ -221,7 +219,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         SafeConstructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
         verifyReplacements(replacements, map);
-        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
+        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new PropertiesChecker();
         Yaml yaml = YamlFactory.instance.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
@@ -254,7 +252,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         };
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
         verifyReplacements(replacements, map);
-        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
+        YamlConfigurationLoader.PropertiesChecker propertiesChecker = new PropertiesChecker();
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = YamlFactory.instance.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
@@ -320,40 +318,24 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * are not set to null.
      */
     @VisibleForTesting
-    private static class PropertiesChecker extends PropertyUtils
+    public static class PropertiesChecker extends PropertyUtils
     {
-        private final Loader loader = Properties.defaultLoader();
+        private final Loader loader = Properties.withReplacementsLoader();
         private final Set<String> missingProperties = new HashSet<>();
 
         private final Set<String> nullProperties = new HashSet<>();
 
         private final Set<String> deprecationWarnings = new HashSet<>();
 
-        private final Map<Class<?>, Map<String, Replacement>> replacements;
-
-        PropertiesChecker(Map<Class<?>, Map<String, Replacement>> replacements)
+        PropertiesChecker()
         {
-            this.replacements = Objects.requireNonNull(replacements, "Replacements should not be null");
             setSkipMissingProperties(true);
         }
 
         @Override
         public Property getProperty(Class<?> type, String name)
         {
-            final Property result;
-            Map<String, Replacement> typeReplacements = replacements.getOrDefault(type, Collections.emptyMap());
-            if (typeReplacements.containsKey(name))
-            {
-                Replacement replacement = typeReplacements.get(name);
-                result = replacement.toProperty(getProperty0(type, replacement.newName));
-                
-                if (replacement.deprecated)
-                    deprecationWarnings.add(replacement.oldName);
-            }
-            else
-            {
-                result = getProperty0(type, name);
-            }
+            final Property result = getProperty0(type, name);
 
             if (result instanceof MissingProperty)
             {
@@ -363,6 +345,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             {
                 deprecationWarnings.add(result.getName());
             }
+            else if (result instanceof Replacement.ReplacementProperty &&
+                     ((Replacement.ReplacementProperty) result).replacement().deprecated)
+                deprecationWarnings.add(result.getName());
 
             return new ForwardingProperty(result.getName(), result)
             {

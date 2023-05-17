@@ -137,7 +137,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYS
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
-import static org.apache.cassandra.config.Properties.defaultLoader;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
@@ -431,17 +430,17 @@ public class DatabaseDescriptor
     private static void setConfig(Supplier<Config> config)
     {
         conf = config.get();
-        confValueAccessors = ImmutableMap.copyOf(defaultLoader(true)
-                                                 .flatten(Config.class)
-                                                 .entrySet()
-                                                 .stream()
-                                                 .map(e -> {
-                                                     if (e.getValue() instanceof FieldProperty || e.getValue() instanceof MethodProperty)
-                                                         return new AbstractMap.SimpleEntry<>(e.getKey(), new ListenableProperty<>(e.getValue()));
-                                                     else
-                                                         return e;
-                                                 })
-                                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        confValueAccessors = ImmutableMap.copyOf(Properties.withReplacementsLoader()
+                                                           .flatten(Config.class)
+                                                           .entrySet()
+                                                           .stream()
+                                                           .map(e -> {
+                                                               if (e.getValue() instanceof FieldProperty || e.getValue() instanceof MethodProperty)
+                                                                   return new AbstractMap.SimpleEntry<>(e.getKey(), new ListenableProperty<>(e.getValue()));
+                                                               else
+                                                                   return e;
+                                                           })
+                                                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     private static void applyAll() throws ConfigurationException

@@ -21,24 +21,26 @@ import java.util.Map;
 
 import org.yaml.snakeyaml.introspector.Property;
 
-public class WithReplacementLoader extends DefaultLoader
+public class WithReplacementLoader implements Loader
 {
+    private final Loader delegate;
+    public WithReplacementLoader(Loader delegate)
+    {
+        this.delegate = delegate;
+    }
+
     @Override
     public Map<String, Property> getProperties(Class<?> root)
     {
-        Map<String, Property> properties = super.getProperties(root);
+        Map<String, Property> properties = delegate.getProperties(root);
         // only handling top-level replacements for now, previous logic was only top level so not a regression
-        Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(root);
-        if (replacements != null)
+        for (Replacement r : Replacements.getReplacements(root))
         {
-            for (Replacement r : replacements.values())
-            {
-                Property latest = properties.get(r.newName);
-                assert latest != null : "Unable to find replacement new name: " + r.newName;
-                Property conflict = properties.put(r.oldName, r.toProperty(latest));
-                // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
-                assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
-            }
+            Property latest = properties.get(r.newName);
+            assert latest != null : "Unable to find replacement new name: " + r.newName;
+            Property conflict = properties.put(r.oldName, r.toProperty(latest));
+            // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
+            assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
         }
         return properties;
     }
