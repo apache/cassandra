@@ -83,13 +83,14 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MB required, {} for compaction {}",
+            SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
+            logger.warn("insufficient space to compact all requested files. {}MB required, {} for compaction {} - removing largest SSTable: {}",
                         (float) expectedSize / 1024 / 1024,
                         StringUtils.join(transaction.originals(), ", "),
-                        transaction.opId());
+                        transaction.opId(),
+                        removedSSTable);
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
-            SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
             transaction.cancel(removedSSTable);
             return true;
         }
@@ -123,7 +124,12 @@ public class CompactionTask extends AbstractCompactionTask
             final Set<SSTableReader> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
 
             // select SSTables to compact based on available disk space.
-            buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
+            if (!buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables))
+            {
+                // The set of sstables has changed (one or more were excluded due to limited available disk space).
+                // We need to recompute the overlaps between sstables.
+                controller.refreshOverlaps();
+            }
 
             // sanity check: all sstables must belong to the same cfs
             assert !Iterables.any(transaction.originals(), new Predicate<SSTableReader>()
@@ -345,13 +351,15 @@ public class CompactionTask extends AbstractCompactionTask
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until
      * there's enough space (in theory) to handle the compaction.  Does not take into account space that will be taken by
      * other compactions.
+     *
+     * @return true if there is enough disk space to execute the complete compaction, false if some sstables are excluded.
      */
-    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables)
+    protected boolean buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables)
     {
         if(!cfs.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
-            logger.info("Compaction space check is disabled");
-            return; // try to compact all SSTables
+            logger.info("Compaction space check is disabled - trying to compact all sstables");
+            return true;
         }
 
         final Set<SSTableReader> nonExpiredSSTables = Sets.difference(transaction.originals(), fullyExpiredSSTables);
@@ -395,8 +403,9 @@ public class CompactionTask extends AbstractCompactionTask
         {
             CompactionManager.instance.incrementCompactionsReduced();
             CompactionManager.instance.incrementSstablesDropppedFromCompactions(sstablesRemoved);
+            return false;
         }
-
+        return true;
     }
 
     protected int getLevel()
