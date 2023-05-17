@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,10 +127,13 @@ public class PrepareJoin implements Transformation
         return nodeId;
     }
 
+    private static final Set<NodeState> ALLOWED_STATES = ImmutableSet.of(NodeState.REGISTERED, NodeState.LEFT);
+
     @Override
     public Result execute(ClusterMetadata prev)
     {
-        if (prev.directory.peerState(nodeId) != NodeState.REGISTERED)
+
+        if (!ALLOWED_STATES.contains(prev.directory.peerState(nodeId)))
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s",
                                                        nodeId, prev.directory.peerState(nodeId)));
 

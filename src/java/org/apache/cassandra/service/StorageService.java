@@ -836,7 +836,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 finishInProgressSequences(self);
 
-                if (finishJoiningRing && (ClusterMetadata.current().directory.peerState(self) != JOINED))
+                if (ClusterMetadata.current().directory.peerState(self) == JOINED)
+                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
+                else if (finishJoiningRing)
                     throw new IllegalStateException("Did not finish joining the ring. Please check logs for details.");
                 else
                 {
@@ -3900,17 +3902,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         try
         {
             InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
-            NodeId nodeId = ClusterMetadata.current().directory.peerId(endpoint);
+            ClusterMetadata metadata = ClusterMetadata.current();
+            // Gossip implementation of assassinate was a no-op. Preserving this behaviour.
+            if (!metadata.directory.isRegistered(endpoint))
+                return;
+            NodeId nodeId = metadata.directory.peerId(endpoint);
             ClusterMetadataService.instance().commit(new Assassinate(nodeId,
                                                                      ClusterMetadataService.instance().placementProvider()),
                                                      (metadata_) -> null,
                                                      (metadata_, code, reason) -> {
+<<<<<<< HEAD
                                                          if (metadata_.directory.peerIds().contains(nodeId))
                                                          {
                                                              throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
                                                                                                            reason));
                                                          }
                                                          return null;
+=======
+                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
+                                                                                                       reason));
+>>>>>>> 30a6c1ea1b ([CEP-21] Fix assassinate dtests)
                                                      });
         }
         catch (UnknownHostException e)

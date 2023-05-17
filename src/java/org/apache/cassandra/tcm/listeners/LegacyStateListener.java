@@ -98,7 +98,6 @@ public class LegacyStateListener implements ChangeListener
                         SystemKeyspace.updateTokens(next.directory.endpoint(change), next.tokenMap.tokens(change));
                         // needed if we miss the REGISTERED above; Does nothing if we are already in epStateMap:
                         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-                        SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
                         StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
                                      .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
                                      .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));

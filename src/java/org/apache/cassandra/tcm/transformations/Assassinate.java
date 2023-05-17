@@ -52,6 +52,13 @@ public class Assassinate extends PrepareLeave
         return Kind.ASSASSINATE;
     }
 
+    public String toString()
+    {
+        return "Assassinate{" +
+               "leaving=" + leaving +
+               '}';
+    }
+
     @Override
     public Result execute(ClusterMetadata prev)
     {
