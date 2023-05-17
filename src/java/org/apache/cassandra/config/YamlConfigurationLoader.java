@@ -32,6 +32,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -138,7 +139,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
-            Yaml yaml = YamlFactory.getInstance().newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
+            Yaml yaml = YamlFactory.instance.newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
                                                     propertiesChecker);
             Config result = loadConfig(yaml, configBytes);
             propertiesChecker.check();
@@ -221,8 +222,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
-        constructor.setPropertyUtils(propertiesChecker);
-        Yaml yaml = YamlFactory.getInstance().newYamlInstance(constructor, propertiesChecker);
+        Yaml yaml = YamlFactory.instance.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
@@ -256,7 +256,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
         constructor.setPropertyUtils(propertiesChecker);
-        Yaml yaml = YamlFactory.getInstance().newYamlInstance(constructor, propertiesChecker);
+        Yaml yaml = YamlFactory.instance.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
@@ -436,29 +436,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      */
     public static class YamlFactory
     {
-        private static final List<TypeDescription> scalarCassandraTypes = new ArrayList<>();
-        private static final List<TypeDescription> javaBeanCassandraTypes = new ArrayList<>();
-        private static volatile YamlFactory instance;
+        private static final List<TypeDescription> scalarCassandraTypes = loadScalarTypeDescriptions();
+        private static final List<TypeDescription> javaBeanCassandraTypes = loadJavaBeanTypeDescriptions();
+        public static final YamlFactory instance = new YamlFactory();
 
         private YamlFactory()
         {
-            loadScalarTypeDescriptions(scalarCassandraTypes);
-            loadJavaBeanTypeDescriptions(javaBeanCassandraTypes);
-        }
-
-        public static YamlFactory getInstance()
-        {
-            YamlFactory instance0 = instance;
-            if (instance0 == null)
-            {
-                synchronized (YamlFactory.class)
-                {
-                    instance0 = instance;
-                    if (instance0 == null)
-                        instance = instance0 = new YamlFactory();
-                }
-            }
-            return instance0;
         }
 
         /**
@@ -496,36 +479,36 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             return yaml;
         }
 
-        private static void loadScalarTypeDescriptions(List<TypeDescription> types)
+        private static List<TypeDescription> loadScalarTypeDescriptions()
         {
             // Enum types resolved with a custom overridden handler DefaultRepresentEnum() as a smiple string.
-            types.add(createTypeDescription(DataRateSpec.LongBytesPerSecondBound.class));
-            types.add(createTypeDescription(DataStorageSpec.IntBytesBound.class));
-            types.add(createTypeDescription(DataStorageSpec.IntKibibytesBound.class));
-            types.add(createTypeDescription(DataStorageSpec.IntMebibytesBound.class));
-            types.add(createTypeDescription(DataStorageSpec.LongBytesBound.class));
-            types.add(createTypeDescription(DataStorageSpec.LongMebibytesBound.class));
-            types.add(createTypeDescription(DurationSpec.IntMillisecondsBound.class));
-            types.add(createTypeDescription(DurationSpec.IntMinutesBound.class));
-            types.add(createTypeDescription(DurationSpec.IntSecondsBound.class));
-            types.add(createTypeDescription(DurationSpec.LongMillisecondsBound.class));
-            types.add(createTypeDescription(DurationSpec.LongNanosecondsBound.class));
-            types.add(createTypeDescription(DurationSpec.LongSecondsBound.class));
+            return ImmutableList.<TypeDescription>builder()
+                                .add(createTypeDescription(DataRateSpec.LongBytesPerSecondBound.class))
+                                .add(createTypeDescription(DataStorageSpec.IntBytesBound.class))
+                                .add(createTypeDescription(DataStorageSpec.IntKibibytesBound.class))
+                                .add(createTypeDescription(DataStorageSpec.IntMebibytesBound.class))
+                                .add(createTypeDescription(DataStorageSpec.LongBytesBound.class))
+                                .add(createTypeDescription(DataStorageSpec.LongMebibytesBound.class))
+                                .add(createTypeDescription(DurationSpec.IntMillisecondsBound.class))
+                                .add(createTypeDescription(DurationSpec.IntMinutesBound.class))
+                                .add(createTypeDescription(DurationSpec.IntSecondsBound.class))
+                                .add(createTypeDescription(DurationSpec.LongMillisecondsBound.class))
+                                .add(createTypeDescription(DurationSpec.LongNanosecondsBound.class))
+                                .add(createTypeDescription(DurationSpec.LongSecondsBound.class))
+                                .build();
         }
 
-        private static void loadJavaBeanTypeDescriptions(List<TypeDescription> types)
+        private static List<TypeDescription> loadJavaBeanTypeDescriptions()
         {
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class, Tag.MAP);
             seedDesc.addPropertyParameters("parameters", String.class, String.class);
-            types.add(seedDesc);
-
             TypeDescription inheritingClass = new TypeDescription(InheritingClass.class, Tag.MAP);
             inheritingClass.addPropertyParameters("parameters", String.class, String.class);
-            types.add(inheritingClass);
-
             TypeDescription memtableDesc = new TypeDescription(Config.MemtableOptions.class, Tag.MAP);
             memtableDesc.addPropertyParameters("configurations", String.class, InheritingClass.class);
-            types.add(memtableDesc);
+            return ImmutableList.<TypeDescription>builder()
+                                .add(seedDesc, inheritingClass, memtableDesc)
+                                .build();
         }
 
         private static TypeDescription createTypeDescription(Class<?> clazz)

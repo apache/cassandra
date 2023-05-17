@@ -4845,7 +4845,7 @@ public class DatabaseDescriptor
      */
     public static <T> TypeConverter<T, String> propertyToStringConverter()
     {
-        return obj -> YamlConfigurationLoader.YamlFactory.getInstance().newYamlInstance(Config.class).dump(obj).trim();
+        return obj -> YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(Config.class).dump(obj).trim();
     }
 
     /**
@@ -4855,7 +4855,7 @@ public class DatabaseDescriptor
      */
     public static <R> TypeConverter<String, R> propertyFromStringConverter(Class<R> toClass)
     {
-        return obj -> YamlConfigurationLoader.YamlFactory.getInstance().newYamlInstance(toClass).loadAs(obj, toClass);
+        return obj -> YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(toClass).loadAs(obj, toClass);
     }
 
     /**
