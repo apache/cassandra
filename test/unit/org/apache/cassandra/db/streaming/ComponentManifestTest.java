@@ -41,7 +41,7 @@ public class ComponentManifestTest
     public void testSerialization()
     {
         ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Components.DATA, 100L); }});
-        SerializationUtils.assertSerializationCycle(expected, ComponentManifest.serializers.get(BigFormat.getInstance().getType()));
+        SerializationUtils.assertSerializationCycle(expected, ComponentManifest.serializers.get(BigFormat.getInstance().name()));
     }
 
     // Propose removing this test which now fails on VIntOutOfRange

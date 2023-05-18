@@ -32,13 +32,15 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_STOP_ON_ERRORS;
+
 public class CommitLogFailurePolicyTest
 {
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
-        System.setProperty("cassandra.commitlog.stop_on_errors", "true");
+        COMMITLOG_STOP_ON_ERRORS.setBoolean(true);
     }
 
     @Test

@@ -33,7 +33,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -43,11 +42,13 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TOLERATE_SSTABLE_SIZE;
+
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
     private static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
-    private static final boolean tolerateSstableSize = Boolean.getBoolean(Config.PROPERTY_PREFIX + "tolerate_sstable_size");
+    private static final boolean tolerateSstableSize = TOLERATE_SSTABLE_SIZE.getBoolean();
     private static final String LEVEL_FANOUT_SIZE_OPTION = "fanout_size";
     private static final String SINGLE_SSTABLE_UPLEVEL_OPTION = "single_sstable_uplevel";
     public static final int DEFAULT_LEVEL_FANOUT_SIZE = 10;

@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Json;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.marshal.*;
@@ -31,6 +30,7 @@ import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 
 import static java.lang.String.format;
 
@@ -64,7 +64,7 @@ public class FromJsonFct extends NativeScalarFunction
         String jsonArg = UTF8Type.instance.getSerializer().deserialize(argument);
         try
         {
-            Object object = Json.JSON_OBJECT_MAPPER.readValue(jsonArg, Object.class);
+            Object object = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonArg, Object.class);
             if (object == null)
                 return null;
             return returnType.fromJSONObject(object).bindAndGet(QueryOptions.forProtocolVersion(protocolVersion));

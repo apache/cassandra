@@ -70,7 +70,7 @@ public class BTreeTransformBench extends BTreeBench
         setup(2 * dataSize);
         data2 = data.clone();
         for (int i = 0 ; i < data2.length ; ++i)
-            data2[i] = new Integer(data2[i]);
+            data2[i] = Integer.valueOf(data2[i]);
     }
 
     @State(Scope.Thread)

@@ -109,11 +109,6 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
             final String msg = String.format("'%skeystore_password' and '%skey_password' both configurations are given and the values do not match", keyName, keyName);
             throw new IllegalArgumentException(msg);
         }
-        else
-        {
-            logger.warn("'{}keystore_password' and '{}key_password' both are configured but since the values match it's " +
-                        "okay. Ideally you should only specify one of them.", keyName, keyName);
-        }
     }
 
     public PEMBasedSslContextFactory(Map<String, Object> parameters)

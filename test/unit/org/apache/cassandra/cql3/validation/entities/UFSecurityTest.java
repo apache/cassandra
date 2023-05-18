@@ -48,13 +48,13 @@ public class UFSecurityTest extends CQLTester
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS double " +
                                           "LANGUAGE JAVA\n" +
-                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';");
+                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
             Assert.fail();
         }
         catch (FunctionExecutionException e)
         {
-            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e);
+            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
         }
 
         String[] cfnSources =

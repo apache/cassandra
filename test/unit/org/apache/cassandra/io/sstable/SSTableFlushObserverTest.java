@@ -94,13 +94,12 @@ public class SSTableFlushObserverTest
         if (!directory.exists() && !directory.tryCreateDirectories())
             throw new FSWriteError(new IOException("failed to create tmp directory"), directory.absolutePath());
 
-        SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
-        Descriptor descriptor = new Descriptor(sstableFormat.info.getLatestVersion(),
+        SSTableFormat<?, ?> sstableFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        Descriptor descriptor = new Descriptor(sstableFormat.getLatestVersion(),
                                                directory,
                                                cfm.keyspace,
                                                cfm.name,
-                                               new SequenceBasedSSTableId(0),
-                                               sstableFormat);
+                                               new SequenceBasedSSTableId(0));
 
         SSTableWriter writer = descriptor.getFormat().getWriterFactory().builder(descriptor)
                                          .setKeyCount(10)

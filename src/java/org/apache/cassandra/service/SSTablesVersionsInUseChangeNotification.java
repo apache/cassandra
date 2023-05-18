@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.service;
 
+import java.util.stream.Collectors;
+
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.notifications.INotification;
 
 /**
@@ -35,9 +37,9 @@ public class SSTablesVersionsInUseChangeNotification implements INotification
     /**
      * The set of all sstable versions in use on this node at the time of this notification.
      */
-    public final ImmutableSet<VersionAndType> versionsInUse;
+    public final ImmutableSet<Version> versionsInUse;
 
-    SSTablesVersionsInUseChangeNotification(ImmutableSet<VersionAndType> versionsInUse)
+    SSTablesVersionsInUseChangeNotification(ImmutableSet<Version> versionsInUse)
     {
         this.versionsInUse = versionsInUse;
     }
@@ -45,6 +47,6 @@ public class SSTablesVersionsInUseChangeNotification implements INotification
     @Override
     public String toString()
     {
-        return String.format("SSTablesInUseChangeNotification(%s)", versionsInUse);
+        return String.format("SSTablesInUseChangeNotification(%s)", versionsInUse.stream().map(Version::toFormatAndVersionString).collect(Collectors.toList()));
     }
 }

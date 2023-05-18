@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT;
 
 /**
  * A decaying histogram reservoir where values collected during each minute will be twice as significant as the values
@@ -91,7 +92,7 @@ public class DecayingEstimatedHistogramReservoir implements SnapshottingReservoi
      */
     public static final int DEFAULT_BUCKET_COUNT = 164;
     public static final int LOW_BUCKET_COUNT = 127;
-    public static final int DEFAULT_STRIPE_COUNT = Integer.parseInt(System.getProperty("cassandra.dehr_stripe_count", "2"));
+    public static final int DEFAULT_STRIPE_COUNT = DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT.getInt();
     public static final int MAX_BUCKET_COUNT = 237;
     public static final boolean DEFAULT_ZERO_CONSIDERATION = false;
 

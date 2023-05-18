@@ -54,7 +54,68 @@
       <property name="illegalClasses" value=""/>
     </module>
     <module name="IllegalInstantiation">
-      <property name="classes" value=""/>
+      <property name="classes" value="com.fasterxml.jackson.databind.ObjectMapper"/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <!-- block Integer() -->
+      <property name="id" value="blockIntegerInstantiation"/>
+      <property name="format" value="new Integer\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Integer() and use Integer.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Long() -->
+      <property name="id" value="blockLongInstantiation"/>
+      <property name="format" value="new Long\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Long() and use Long.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Float() -->
+      <property name="id" value="blockFloatInstantiation"/>
+      <property name="format" value="new Float\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Float() and use Float.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Byte() -->
+      <property name="id" value="blockByteInstantiation"/>
+      <property name="format" value="new Byte\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Byte() and use Byte.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Double() -->
+      <property name="id" value="blockDoubleInstantiation"/>
+      <property name="format" value="new Double\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Double() and use Double.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Short() -->
+      <property name="id" value="blockShortInstantiation"/>
+      <property name="format" value="new Short\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Short() and use Short.valueOf()" />
+    </module>
+
+    <module name="SuppressionCommentFilter">
+      <property name="offCommentFormat" value="checkstyle: suppress below '([\w\|]+)'"/>
+      <property name="idFormat" value="$1"/>
+    </module>
+
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: suppress nearby '([\w\|]+)'"/>
+      <property name="idFormat" value="$1"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="blockSystemPropertyUsage"/>
+      <property name="format" value="(System\.getenv)|(System\.(getProperty|setProperty))|(Integer\.getInteger)|(Long\.getLong)|(Boolean\.getBoolean)"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Use the CassandraRelevantProperties or CassandraRelevantEnv instead." />
     </module>
 
     <module name="RedundantImport"/>

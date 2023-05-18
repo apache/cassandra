@@ -159,7 +159,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
             UnfilteredRowIterator iterator = throttled.next();
             assertFalse(throttled.hasNext());
             assertFalse(iterator.hasNext());
-            assertEquals(Int32Type.instance.getSerializer().deserialize(iterator.staticRow().cells().iterator().next().buffer()), new Integer(160));
+            assertEquals(Int32Type.instance.getSerializer().deserialize(iterator.staticRow().cells().iterator().next().buffer()), Integer.valueOf(160));
         }
 
         // test opt out

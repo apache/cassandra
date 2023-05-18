@@ -31,6 +31,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE;
+
 /* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
@@ -46,13 +48,13 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
     public static void startup()
     {
         ViewAbstractParameterizedTest.startup();
-        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
+        MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE.setBoolean(true);
     }
 
     @AfterClass
     public static void tearDown()
     {
-        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "false");
+        MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE.setBoolean(false);
     }
 
     // TODO will revise the non-pk filter condition in MV, see CASSANDRA-11500

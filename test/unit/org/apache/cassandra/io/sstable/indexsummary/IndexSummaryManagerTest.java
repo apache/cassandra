@@ -59,7 +59,6 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.CachingParams;
@@ -98,7 +97,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
     {
         DatabaseDescriptor.daemonInitialization();
         Assume.assumeTrue("This test make sense only if the default SSTable format support index summary",
-                          IndexSummarySupport.isSupportedBy(SSTableFormat.Type.current()));
+                          IndexSummarySupport.isSupportedBy(DatabaseDescriptor.getSelectedSSTableFormat()));
 
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,

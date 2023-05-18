@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -31,8 +30,6 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -43,6 +40,11 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_CACHE_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -71,9 +73,6 @@ public class Config
      * Prefix for Java properties for internal Cassandra configuration options
      */
     public static final String PROPERTY_PREFIX = "cassandra.";
-
-    public static final String SSTABLE_FORMAT_ID = "id";
-    public static final String SSTABLE_FORMAT_NAME = "name";
 
     public String cluster_name = "Test Cluster";
     public String authenticator;
@@ -359,9 +358,13 @@ public class Config
 
     public String[] data_file_directories = new String[0];
 
-    public List<ParameterizedClass> sstable_formats = ImmutableList.of(new ParameterizedClass(BigFormat.class.getName(),// "org.apache.cassandra.io.sstable.format.big.BigFormat",
-                                                                                              ImmutableMap.of(SSTABLE_FORMAT_ID, "0",
-                                                                                                              SSTABLE_FORMAT_NAME, "big")));
+    public static class SSTableConfig
+    {
+        public String selected_format = BigFormat.NAME;
+        public Map<String, Map<String, String>> format = new HashMap<>();
+    }
+
+    public final SSTableConfig sstable = new SSTableConfig();
 
     /**
      * The directory to use for storing the system keyspaces data.
@@ -487,7 +490,7 @@ public class Config
     @Replaces(oldName = "file_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound file_cache_size;
 
-    public boolean file_cache_enabled = Boolean.getBoolean("cassandra.file_cache_enabled");
+    public boolean file_cache_enabled = FILE_CACHE_ENABLED.getBoolean();
 
     /**
      * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 KiB, we
@@ -803,7 +806,7 @@ public class Config
     public volatile boolean check_for_duplicate_rows_during_reads = true;
     public volatile boolean check_for_duplicate_rows_during_compaction = true;
 
-    public boolean autocompaction_on_startup_enabled = Boolean.parseBoolean(System.getProperty("cassandra.autocompaction_on_startup_enabled", "true"));
+    public boolean autocompaction_on_startup_enabled = AUTOCOMPACTION_ON_STARTUP_ENABLED.getBoolean();
 
     // see CASSANDRA-3200 / CASSANDRA-16274
     public volatile boolean auto_optimise_inc_repair_streams = false;
@@ -899,6 +902,12 @@ public class Config
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile int repair_state_size = 100_000;
 
+    /** The configuration of timestamp bounds */
+    public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_warn_threshold = null;
+    public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_fail_threshold = null;
+    public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_warn_threshold = null;
+    public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_fail_threshold = null;
+
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
      */
@@ -989,7 +998,7 @@ public class Config
      * rare operation circumstances e.g. where for some reason the repair is impossible to perform (e.g. too few replicas)
      * and an unsafe topology change must be made
      */
-    public volatile boolean skip_paxos_repair_on_topology_change = Boolean.getBoolean("cassandra.skip_paxos_repair_on_topology_change");
+    public volatile boolean skip_paxos_repair_on_topology_change = SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE.getBoolean();
 
     /**
      * A safety margin when purging paxos state information that has been safely replicated to a quorum.
@@ -1050,7 +1059,7 @@ public class Config
     /**
      * If necessary for operational purposes, permit certain keyspaces to be ignored for paxos topology repairs
      */
-    public volatile Set<String> skip_paxos_repair_on_topology_change_keyspaces = splitCommaDelimited(System.getProperty("cassandra.skip_paxos_repair_on_topology_change_keyspaces"));
+    public volatile Set<String> skip_paxos_repair_on_topology_change_keyspaces = splitCommaDelimited(SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES.getString());
 
     /**
      * See {@link org.apache.cassandra.service.paxos.ContentionStrategy}
@@ -1215,4 +1224,6 @@ public class Config
 
     public volatile boolean dump_heap_on_uncaught_exception = false;
     public String heap_dump_path = "heapdump";
+
+    public double severity_during_decommission = 0;
 }

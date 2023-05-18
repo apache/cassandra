@@ -54,6 +54,8 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.IRETURN;
 import static org.objectweb.asm.Opcodes.RETURN;
 
+// checkstyle: suppress below 'blockSystemPropertyUsage'
+
 /**
  * A mechanism for weaving classes loaded by the bootstrap classloader that we cannot override.
  * The design supports weaving of the internals of these classes, and in future we may want to

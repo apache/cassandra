@@ -264,7 +264,7 @@
       <dependency>
         <groupId>com.github.luben</groupId>
         <artifactId>zstd-jni</artifactId>
-        <version>1.5.4-1</version>
+        <version>1.5.5-1</version>
       </dependency>
       <dependency>
         <groupId>com.google.guava</groupId>
@@ -320,7 +320,7 @@
       <dependency>
         <groupId>commons-io</groupId>
         <artifactId>commons-io</artifactId>
-        <version>2.6</version>
+        <version>2.11.0</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
@@ -416,11 +416,6 @@
             <groupId>org.yaml</groupId>
           </exclusion>
         </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>com.googlecode.json-simple</groupId>
-        <artifactId>json-simple</artifactId>
-        <version>1.1</version>
       </dependency>
       <dependency>
         <groupId>com.boundary</groupId>

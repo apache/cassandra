@@ -31,13 +31,13 @@ import org.junit.Assume;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryRedistribution;
@@ -75,7 +75,7 @@ public class DiskSpaceMetricsTest extends CQLTester
     @Test
     public void summaryRedistribution() throws Throwable
     {
-        Assume.assumeTrue(IndexSummarySupport.isSupportedBy(SSTableFormat.Type.current()));
+        Assume.assumeTrue(IndexSummarySupport.isSupportedBy(DatabaseDescriptor.getSelectedSSTableFormat()));
         createTable("CREATE TABLE %s (pk bigint, PRIMARY KEY (pk)) WITH min_index_interval=1");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 

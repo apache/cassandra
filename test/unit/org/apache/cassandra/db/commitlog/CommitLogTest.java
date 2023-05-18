@@ -1,21 +1,21 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.io.util.File;
@@ -41,6 +41,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
 
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+
 import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -87,7 +88,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
-import static java.lang.System.setProperty;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_IGNORE_REPLAY_ERRORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMIT_LOG_REPLAY_LIST;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -130,14 +131,14 @@ public abstract class CommitLogTest
     public static Collection<Object[]> generateData() throws Exception
     {
         return Arrays.asList(new Object[][]
-        {
-            { null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
-            { null, newEncryptionContext() }, // Encryption
-            { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() },
-            { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            { new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}
-        });
+                             {
+                             { null, EncryptionContextGenerator.createDisabledContext() }, // No compression, no encryption
+                             { null, newEncryptionContext() }, // Encryption
+                             { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() },
+                             { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() },
+                             { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() },
+                             { new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() }
+                             });
     }
 
     private static EncryptionContext newEncryptionContext() throws Exception
@@ -161,12 +162,12 @@ public abstract class CommitLogTest
         MemtableParams skipListMemtable = MemtableParams.get("skiplist");
 
         TableMetadata.Builder custom =
-            TableMetadata.builder(KEYSPACE1, CUSTOM1)
-                         .addPartitionKeyColumn("k", IntegerType.instance)
-                         .addClusteringColumn("c1", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
-                         .addClusteringColumn("c2", SetType.getInstance(UTF8Type.instance, false))
-                         .addStaticColumn("s", IntegerType.instance)
-                         .memtable(skipListMemtable);
+        TableMetadata.builder(KEYSPACE1, CUSTOM1)
+                     .addPartitionKeyColumn("k", IntegerType.instance)
+                     .addClusteringColumn("c1", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
+                     .addClusteringColumn("c2", SetType.getInstance(UTF8Type.instance, false))
+                     .addStaticColumn("s", IntegerType.instance)
+                     .memtable(skipListMemtable);
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -215,7 +216,7 @@ public abstract class CommitLogTest
     public void afterTest()
     {
         CommitLogSegmentReader.setAllowSkipSyncMarkerCrc(false);
-        System.clearProperty("cassandra.replayList");
+        COMMIT_LOG_REPLAY_LIST.clearValue();
         testKiller.reset();
     }
 
@@ -336,11 +337,14 @@ public abstract class CommitLogTest
     @Test
     public void testRecoveryWithGarbageLog_ignoredByProperty() throws Exception
     {
-        try {
-            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+        try
+        {
+            COMMITLOG_IGNORE_REPLAY_ERRORS.setBoolean(true);
             testRecoveryWithGarbageLog();
-        } finally {
-            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+        finally
+        {
+            COMMITLOG_IGNORE_REPLAY_ERRORS.clearValue();
         }
     }
 
@@ -403,10 +407,10 @@ public abstract class CommitLogTest
         ColumnFamilyStore cfs2 = ks.getColumnFamilyStore(STANDARD2);
 
         // Roughly 32 MiB mutation
-         Mutation rm = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
-                  .clustering("bytes")
-                  .add("val", ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1))
-                  .build();
+        Mutation rm = new RowUpdateBuilder(cfs1.metadata(), 0, "k")
+                      .clustering("bytes")
+                      .add("val", ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize() / 4) - 1))
+                      .build();
 
         // Adding it twice (won't change segment)
         CommitLog.instance.add(rm);
@@ -524,6 +528,7 @@ public abstract class CommitLogTest
         }
         throw new AssertionError("mutation larger than limit was accepted");
     }
+
     @Test
     public void testExceedRecordLimitWithMultiplePartitions() throws Exception
     {
@@ -558,9 +563,9 @@ public abstract class CommitLogTest
 
             long mutationSize = mutation.serializedSize(MessagingService.current_version) + ENTRY_OVERHEAD_SIZE;
             final String expectedMessagePrefix = format("Rejected an oversized mutation (%d/%d) for keyspace: %s.",
-                                                               mutationSize,
-                                                               DatabaseDescriptor.getMaxMutationSize(),
-                                                               KEYSPACE1);
+                                                        mutationSize,
+                                                        DatabaseDescriptor.getMaxMutationSize(),
+                                                        KEYSPACE1);
             assertTrue(message.startsWith(expectedMessagePrefix));
             assertTrue(message.contains(format("%s.%s and 1 more.", STANDARD1, key)));
         }
@@ -734,7 +739,7 @@ public abstract class CommitLogTest
                           .add("val", ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4))
                           .build();
 
-            for (int i = 0 ; i < 5 ; i++)
+            for (int i = 0; i < 5; i++)
                 CommitLog.instance.add(m2);
 
             assertEquals(2, CommitLog.instance.segmentManager.getActiveSegments().size());
@@ -815,43 +820,22 @@ public abstract class CommitLogTest
     public void testReplayListProperty() throws Throwable
     {
         // only keyspace
-        assertReplay(2, () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(), KEYSPACE1_REPLAY));
+        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(KEYSPACE1_REPLAY));
 
         // only keyspaces
-        assertReplay(3, () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
-                                          format("%s,%s", KEYSPACE1_REPLAY, KEYSPACE2_REPLAY)));
+        assertReplay(3, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s,%s", KEYSPACE1_REPLAY, KEYSPACE2_REPLAY)));
 
         // only table with keyspace
-        assertReplay(1,
-                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
-                                       format("%s.%s",
-                                              KEYSPACE1_REPLAY,
-                                              KEYSPACE1_REPLAY_TABLE1)));
+        assertReplay(1, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1)));
 
         // mix of keyspace and tables with keyspaces
-        assertReplay(2,
-                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
-                                       format("%s.%s,%s",
-                                              KEYSPACE1_REPLAY,
-                                              KEYSPACE1_REPLAY_TABLE1,
-                                              KEYSPACE2_REPLAY)));
+        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s,%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE2_REPLAY)));
 
         // only tables with keyspaces
-        assertReplay(2,
-                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
-                                       format("%s.%s,%s.%s",
-                                              KEYSPACE1_REPLAY,
-                                              KEYSPACE1_REPLAY_TABLE1,
-                                              KEYSPACE2_REPLAY,
-                                              KEYSPACE2_REPLAY_TABLE2)));
+        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s,%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE2_REPLAY, KEYSPACE2_REPLAY_TABLE2)));
 
         // mix of keyspace and tables with keyspaces within same keyspace.
-        assertReplay(2,
-                     () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(),
-                                       format("%s.%s,%s",
-                                              KEYSPACE1_REPLAY,
-                                              KEYSPACE1_REPLAY_TABLE1,
-                                              KEYSPACE1_REPLAY)));
+        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s,%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE1_REPLAY)));
 
         // test for wrong formats
 
@@ -860,7 +844,7 @@ public abstract class CommitLogTest
         try
         {
             assertReplay(2,
-                         () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat));
+                         () -> COMMIT_LOG_REPLAY_LIST.setString(invalidFormat));
             fail(format("replay should fail on -D%s=%s as it is in invalid format",
                         COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat));
         }
@@ -877,7 +861,7 @@ public abstract class CommitLogTest
         try
         {
             assertReplay(2,
-                         () -> setProperty(COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat2));
+                         () -> COMMIT_LOG_REPLAY_LIST.setString(invalidFormat2));
             fail(format("replay should fail on -D%s=%s as it is in invalid format",
                         COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat2));
         }
@@ -923,20 +907,21 @@ public abstract class CommitLogTest
             ColumnFamilyStore ks2tb2 = Keyspace.open(KEYSPACE2_REPLAY).getColumnFamilyStore(KEYSPACE2_REPLAY_TABLE2);
 
             Mutation mutation1 = new RowUpdateBuilder(ks1tb1.metadata(), 0, "key1")
-            .clustering("c1").add("val", ByteBuffer.allocate(100)).build();
+                                 .clustering("c1").add("val", ByteBuffer.allocate(100)).build();
 
             Mutation mutation2 = new RowUpdateBuilder(ks1tb2.metadata(), 0, "key2")
-            .clustering("c2").add("val", ByteBuffer.allocate(100)).build();
+                                 .clustering("c2").add("val", ByteBuffer.allocate(100)).build();
 
             Mutation mutation3 = new RowUpdateBuilder(ks2tb2.metadata(), 0, "key3")
-            .clustering("c3").add("val", ByteBuffer.allocate(100)).build();
+                                 .clustering("c3").add("val", ByteBuffer.allocate(100)).build();
 
             CommitLog.instance.add(mutation1);
             CommitLog.instance.add(mutation2);
             CommitLog.instance.add(mutation3);
             CommitLog.instance.sync(true);
 
-            Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted = new HashMap<TableId, IntervalSet<CommitLogPosition>>() {{
+            Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted = new HashMap<TableId, IntervalSet<CommitLogPosition>>()
+            {{
                 put(ks1tb1.metadata().id, IntervalSet.empty());
                 put(ks1tb2.metadata().id, IntervalSet.empty());
                 put(ks2tb2.metadata().id, IntervalSet.empty());
@@ -1028,7 +1013,7 @@ public abstract class CommitLogTest
     {
         int cellCount = 0;
         int max = 1024;
-        int discardPosition = (int)(max * .8); // an arbitrary number of entries that we'll skip on the replay
+        int discardPosition = (int) (max * .8); // an arbitrary number of entries that we'll skip on the replay
         CommitLogPosition commitLogPosition = null;
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
@@ -1113,12 +1098,12 @@ public abstract class CommitLogTest
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.ignore);
 
-            for (int i = 0 ; i < 5 ; i++)
+            for (int i = 0; i < 5; i++)
             {
                 new RowUpdateBuilder(cfs.metadata(), 0, "k")
-                    .clustering("c" + i).add("val", ByteBuffer.allocate(100))
-                    .build()
-                    .apply();
+                .clustering("c" + i).add("val", ByteBuffer.allocate(100))
+                .build()
+                .apply();
 
                 if (i == 2)
                 {
@@ -1143,26 +1128,26 @@ public abstract class CommitLogTest
         }
 
         CommitLog.instance.sync(true);
-        System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
+        COMMIT_LOG_REPLAY_LIST.setString(KEYSPACE1 + '.' + STANDARD1);
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
         assertEquals(1, CommitLog.instance.resetUnsafe(false));
-        System.clearProperty("cassandra.replayList");
+        COMMIT_LOG_REPLAY_LIST.clearValue();
     }
 
     public void testOutOfOrderFlushRecovery(BiConsumer<ColumnFamilyStore, Memtable> flushAction, boolean performCompaction)
-            throws ExecutionException, InterruptedException, IOException
+    throws ExecutionException, InterruptedException, IOException
     {
         CommitLog.instance.resetUnsafe(true);
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
-        for (int i = 0 ; i < 5 ; i++)
+        for (int i = 0; i < 5; i++)
         {
             new RowUpdateBuilder(cfs.metadata(), 0, "k")
-                .clustering("c" + i).add("val", ByteBuffer.allocate(100))
-                .build()
-                .apply();
+            .clustering("c" + i).add("val", ByteBuffer.allocate(100))
+            .build()
+            .apply();
 
             Memtable current = cfs.getTracker().getView().getCurrentMemtable();
             if (i == 2)
@@ -1177,7 +1162,7 @@ public abstract class CommitLogTest
             reader.reloadSSTableMetadata();
 
         CommitLog.instance.sync(true);
-        System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
+        COMMIT_LOG_REPLAY_LIST.setString(KEYSPACE1 + '.' + STANDARD1);
         // In the absence of error, this should be 0 because forceBlockingFlush/forceRecycleAllSegments would have
         // persisted all data in the commit log. Because we know there was an error, there must be something left to
         // replay.
@@ -1256,12 +1241,12 @@ public abstract class CommitLogTest
 
         try
         {
-            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            COMMITLOG_IGNORE_REPLAY_ERRORS.setBoolean(true);
             replayed = CommitLog.instance.resetUnsafe(false);
         }
         finally
         {
-            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+            COMMITLOG_IGNORE_REPLAY_ERRORS.clearValue();
         }
 
         assertEquals(replayed, 1);

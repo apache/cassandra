@@ -140,6 +140,7 @@ New features
     - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
       Superusers have it by default, whereas regular users don't have it by default.
     - Added support for using UDFs as masking functions attached to table columns on the schema.
+    - Added `sstablepartitions` offline tool to find large partitions in sstables.
 
 Upgrading
 ---------
@@ -161,6 +162,10 @@ Upgrading
      `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
    - Hadoop integration is no longer available (CASSANDRA-18323). If you want to process Cassandra data by big data frameworks, 
      please upgrade your infrastructure to use Cassandra Spark connector.
+   - Keystore/truststore password configurations are nullable now and the code defaults of those passwords to 'cassandra' are
+     removed. Any deployments that depend upon the code default to this password value without explicitly specifying
+     it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
+     values to prevent this failure.
 
 Deprecation
 -----------
@@ -663,7 +668,7 @@ Upgrading
       the node will not start. See CASSANDRA-14477 for details.
     - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
       value has been changed from 256 to 16 for reasons described in
-      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+      https://cassandra.apache.org/doc/latest/getting-started/production.html#tokens
       'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
       Please note when upgrading that if the 'num_tokens' value is different than what you have
       configured, the upgraded node will refuse to start. Also note that if a new node joining

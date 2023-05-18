@@ -273,6 +273,64 @@ public abstract class DurationSpec
     }
 
     /**
+     * Represents a duration used for Cassandra configuration. The bound is [0, Long.MAX_VALUE) in microseconds.
+     * If the user sets a different unit - we still validate that converted to microseconds the quantity will not exceed
+     * that upper bound. (CASSANDRA-17571)
+     */
+    public final static class LongMicrosecondsBound extends DurationSpec
+    {
+        /**
+         * Creates a {@code DurationSpec.LongMicrosecondsBound} of the specified amount.
+         * The bound is [0, Long.MAX_VALUE) in microseconds.
+         *
+         * @param value the duration
+         */
+        public LongMicrosecondsBound(String value)
+        {
+            super(value, MICROSECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongMicrosecondsBound} of the specified amount in the specified unit.
+         * The bound is [0, Long.MAX_VALUE) in milliseconds.
+         *
+         * @param quantity where quantity shouldn't be bigger than Long.MAX_VALUE - 1 in microseconds
+         * @param unit in which the provided quantity is
+         */
+        public LongMicrosecondsBound(long quantity, TimeUnit unit)
+        {
+            super(quantity, unit, MICROSECONDS, Long.MAX_VALUE);
+        }
+
+        /**
+         * Creates a {@code DurationSpec.LongMicrosecondsBound} of the specified amount in microseconds.
+         * The bound is [0, Long.MAX_VALUE) in microseconds.
+         *
+         * @param microseconds where milliseconds shouldn't be bigger than Long.MAX_VALUE-1
+         */
+        public LongMicrosecondsBound(long microseconds)
+        {
+            this(microseconds, MICROSECONDS);
+        }
+
+        /**
+         * @return this duration in number of milliseconds
+         */
+        public long toMicroseconds()
+        {
+            return unit().toMicros(quantity());
+        }
+
+        /**
+         * @return this duration in number of seconds
+         */
+        public long toSeconds()
+        {
+            return unit().toSeconds(quantity());
+        }
+    }
+
+    /**
      * Represents a duration used for Cassandra configuration. The bound is [0, Long.MAX_VALUE) in milliseconds.
      * If the user sets a different unit - we still validate that converted to milliseconds the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)

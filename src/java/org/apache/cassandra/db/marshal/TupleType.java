@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -423,7 +424,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(

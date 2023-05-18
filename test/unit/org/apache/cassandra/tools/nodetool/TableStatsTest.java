@@ -30,8 +30,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.JsonUtils;
+import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 public class TableStatsTest extends CQLTester
 {
@@ -223,5 +226,31 @@ public class TableStatsTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "system.local");
         tool.assertCleanStdErr();
         assertThat(tool.getStdout()).doesNotContain("SSTables in correct location: ");
+    }
+
+    @Test
+    public void testFormatJson()
+    {
+        Arrays.asList("-F", "--format").forEach(arg -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "json");
+            tool.assertOnCleanExit();
+            String json = tool.getStdout();
+            assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
+            assertThat(json).containsPattern("\"sstable_count\"\\s*:\\s*[0-9]+")
+                            .containsPattern("\"old_sstable_count\"\\s*:\\s*[0-9]+");
+        });
+    }
+
+    @Test
+    public void testFormatYaml()
+    {
+        Arrays.asList("-F", "--format").forEach(arg -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "yaml");
+            tool.assertOnCleanExit();
+            String yaml = tool.getStdout();
+            assertThatCode(() -> new Yaml().load(yaml)).doesNotThrowAnyException();
+            assertThat(yaml).containsPattern("sstable_count:\\s*[0-9]+")
+                            .containsPattern("old_sstable_count:\\s*[0-9]+");
+        });
     }
 }

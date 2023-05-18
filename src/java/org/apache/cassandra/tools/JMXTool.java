@@ -62,7 +62,6 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
@@ -71,6 +70,7 @@ import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
@@ -157,8 +157,7 @@ public class JMXTool
             {
                 void dump(OutputStream output, Map<String, Info> map) throws IOException
                 {
-                    ObjectMapper mapper = new ObjectMapper();
-                    mapper.writeValue(output, map);
+                    JsonUtils.JSON_OBJECT_PRETTY_WRITER.writeValue(output, map);
                 }
             },
             yaml
@@ -373,8 +372,7 @@ public class JMXTool
             {
                 Map<String, Info> load(InputStream input) throws IOException
                 {
-                    ObjectMapper mapper = new ObjectMapper();
-                    return mapper.readValue(input, new TypeReference<Map<String, Info>>() {});
+                    return JsonUtils.JSON_OBJECT_MAPPER.readValue(input, new TypeReference<Map<String, Info>>() {});
                 }
             },
             yaml

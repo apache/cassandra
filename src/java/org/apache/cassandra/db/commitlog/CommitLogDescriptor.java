@@ -43,7 +43,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
-import org.json.simple.JSONValue;
+import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -128,7 +128,7 @@ public class CommitLogDescriptor
         if (encryptionContext != null)
             params.putAll(encryptionContext.toHeaderParameters());
         params.putAll(additionalHeaders);
-        return JSONValue.toJSONString(params);
+        return JsonUtils.writeAsJsonString(params);
     }
 
     public static CommitLogDescriptor fromHeader(File file, EncryptionContext encryptionContext)
@@ -169,7 +169,7 @@ public class CommitLogDescriptor
 
         if (crc == (int) checkcrc.getValue())
         {
-            Map<?, ?> map = (Map<?, ?>) JSONValue.parse(new String(parametersBytes, StandardCharsets.UTF_8));
+            Map<?, ?> map = (Map<?, ?>) JsonUtils.decodeJson(parametersBytes);
             return new CommitLogDescriptor(version, id, parseCompression(map), EncryptionContext.createFromMap(map, encryptionContext));
         }
         return null;

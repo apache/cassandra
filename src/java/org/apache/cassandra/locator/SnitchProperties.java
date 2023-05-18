@@ -25,10 +25,12 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_RACKDC_PROPERTIES;
+
 public class SnitchProperties
 {
     private static final Logger logger = LoggerFactory.getLogger(SnitchProperties.class);
-    public static final String RACKDC_PROPERTY_FILENAME = "cassandra-rackdc.properties";
+    public static final String RACKDC_PROPERTY_FILENAME = CASSANDRA_RACKDC_PROPERTIES.getKey();
 
     private final Properties properties;
 
@@ -36,7 +38,7 @@ public class SnitchProperties
     {
         properties = new Properties();
         InputStream stream = null;
-        String configURL = System.getProperty(RACKDC_PROPERTY_FILENAME);
+        String configURL = CASSANDRA_RACKDC_PROPERTIES.getString();
         try
         {
             URL url;

@@ -69,6 +69,7 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -82,8 +83,6 @@ import static org.junit.Assert.fail;
 public class LegacySSTableTest
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacySSTableTest.class);
-
-    public static final String LEGACY_SSTABLE_PROP = "legacy-sstable-root";
 
     public static File LEGACY_SSTABLE_ROOT;
 
@@ -111,8 +110,8 @@ public class LegacySSTableTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        String scp = System.getProperty(LEGACY_SSTABLE_PROP);
-        Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
+        String scp = TEST_LEGACY_SSTABLE_ROOT.getString();
+        Assert.assertNotNull("System property " + TEST_LEGACY_SSTABLE_ROOT.getKey() + " not set", scp);
 
         LEGACY_SSTABLE_ROOT = new File(scp).toAbsolute();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
@@ -593,7 +592,7 @@ public class LegacySSTableTest
     /**
      * Generates sstables for 8 CQL tables (see {@link #createTables(String)}) in <i>current</i>
      * sstable format (version) into {@code test/data/legacy-sstables/VERSION}, where
-     * {@code VERSION} matches {@link Version#getVersion() BigFormat.latestVersion.getVersion()}.
+     * {@code VERSION} matches {@link Version#version BigFormat.latestVersion.getVersion()}.
      * <p>
      * Run this test alone (e.g. from your IDE) when a new version is introduced or format changed
      * during development. I.e. remove the {@code @Ignore} annotation temporarily.
@@ -603,7 +602,7 @@ public class LegacySSTableTest
     @Test
     public void testGenerateSstables() throws Throwable
     {
-        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         Random rand = new Random();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 128; i++)

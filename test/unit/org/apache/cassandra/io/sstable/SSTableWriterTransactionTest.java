@@ -96,21 +96,21 @@ public class SSTableWriterTransactionTest extends AbstractTransactionalTest
 
         protected void assertInProgress() throws Exception
         {
-            assertExists(descriptor.formatType.info.primaryComponents());
-            assertNotExists(descriptor.formatType.info.generatedOnLoadComponents());
+            assertExists(descriptor.version.format.primaryComponents());
+            assertNotExists(descriptor.version.format.generatedOnLoadComponents());
             Assert.assertTrue(file.length() > 0);
         }
 
         protected void assertPrepared() throws Exception
         {
-            assertExists(descriptor.formatType.info.primaryComponents());
-            assertExists(descriptor.formatType.info.generatedOnLoadComponents());
+            assertExists(descriptor.version.format.primaryComponents());
+            assertExists(descriptor.version.format.generatedOnLoadComponents());
         }
 
         protected void assertAborted() throws Exception
         {
-            assertNotExists(descriptor.formatType.info.primaryComponents());
-            assertNotExists(descriptor.formatType.info.generatedOnLoadComponents());
+            assertNotExists(descriptor.version.format.primaryComponents());
+            assertNotExists(descriptor.version.format.generatedOnLoadComponents());
             Assert.assertFalse(file.exists());
         }
 

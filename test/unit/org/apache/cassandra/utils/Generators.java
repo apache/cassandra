@@ -39,6 +39,8 @@ import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BLOB_SHARED_SEED;
+
 public final class Generators
 {
     private static final Logger logger = LoggerFactory.getLogger(Generators.class);
@@ -379,7 +381,7 @@ public final class Generators
 
         static
         {
-            long blobSeed = Long.parseLong(System.getProperty("cassandra.test.blob.shared.seed", Long.toString(System.currentTimeMillis())));
+            long blobSeed = TEST_BLOB_SHARED_SEED.getLong(System.currentTimeMillis());
             logger.info("Shared blob Gen used seed {}", blobSeed);
 
             Random random = new Random(blobSeed);

@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -28,6 +28,7 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -50,6 +51,7 @@ public class JsonTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
 
@@ -1280,11 +1282,11 @@ public class JsonTest extends CQLTester
 
         // map<set<text>, text> keys
         String innerKey1 = "[\"0\", \"1\"]";
-        String fullKey1 = String.format("{\"%s\": \"%s\"}", Json.quoteAsJsonString(innerKey1), "a");
-        String stringKey1 = Json.quoteAsJsonString(fullKey1);
+        String fullKey1 = String.format("{\"%s\": \"%s\"}", JsonUtils.quoteAsJsonString(innerKey1), "a");
+        String stringKey1 = JsonUtils.quoteAsJsonString(fullKey1);
         String innerKey2 = "[\"3\", \"4\"]";
-        String fullKey2 = String.format("{\"%s\": \"%s\"}", Json.quoteAsJsonString(innerKey2), "b");
-        String stringKey2 = Json.quoteAsJsonString(fullKey2);
+        String fullKey2 = String.format("{\"%s\": \"%s\"}", JsonUtils.quoteAsJsonString(innerKey2), "b");
+        String stringKey2 = JsonUtils.quoteAsJsonString(fullKey2);
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}");
         assertRows(execute("SELECT JSON k, nestedsetmap FROM %s"), row("{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}"));
 

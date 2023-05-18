@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -39,7 +40,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -146,7 +146,6 @@ public class CassandraStreamHeaderTest
         DecoratedKey firstKey = entireSSTable ? sstable.first : null;
 
         return CassandraStreamHeader.builder()
-                                    .withSSTableFormat(sstable.descriptor.getFormat().getType())
                                     .withSSTableVersion(sstable.descriptor.version)
                                     .withSSTableLevel(0)
                                     .withEstimatedKeys(10)
@@ -167,8 +166,7 @@ public class CassandraStreamHeaderTest
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
         CassandraStreamHeader header =
             CassandraStreamHeader.builder()
-                                 .withSSTableFormat(SSTableFormat.Type.current())
-                                 .withSSTableVersion(SSTableFormat.Type.current().info.getLatestVersion())
+                                 .withSSTableVersion(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion())
                                  .withSSTableLevel(0)
                                  .withEstimatedKeys(0)
                                  .withSections(Collections.emptyList())
@@ -189,8 +187,7 @@ public class CassandraStreamHeaderTest
 
         CassandraStreamHeader header =
             CassandraStreamHeader.builder()
-                                 .withSSTableFormat(SSTableFormat.Type.current())
-                                 .withSSTableVersion(SSTableFormat.Type.current().info.getLatestVersion())
+                                 .withSSTableVersion(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion())
                                  .withSSTableLevel(0)
                                  .withEstimatedKeys(0)
                                  .withSections(Collections.emptyList())
