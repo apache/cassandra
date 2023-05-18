@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.iterators;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.index.sai.plan.QueryViewBuilder;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
@@ -129,6 +131,19 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
     {
         iterator.skipTo(minKey);
         return iterator.hasNext() ? iterator.next() : null;
+    }
+
+    public static Builder builder(List<KeyRangeIterator> ranges, int limit)
+    {
+        var builder = builder(ranges.size(), limit);
+        for (var range : ranges)
+            builder.add(range);
+        return builder;
+    }
+
+    public static Builder builder(List<KeyRangeIterator> ranges)
+    {
+        return builder(ranges, INTERSECTION_CLAUSE_LIMIT);
     }
 
     public static Builder builder(int size)

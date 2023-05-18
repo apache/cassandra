@@ -65,6 +65,30 @@ public class VectorTypeTest extends SAITester
     }
 
     @Test
+    public void testCombinedPredicates() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, b boolean, v float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, b, v) VALUES (0, true, [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, b, v) VALUES (1, true, [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, b, v) VALUES (2, false, [3.0, 4.0, 5.0])");
+
+        // the vector given is closest to row 2, but we exclude that row because b=false
+        var result = execute("SELECT * FROM %s WHERE b=true AND v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        // TODO assert specific row keys
+        assertThat(result).hasSize(2);
+
+        flush();
+        compact();
+
+        result = execute("SELECT * FROM %s WHERE b=true AND v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     public void testSameVectorMultipleRows() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
@@ -203,12 +227,25 @@ public class VectorTypeTest extends SAITester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'B', ?)", Lists.newArrayList(4.0, 5.0, 6.0));
         execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", Lists.newArrayList(5.0, 6.0, 7.0));
 
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2 ALLOW FILTERING");
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
         System.out.println(makeRowStrings(result));
 
         flush();
-        result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2 ALLOW FILTERING");
+        // FIXME this is failing.  Here is what I'm seeing:
+        // 1. VectorIndexSearcher.reorderOneComponent is correctly passing the ordinals to hnsw,
+        //    and correctly passing the rowIds (1 and 3) to IndexSegmentSearcher.toIterator
+        // 2. the first entry returned by PostingListRangeIterator is rowId 0!
+        //
+        // It's looking a lot to me like there's a bug in RowAwarePrimaryKeyMap but I don't see it immediately.
+        //
+        // It may or may not be useful to compare the behavior with and without commenting out these lines
+        // in QueryController for sstableIntersections:
+        //                                            if (annExpression != null)
+        //                                               it = reorderAndLimitBy(it, e.getKey(), annExpression);
+        // We should see two results come back both ways, but commented out it works (because it's not going
+        // through the reorderOneComponent -> PostingListRangeIterator code), otherwise it fails.
+        result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
         System.out.println(makeRowStrings(result));
     }

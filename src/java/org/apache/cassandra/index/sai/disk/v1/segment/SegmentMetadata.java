@@ -204,6 +204,11 @@ public class SegmentMetadata
         return componentMetadatas.get(indexComponent).root;
     }
 
+    public int segmentedRowId(long sstableRowId)
+    {
+        return Math.toIntExact(sstableRowId - minSSTableRowId);
+    }
+
     public static class ComponentMetadataMap
     {
         private final Map<IndexComponent, ComponentMetadata> metas = new EnumMap<>(IndexComponent.class);

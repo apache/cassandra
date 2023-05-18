@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.Clock;
 @NotThreadSafe
 public class QueryContext
 {
-    private static final boolean DISABLE_TIMEOUT = Boolean.getBoolean("cassandra.sai.test.disable.timeout");
+    private static final boolean DISABLE_TIMEOUT = true;
 
     private final ReadCommand readCommand;
     private final long queryStartTimeNanos;

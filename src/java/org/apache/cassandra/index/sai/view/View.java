@@ -66,8 +66,10 @@ public class View implements Iterable<SSTableIndex>
      * Search for a list of {@link SSTableIndex}es that contain values within
      * the value range requested in the {@link Expression}
      */
-    public List<SSTableIndex> match(Expression expression)
+    public Collection<SSTableIndex> match(Expression expression)
     {
+        if (expression.getOp() == Expression.IndexOperator.ANN)
+            return getIndexes();
         return rangeTermTree.search(expression);
     }
 

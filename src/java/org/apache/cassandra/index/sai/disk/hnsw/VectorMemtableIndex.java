@@ -20,9 +20,11 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.Nullable;
 
@@ -34,6 +36,7 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
@@ -42,9 +45,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.SparseFixedBitSet;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
@@ -99,7 +100,27 @@ public class VectorMemtableIndex implements MemtableIndex
         var buffer = expr.lower.value.raw;
         float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
 
-        return new BatchKeyRangeIterator(qv, limit, keyRange);
+        Bits bits = null;
+        // key range doesn't full token ring, we need to filter keys inside ANN search
+        if (!graph.isEmpty() && !coversFullRing(keyRange))
+            bits = new KeyRangeFilteringBits(keyRange);
+
+        return new AnnKeyRangeIterator(qv, limit, bits);
+    }
+
+    @Override
+    public KeyRangeIterator reorderOneComponent(QueryContext context, KeyRangeIterator iterator, Expression exp, int limit)
+    {
+        Set<PrimaryKey> results = new HashSet<>();
+        while (iterator.hasNext())
+        {
+            var key = iterator.next();
+            results.add(key);
+        }
+        ByteBuffer buffer = exp.lower.value.raw;
+        float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
+        var bits = new KeyFilteringBits(results);
+        return new AnnKeyRangeIterator(qv, limit, bits);
     }
 
     private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
@@ -173,101 +194,61 @@ public class VectorMemtableIndex implements MemtableIndex
         }
     }
 
-    private class BatchKeyRangeIterator extends KeyRangeIterator
+    private class AnnKeyRangeIterator extends KeyRangeIterator
     {
-        private final float[] queryVector;
-        private final int limit;
+        private final PriorityQueue<PrimaryKey> keyQueue;
 
-        private Bits bits;
-        private final PriorityQueue<PrimaryKey> keyQueue = new PriorityQueue<>();
-
-        BatchKeyRangeIterator(float[] queryVector, int limit, AbstractBounds<PartitionPosition> keyRange)
+        AnnKeyRangeIterator(float[] queryVector, int limit, Bits toAccept)
         {
             super(minimumKey, maximumKey, writeCount.longValue());
-            this.queryVector = queryVector;
-            this.limit = limit;
-            // key range doesn't full token ring, we need to filter keys inside ANN search
-            if (!graph.isEmpty() && !coversFullRing(keyRange))
-                bits = new KeyRangeFilteringBits(keyRange);
+            keyQueue = graph.search(queryVector, limit, toAccept, Integer.MAX_VALUE);
         }
 
         @Override
+        // REVIEWME
+        // (it's inefficient, but is it correct?)
+        // (maybe we can abuse "current" to make it efficient)
         protected void performSkipTo(PrimaryKey nextKey)
         {
-            PrimaryKey key;
-            while ((key = doComputeNext()) != null)
-            {
-                if (key.compareTo(nextKey) >= 0)
-                    break;
-                keyQueue.poll();
-            }
+            PrimaryKey lastSkipped = null;
+            while (!keyQueue.isEmpty() && keyQueue.peek().compareTo(nextKey) < 0)
+                lastSkipped = keyQueue.poll();
+            if (lastSkipped != null)
+                keyQueue.add(lastSkipped);
         }
 
         @Override
-        public void close()
-        {
-        }
+        public void close() {}
 
         @Override
         protected PrimaryKey computeNext()
         {
-            if (doComputeNext() == null) {
-                return endOfData();
-            }
-            return keyQueue.poll();
-        }
-
-        private PrimaryKey doComputeNext()
-        {
             if (keyQueue.isEmpty())
-            {
-                readBatch();
-                if (keyQueue.isEmpty())
-                    return null;
-            }
-            return keyQueue.peek();
-        }
-
-        private void readBatch()
-        {
-            var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
-            if (bits == null || bits instanceof KeyRangeFilteringBits)
-                bits = new InvertedFilteringBits(bits);
-
-            while (results.hasNext())
-            {
-                var r = results.next();
-                ((InvertedFilteringBits)bits).set(r.vectorOrdinal);
-                keyQueue.addAll(r.keys);
-            }
+                return endOfData();
+            return keyQueue.poll();
         }
     }
 
-    private class InvertedFilteringBits implements Bits
+    private class KeyFilteringBits implements Bits
     {
-        private final BitSet ignoredBits = new SparseFixedBitSet(writeCount.intValue());
-        private final Bits rangeBits;
+        private final Set<PrimaryKey> results;
 
-        InvertedFilteringBits(Bits rangeBits)
+        public KeyFilteringBits(Set<PrimaryKey> results)
         {
-            this.rangeBits = rangeBits;
-        }
-
-        public void set(int index)
-        {
-            ignoredBits.set(index);
+            this.results = results;
         }
 
         @Override
-        public boolean get(int index)
+        public boolean get(int i)
         {
-            return (rangeBits == null || rangeBits.get(index)) && !ignoredBits.get(index);
+            var pk = graph.keysFromOrdinal(i);
+            return results.stream().anyMatch(pk::contains);
         }
 
         @Override
         public int length()
         {
-            return ignoredBits.length();
+            return results.size();
         }
     }
 }

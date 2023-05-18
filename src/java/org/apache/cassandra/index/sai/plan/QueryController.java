@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.index.sai.plan;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -44,6 +44,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -53,14 +54,15 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.CheckpointingIterator;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableIndex;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 
 public class QueryController
@@ -175,62 +177,121 @@ public class QueryController
      * The results from each call to {@link CheckpointingIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
      * are added to a {@link KeyRangeIntersectionIterator} and returned.
      */
-    public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
+    public KeyRangeIterator getIndexQueryResults(Collection<Expression> expressions)
     {
-        KeyRangeIterator.Builder builder = KeyRangeIntersectionIterator.builder(expressions.size());
+        // FIXME the ANN expression should move to ORDER BY, maybe something like:
+        // SELECT * FROM foo ORDER BY columnname ANN OF ?
+        var annExpression = getAnnExpression(expressions);
+        if (annExpression != null)
+            expressions = expressions.stream().filter(e -> e != annExpression).collect(Collectors.toList());
 
-        QueryViewBuilder queryViewBuilder = new QueryViewBuilder(expressions, mergeRange);
-
-        var queryView = queryViewBuilder.build();
+        var queryView = new QueryViewBuilder(expressions, mergeRange).build();
+        Map<Memtable, List<KeyRangeIterator>> iteratorsByMemtable = expressions
+                                                                    .stream()
+                                                                    .flatMap(expr -> {
+            var mim = expr.context.getMemtableIndexManager();
+            return mim.iteratorsForSearch(expr, mergeRange, getLimit()).stream();
+        }).collect(Collectors.groupingBy(pair -> pair.left,
+                                         Collectors.mapping(pair -> pair.right, Collectors.toList())));
 
         try
         {
-            var sstableIntersections = queryView
-                                .entrySet().stream()
-                                .map(e -> createIntersectionIterator(e.getKey(), e.getValue()))
-                                .collect(Collectors.toList());
+            var sstableIntersections = queryView.view.entrySet()
+                                       .stream()
+                                       .map(e -> {
+                                           var it = createIntersectionIterator(e.getValue());
+                                           if (annExpression != null)
+                                               it = reorderAndLimitBy(it, e.getKey(), annExpression);
+                                           return it;
+                                       })
+                                       .collect(Collectors.toList());
 
-            var mim = Iterables.getLast(expressions).context.getMemtableIndexManager();
-            var memtableIntersections = mim.iteratorsForSearch(expressions, mergeRange, getLimit())
+            var memtableIntersections = iteratorsByMemtable.entrySet()
                                         .stream()
-                                        .map(subIterators -> KeyRangeIntersectionIterator.build(subIterators))
+                                        .map(e -> {
+                                            // we need to do all the intersections at the index level, or ordering won't work
+                                            KeyRangeIterator it = KeyRangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
+                                            if (annExpression != null)
+                                                it = reorderAndLimitBy(it, e.getKey(), annExpression);
+                                            return it;
+                                        })
                                         .collect(Collectors.toList());
 
             var allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
 
-            queryContext.sstablesHit += queryView.size();
+            queryContext.sstablesHit += queryView.referencedIndexes
+                                        .stream()
+                                        .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
             queryContext.checkpoint();
             var union = KeyRangeUnionIterator.build(allIntersections);
-            return new CheckpointingIterator(union, queryView.keySet(), queryContext);
+            return new CheckpointingIterator(union, queryView.referencedIndexes, queryContext);
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
-            queryView.keySet().forEach(SSTableIndex::releaseQuietly);
+            queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
             throw t;
         }
     }
 
-    private KeyRangeIterator createIntersectionIterator(SSTableIndex index, Collection<Expression> expressions)
+    private KeyRangeIterator reorderAndLimitBy(KeyRangeIterator original, Memtable memtable, Expression expression)
     {
-        List<KeyRangeIterator> subIterators;
-        subIterators = expressions.stream()
-                                  .flatMap(e -> {
-                                      try
-                                      {
-                                          return index.search(e, mergeRange, queryContext, getLimit()).stream();
-                                      }
-                                      catch (Throwable ex)
-                                      {
-                                          if (!(ex instanceof QueryCancelledException))
-                                              logger.debug(index.getIndexContext().logMessage(String.format("Failed search on index %s, aborting query.", index.getSSTable())), ex);
+        var mim = expression.context.getMemtableIndexManager();
+        return mim.reorderOneComponent(memtable, queryContext, original, expression, getLimit());
+    }
 
-                                          throw Throwables.cleaned(ex);
-                                      }
-                                  })
-                                  .collect(Collectors.toList());
+    private KeyRangeIterator reorderAndLimitBy(KeyRangeIterator original, SSTableReader sstable, Expression expression)
+    {
+        var index = expression.context.getView().getIndexes()
+                    .stream().filter(i -> i.getSSTable() == sstable).findFirst().orElseThrow();
+        // FIXME segment collation
+        var segment = ((V1SSTableIndex) index).segments.stream().findFirst().orElseThrow();
+        try
+        {
+            return segment.reorderOneComponent(queryContext, original, expression, getLimit());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
-        return KeyRangeIntersectionIterator.build(subIterators);
+    private Expression getAnnExpression(Collection<Expression> expressions)
+    {
+        if (expressions.size() < 2)
+        {
+            // if there is a single expression, just run search against it even if it's ANN
+            return null;
+        }
+        var L = expressions.stream().filter(e -> e.operator == Expression.IndexOperator.ANN).collect(Collectors.toList());
+        if (L.size() > 1) {
+            // FIXME move this to the parser
+            throw new IllegalArgumentException("Only one ANN expression is allowed");
+        }
+        return L.size() == 1 ? L.get(0) : null;
+    }
+
+    private KeyRangeIterator createIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions)
+    {
+        var subIterators = indexExpressions
+                           .stream()
+                           // FIXME this changes to normal map() once we have the view collating by segment
+                           .flatMap(ie ->
+        {
+           try
+           {
+               return ie.index.search(ie.expression, mergeRange, queryContext, getLimit()).stream();
+           }
+           catch (Throwable ex)
+           {
+               if (!(ex instanceof QueryCancelledException))
+                   logger.debug(ie.index.getIndexContext().logMessage(String.format("Failed search on index %s, aborting query.", ie.index.getSSTable())), ex);
+               throw Throwables.cleaned(ex);
+           }
+       }).collect(Collectors.toList());
+
+        // we need to do all the intersections at the index level, or ordering won't work
+        return KeyRangeIntersectionIterator.builder(subIterators, Integer.MAX_VALUE).build();
     }
 
     private int getLimit()

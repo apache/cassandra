@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -133,7 +134,7 @@ public class CassandraOnHeapHnsw
     /**
      * @return PrimaryKeys associated with the topK vectors near the query
      */
-    public Iterator<AnnResultPk> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
+    public PriorityQueue<PrimaryKey> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
     {
         NeighborQueue queue;
         try
@@ -151,24 +152,15 @@ public class CassandraOnHeapHnsw
         {
             throw new RuntimeException(e);
         }
-        return new Iterator<>()
+        var pq = new PriorityQueue<PrimaryKey>();
+        while (queue.size() > 0)
         {
-            int remaining = queue.size();
-
-            @Override
-            public boolean hasNext()
+            for (var pk : keysFromOrdinal(queue.pop()))
             {
-                return remaining > 0;
+                pq.add(pk);
             }
-
-            @Override
-            public AnnResultPk next()
-            {
-                remaining--;
-                int ordinal = queue.pop();
-                return new AnnResultPk(ordinal, keysFromOrdinal(ordinal));
-            }
-        };
+        }
+        return pq;
     }
 
     public long ramBytesUsed()
@@ -312,18 +304,6 @@ public class CassandraOnHeapHnsw
         public ByteBuffer bufferValue(int node)
         {
             return values.get(node);
-        }
-    }
-
-    public static class AnnResultPk
-    {
-        public final int vectorOrdinal;
-        public final Collection<PrimaryKey> keys;
-
-        public AnnResultPk(int vectorOrdinal, Collection<PrimaryKey> keys)
-        {
-            this.vectorOrdinal = vectorOrdinal;
-            this.keys = keys;
         }
     }
 }

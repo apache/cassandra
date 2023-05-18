@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.memory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -39,11 +41,14 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.iterators.SegementOrdering;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class MemtableIndexManager
 {
@@ -118,14 +123,19 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public List<List<KeyRangeIterator>> iteratorsForSearch(Collection<Expression> expressions, AbstractBounds<PartitionPosition> keyRange, int limit)
-    {
-        Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
-        return memtableIndexes
-               .stream()
-               .map(mi -> expressions.stream().map(e -> mi.search(e, keyRange, limit)).collect(Collectors.toList()))
-               .collect(Collectors.toList());
+    public List<Pair<Memtable, KeyRangeIterator>> iteratorsForSearch(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
+        return liveMemtableIndexMap.entrySet()
+                                   .stream()
+                                   .map(e -> Pair.create(e.getKey(), e.getValue().search(expression, keyRange, limit))).collect(Collectors.toList());
     }
+
+    public KeyRangeIterator reorderOneComponent(Memtable memtable, QueryContext context, KeyRangeIterator iterator, Expression exp, int limit)
+    {
+        var index = liveMemtableIndexMap.get(memtable);
+        return index.reorderOneComponent(context, iterator, exp, limit);
+    }
+
+
 
     public long liveMemtableWriteCount()
     {

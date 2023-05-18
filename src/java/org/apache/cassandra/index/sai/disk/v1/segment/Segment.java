@@ -31,6 +31,7 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
+import org.apache.cassandra.index.sai.iterators.SegementOrdering;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
@@ -40,7 +41,7 @@ import org.apache.cassandra.io.util.FileUtils;
  * It also helps to reduce resource consumption for read requests as only segments that intersect with read request data
  * range need to be loaded.
  */
-public class Segment implements Closeable
+public class Segment implements Closeable, SegementOrdering
 {
     private final Token minKey;
     private final Token.KeyBound minKeyBound;
@@ -113,6 +114,13 @@ public class Segment implements Closeable
     public KeyRangeIterator search(Expression expression, QueryContext context, int limit) throws IOException
     {
         return index.search(expression, context, limit);
+    }
+
+    @Override
+    public KeyRangeIterator reorderOneComponent(QueryContext context, KeyRangeIterator iterator, Expression exp, int limit) throws IOException
+    {
+        assert index instanceof SegementOrdering;
+        return ((SegementOrdering) index).reorderOneComponent(context, iterator, exp, limit);
     }
 
     @Override

@@ -60,7 +60,7 @@ import static org.apache.cassandra.index.sai.virtual.SegmentsSystemView.TABLE_NA
  */
 public class V1SSTableIndex extends SSTableIndex
 {
-    private final ImmutableList<Segment> segments;
+    public final ImmutableList<Segment> segments; // FIXME probably shouldn't be public
     private final List<SegmentMetadata> metadatas;
     private final AbstractBounds<PartitionPosition> bounds;
     private final ByteBuffer minTerm;

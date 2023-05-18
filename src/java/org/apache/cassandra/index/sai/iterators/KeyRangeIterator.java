@@ -82,7 +82,9 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
      *
      * @param nextKey value to skip the iterator forward until matching
      *
-     * @return The next current key after the skip was performed
+     * @return The next current key after the skip was performed.
+     * This key will also be the next key returned by next(), i.e.,
+     * we are "peeking" at the next key as part of the skip.
      */
     public final PrimaryKey skipTo(PrimaryKey nextKey)
     {
@@ -107,13 +109,19 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         return recomputeNext();
     }
 
+    /**
+     * REVIEWME
+     * Skip up to nextKey, but leave your internal state in a position where
+     * calling computeNext() will return nextKey or the first one after it.
+     */
     protected abstract void performSkipTo(PrimaryKey nextKey);
 
-    protected PrimaryKey recomputeNext()
+    private PrimaryKey recomputeNext()
     {
         return tryToComputeNext() ? peek() : endOfData();
     }
 
+    // protected because inherited from Guava. We don't want to expose this method.
     protected boolean tryToComputeNext()
     {
         boolean hasNext = super.tryToComputeNext();

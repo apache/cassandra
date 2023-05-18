@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.memory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.concurrent.atomic.LongAdder;
@@ -28,6 +29,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
@@ -92,6 +94,13 @@ public class TrieMemtableIndex implements MemtableIndex
     public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         return index.search(expression, keyRange);
+    }
+
+    @Override
+    public KeyRangeIterator reorderOneComponent(QueryContext context, KeyRangeIterator iterator, Expression exp, int limit)
+    {
+        // TODO
+        throw new UnsupportedOperationException();
     }
 
     public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()

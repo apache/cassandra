@@ -40,9 +40,9 @@ import org.apache.cassandra.index.sai.postings.PostingList;
  */
 public abstract class IndexSegmentSearcher implements Closeable
 {
-    final PrimaryKeyMap.Factory primaryKeyMapFactory;
-    final PerColumnIndexFiles indexFiles;
-    final SegmentMetadata metadata;
+    protected final PrimaryKeyMap.Factory primaryKeyMapFactory;
+    protected final PerColumnIndexFiles indexFiles;
+    protected final SegmentMetadata metadata;
     protected final IndexContext indexContext;
 
     protected IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,

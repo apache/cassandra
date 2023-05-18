@@ -302,14 +302,15 @@ public class Operation
         @Override
         KeyRangeIterator rangeIterator(QueryController controller)
         {
-            KeyRangeIterator.Builder builder = controller.getIndexQueryResults(expressionMap.values());
-            for (Node child : children)
-            {
-                boolean canFilter = child.canFilter();
-                if (canFilter)
-                    builder.add(child.rangeIterator(controller));
-            }
-            return builder.build();
+            return controller.getIndexQueryResults(expressionMap.values());
+// FIXME
+//            for (Node child : children)
+//            {
+//                boolean canFilter = child.canFilter();
+//                if (canFilter)
+//                    builder.add(child.rangeIterator(controller));
+//            }
+//            return builder.build();
         }
     }
 
@@ -345,7 +346,7 @@ public class Operation
         {
             assert canFilter() : "Cannot process query with no expressions";
 
-            return controller.getIndexQueryResults(expressionMap.values()).build();
+            return controller.getIndexQueryResults(expressionMap.values());
         }
     }
 }
