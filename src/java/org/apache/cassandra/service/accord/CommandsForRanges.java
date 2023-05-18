@@ -126,20 +126,20 @@ public class CommandsForRanges
             this.builder = builder;
         }
 
-        public Builder add(Ranges ranges, TxnId txnId, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
+        public Builder put(Ranges ranges, TxnId txnId, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
         {
-            removeIf(txnId);
-            return add(ranges, new RangeCommandSummary(txnId, status, execteAt, dependsOn));
+            remove(txnId);
+            return put(ranges, new RangeCommandSummary(txnId, status, execteAt, dependsOn));
         }
 
-        private Builder add(Ranges ranges, RangeCommandSummary summary)
+        private Builder put(Ranges ranges, RangeCommandSummary summary)
         {
             for (Range range : ranges)
-                add(range, summary);
+                put(range, summary);
             return this;
         }
 
-        private Builder add(Range range, RangeCommandSummary summary)
+        private Builder put(Range range, RangeCommandSummary summary)
         {
             builder.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
                                         normalize(range.end(), range.endInclusive(), false),
@@ -147,7 +147,7 @@ public class CommandsForRanges
             return this;
         }
 
-        private Builder removeIf(TxnId txnId)
+        private Builder remove(TxnId txnId)
         {
             return removeIf(data -> data.txnId.equals(txnId));
         }

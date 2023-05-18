@@ -291,7 +291,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 if (builder == null)
                     builder = commandStore.unbuild();
 
-                builder.add(ranges, txnId, saveStatus, current.executeAt(), dependsOn);
+                builder.put(ranges, txnId, saveStatus, current.executeAt(), dependsOn);
 
                 Ranges finalRanges = ranges;
                 liveCommand.addListener(new Command.TransientListener()
@@ -304,7 +304,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                             return;
                         //TODO should we use ranges/depends from "current"?
                         ((AccordCommandStore) safeStore.commandStore()).unbuild()
-                                                                       .add(finalRanges, txnId, current.saveStatus(), current.executeAt(), dependsOn)
+                                                                       .put(finalRanges, txnId, current.saveStatus(), current.executeAt(), dependsOn)
                                                                        .apply();
                     }
 

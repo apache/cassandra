@@ -26,6 +26,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -63,6 +64,7 @@ import accord.primitives.Routables;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.topology.TopologyManager;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -146,7 +148,7 @@ public class AccordCommandStore extends CommandStore
 
                 PartialDeps deps = AccordKeyspace.deserializeDependencies(row);
                 List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
-                builder.add(ranges, txnId, status, executeAt, dependsOn);
+                builder.put(ranges, txnId, status, executeAt, dependsOn);
             }
 
             @Override
@@ -393,5 +395,17 @@ public class AccordCommandStore extends CommandStore
     public void shutdown()
     {
         executor.shutdown();
+    }
+
+    public boolean isEpochKnown(long epoch)
+    {
+        return AccordService.instance().topology().hasEpoch(epoch);
+    }
+
+    public void waitForEpoch(long epoch, BiConsumer<Object, Throwable> callback)
+    {
+        AccordService.instance().topology().awaitEpoch(epoch)
+        .withExecutor(this)
+        .addCallback(callback);
     }
 }

@@ -75,6 +75,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     enum State
     {
         INITIALIZED,
+        WAITING_ON_EPOCH,
         LOADING,
         PREPARING_OPERATION,  // setup safe store for RUNNING
         RUNNING,
@@ -230,6 +231,14 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         switch (state)
         {
             case INITIALIZED:
+                state = State.WAITING_ON_EPOCH;
+                long minEpoch = minEpoch(preLoadContext);
+                if (minEpoch != -1 && !commandStore.isEpochKnown(minEpoch))
+                {
+                    commandStore.waitForEpoch(minEpoch, this::callback);
+                    return;
+                }
+            case WAITING_ON_EPOCH:
                 state = State.LOADING;
             case LOADING:
                 if (!loader.load(context, this::callback))
@@ -266,6 +275,14 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             default:
                 throw new IllegalStateException("Unexpected state " + state);
         }
+    }
+
+    private long minEpoch(PreLoadContext preLoadContext)
+    {
+        class Holder {long epoch = -1;}
+        Holder holder = new Holder();
+        preLoadContext.forEachId(txnId -> holder.epoch = Math.max(txnId.epoch(), holder.epoch));
+        return holder.epoch;
     }
 
 
