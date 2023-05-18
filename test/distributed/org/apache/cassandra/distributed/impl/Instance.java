@@ -26,11 +26,8 @@ import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
-import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
-import java.rmi.server.RMIClientSocketFactory;
-import java.rmi.server.RMIServerSocketFactory;
 import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -105,6 +102,7 @@ import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
+import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
@@ -161,7 +159,6 @@ import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
-import org.apache.cassandra.utils.RMIServerSocketFactoryImpl;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPools;
@@ -170,7 +167,9 @@ import sun.rmi.transport.tcp.TCPEndpoint;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
@@ -186,6 +185,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
+    private static final int RMI_KEEPALIVE_TIME = 1000;
     private Logger inInstancelogger; // Defer creation until running in the instance context
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
@@ -772,6 +772,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         try
         {
+            // Several RMI threads hold references to in-jvm dtest objects, and are, by default, kept
+            // alive for long enough (minutes) to keep classloaders from being collected.
+            // Set these two system properties to a low value to allow cleanup to occur fast enough
+            // for GC to collect our classloaders.
+            JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST.setInt(RMI_KEEPALIVE_TIME);
+            SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME.setInt(RMI_KEEPALIVE_TIME);
             ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(false);
             InetAddress addr = config.broadcastAddress().getAddress();
 
@@ -816,9 +822,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // have a truststore configured which contains the registry's certificate. Manually binding removes
             // this problem.
             // See CASSANDRA-12109.
-            jmxRmiServer = new RMIJRMPServerImpl(rmiPort,
-                                                 (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
-                                                 (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
+            jmxRmiServer = new RMIJRMPServerImpl(rmiPort,clientSocketFactory, serverSocketFactory,
                                                  env);
             JMXServiceURL serviceURL = new JMXServiceURL("rmi", hostname, rmiPort);
             jmxConnectorServer = new RMIConnectorServer(serviceURL, env, jmxRmiServer, wrapper.getMbs());
@@ -827,7 +831,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             registry.setRemoteServerStub(jmxRmiServer.toStub());
             JMXServerUtils.logJmxServiceUrl(addr, jmxPort);
-            waitForJmxAvailability(hostname, jmxPort);
+            waitForJmxAvailability(hostname, jmxPort, env);
         }
         catch (IOException e)
         {
@@ -835,7 +839,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    private void waitForJmxAvailability(String hostname, int rmiPort) throws InterruptedException, MalformedURLException
+    private void waitForJmxAvailability(String hostname, int rmiPort, Map<String, Object> env) throws InterruptedException, MalformedURLException
     {
         String url = String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", hostname, rmiPort);
         JMXServiceURL serviceURL = new JMXServiceURL(url);
@@ -844,7 +848,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         while (attempts < 20)
         {
             attempts++;
-            try (JMXConnector ignored = JMXConnectorFactory.connect(serviceURL, null))
+            try (JMXConnector ignored = JMXConnectorFactory.connect(serviceURL, env))
             {
                 inInstancelogger.info("Connected to JMX server at {} after {} attempt(s)",
                                       url, attempts);
@@ -908,11 +912,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // which transitively has a reference to the InstanceClassLoader, so we need to
         // make sure to remove the reference to them when the instance is shutting down
         clearMapField(TCPEndpoint.class, null, "localEndpoints");
+        Thread.sleep(2 * RMI_KEEPALIVE_TIME); // Double the keep-alive time to give Distributed GC some time to clean up
     }
 
     private <K, V> void clearMapField(Class<?> clazz, Object instance, String mapName)
     throws IllegalAccessException, NoSuchFieldException {
-        Field mapField = clazz.getDeclaredField(mapName);
+        Field mapField = ReflectionUtils.getField(clazz, mapName);
         mapField.setAccessible(true);
         Map<K, V> map = (Map<K, V>) mapField.get(instance);
         // Because multiple instances can be shutting down at once,
@@ -1332,37 +1337,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             catch (Throwable e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-            }
-        }
-    }
-
-    /**
-     * This class is used to keep track of RMI servers created during a cluster creation so we can
-     * later close the sockets, which would otherwise be left with a thread running waiting for
-     * connections that would never show up as the server was otherwise closed.
-     */
-    private static class CollectingRMIServerSocketFactoryImpl extends RMIServerSocketFactoryImpl
-    {
-        List<ServerSocket> sockets = new ArrayList<>();
-
-        public CollectingRMIServerSocketFactoryImpl(InetAddress addr)
-        {
-            super(addr);
-        }
-
-        @Override
-        public ServerSocket createServerSocket(int pPort) throws IOException
-        {
-            ServerSocket socket = super.createServerSocket(pPort);
-            sockets.add(socket);
-            return socket;
-        }
-
-        public void close() throws IOException
-        {
-            for (ServerSocket socket : sockets)
-            {
-                socket.close();
             }
         }
     }
