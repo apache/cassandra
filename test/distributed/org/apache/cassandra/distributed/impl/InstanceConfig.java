@@ -35,7 +35,7 @@ import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.shared.Shared;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
