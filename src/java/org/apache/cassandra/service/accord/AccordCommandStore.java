@@ -30,7 +30,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -57,6 +59,7 @@ import accord.primitives.Deps;
 import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
+import accord.primitives.ForwardingRoutableKey;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
@@ -487,14 +490,9 @@ public class AccordCommandStore extends CommandStore
         return accumulate;
     }
 
-    IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> unbuild()
+    IntervalBuilder unbuild()
     {
-        return rangesToCommands.unbuild();
-    }
-
-    void updateRanges(IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> build)
-    {
-        rangesToCommands = build;
+        return new IntervalBuilder(rangesToCommands.unbuild());
     }
 
     public void abortCurrentOperation()
@@ -506,5 +504,64 @@ public class AccordCommandStore extends CommandStore
     public void shutdown()
     {
         executor.shutdown();
+    }
+
+    class IntervalBuilder
+    {
+        private final IntervalTree.Builder<RoutableKey, AccordCommandStore.RangeCommandSummary, Interval<RoutableKey, AccordCommandStore.RangeCommandSummary>> builder;
+
+        private IntervalBuilder(IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder)
+        {
+            this.builder = builder;
+        }
+
+        IntervalBuilder add(Range range, AccordCommandStore.RangeCommandSummary summary)
+        {
+            //TODO exclusive support
+            builder.add(Interval.create(range.start(), range.end(), summary));
+            return this;
+        }
+
+        IntervalBuilder removeIf(TxnId txnId)
+        {
+            return removeIf(data -> data.txnId.equals(txnId));
+        }
+
+        IntervalBuilder removeIf(Predicate<RangeCommandSummary> predicate)
+        {
+            return removeIf((i1, i2, data) -> predicate.test(data));
+        }
+
+        IntervalBuilder removeIf(IntervalTree.Builder.TriPredicate<RoutableKey, RoutableKey, AccordCommandStore.RangeCommandSummary> predicate)
+        {
+            builder.removeIf(predicate);
+            return this;
+        }
+
+        void apply()
+        {
+            rangesToCommands = builder.build();
+        }
+    }
+
+    private static class ExclusiveRoutableKey extends ForwardingRoutableKey
+    {
+        private final int onEquals;
+
+        private ExclusiveRoutableKey(RoutableKey delegate, int onEquals)
+        {
+            super(delegate);
+            this.onEquals = onEquals;
+        }
+
+        @Override
+        public int compareTo(@Nonnull RoutableKey that)
+        {
+            // for sorting reasons, do not use the onEquals value
+            if (that instanceof ExclusiveRoutableKey)
+                return super.compareTo(that);
+            int rc = super.compareTo(that);
+            return rc == 0 ? onEquals : rc;
+        }
     }
 }

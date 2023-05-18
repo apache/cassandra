@@ -57,15 +57,13 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
-import org.apache.cassandra.utils.Interval;
-import org.apache.cassandra.utils.IntervalTree;
 
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey>
 {
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
-    private IntervalTree.Builder<RoutableKey, AccordCommandStore.RangeCommandSummary, Interval<RoutableKey, AccordCommandStore.RangeCommandSummary>> builder = null;
+    private AccordCommandStore.IntervalBuilder builder = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
@@ -290,12 +288,12 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 TxnId txnId = liveCommand.txnId();
                 if (builder == null)
                     builder = commandStore.unbuild();
-                builder.removeIf((min, max, data) -> data.txnId.equals(txnId));
+                builder.removeIf(txnId);
 
                 //TODO Interval is BETWEEN semantics, but Range tends not to be... fix this
                 AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, current.saveStatus(), current.executeAt(), dependsOn);
                 for (Range range : ranges)
-                    builder.add(new Interval<>(range.start(), range.end(), summary));
+                    builder.add(range, summary);
             break;
             default:
                 throw new UnsupportedOperationException("Unknown domain: " + seekable.domain());
@@ -323,6 +321,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         commands.values().forEach(AccordSafeState::postExecute);
         commandsForKeys.values().forEach(AccordSafeState::postExecute);
         if (builder != null)
-            commandStore.updateRanges(builder.build());
+            builder.apply();
     }
 }
