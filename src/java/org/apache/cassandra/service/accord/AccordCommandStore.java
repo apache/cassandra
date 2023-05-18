@@ -120,6 +120,15 @@ public class AccordCommandStore extends CommandStore
         {
             return Objects.hash(txnId);
         }
+
+        @Override
+        public String toString()
+        {
+            return "RangeCommandSummary{" +
+                   "txnId=" + txnId +
+                   ", status=" + status +
+                   '}';
+        }
     }
 
     private enum RangeCommandSummaryLoader implements CommandTimeseries.CommandLoader<RangeCommandSummary>
