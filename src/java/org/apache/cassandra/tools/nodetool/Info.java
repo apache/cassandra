@@ -86,6 +86,7 @@ public class Info extends NodeToolCmd
         CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
         // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+        Double hitRate = (Double)probe.getCacheMetric("KeyCache", "HitRate");
         out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                 "Key Cache",
                 probe.getCacheMetric("KeyCache", "Entries"),
@@ -93,10 +94,11 @@ public class Info extends NodeToolCmd
                 FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Capacity")),
                 probe.getCacheMetric("KeyCache", "Hits"),
                 probe.getCacheMetric("KeyCache", "Requests"),
-                probe.getCacheMetric("KeyCache", "HitRate"),
+                   (Double.isNaN(hitRate))? 0.0: hitRate,
                 cacheService.getKeyCacheSavePeriodInSeconds());
 
         // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+        hitRate = (Double)probe.getCacheMetric("RowCache", "HitRate");
         out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                 "Row Cache",
                 probe.getCacheMetric("RowCache", "Entries"),
@@ -104,10 +106,11 @@ public class Info extends NodeToolCmd
                 FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Capacity")),
                 probe.getCacheMetric("RowCache", "Hits"),
                 probe.getCacheMetric("RowCache", "Requests"),
-                probe.getCacheMetric("RowCache", "HitRate"),
+                (Double.isNaN(hitRate))? 0.0: hitRate,
                 cacheService.getRowCacheSavePeriodInSeconds());
 
         // Counter Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
+        hitRate = (Double)probe.getCacheMetric("CounterCache", "HitRate");
         out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                 "Counter Cache",
                 probe.getCacheMetric("CounterCache", "Entries"),
@@ -115,12 +118,13 @@ public class Info extends NodeToolCmd
                 FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Capacity")),
                 probe.getCacheMetric("CounterCache", "Hits"),
                 probe.getCacheMetric("CounterCache", "Requests"),
-                probe.getCacheMetric("CounterCache", "HitRate"),
+                   (Double.isNaN(hitRate))? 0.0: hitRate,
                 cacheService.getCounterCacheSavePeriodInSeconds());
 
         // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
         try
         {
+            hitRate = (Double)probe.getCacheMetric("ChunkCache", "HitRate");
             out.printf("%-23s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",
                     "Chunk Cache",
                     probe.getCacheMetric("ChunkCache", "Entries"),
@@ -128,7 +132,7 @@ public class Info extends NodeToolCmd
                     FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Capacity")),
                     probe.getCacheMetric("ChunkCache", "Misses"),
                     probe.getCacheMetric("ChunkCache", "Requests"),
-                    probe.getCacheMetric("ChunkCache", "HitRate"),
+                       (Double.isNaN(hitRate))? 0.0: hitRate,
                     probe.getCacheMetric("ChunkCache", "MissLatency"),
                     probe.getCacheMetric("ChunkCache", "MissLatencyUnit"));
         }
@@ -138,6 +142,22 @@ public class Info extends NodeToolCmd
                 throw e;
 
             // Chunk cache is not on.
+        }
+
+        // network Cache: capacity, size
+        try
+        {
+            out.printf("%-23s: size %s, capacity %s%n", "Network Cache",
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Size") -
+                                                   (long) probe.getBufferPoolMetric("networking", "OverflowSize")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Capacity")));
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+
+            // network cache is not on.
         }
 
         // Global table stats

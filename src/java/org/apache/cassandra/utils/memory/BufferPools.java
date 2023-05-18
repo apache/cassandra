@@ -53,6 +53,7 @@ public class BufferPools
                     NETWORKING_POOL.name);
 
         CHUNK_CACHE_POOL.metrics().register3xAlias();
+        NETWORKING_POOL.metrics().register3xAlias();
     }
     /**
      * Long-lived buffers used for chunk cache and other disk access

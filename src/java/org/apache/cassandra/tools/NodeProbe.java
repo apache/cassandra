@@ -1414,6 +1414,40 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    /**
+     * Retrieve buffer pool metrics based on the buffer pool type
+     * @param poolType networking chunk-cache
+     * @param metricName UsedSize Size
+     * @return
+     */
+    public Object getBufferPoolMetric(String poolType, String metricName)
+    {
+        try
+        {
+            switch (metricName)
+            {
+                case "UsedSize":
+                case "OverflowSize":
+                case "Capacity":
+                case "Size":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                           new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope="+poolType+",name="+metricName),
+                           CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
+                case "Hits":
+                case "Misses":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                    new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope="+poolType+",name="+metricName),
+                    CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
+                default:
+                    throw new RuntimeException("Unknown cache metric name.");
+            }
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
     {
         try
