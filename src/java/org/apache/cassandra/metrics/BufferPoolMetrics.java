@@ -31,6 +31,9 @@ public class BufferPoolMetrics
     /** Total number of misses */
     public final Meter misses;
 
+    /** Total threshold for a certain type of buffer pool*/
+    public final Gauge<Long> capacity;
+
     /** Total size of buffer pools, in bytes, including overflow allocation */
     public final Gauge<Long> size;
 
@@ -51,6 +54,8 @@ public class BufferPoolMetrics
         hits = Metrics.meter(factory.createMetricName("Hits"));
 
         misses = Metrics.meter(factory.createMetricName("Misses"));
+
+        capacity = Metrics.register(factory.createMetricName("Capacity"), bufferPool::memoryUsageThreshold);
 
         overflowSize = Metrics.register(factory.createMetricName("OverflowSize"), bufferPool::overflowMemoryInBytes);
 
