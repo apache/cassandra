@@ -483,7 +483,7 @@ public class GossipHelper
         finally
         {
             if (prev == null)
-                prop.clearValue();
+                prop.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
             else
                 prop.setString(prev);
         }

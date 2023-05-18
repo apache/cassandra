@@ -36,6 +36,7 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -46,10 +47,12 @@ import static org.junit.Assert.fail;
 
 public class ClientStateTest
 {
+    static WithProperties properties;
+
     @BeforeClass
     public static void beforeClass()
     {
-        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+        properties = new WithProperties().set(ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION, true);
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setAuthFromRoot(true);
         // create the system_auth keyspace so the IRoleManager can function as normal
@@ -63,7 +66,7 @@ public class ClientStateTest
     @AfterClass
     public static void afterClass()
     {
-        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.clearValue();
+        properties.close();
     }
 
     @Test

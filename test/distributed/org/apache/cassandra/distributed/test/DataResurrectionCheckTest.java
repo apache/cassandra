@@ -29,6 +29,7 @@ import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.DataResurrectionCheck;
@@ -59,11 +60,9 @@ public class DataResurrectionCheckTest extends TestBaseImpl
     @Test
     public void testDataResurrectionCheck() throws Exception
     {
-        try
+        // set it to 1 hour so check will be not updated after it is written, for test purposes
+        try (WithProperties properties = new WithProperties().set(CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD, 3600000))
         {
-            // set it to 1 hour so check will be not updated after it is written, for test purposes
-            CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.setInt(3600000);
-
             // start the node with the check enabled, it will just pass fine as there are not any user tables yet
             // and system tables are young enough
             try (Cluster cluster = build().withNodes(1)
@@ -128,10 +127,6 @@ public class DataResurrectionCheckTest extends TestBaseImpl
                                                    EXCLUDED_TABLES_CONFIG_PROPERTY, "ks1.tb1,ks2.tb1",
                                                    EXCLUDED_KEYSPACES_CONFIG_PROPERTY, "ks3"));
             }
-        }
-        finally
-        {
-            CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.clearValue();
         }
     }
 

@@ -34,6 +34,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
@@ -236,8 +237,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testInvalidPartitionPropertyOverride() throws Exception
     {
-        String previous = PARTITIONER.setString("ThisDoesNotExist");
-        try
+        try (WithProperties properties = new WithProperties().set(PARTITIONER, "ThisDoesNotExist"))
         {
             Config testConfig = DatabaseDescriptor.loadConfig();
             testConfig.partitioner = "Murmur3Partitioner";
@@ -256,13 +256,6 @@ public class DatabaseDescriptorTest
                 Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
                 Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
             }
-        }
-        finally
-        {
-            if (previous == null)
-                PARTITIONER.clearValue();
-            else
-                PARTITIONER.setString(previous);
         }
     }
 

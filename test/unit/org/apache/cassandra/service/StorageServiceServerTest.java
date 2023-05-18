@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -635,7 +636,7 @@ public class StorageServiceServerTest
     @Test
     public void isReplacingSameHostAddressAndHostIdTest() throws UnknownHostException
     {
-        try
+        try (WithProperties properties = new WithProperties())
         {
             UUID differentHostId = UUID.randomUUID();
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
@@ -655,10 +656,6 @@ public class StorageServiceServerTest
             // Check tolerates the DNS entry going away for the replace_address
             REPLACE_ADDRESS.setString("unresolvable.host.local.");
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
-        }
-        finally
-        {
-            REPLACE_ADDRESS.clearValue();
         }
     }
 }

@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.sstable.VerifyTest;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -61,13 +62,15 @@ import static org.junit.Assert.assertEquals;
  */
 public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 {
+    static WithProperties properties;
+
     @BeforeClass
     public static void setup()
     {
         // since legacy tables test data uses ByteOrderedPartitioner that's what we need
         // for the check version to work
         CassandraRelevantProperties.PARTITIONER.setString("org.apache.cassandra.dht.ByteOrderedPartitioner");
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
+        properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true);
         SchemaLoader.loadSchema();
         StorageService.instance.initServer();
     }
@@ -76,7 +79,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     public static void teardown() throws Exception
     {
         SchemaLoader.cleanupAndLeaveDirs();
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
+        properties.close();
     }
 
     @Test

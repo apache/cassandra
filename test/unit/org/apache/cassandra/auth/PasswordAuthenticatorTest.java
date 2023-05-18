@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.mindrot.jbcrypt.BCrypt;
 
 import com.datastax.driver.core.Authenticator;
@@ -118,18 +119,10 @@ public class PasswordAuthenticatorTest extends CQLTester
 
     private void executeSaltRoundsPropertyTest(Integer rounds)
     {
-        Integer oldProperty = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.setInt(rounds);
-        try
+        try (WithProperties properties = new WithProperties().set(AUTH_BCRYPT_GENSALT_LOG2_ROUNDS, rounds))
         {
             getGensaltLogRounds();
             Assert.fail("Property " + AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey() + " must be in interval [4,30]");
-        }
-        finally
-        {
-            if (oldProperty != null)
-                AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.setInt(oldProperty);
-            else
-                AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.clearValue();
         }
     }
 
