@@ -38,6 +38,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
@@ -49,22 +50,19 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE
  */
 public class BootstrapBinaryDisabledTest extends TestBaseImpl
 {
-    static Boolean originalResetBootstrapProgress = null;
+    static WithProperties properties;
 
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
         TestBaseImpl.beforeClass();
-        originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.setBoolean(false);
+        properties = new WithProperties().set(RESET_BOOTSTRAP_PROGRESS, false);
     }
 
     @AfterClass
     public static void afterClass()
     {
-        if (originalResetBootstrapProgress == null)
-            RESET_BOOTSTRAP_PROGRESS.clearValue();
-        else
-            RESET_BOOTSTRAP_PROGRESS.setBoolean(originalResetBootstrapProgress);
+        properties.close();
     }
 
     @Test

@@ -58,6 +58,7 @@ import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -573,8 +574,7 @@ public class ConnectionTest
     @Test
     public void testPendingOutboundConnectionUpdatesMessageVersionOnReconnectAttempt() throws Throwable
     {
-        final Integer originalStoragePort = SSL_STORAGE_PORT.setInt(7011);
-        try
+        try (WithProperties properties = new WithProperties().set(SSL_STORAGE_PORT, 7011))
         {
             // Set up an inbound connection listening *only* on the SSL storage port to
             // replicate a 3.x node.  Force the messaging version to be incorrectly set to 4.0
@@ -651,10 +651,6 @@ public class ConnectionTest
         {
             MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
                                                      current_version);
-            if (originalStoragePort != null)
-                SSL_STORAGE_PORT.setInt(originalStoragePort);
-            else
-                SSL_STORAGE_PORT.clearValue();
         }
     }
 
