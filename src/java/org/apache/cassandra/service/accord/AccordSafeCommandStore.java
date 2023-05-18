@@ -50,7 +50,6 @@ import accord.local.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
@@ -65,7 +64,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
-    private AccordCommandStore.IntervalBuilder builder = null;
+    private CommandsForRanges.Builder builder = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
@@ -291,11 +290,9 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 TxnId txnId = liveCommand.txnId();
                 if (builder == null)
                     builder = commandStore.unbuild();
-                builder.removeIf(txnId);
 
-                AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, saveStatus, current.executeAt(), dependsOn);
-                for (Range range : ranges)
-                    builder.add(range, summary);
+                builder.add(ranges, txnId, saveStatus, current.executeAt(), dependsOn);
+
                 Ranges finalRanges = ranges;
                 liveCommand.addListener(new Command.TransientListener()
                 {
@@ -305,12 +302,10 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                         Command current = safeCommand.current();
                         if (current.saveStatus() == saveStatus)
                             return;
-                        AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, current.saveStatus(), current.executeAt(), dependsOn);
-                        AccordCommandStore.IntervalBuilder builder = ((AccordCommandStore) safeStore.commandStore()).unbuild();
-                        builder.removeIf(txnId);
-                        for (Range range : finalRanges)
-                            builder.add(range, summary);
-                        builder.apply();
+                        //TODO should we use ranges/depends from "current"?
+                        ((AccordCommandStore) safeStore.commandStore()).unbuild()
+                                                                       .add(finalRanges, txnId, current.saveStatus(), current.executeAt(), dependsOn)
+                                                                       .apply();
                     }
 
                     @Override

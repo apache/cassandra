@@ -85,7 +85,7 @@ public class AccordConfigurationService implements ConfigurationService
     public synchronized void fetchTopologyForEpoch(long epoch)
     {
         Topology current = currentTopology();
-        Preconditions.checkArgument(epoch > current.epoch(), "Requested to fetch epoch %d which is <= %d (current epoch)", epoch, current.epoch());
+        Preconditions.checkArgument(epoch > current.epoch(), "Requested to fetch epoch %s which is <= %s (current epoch)", epoch, current.epoch());
         while (current.epoch() < epoch)
         {
             current = AccordTopologyUtils.createTopology(epochs.size());

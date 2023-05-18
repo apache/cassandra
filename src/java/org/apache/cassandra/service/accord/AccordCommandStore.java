@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -30,9 +29,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
-
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -44,8 +40,6 @@ import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
-import accord.api.RoutingKey;
-import accord.impl.CommandTimeseries;
 import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.local.Command;
@@ -66,7 +60,6 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
-import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -75,13 +68,8 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Observable;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.Interval;
-import org.apache.cassandra.utils.IntervalTree;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -90,82 +78,6 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 public class AccordCommandStore extends CommandStore
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
-
-    static final class RangeCommandSummary
-    {
-        public final TxnId txnId;
-        public final SaveStatus status;
-        public final @Nullable Timestamp executeAt;
-        public final List<TxnId> deps;
-
-        RangeCommandSummary(TxnId txnId, SaveStatus status, @Nullable Timestamp executeAt, List<TxnId> deps)
-        {
-            this.txnId = txnId;
-            this.status = status;
-            this.executeAt = executeAt;
-            this.deps = deps;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            RangeCommandSummary that = (RangeCommandSummary) o;
-            return txnId.equals(that.txnId);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(txnId);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "RangeCommandSummary{" +
-                   "txnId=" + txnId +
-                   ", status=" + status +
-                   '}';
-        }
-    }
-
-    private enum RangeCommandSummaryLoader implements CommandTimeseries.CommandLoader<RangeCommandSummary>
-    {
-        INSTANCE;
-
-        @Override
-        public RangeCommandSummary saveForCFK(Command command)
-        {
-            //TODO split write from read?
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public TxnId txnId(RangeCommandSummary data)
-        {
-            return data.txnId;
-        }
-
-        @Override
-        public Timestamp executeAt(RangeCommandSummary data)
-        {
-            return data.executeAt;
-        }
-
-        @Override
-        public SaveStatus saveStatus(RangeCommandSummary data)
-        {
-            return data.status;
-        }
-
-        @Override
-        public List<TxnId> depsIds(RangeCommandSummary data)
-        {
-            return data.deps;
-        }
-    }
 
     private static long getThreadId(ExecutorService executor)
     {
@@ -192,7 +104,7 @@ public class AccordCommandStore extends CommandStore
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
-    private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands = IntervalTree.emptyTree();
+    private CommandsForRanges commandsForRanges = new CommandsForRanges();
 
     public AccordCommandStore(int id,
                               NodeTimeService time,
@@ -214,10 +126,11 @@ public class AccordCommandStore extends CommandStore
 
     private void loadRangesToCommands()
     {
-        AsyncPromise<IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>>> future = new AsyncPromise<>();
+        AsyncPromise<CommandsForRanges> future = new AsyncPromise<>();
         AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "txn", "execute_at", "dependencies"), new Observable<UntypedResultSet.Row>()
         {
-            private IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder = IntervalTree.builder();
+            private CommandsForRanges result = new CommandsForRanges();
+            private CommandsForRanges.Builder builder = result.unbuild();
             @Override
             public void onNext(UntypedResultSet.Row row) throws Exception
             {
@@ -233,31 +146,31 @@ public class AccordCommandStore extends CommandStore
 
                 PartialDeps deps = AccordKeyspace.deserializeDependencies(row);
                 List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
-                RangeCommandSummary summary = new RangeCommandSummary(txnId, status, executeAt, dependsOn);
-
-                for (Range range : ranges)
-                    builder.add(new Interval<>(range.start(), range.end(), summary));
+                builder.add(ranges, txnId, status, executeAt, dependsOn);
             }
 
             @Override
             public void onError(Throwable t)
             {
                 builder = null;
+                result = null;
                 future.tryFailure(t);
             }
 
             @Override
             public void onCompleted()
             {
-                IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> result = builder.build();
+                builder.apply();
                 builder = null;
+                CommandsForRanges result = this.result;
+                this.result = null;
                 future.trySuccess(result);
             }
         });
         try
         {
-            rangesToCommands = future.get();
-            logger.debug("Loaded {} intervals", rangesToCommands.intervalCount());
+            commandsForRanges = future.get();
+            logger.debug("Loaded {} intervals", commandsForRanges.size());
         }
         catch (InterruptedException e)
         {
@@ -425,39 +338,6 @@ public class AccordCommandStore extends CommandStore
         current = null;
     }
 
-
-    private static CommandTimeseriesHolder fromRangeSummary(Seekable keyOrRange, List<RangeCommandSummary> matches)
-    {
-        return new CommandTimeseriesHolder()
-        {
-            @Override
-            public CommandTimeseries<?> byId()
-            {
-                CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
-                for (RangeCommandSummary m : matches)
-                {
-                    if (m.status == SaveStatus.Invalidated)
-                        continue;
-                    builder.add(m.txnId, m);
-                }
-                return builder.build();
-            }
-
-            @Override
-            public CommandTimeseries<?> byExecuteAt()
-            {
-                CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(null, RangeCommandSummaryLoader.INSTANCE);
-                for (RangeCommandSummary m : matches)
-                {
-                    if (m.status == SaveStatus.Invalidated)
-                        continue;
-                    builder.add(m.executeAt != null ? m.executeAt : m.txnId, m);
-                }
-                return builder.build();
-            }
-        };
-    }
-
     <O> O mapReduceForRange(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
     {
         switch (keysOrRanges.domain())
@@ -469,10 +349,9 @@ public class AccordCommandStore extends CommandStore
                 {
                     if (!slice.contains(key)) continue;
 
-                    List<RangeCommandSummary> matches = rangesToCommands.search(key);
-                    if (matches.isEmpty())
+                    CommandTimeseriesHolder summary = commandsForRanges.search(key);
+                    if (summary == null)
                         continue;
-                    CommandTimeseriesHolder summary = fromRangeSummary(key, matches);
                     accumulate = map.apply(summary, accumulate);
                     if (accumulate.equals(terminalValue))
                         return accumulate;
@@ -485,11 +364,9 @@ public class AccordCommandStore extends CommandStore
                 ranges = ranges.slice(slice, Routables.Slice.Minimal);
                 for (Range range : ranges)
                 {
-                    List<RangeCommandSummary> matches = rangesToCommands.search(Interval.create(normalize(range.start(), range.startInclusive(), true),
-                                                                                                normalize(range.end(), range.endInclusive(), false)));
-                    if (matches.isEmpty())
+                    CommandTimeseriesHolder summary = commandsForRanges.search(range);
+                    if (summary == null)
                         continue;
-                    CommandTimeseriesHolder summary = fromRangeSummary(range, matches);
                     accumulate = map.apply(summary, accumulate);
                     if (accumulate.equals(terminalValue))
                         return accumulate;
@@ -502,9 +379,9 @@ public class AccordCommandStore extends CommandStore
         return accumulate;
     }
 
-    IntervalBuilder unbuild()
+    CommandsForRanges.Builder unbuild()
     {
-        return new IntervalBuilder(rangesToCommands.unbuild());
+        return commandsForRanges.unbuild();
     }
 
     public void abortCurrentOperation()
@@ -516,60 +393,5 @@ public class AccordCommandStore extends CommandStore
     public void shutdown()
     {
         executor.shutdown();
-    }
-
-    private static RoutingKey normalize(RoutingKey key, boolean inclusive, boolean upOrDown)
-    {
-        if (inclusive) return key;
-        AccordRoutingKey ak = (AccordRoutingKey) key;
-        switch (ak.kindOfRoutingKey())
-        {
-            case SENTINEL:
-                return normalize(ak.asSentinelKey().toTokenKey(), inclusive, upOrDown);
-            case TOKEN:
-                TokenKey tk = ak.asTokenKey();
-                return tk.withToken(upOrDown ? tk.token().increaseSlightly() : tk.token().decreaseSlightly());
-            default:
-                throw new IllegalArgumentException("Unknown kind: " + ak.kindOfRoutingKey());
-        }
-    }
-
-    class IntervalBuilder
-    {
-        private final IntervalTree.Builder<RoutableKey, AccordCommandStore.RangeCommandSummary, Interval<RoutableKey, AccordCommandStore.RangeCommandSummary>> builder;
-
-        private IntervalBuilder(IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder)
-        {
-            this.builder = builder;
-        }
-
-        IntervalBuilder add(Range range, AccordCommandStore.RangeCommandSummary summary)
-        {
-            builder.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
-                                        normalize(range.end(), range.endInclusive(), false),
-                                        summary));
-            return this;
-        }
-
-        IntervalBuilder removeIf(TxnId txnId)
-        {
-            return removeIf(data -> data.txnId.equals(txnId));
-        }
-
-        IntervalBuilder removeIf(Predicate<RangeCommandSummary> predicate)
-        {
-            return removeIf((i1, i2, data) -> predicate.test(data));
-        }
-
-        IntervalBuilder removeIf(IntervalTree.Builder.TriPredicate<RoutableKey, RoutableKey, AccordCommandStore.RangeCommandSummary> predicate)
-        {
-            builder.removeIf(predicate);
-            return this;
-        }
-
-        void apply()
-        {
-            rangesToCommands = builder.build();
-        }
     }
 }
