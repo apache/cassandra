@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.stress.util;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import javax.net.ssl.SSLContext;
 
+import com.google.common.net.HostAndPort;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.WhiteListPolicy;
@@ -39,7 +44,7 @@ public class JavaDriverClient
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
-    public final String host;
+    public final List<String> hosts;
     public final int port;
     public final String username;
     public final String password;
@@ -57,13 +62,13 @@ public class JavaDriverClient
 
     public JavaDriverClient(StressSettings settings, String host, int port)
     {
-        this(settings, host, port, new EncryptionOptions.ClientEncryptionOptions());
+        this(settings, Collections.singletonList(host), port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public JavaDriverClient(StressSettings settings, String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
+    public JavaDriverClient(StressSettings settings, List<String> hosts, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.protocolVersion = settings.mode.protocolVersion;
-        this.host = host;
+        this.hosts = hosts;
         this.port = port;
         this.username = settings.mode.username;
         this.password = settings.mode.password;
@@ -112,9 +117,16 @@ public class JavaDriverClient
                                      .setMaxRequestsPerConnection(HostDistance.LOCAL, maxPendingPerConnection)
                                      .setNewConnectionThreshold(HostDistance.LOCAL, 100);
 
+        List<InetSocketAddress> contacts = new ArrayList<>();
+        for (String host : hosts)
+        {
+            HostAndPort hap = HostAndPort.fromString(host).withDefaultPort(port);
+            InetSocketAddress contact = new InetSocketAddress(InetAddress.getByName(hap.getHostText()), hap.getPort());
+            contacts.add(contact);
+        }
+
         Cluster.Builder clusterBuilder = Cluster.builder()
-                                                .addContactPoint(host)
-                                                .withPort(port)
+                                                .addContactPointsWithPorts(contacts)
                                                 .withPoolingOptions(poolingOpts)
                                                 .withoutJMXReporting()
                                                 .withProtocolVersion(protocolVersion)
