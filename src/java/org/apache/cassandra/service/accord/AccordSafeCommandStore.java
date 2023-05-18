@@ -43,6 +43,8 @@ import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommonAttributes;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
+import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.AbstractKeys;
@@ -278,7 +280,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             break;
             case Range:
                 Command current = liveCommand.current();
-                if (current.saveStatus() == SaveStatus.NotWitnessed)
+                SaveStatus saveStatus = current.saveStatus();
+                if (saveStatus == SaveStatus.NotWitnessed)
                     return attrs; // don't know the range/dependencies, so can't cache
                 ranges = ranges.slice(Ranges.single(seekable.asRange()), Routables.Slice.Minimal);
                 if (ranges.isEmpty())
@@ -290,10 +293,32 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                     builder = commandStore.unbuild();
                 builder.removeIf(txnId);
 
-                //TODO Interval is BETWEEN semantics, but Range tends not to be... fix this
-                AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, current.saveStatus(), current.executeAt(), dependsOn);
+                AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, saveStatus, current.executeAt(), dependsOn);
                 for (Range range : ranges)
                     builder.add(range, summary);
+                Ranges finalRanges = ranges;
+                liveCommand.addListener(new Command.TransientListener()
+                {
+                    @Override
+                    public void onChange(SafeCommandStore safeStore, SafeCommand safeCommand)
+                    {
+                        Command current = safeCommand.current();
+                        if (current.saveStatus() == saveStatus)
+                            return;
+                        AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, current.saveStatus(), current.executeAt(), dependsOn);
+                        AccordCommandStore.IntervalBuilder builder = ((AccordCommandStore) safeStore.commandStore()).unbuild();
+                        builder.removeIf(txnId);
+                        for (Range range : finalRanges)
+                            builder.add(range, summary);
+                        builder.apply();
+                    }
+
+                    @Override
+                    public PreLoadContext listenerPreLoadContext(TxnId caller)
+                    {
+                        return caller.equals(txnId) ? PreLoadContext.contextFor(txnId) : PreLoadContext.contextFor(txnId, Collections.singletonList(caller));
+                    }
+                });
             break;
             default:
                 throw new UnsupportedOperationException("Unknown domain: " + seekable.domain());
