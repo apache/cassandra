@@ -21,10 +21,12 @@ package org.apache.cassandra.config;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_RELEVANT_PROPERTIES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -40,14 +42,9 @@ public class CassandraRelevantPropertiesTest
 
     @Test
     public void testSystemPropertyisSet() {
-        try
+        try (WithProperties properties = new WithProperties().set(TEST_CASSANDRA_RELEVANT_PROPERTIES, "test"))
         {
-            TEST_CASSANDRA_RELEVANT_PROPERTIES.setString("test");
             Assertions.assertThat(System.getProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey())).isEqualTo("test"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
-        }
-        finally
-        {
-            TEST_CASSANDRA_RELEVANT_PROPERTIES.clearValue();
         }
     }
 

@@ -18,6 +18,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 
 import java.io.ByteArrayOutputStream;
@@ -337,14 +338,9 @@ public abstract class CommitLogTest
     @Test
     public void testRecoveryWithGarbageLog_ignoredByProperty() throws Exception
     {
-        try
+        try (WithProperties properties = new WithProperties().set(COMMITLOG_IGNORE_REPLAY_ERRORS, "true"))
         {
-            COMMITLOG_IGNORE_REPLAY_ERRORS.setBoolean(true);
             testRecoveryWithGarbageLog();
-        }
-        finally
-        {
-            COMMITLOG_IGNORE_REPLAY_ERRORS.clearValue();
         }
     }
 
@@ -1239,16 +1235,11 @@ public abstract class CommitLogTest
 
         int replayed = 0;
 
-        try
+        try (WithProperties properties = new WithProperties().set(COMMITLOG_IGNORE_REPLAY_ERRORS, true))
         {
-            COMMITLOG_IGNORE_REPLAY_ERRORS.setBoolean(true);
             replayed = CommitLog.instance.resetUnsafe(false);
         }
-        finally
-        {
-            COMMITLOG_IGNORE_REPLAY_ERRORS.clearValue();
-        }
-
+        
         assertEquals(replayed, 1);
     }
 }

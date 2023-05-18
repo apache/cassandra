@@ -34,7 +34,9 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.rows.AbstractCell;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.util.File;
@@ -45,6 +47,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_IGNORE_REPLAY_ERRORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -404,8 +407,7 @@ public class TTLTest extends CQLTester
         }
         if (runSStableScrub)
         {
-            TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
-            try
+            try (WithProperties properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true))
             {
                 ToolResult tool;
                 if (reinsertOverflowedTTL)
@@ -419,10 +421,6 @@ public class TTLTest extends CQLTester
                     Assertions.assertThat(tool.getStdout()).contains("Fixed 2 rows with overflowed local deletion time.");
                 else
                     Assertions.assertThat(tool.getStdout()).contains("No valid partitions found while scrubbing");
-            }
-            finally
-            {
-                TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
             }
         }
 

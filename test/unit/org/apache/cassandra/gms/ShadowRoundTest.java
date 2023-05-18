@@ -37,6 +37,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -50,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -213,14 +215,9 @@ public class ShadowRoundTest
                 }, 1);
 
 
-        AUTO_BOOTSTRAP.setBoolean(false);
-        try
+        try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
             StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
-        }
-        finally
-        {
-            AUTO_BOOTSTRAP.clearValue();
         }
     }
 
