@@ -26,6 +26,12 @@ import com.google.common.base.Preconditions;
 import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.topology.Topology;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
+import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Currently a stubbed out config service meant to be triggered from a dtest
@@ -40,6 +46,21 @@ public class AccordConfigurationService implements ConfigurationService
     {
         this.localId = localId;
         epochs.add(Topology.EMPTY);
+
+        // TODO (replace with TCM): Need to know when an epoch is known on the peers, so use gossip until TCM is ready
+        Gossiper.instance.register(new IEndpointStateChangeSubscriber()
+        {
+            @Override
+            public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
+            {
+                if (state != ApplicationState.ACCORD_EPOCH)
+                    return;
+                Node.Id id = EndpointMapping.endpointToId(endpoint);
+                long epoch = Long.parseLong(value.value);
+                for (Listener listener : listeners)
+                    listener.onEpochSyncComplete(id, epoch);
+            }
+        });
     }
 
     @Override
@@ -102,11 +123,6 @@ public class AccordConfigurationService implements ConfigurationService
         for (Listener listener : listeners)
             listener.onTopologyUpdate(topology);
 
-        // TODO: This is a hack to enable simplistic cluster reuse for TxnAuthTest, AccordCQLTest, etc.
-        // Since we don't have a dist sys that sets this up, we have to just lie...
-        EndpointMapping.knownIds().forEach(id -> {
-            for (Listener listener : listeners)
-                listener.onEpochSyncComplete(id, topology.epoch());
-        });
+        Gossiper.instance.addLocalApplicationState(ApplicationState.ACCORD_EPOCH, StorageService.instance.valueFactory.accordEpoch(currentEpoch()));
     }
 }
