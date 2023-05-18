@@ -150,21 +150,10 @@ public class BigFormatV3 implements SSTableFormat
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
-        private final boolean hasSamplingLevel;
-        private final boolean newStatsFile;
         private final ChecksumType compressedChecksumType;
-        private final ChecksumType uncompressedChecksumType;
-        private final boolean hasRepairedAt;
-        private final boolean tracksLegacyCounterShards;
-        private final boolean newFileName;
-        public final boolean storeRows;
+        public final boolean storeRows = true;
         public final int correspondingMessagingVersion; // Only use by storage that 'storeRows' so far
-        public final boolean hasBoundaries;
-        /**
-         * CASSANDRA-8413: 3.0 bloom filter representation changed (two longs just swapped)
-         * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
-         */
-        private final boolean hasOldBfHashOrder;
+        public final boolean hasBoundaries = false;
         private final boolean hasCommitLogLowerBound;
         private final boolean hasCommitLogIntervals;
         private final boolean hasAccurateMinMax;
@@ -172,10 +161,7 @@ public class BigFormatV3 implements SSTableFormat
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
         private final boolean hasIsTransient;
-        /**
-         * CASSANDRA-7066: compaction ancerstors are no longer used and have been removed.
-         */
-        private final boolean hasCompactionAncestors;
+
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
          * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
@@ -186,34 +172,11 @@ public class BigFormatV3 implements SSTableFormat
             super(instance, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
-            hasSamplingLevel = version.compareTo("ka") >= 0;
-            newStatsFile = version.compareTo("ka") >= 0;
 
-            //For a while Adler32 was in use, now the CRC32 instrinsic is very good especially after Haswell
-            //PureJavaCRC32 was always faster than Adler32. See CASSANDRA-8684
-            ChecksumType checksumType = ChecksumType.CRC32;
-            if (version.compareTo("ka") >= 0 && version.compareTo("ma") < 0)
-                checksumType = ChecksumType.ADLER32;
-            this.uncompressedChecksumType = checksumType;
+            this.compressedChecksumType = ChecksumType.CRC32;;
 
-            checksumType = ChecksumType.CRC32;
-            if (version.compareTo("jb") >= 0 && version.compareTo("ma") < 0)
-                checksumType = ChecksumType.ADLER32;
-            this.compressedChecksumType = checksumType;
-
-            hasRepairedAt = version.compareTo("ka") >= 0;
-            tracksLegacyCounterShards = version.compareTo("ka") >= 0;
-
-            newFileName = version.compareTo("la") >= 0;
-
-            hasOldBfHashOrder = version.compareTo("ma") < 0;
-            hasCompactionAncestors = version.compareTo("ma") < 0;
-            storeRows = version.compareTo("ma") >= 0;
-            correspondingMessagingVersion = storeRows
-                                            ? MessagingService.VERSION_30
-                                            : VERSION_21;
-
-            hasBoundaries = version.compareTo("ma") < 0;
+            correspondingMessagingVersion =MessagingService.VERSION_30;
+            
             hasCommitLogLowerBound = (version.compareTo("lb") >= 0 && version.compareTo("ma") < 0)
                                      || version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
