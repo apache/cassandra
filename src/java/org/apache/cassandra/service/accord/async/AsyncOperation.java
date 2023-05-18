@@ -32,6 +32,7 @@ import org.slf4j.MDC;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.messages.Request;
 import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -41,6 +42,7 @@ import org.apache.cassandra.service.accord.AccordSafeCommand;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeState;
+import org.apache.cassandra.service.accord.AccordService;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
 
@@ -232,11 +234,20 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         {
             case INITIALIZED:
                 state = State.WAITING_ON_EPOCH;
-                long minEpoch = minEpoch(preLoadContext);
-                if (minEpoch != -1 && !commandStore.isEpochKnown(minEpoch))
+                if (preLoadContext instanceof Request)
                 {
-                    commandStore.waitForEpoch(minEpoch, this::callback);
-                    return;
+                    Request request = (Request) preLoadContext;
+                    long knownEpoch = request.knownEpoch();
+                    if (!commandStore.isEpochKnown(knownEpoch))
+                    {
+                        AccordService.instance().fetchTopologyForEpoch(knownEpoch);
+                        long waitForEpoch = request.waitForEpoch();
+                        if (!commandStore.isEpochKnown(waitForEpoch))
+                        {
+                            commandStore.waitForEpoch(waitForEpoch, this::callback);
+                            return;
+                        }
+                    }
                 }
             case WAITING_ON_EPOCH:
                 state = State.LOADING;
@@ -276,15 +287,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 throw new IllegalStateException("Unexpected state " + state);
         }
     }
-
-    private long minEpoch(PreLoadContext preLoadContext)
-    {
-        class Holder {long epoch = -1;}
-        Holder holder = new Holder();
-        preLoadContext.forEachId(txnId -> holder.epoch = Math.max(txnId.epoch(), holder.epoch));
-        return holder.epoch;
-    }
-
 
     @Override
     public void run()

@@ -112,6 +112,12 @@ public class AccordService implements IAccordService, Shutdownable
 
         @Override
         public void shutdownAndWait(long timeout, TimeUnit unit) { }
+
+        @Override
+        public void fetchTopologyForEpoch(long knownEpoch)
+        {
+
+        }
     };
 
     private static class Handle
@@ -164,6 +170,12 @@ public class AccordService implements IAccordService, Shutdownable
     public void createEpochFromConfigUnsafe()
     {
         configService.createEpochFromConfig();
+    }
+
+    @Override
+    public void fetchTopologyForEpoch(long knownEpoch)
+    {
+        configService.fetchTopologyForEpoch(knownEpoch);
     }
 
     public static long nowInMicros()
