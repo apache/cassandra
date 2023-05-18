@@ -6,6 +6,7 @@
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
 Merged from 4.0:
+ * Partial compaction can resurrect deleted data (CASSANDRA-18507)
  * Allow internal address to change with reconnecting snitches (CASSANDRA-16718)
  * Fix quoting in toCqlString methods of UDTs and aggregates (CASSANDRA-17918)
  * NPE when deserializing malformed collections from client (CASSANDRA-18505)
