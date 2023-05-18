@@ -1127,7 +1127,7 @@ public class DirectoriesTest
         return candidates;
     }
 
-    private static class FakeFileStore extends FileStore
+    public static class FakeFileStore extends FileStore
     {
         public long usableSpace = 100;
         public long getUsableSpace()
