@@ -1,4 +1,6 @@
 5.0
+ * Add guardrail to bound timestamps (CASSANDRA-18352)
+ * Add keyspace_name column to system_views.clients (CASSANDRA-18525)
  * Moved system properties and envs to CassandraRelevantProperties and CassandraRelevantEnv respectively (CASSANDRA-17797)
  * Add sstablepartitions offline tool to find large partitions in sstables (CASSANDRA-8720)
  * Replace usages of json-simple dependency by Jackson (CASSANDRA-16855)
@@ -143,6 +145,7 @@
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
 Merged from 4.0:
+ * Allow internal address to change with reconnecting snitches (CASSANDRA-16718)
  * Fix quoting in toCqlString methods of UDTs and aggregates (CASSANDRA-17918)
  * Improve 'Not enough space for compaction' logging messages (CASSANDRA-18260)
  * Incremental repairs fail on mixed IPv4/v6 addresses serializing SyncRequest (CASSANDRA-18474)
@@ -152,6 +155,7 @@ Merged from 4.0:
 Merged from 3.11:
  * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
 Merged from 3.0:
+ * Validate the existence of a datacenter in nodetool rebuild (CASSANDRA-14319)
  * Suppress CVE-2023-2251 (CASSANDRA-18497)
  * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
  * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
