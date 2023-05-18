@@ -32,7 +32,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -59,7 +58,6 @@ import accord.primitives.Deps;
 import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
-import accord.primitives.ForwardingRoutableKey;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
@@ -541,27 +539,6 @@ public class AccordCommandStore extends CommandStore
         void apply()
         {
             rangesToCommands = builder.build();
-        }
-    }
-
-    private static class ExclusiveRoutableKey extends ForwardingRoutableKey
-    {
-        private final int onEquals;
-
-        private ExclusiveRoutableKey(RoutableKey delegate, int onEquals)
-        {
-            super(delegate);
-            this.onEquals = onEquals;
-        }
-
-        @Override
-        public int compareTo(@Nonnull RoutableKey that)
-        {
-            // for sorting reasons, do not use the onEquals value
-            if (that instanceof ExclusiveRoutableKey)
-                return super.compareTo(that);
-            int rc = super.compareTo(that);
-            return rc == 0 ? onEquals : rc;
         }
     }
 }
