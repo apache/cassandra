@@ -515,8 +515,8 @@ public class Directories
      *                                      CASSANDRA-6696 we expect compactions to read and written from the same dir)
      * @return true if we expect to be able to write expectedNewWriteSizes to the available file stores
      */
-    public static boolean hasDiskSpaceForCompactionsAndStreams(Map<File, Long> expectedNewWriteSizes,
-                                                               Map<File, Long> totalCompactionWriteRemaining)
+    public boolean hasDiskSpaceForCompactionsAndStreams(Map<File, Long> expectedNewWriteSizes,
+                                                        Map<File, Long> totalCompactionWriteRemaining)
     {
         return hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, Directories::getFileStore);
     }
