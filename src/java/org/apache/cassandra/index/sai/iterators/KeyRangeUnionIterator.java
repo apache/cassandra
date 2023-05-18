@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
@@ -102,9 +103,9 @@ public class KeyRangeUnionIterator extends KeyRangeIterator
         return new Builder(size);
     }
 
-    public static KeyRangeIterator build(List<KeyRangeIterator> keys)
+    public static KeyRangeIterator build(Iterable<KeyRangeIterator> keys)
     {
-        return new Builder(keys.size()).add(keys).build();
+        return new Builder(Iterables.size(keys)).add(keys).build();
     }
 
     @VisibleForTesting

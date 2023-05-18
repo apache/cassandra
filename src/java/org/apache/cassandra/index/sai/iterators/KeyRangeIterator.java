@@ -22,6 +22,7 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
@@ -159,9 +160,9 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
             return statistics.count;
         }
 
-        public Builder add(List<KeyRangeIterator> ranges)
+        public Builder add(Iterable<KeyRangeIterator> ranges)
         {
-            if (ranges == null || ranges.isEmpty())
+            if (ranges == null || Iterables.isEmpty(ranges))
                 return this;
 
             ranges.forEach(this::add);

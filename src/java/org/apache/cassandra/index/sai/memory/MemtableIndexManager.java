@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -117,12 +118,12 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public List<KeyRangeIterator> iteratorsForSearch(Expression e, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public List<List<KeyRangeIterator>> iteratorsForSearch(Collection<Expression> expressions, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
         return memtableIndexes
                .stream()
-               .map(mi -> mi.search(e, keyRange, limit))
+               .map(mi -> expressions.stream().map(e -> mi.search(e, keyRange, limit)).collect(Collectors.toList()))
                .collect(Collectors.toList());
     }
 

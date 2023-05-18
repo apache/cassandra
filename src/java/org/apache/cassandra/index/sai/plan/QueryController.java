@@ -20,9 +20,12 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
@@ -178,63 +181,61 @@ public class QueryController
 
         QueryViewBuilder queryViewBuilder = new QueryViewBuilder(expressions, mergeRange);
 
-        Collection<Pair<Expression, Collection<SSTableIndex>>> queryView = queryViewBuilder.build();
+        var queryView = queryViewBuilder.build();
 
         try
         {
-            for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView)
-            {
-                KeyRangeIterator union = getUnionIterator(queryViewPair.left, queryViewPair.right);
-                @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
-                KeyRangeIterator index = new CheckpointingIterator(union, queryViewPair.right, queryContext);
+            var sstableIntersections = queryView
+                                .entrySet().stream()
+                                .map(e -> createIntersectionIterator(e.getKey(), e.getValue()))
+                                .collect(Collectors.toList());
 
-                builder.add(index);
-            }
+            var mim = Iterables.getLast(expressions).context.getMemtableIndexManager();
+            var memtableIntersections = mim.iteratorsForSearch(expressions, mergeRange, getLimit())
+                                        .stream()
+                                        .map(subIterators -> KeyRangeIntersectionIterator.build(subIterators))
+                                        .collect(Collectors.toList());
+
+            var allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
+
+            queryContext.sstablesHit += queryView.size();
+            queryContext.checkpoint();
+            var union = KeyRangeUnionIterator.build(allIntersections);
+            return new CheckpointingIterator(union, queryView.keySet(), queryContext);
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
-            builder.cleanup();
-            queryView.forEach(pair -> pair.right.forEach(SSTableIndex::releaseQuietly));
+            queryView.keySet().forEach(SSTableIndex::releaseQuietly);
             throw t;
         }
-        return builder;
     }
 
-    private KeyRangeIterator getUnionIterator(Expression expression, Collection<SSTableIndex> indexes)
+    private KeyRangeIterator createIntersectionIterator(SSTableIndex index, Collection<Expression> expressions)
     {
-        int limit = command.limits().count();
-        List<KeyRangeIterator> subIterators = new ArrayList<>(1 + indexes.size());
+        List<KeyRangeIterator> subIterators;
+        subIterators = expressions.stream()
+                                  .flatMap(e -> {
+                                      try
+                                      {
+                                          return index.search(e, mergeRange, queryContext, getLimit()).stream();
+                                      }
+                                      catch (Throwable ex)
+                                      {
+                                          if (!(ex instanceof QueryCancelledException))
+                                              logger.debug(index.getIndexContext().logMessage(String.format("Failed search on index %s, aborting query.", index.getSSTable())), ex);
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, mergeRange, limit);
-        if (memtableIterator != null)
-            subIterators.add(memtableIterator);
+                                          throw Throwables.cleaned(ex);
+                                      }
+                                  })
+                                  .collect(Collectors.toList());
 
-        for (SSTableIndex sstableIndex : indexes)
-        {
-            try
-            {
-                queryContext.checkpoint();
-                queryContext.sstablesHit++;
+        return KeyRangeIntersectionIterator.build(subIterators);
+    }
 
-                if (sstableIndex.isReleased())
-                    throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
-
-                List<KeyRangeIterator> segmentIterators = sstableIndex.search(expression, mergeRange, queryContext, limit);
-
-                if (!segmentIterators.isEmpty())
-                    subIterators.addAll(segmentIterators);
-            }
-            catch (Throwable e)
-            {
-                if (!(e instanceof QueryCancelledException))
-                    logger.debug(sstableIndex.getIndexContext().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
-
-                throw Throwables.cleaned(e);
-            }
-        }
-
-        return KeyRangeUnionIterator.build(subIterators);
+    private int getLimit()
+    {
+        return command.limits().count();
     }
 
     /**
