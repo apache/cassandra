@@ -265,6 +265,11 @@ public enum CassandraRelevantProperties
      */
     JAVA_LIBRARY_PATH("java.library.path"),
     /**
+     * Controls the distributed garbage collector lease time for JMX objects.
+     * Should only be set by in-jvm dtests.
+     */
+    JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST("java.rmi.dgc.leaseValue"),
+    /**
      * The value of this property represents the host name string
      * that should be associated with remote stubs for locally created remote objects,
      * in order to allow clients to invoke methods on the remote object.
@@ -423,6 +428,11 @@ public enum CassandraRelevantProperties
     /** Platform word size sun.arch.data.model. Examples: "32", "64", "unknown"*/
     SUN_ARCH_DATA_MODEL("sun.arch.data.model"),
     SUN_JAVA_COMMAND("sun.java.command", ""),
+    /**
+     * Controls the JMX server threadpool keap-alive time.
+     * Should only be set by in-jvm dtests.
+     */
+    SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME("sun.rmi.transport.tcp.threadKeepAliveTime"),
     SUN_STDERR_ENCODING("sun.stderr.encoding"),
     SUN_STDOUT_ENCODING("sun.stdout.encoding"),
     SUPERUSER_SETUP_DELAY_MS("cassandra.superuser_setup_delay_ms", "10000"),
