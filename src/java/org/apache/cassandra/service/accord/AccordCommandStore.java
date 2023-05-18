@@ -88,10 +88,10 @@ public class AccordCommandStore extends CommandStore
 
     static final class RangeCommandSummary
     {
-        private final TxnId txnId;
-        private final SaveStatus status;
-        private final @Nullable Timestamp executeAt;
-        private final List<TxnId> deps;
+        public final TxnId txnId;
+        public final SaveStatus status;
+        public final @Nullable Timestamp executeAt;
+        public final List<TxnId> deps;
 
         RangeCommandSummary(TxnId txnId, SaveStatus status, @Nullable Timestamp executeAt, List<TxnId> deps)
         {

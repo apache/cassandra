@@ -287,12 +287,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                     return attrs;
                 PartialDeps deps = current.partialDeps();
                 List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
-                AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(liveCommand.txnId(), current.saveStatus(), current.executeAt(), dependsOn);
+                TxnId txnId = liveCommand.txnId();
                 if (builder == null)
                     builder = commandStore.unbuild();
+                builder.removeIf((min, max, data) -> data.txnId.equals(txnId));
 
                 //TODO Interval is BETWEEN semantics, but Range tends not to be... fix this
-                //TODO this does NOT update the value, but causes 2 elements to exist (history + update); need to purge history
+                AccordCommandStore.RangeCommandSummary summary = new AccordCommandStore.RangeCommandSummary(txnId, current.saveStatus(), current.executeAt(), dependsOn);
                 for (Range range : ranges)
                     builder.add(new Interval<>(range.start(), range.end(), summary));
             break;

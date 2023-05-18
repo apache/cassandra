@@ -394,6 +394,17 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
             return this;
         }
 
+        public interface TriPredicate<A, B, C>
+        {
+            boolean test(A a, B b, C c);
+        }
+
+        public Builder<C, D, I> removeIf(TriPredicate<C, C, D> predicate)
+        {
+            intervals.removeIf(i -> predicate.test(i.min, i.max, i.data));
+            return this;
+        }
+
         public IntervalTree<C, D, I> build()
         {
             return IntervalTree.build(intervals);
