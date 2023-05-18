@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.rmi.server.RMIClientSocketFactory;
+import java.util.Objects;
 
 /**
  * This class is used to override the local address the JMX client calculates when trying to connect,
@@ -42,5 +43,20 @@ public class RMIClientSocketFactoryImpl implements RMIClientSocketFactory, Seria
     public Socket createSocket(String host, int port) throws IOException
     {
         return new Socket(localAddress, port);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RMIClientSocketFactoryImpl that = (RMIClientSocketFactoryImpl) o;
+        return Objects.equals(localAddress, that.localAddress);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(localAddress);
     }
 }

@@ -227,8 +227,8 @@ public interface MBeanWrapper
 
     class InstanceMBeanWrapper implements MBeanWrapper
     {
+        private MBeanServer mbs;
         public final UUID id = UUID.randomUUID();
-        private final MBeanServer mbs;
 
         public InstanceMBeanWrapper(String hostname)
         {
@@ -296,6 +296,7 @@ public interface MBeanWrapper
                 }
             });
             MBeanServerFactory.releaseMBeanServer(mbs);
+            mbs = null;
         }
     }
 
