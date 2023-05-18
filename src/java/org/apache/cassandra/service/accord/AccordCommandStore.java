@@ -44,6 +44,7 @@ import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
+import accord.api.RoutingKey;
 import accord.impl.CommandTimeseries;
 import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
@@ -74,6 +75,9 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Observable;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Interval;
@@ -472,7 +476,8 @@ public class AccordCommandStore extends CommandStore
                 ranges = ranges.slice(slice, Routables.Slice.Minimal);
                 for (Range range : ranges)
                 {
-                    List<RangeCommandSummary> matches = rangesToCommands.search(Interval.create(range.start(), range.end()));
+                    List<RangeCommandSummary> matches = rangesToCommands.search(Interval.create(normalize(range.start(), range.startInclusive(), true),
+                                                                                                normalize(range.end(), range.endInclusive(), false)));
                     if (matches.isEmpty())
                         continue;
                     CommandTimeseriesHolder summary = fromRangeSummary(range, matches);
@@ -504,6 +509,22 @@ public class AccordCommandStore extends CommandStore
         executor.shutdown();
     }
 
+    private static RoutingKey normalize(RoutingKey key, boolean inclusive, boolean upOrDown)
+    {
+        if (inclusive) return key;
+        AccordRoutingKey ak = (AccordRoutingKey) key;
+        switch (ak.kindOfRoutingKey())
+        {
+            case SENTINEL:
+                return normalize(ak.asSentinelKey().toTokenKey(), inclusive, upOrDown);
+            case TOKEN:
+                TokenKey tk = ak.asTokenKey();
+                return tk.withToken(upOrDown ? tk.token().increaseSlightly() : tk.token().decreaseSlightly());
+            default:
+                throw new IllegalArgumentException("Unknown kind: " + ak.kindOfRoutingKey());
+        }
+    }
+
     class IntervalBuilder
     {
         private final IntervalTree.Builder<RoutableKey, AccordCommandStore.RangeCommandSummary, Interval<RoutableKey, AccordCommandStore.RangeCommandSummary>> builder;
@@ -515,8 +536,9 @@ public class AccordCommandStore extends CommandStore
 
         IntervalBuilder add(Range range, AccordCommandStore.RangeCommandSummary summary)
         {
-            //TODO exclusive support
-            builder.add(Interval.create(range.start(), range.end(), summary));
+            builder.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
+                                        normalize(range.end(), range.endInclusive(), false),
+                                        summary));
             return this;
         }
 
