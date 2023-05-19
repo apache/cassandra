@@ -19,78 +19,76 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Preconditions;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.utils.Pair;
 
 class OnDiskOrdinalsMap
 {
+    private static final Logger logger = LoggerFactory.getLogger(OnDiskOrdinalsMap.class);
+
     private final RandomAccessReader reader;
     private final int size;
-    private Map<Integer, int[]> ordinalToRowIdMap;
-    private Map<Integer, Integer> rowIdToOrdinalMap;
+    private final long rowOrdinalOffset;
 
     public OnDiskOrdinalsMap(File file) throws IOException
     {
         this.reader = RandomAccessReader.open(file);
         this.size = reader.readInt();
-        readAllOrdinals();
+        reader.seek(reader.length() - 8);
+        this.rowOrdinalOffset = reader.readLong();
     }
 
-// FIXME do we bring this back or just accept that the mapping lives in memory?
-//        public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
-//        {
-//            Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
-//
-//            // read index entry
-//            reader.seek(4L + vectorOrdinal * 8L);
-//            long offset = reader.readLong();
-//            // seek to and read ordinals
-//            reader.seek(offset);
-//            int postingsSize = reader.readInt();
-//            int[] ordinals = new int[postingsSize];
-//            for (int i = 0; i < ordinals.length; i++)
-//            {
-//                ordinals[i] = reader.readInt();
-//            }
-//            return ordinals;
-//        }
-
-    public int[] getSegmentRowIdsMatching(int ordinal)
+    public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
     {
-        return ordinalToRowIdMap.get(ordinal);
-    }
+        Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
 
-    public Integer getOrdinalForRowId(int rowId)
-    {
-        return rowIdToOrdinalMap.get(rowId);
-    }
-
-    private void readAllOrdinals() throws IOException
-    {
-        ordinalToRowIdMap = new HashMap<>();
-        rowIdToOrdinalMap = new HashMap<>();
-        for (int vectorOrdinal = 0; vectorOrdinal < size; vectorOrdinal++)
+        // read index entry
+        reader.seek(4L + vectorOrdinal * 8L);
+        var offset = reader.readLong();
+        // seek to and read ordinals
+        reader.seek(offset);
+        var postingsSize = reader.readInt();
+        var ordinals = new int[postingsSize];
+        for (var i = 0; i < ordinals.length; i++)
         {
-            reader.seek(4L + vectorOrdinal * 8L);
-            long offset = reader.readLong();
-            reader.seek(offset);
-            int postingsSize = reader.readInt();
-            var rowIds = new int[postingsSize];
-            for (int i = 0; i < postingsSize; i++)
-            {
-                int rowId = reader.readInt();
-                rowIds[i] = rowId;
-                rowIdToOrdinalMap.put(rowId, vectorOrdinal);
-            }
-            ordinalToRowIdMap.put(vectorOrdinal, rowIds);
+            ordinals[i] = reader.readInt();
         }
+        return ordinals;
+    }
+
+    public int getOrdinalForRowId(int rowId) throws IOException
+    {
+        // Compute the offset of the start of the rowId to vectorOrdinal mapping
+        logger.info("Ordinal->row initial offset is {}", rowOrdinalOffset);
+        var high = (reader.length() - 8 - rowOrdinalOffset) / 8;
+        DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
+            try
+            {
+                long offset = rowOrdinalOffset + i * 8;
+                logger.info("Scanning element {} at offset {}", i, offset);
+                reader.seek(offset);
+                return reader.readInt();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+        return reader.readInt();
     }
 
     public void close()
@@ -106,26 +104,59 @@ class OnDiskOrdinalsMap
                                  "Postings entries %s do not match vectors entries %s", graph.postingsMap.size(), graph.vectorValues.size());
         try (var iow = IndexFileUtils.instance.openOutput(file)) {
             var out = iow.asSequentialWriter();
-            // total number of vectors
-            out.writeInt(graph.vectorValues.size());
 
-            // Write the offsets of the postings for each ordinal
-            long offset = 4L + 8L * graph.vectorValues.size();
-            for (var i = 0; i < graph.vectorValues.size(); i++) {
-                // (ordinal is implied; don't need to write it)
-                out.writeLong(offset);
-                var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
-                offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
-            }
+            writeOrdinalToRowMapping(out, graph, keyToRowId);
+            writeRowToOrdinalMapping(out, graph, keyToRowId);
+        }
+    }
 
-            // Write postings lists
-            for (var i = 0; i < graph.vectorValues.size(); i++) {
-                var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
-                out.writeInt(postings.keys.size());
-                for (var key : postings.keys) {
-                    out.writeInt(keyToRowId.get(key));
-                }
+    private static void writeOrdinalToRowMapping(SequentialWriter out, CassandraOnHeapHnsw graph, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    {
+        // total number of vectors
+        out.writeInt(graph.vectorValues.size());
+
+        // Write the offsets of the postings for each ordinal
+        var offset = 4L + 8L * graph.vectorValues.size();
+        for (var i = 0; i < graph.vectorValues.size(); i++) {
+            // (ordinal is implied; don't need to write it)
+            out.writeLong(offset);
+            var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
+            offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
+        }
+
+        // Write postings lists
+        for (var i = 0; i < graph.vectorValues.size(); i++) {
+            var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
+            out.writeInt(postings.keys.size());
+            for (var key : postings.keys) {
+                out.writeInt(keyToRowId.get(key));
             }
         }
+    }
+
+    private static void writeRowToOrdinalMapping(SequentialWriter out, CassandraOnHeapHnsw graph, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    {
+        List<Pair<Integer, Integer>> pairs = new ArrayList<>();
+
+        // Collect all (rowId, vectorOrdinal) pairs
+        for (var i = 0; i < graph.vectorValues.size(); i++) {
+            var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
+            for (var key : postings.keys) {
+                int rowId = keyToRowId.get(key);
+                pairs.add(Pair.create(rowId, i));
+            }
+        }
+
+        // Sort the pairs by rowId
+        pairs.sort(Comparator.comparingInt(Pair::left));
+
+        // Write the pairs to the file
+        long startOffset = out.position();
+        for (var pair : pairs) {
+            logger.info("Writing rowId {} vectorOrdinal {} at {}", pair.left, pair.right, out.position());
+            out.writeInt(pair.left);
+            out.writeInt(pair.right);
+        }
+        out.writeLong(startOffset);
     }
 }

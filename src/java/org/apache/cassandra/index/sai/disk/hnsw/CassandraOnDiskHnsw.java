@@ -91,7 +91,7 @@ public class CassandraOnDiskHnsw
         hnsw.close();
     }
 
-    public int getOrdinal(int segmentRowId)
+    public int getOrdinal(int segmentRowId) throws IOException
     {
         return ordinalsMap.getOrdinalForRowId(segmentRowId);
     }
