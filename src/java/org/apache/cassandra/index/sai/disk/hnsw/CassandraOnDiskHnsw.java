@@ -19,10 +19,9 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.PriorityQueue;
-
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -96,37 +95,68 @@ public class CassandraOnDiskHnsw
 
     public int getOrdinal(int segmentRowId)
     {
-        // FIXME
-        return segmentRowId;
+        return ordinalsMap.getOrdinalForRowId(segmentRowId);
     }
 
     private static class OnDiskOrdinalsMap
     {
         private final RandomAccessReader reader;
         private final int size;
+        private Map<Integer, int[]> ordinalToRowIdMap;
+        private Map<Integer, Integer> rowIdToOrdinalMap;
 
         public OnDiskOrdinalsMap(File file) throws IOException
         {
             this.reader = RandomAccessReader.open(file);
             this.size = reader.readInt();
+            readAllOrdinals();
         }
 
-        public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
-        {
-            Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
+// FIXME do we bring this back or just accept that the mapping lives in memory?
+//        public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
+//        {
+//            Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
+//
+//            // read index entry
+//            reader.seek(4L + vectorOrdinal * 8L);
+//            long offset = reader.readLong();
+//            // seek to and read ordinals
+//            reader.seek(offset);
+//            int postingsSize = reader.readInt();
+//            int[] ordinals = new int[postingsSize];
+//            for (int i = 0; i < ordinals.length; i++)
+//            {
+//                ordinals[i] = reader.readInt();
+//            }
+//            return ordinals;
+//        }
 
-            // read index entry
-            reader.seek(4L + vectorOrdinal * 8L);
-            long offset = reader.readLong();
-            // seek to and read ordinals
-            reader.seek(offset);
-            int postingsSize = reader.readInt();
-            int[] ordinals = new int[postingsSize];
-            for (int i = 0; i < ordinals.length; i++)
-            {
-                ordinals[i] = reader.readInt();
+        public int[] getSegmentRowIdsMatching(int ordinal) {
+            return ordinalToRowIdMap.get(ordinal);
+        }
+
+        public Integer getOrdinalForRowId(int rowId) {
+            return rowIdToOrdinalMap.get(rowId);
+        }
+
+        private void readAllOrdinals() throws IOException
+        {
+            ordinalToRowIdMap = new HashMap<>();
+            rowIdToOrdinalMap = new HashMap<>();
+            for(int vectorOrdinal = 0; vectorOrdinal < size; vectorOrdinal++) {
+                reader.seek(4L + vectorOrdinal * 8L);
+                long offset = reader.readLong();
+                reader.seek(offset);
+                int postingsSize = reader.readInt();
+                var rowIds = new int[postingsSize];
+                for (int i = 0; i < postingsSize; i++)
+                {
+                    int rowId = reader.readInt();
+                    rowIds[i] = rowId;
+                    rowIdToOrdinalMap.put(rowId, vectorOrdinal);
+                }
+                ordinalToRowIdMap.put(vectorOrdinal, rowIds);
             }
-            return ordinals;
         }
 
         public void close()
@@ -199,7 +229,7 @@ public class CassandraOnDiskHnsw
     public class AnnPostingList implements PostingList
     {
         private final PriorityQueue<Integer> results;
-        private int size;
+        private final int size;
 
         public AnnPostingList(NeighborQueue queue) throws IOException
         {
