@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,10 +123,17 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
         }
     }
 
-    private static Collection<Range<Token>> getLocalPrimaryRange()
+    @VisibleForTesting
+    public static Collection<Range<Token>> getLocalPrimaryRange()
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId nodeId = metadata.myNodeId();
+        NodeId localNodeId = metadata.myNodeId();
+        return getLocalPrimaryRange(metadata, localNodeId);
+    }
+
+    @VisibleForTesting
+    public static Collection<Range<Token>> getLocalPrimaryRange(ClusterMetadata metadata, NodeId nodeId)
+    {
         String dc = metadata.directory.location(nodeId).datacenter;
         Set<Token> tokens = new HashSet<>(metadata.tokenMap.tokens(nodeId));
 

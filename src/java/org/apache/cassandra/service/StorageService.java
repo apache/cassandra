@@ -79,7 +79,6 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,6 +125,7 @@ import org.apache.cassandra.dht.StreamStateStore;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
@@ -139,6 +139,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
@@ -266,9 +267,6 @@ import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getAllRanges;
-import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getPrimaryRangeForEndpointWithinDC;
-import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getPrimaryRangesForEndpoint;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_REPLACE;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
@@ -407,14 +405,44 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new OwnedRanges(getLocalReplicas(keyspaceName).ranges());
     }
 
+    @Deprecated
     public Collection<Range<Token>> getPrimaryRanges(String keyspace)
     {
         return getPrimaryRangesForEndpoint(keyspace, getBroadcastAddressAndPort());
     }
 
+    @Deprecated
+    public Collection<Range<Token>> getPrimaryRangesForEndpoint(String keyspace, InetAddressAndPort ep)
+    {
+        return TokenRingUtils.getPrimaryRangesForEndpoint(keyspace, ep);
+    }
+
+    @Deprecated
     public Collection<Range<Token>> getPrimaryRangesWithinDC(String keyspace)
     {
         return getPrimaryRangeForEndpointWithinDC(keyspace, getBroadcastAddressAndPort());
+    }
+
+    @Deprecated
+    public Collection<Range<Token>> getLocalPrimaryRangeForEndpoint(InetAddressAndPort referenceEndpoint)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId node = metadata.directory.peerId(referenceEndpoint);
+        if (node == null)
+            throw new IllegalArgumentException("Unknown endpoint " + referenceEndpoint);
+        return SizeEstimatesRecorder.getLocalPrimaryRange(metadata, node);
+    }
+
+    @Deprecated
+    public Collection<Range<Token>> getPrimaryRangeForEndpointWithinDC(String keyspace, InetAddressAndPort endpoint)
+    {
+        return TokenRingUtils.getPrimaryRangeForEndpointWithinDC(keyspace, endpoint);
+    }
+
+    @Deprecated
+    public static List<Range<Token>> getAllRanges(List<Token> sortedTokens)
+    {
+        return TokenRingUtils.getAllRanges(sortedTokens);
     }
 
     private final Set<InetAddressAndPort> replicatingNodes = Sets.newConcurrentHashSet();
@@ -1688,43 +1716,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (endpoint.equals(getBroadcastAddressAndPort()))
             return FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(withPort);
-        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null)
-        {
-            try
-            {
-                InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT).value);
-                return address.getHostAddress(withPort);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-        else
-        {
-             final String ipAddress;
-             // If RPC_ADDRESS present in gossip for this endpoint use it.  This is expected for 3.x nodes.
-             if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) != null)
-             {
-                 ipAddress = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value;
-             }
-             else
-             {
-                 // otherwise just use the IP of the endpoint itself.
-                 ipAddress = endpoint.getHostAddress(false);
-             }
 
-             // include the configured native_transport_port.
-             try
-             {
-                 InetAddressAndPort address = InetAddressAndPort.getByNameOverrideDefaults(ipAddress, DatabaseDescriptor.getNativeTransportPort());
-                 return address.getHostAddress(withPort);
-             }
-             catch (UnknownHostException e)
-             {
-                 throw new RuntimeException(e);
-             }
-         }
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Directory directory = metadata.directory;
+        NodeId id = directory.peerId(endpoint);
+        if (id == null)
+            throw new RuntimeException("Unknown endpoint " + endpoint);
+
+        NodeAddresses addresses = directory.getNodeAddresses(id);
+        return addresses.nativeAddress.getHostAddress(withPort);
     }
 
     public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace)
