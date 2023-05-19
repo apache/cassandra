@@ -23,24 +23,22 @@ import java.util.HashSet;
 import java.util.Set;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.INodeProvisionStrategy;
+import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static org.hamcrest.Matchers.startsWith;
 
 public class JMXFeatureTest extends TestBaseImpl
 {
-
-    public static final String JMX_SERVICE_URL_FMT = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
 
     /**
      * Test the in-jvm dtest JMX feature.
@@ -101,17 +99,15 @@ public class JMXFeatureTest extends TestBaseImpl
         // NOTE: At some point, the hostname of the broadcastAddress can be resolved
         // and then the `getHostString`, which would otherwise return the IP address,
         // starts returning `localhost` - use `.getAddress().getHostAddress()` to work around this.
-        String jmxHost = instance.config().broadcastAddress().getAddress().getHostAddress();
-        int jmxPort = instance.config().jmxPort();
-        String url = String.format(JMX_SERVICE_URL_FMT, jmxHost, jmxPort);
-        try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null))
+        IInstanceConfig config = instance.config();
+        try (JMXConnector jmxc = JMXUtil.getJmxConnector(config))
         {
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
             // instances get their default domain set to their IP address, so us it
             // to check that we are actually connecting to the correct instance
             String defaultDomain = mbsc.getDefaultDomain();
             instancesContacted.add(defaultDomain);
-            Assert.assertThat(defaultDomain, startsWith(jmxHost + ":" + jmxPort));
+            Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ":" + config.jmxPort()));
         }
     }
 }
