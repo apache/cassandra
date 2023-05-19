@@ -18,22 +18,14 @@
 
 package org.apache.cassandra.schema;
 
-import java.time.Duration;
-import java.util.Collection;
 import java.util.Collections;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
 
 public class SchemaTestUtil
 {
@@ -136,6 +128,12 @@ public class SchemaTestUtil
         Schema.instance.submit(dropTable(ksName, cfName));
     }
 
+    public static void addOrUpdateKeyspace(KeyspaceMetadata ksm)
+    {
+        Schema.instance.submit((metadata, schema) -> schema.withAddedOrUpdated(ksm));
+    }
+
+    @Deprecated // TODO remove this
     public static void addOrUpdateKeyspace(KeyspaceMetadata ksm, boolean locally)
     {
         Schema.instance.submit((metadata, schema) -> schema.withAddedOrUpdated(ksm));
@@ -145,11 +143,4 @@ public class SchemaTestUtil
     {
         Schema.instance.submit((metadata, schema) -> schema.without(Collections.singletonList(ksName)));
     }
-
-    public static void mergeAndAnnounceLocally(Collection<Mutation> schemaMutations)
-    {
-        SchemaPushVerbHandler.instance.doVerb(Message.out(SCHEMA_PUSH_REQ, schemaMutations));
-        FBUtilities.waitOnFuture(Stage.MIGRATION.submit(() -> {}), Duration.ofSeconds(10)); // simply wait for stage executor to complete previously scheduled tasks
-    }
-
 }
