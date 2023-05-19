@@ -110,7 +110,6 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     }
 
     /**
-     * REVIEWME
      * Skip up to nextKey, but leave your internal state in a position where
      * calling computeNext() will return nextKey or the first one after it.
      */
