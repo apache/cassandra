@@ -21,14 +21,12 @@ package org.apache.cassandra.service;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.Iterables;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthCacheService;
-import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.DataResource;
@@ -55,11 +53,7 @@ public class ClientStateTest
         properties = new WithProperties().set(ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION, true);
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setAuthFromRoot(true);
-        // create the system_auth keyspace so the IRoleManager can function as normal
-        SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
-                                    KeyspaceParams.simple(1),
-                                    Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
-
+        Roles.init();
         AuthCacheService.initializeAndRegisterCaches();
     }
 
