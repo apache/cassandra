@@ -302,15 +302,9 @@ public class Operation
         @Override
         KeyRangeIterator rangeIterator(QueryController controller)
         {
+            for (Node child : children)
+                assert !child.canFilter() : "Nested boolean queries are not supported";
             return controller.getIndexQueryResults(expressionMap.values());
-// FIXME
-//            for (Node child : children)
-//            {
-//                boolean canFilter = child.canFilter();
-//                if (canFilter)
-//                    builder.add(child.rangeIterator(controller));
-//            }
-//            return builder.build();
         }
     }
 

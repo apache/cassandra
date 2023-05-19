@@ -232,19 +232,6 @@ public class VectorTypeTest extends SAITester
         System.out.println(makeRowStrings(result));
 
         flush();
-        // FIXME this is failing.  Here is what I'm seeing:
-        // 1. VectorIndexSearcher.reorderOneComponent is correctly passing the ordinals to hnsw,
-        //    and correctly passing the rowIds (1 and 3) to IndexSegmentSearcher.toIterator
-        // 2. the first entry returned by PostingListRangeIterator is rowId 0!
-        //
-        // It's looking a lot to me like there's a bug in RowAwarePrimaryKeyMap but I don't see it immediately.
-        //
-        // It may or may not be useful to compare the behavior with and without commenting out these lines
-        // in QueryController for sstableIntersections:
-        //                                            if (annExpression != null)
-        //                                               it = reorderAndLimitBy(it, e.getKey(), annExpression);
-        // We should see two results come back both ways, but commented out it works (because it's not going
-        // through the reorderOneComponent -> PostingListRangeIterator code), otherwise it fails.
         result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
         System.out.println(makeRowStrings(result));
