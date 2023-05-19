@@ -179,8 +179,8 @@ public class QueryController
      */
     public KeyRangeIterator getIndexQueryResults(Collection<Expression> expressions)
     {
-        // FIXME the ANN expression should move to ORDER BY, maybe something like:
-        // SELECT * FROM foo ORDER BY columnname ANN OF ?
+        // TODO this is super clunky, should the ANN expression move to ORDER BY? something like:
+        // SELECT * FROM foo ORDER BY columnname ANN OF <?> LIMIT 10
         var annExpression = getAnnExpression(expressions);
         if (annExpression != null)
             expressions = expressions.stream().filter(e -> e != annExpression).collect(Collectors.toList());
@@ -196,34 +196,34 @@ public class QueryController
 
         try
         {
-            var sstableIntersections = queryView.view.entrySet()
-                                       .stream()
-                                       .map(e -> {
+            List<KeyRangeIterator> sstableIntersections = queryView.view.entrySet()
+                                                                        .stream()
+                                                                        .map(e -> {
                                            var it = createIntersectionIterator(e.getValue());
                                            if (annExpression != null)
                                                it = reorderAndLimitBy(it, e.getKey(), annExpression);
                                            return it;
                                        })
-                                       .collect(Collectors.toList());
+                                                                        .collect(Collectors.toList());
 
-            var memtableIntersections = iteratorsByMemtable.entrySet()
-                                        .stream()
-                                        .map(e -> {
+            List<KeyRangeIterator> memtableIntersections = iteratorsByMemtable.entrySet()
+                                                                              .stream()
+                                                                              .map(e -> {
                                             // we need to do all the intersections at the index level, or ordering won't work
                                             KeyRangeIterator it = KeyRangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
                                             if (annExpression != null)
                                                 it = reorderAndLimitBy(it, e.getKey(), annExpression);
                                             return it;
                                         })
-                                        .collect(Collectors.toList());
+                                                                              .collect(Collectors.toList());
 
-            var allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
+            Iterable<KeyRangeIterator> allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
 
             queryContext.sstablesHit += queryView.referencedIndexes
                                         .stream()
                                         .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
             queryContext.checkpoint();
-            var union = KeyRangeUnionIterator.build(allIntersections);
+            KeyRangeIterator union = KeyRangeUnionIterator.build(allIntersections);
             return new CheckpointingIterator(union, queryView.referencedIndexes, queryContext);
         }
         catch (Throwable t)
