@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
@@ -54,7 +55,7 @@ import org.apache.cassandra.utils.IntervalTree;
 
 public class CommandsForRanges
 {
-    public static final class RangeCommandSummary
+    private static final class RangeCommandSummary
     {
         public final TxnId txnId;
         public final SaveStatus status;
@@ -181,16 +182,15 @@ public class CommandsForRanges
             rangesToCommands = builder.build();
         }
     }
-    
+
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands = IntervalTree.emptyTree();
 
     public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)
     {
         // group by the keyspace, as ranges are based off TokenKey, which is scoped to a range
-        Map<String, List<Key>> groupByKeyspace = new HashMap<>();
+        Map<String, List<Key>> groupByKeyspace = new TreeMap<>();
         for (Key key : keys)
             groupByKeyspace.computeIfAbsent(((PartitionKey) key).keyspace(), ignore -> new ArrayList<>()).add(key);
-        // TODO (determinism) : this can break simulator as its not deteramnistic
         return () -> new AbstractIterator<CommandTimeseriesHolder>()
         {
             Iterator<String> ksIt = groupByKeyspace.keySet().iterator();
@@ -214,8 +214,7 @@ public class CommandsForRanges
                     }
                     String ks = ksIt.next();
                     List<Key> keys = groupByKeyspace.get(ks);
-                    // TODO (determinism) : this can break simulator as its not deteramnistic
-                    Map<Range, Set<RangeCommandSummary>> groupByRange = new HashMap<>();
+                    Map<Range, Set<RangeCommandSummary>> groupByRange = new TreeMap<>(Range::compare);
                     for (Key key : keys)
                     {
                         List<Interval<RoutableKey, RangeCommandSummary>> matches = rangesToCommands.matches(key);
@@ -224,7 +223,6 @@ public class CommandsForRanges
                         for (Interval<RoutableKey, RangeCommandSummary> interval : matches)
                             groupByRange.computeIfAbsent(toRange(interval), ignore -> new HashSet<>()).add(interval.data);
                     }
-                    // TODO (determinism) : this can break simulator as its not deteramnistic
                     rangeIt = groupByRange.entrySet().iterator();
                 }
             }
@@ -236,6 +234,7 @@ public class CommandsForRanges
         TokenKey start = (TokenKey) interval.min;
         TokenKey end = (TokenKey) interval.max;
         // TODO (correctness) : accord doesn't support wrap around, so decreaseSlightly may fail in some cases
+        // TODO (correctness) : this logic is mostly used for testing, so is it actually safe for all partitioners?
         return new TokenRange(start.withToken(start.token().decreaseSlightly()), end);
     }
 

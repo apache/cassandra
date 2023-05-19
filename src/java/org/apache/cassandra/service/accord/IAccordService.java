@@ -43,6 +43,4 @@ public interface IAccordService
     TopologyManager topology();
 
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
-
-    void fetchTopologyForEpoch(long knownEpoch);
 }

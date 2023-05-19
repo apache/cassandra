@@ -158,6 +158,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
+        // TODO (now) : implement range support
         // TODO: Seekables
         // TODO: efficiency
         return ((Keys)keysOrRanges).stream()
@@ -264,6 +265,13 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public CommonAttributes completeRegistration(Seekable seekable, Ranges ranges, AccordSafeCommand liveCommand, CommonAttributes attrs)
     {
+        // TODO (review) : accord.impl.InMemoryCommandStore.registerHistoricalTransactions has 2 behaviors, that might make ense to put here / in the listeners?
+        // 1) for key deps, if the store covers the range the key is in, add SafeCommandsForKeys.registerNotWitnessed
+        // 2) for range deps, if the store intersects the range, add to a "historicalRangeCommands" (map txn_id -> Ranges); this acts similar to CommandsForRange
+        // What isn't clear is what is unique about Sync txn with reguard to "saving" deps that isn't true for normal txn?  If that logic gets merged here, then
+        // registerHistoricalTransactions could go away
+        // If that logic only makes sense for Sync, would it still make sense to merge that into the listener? Just so there is only 1 way things get indexed
+        // rather than 2.
         switch (seekable.domain())
         {
             case Key:
@@ -302,7 +310,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                         Command current = safeCommand.current();
                         if (current.saveStatus() == saveStatus)
                             return;
-                        //TODO should we use ranges/depends from "current"?
+                        //TODO should we use ranges/depends from "current"?  Can it change? If so should old ranges be discarded?
                         ((AccordCommandStore) safeStore.commandStore()).unbuild()
                                                                        .put(finalRanges, txnId, current.saveStatus(), current.executeAt(), dependsOn)
                                                                        .apply();
