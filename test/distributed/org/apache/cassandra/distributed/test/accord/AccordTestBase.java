@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,7 +29,9 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
+import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -48,6 +51,7 @@ import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceValue;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -226,7 +230,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return result;
     }
 
-    private SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
+    private static SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
     {
         try
         {
@@ -244,7 +248,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         }
     }
 
-    protected SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
+    protected static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
     {
         check = wrapInTxn(check);
 
@@ -256,7 +260,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return executeWithRetry0(0, cluster, check, boundValues);
     }
 
-    private boolean isIdempotent(Cluster cluster, String cql)
+    private static boolean isIdempotent(Cluster cluster, String cql)
     {
         return cluster.get(1).callOnInstance(() -> {
             TransactionStatement stmt = AccordTestUtils.parse(cql);
@@ -293,6 +297,21 @@ public abstract class AccordTestBase extends TestBaseImpl
                                   .filter(f -> !f.getKind().name().contains("Setter"))
                                   .count();
         return numConstants == 0;
+    }
+
+    static List<String> tokens()
+    {
+        return SHARED_CLUSTER.stream()
+                             .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
+                             .collect(Collectors.toList());
+    }
+
+    static List<ByteBuffer> tokensToKeys(List<String> tokens)
+    {
+        return tokens.stream()
+                     .map(t -> (Murmur3Partitioner.LongToken) Murmur3Partitioner.instance.getTokenFactory().fromString(t))
+                     .map(Murmur3Partitioner.LongToken::keyForToken)
+                     .collect(Collectors.toList());
     }
 
     public static class EnforceUpdateDoesNotPerformRead

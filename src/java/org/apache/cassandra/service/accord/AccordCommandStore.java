@@ -192,6 +192,9 @@ public class AccordCommandStore extends CommandStore
     @Override
     protected void registerHistoricalTransactions(Deps deps)
     {
+        // TODO (impl) : Its not clear why this exists
+        // accord.coordinate.CoordinateSyncPoint.coordinate(accord.local.Node, accord.primitives.TxnId, accord.primitives.Seekables<?,?>)
+        // will cause the command to get registered in org.apache.cassandra.service.accord.AccordSafeCommandStore.completeRegistration(accord.primitives.Seekable, accord.primitives.Ranges, org.apache.cassandra.service.accord.AccordSafeCommand, accord.local.CommonAttributes)
     }
 
     public void setCacheSize(long bytes)
