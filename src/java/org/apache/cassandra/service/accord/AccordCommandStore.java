@@ -347,6 +347,8 @@ public class AccordCommandStore extends CommandStore
             case Key:
             {
                 AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                // TODO (now) : TokenKey is scoped to keyspace and not table, so a conflict can happen when the same key exists in 2 different tables in the same keyspace... the caller sees the same key/range twice!!!
+                // what if we pass in all keys to the search function and produce a single summary?  The range could be the largest range for all matches?
                 for (Key key : keys)
                 {
                     if (!slice.contains(key)) continue;
