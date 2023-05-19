@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.util.Collections;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -30,11 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
 import static org.apache.cassandra.cql3.CQLTester.requireNetwork;
 import static org.apache.cassandra.cql3.QueryProcessor.process;
@@ -77,8 +72,6 @@ public class PartitionDenylistTest
         DatabaseDescriptor.setDenylistConsistencyLevel(ConsistencyLevel.ONE);
         DatabaseDescriptor.setDenylistRefreshSeconds(1);
         requireNetwork();
-        NodeId nodeId = Register.maybeRegister();
-        UnsafeJoin.unsafeJoin(nodeId, Collections.singleton(ByteOrderedPartitioner.instance.getRandomToken()));
     }
 
     @Before
