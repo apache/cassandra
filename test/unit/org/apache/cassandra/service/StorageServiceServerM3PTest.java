@@ -22,13 +22,10 @@ package org.apache.cassandra.service;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.PropertyFileSnitch;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
@@ -42,10 +39,6 @@ public class StorageServiceServerM3PTest
     {
         GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-        IEndpointSnitch snitch = new PropertyFileSnitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
-        Keyspace.setInitialized();
     }
 
     @Test
@@ -53,6 +46,7 @@ public class StorageServiceServerM3PTest
     {
         mkdirs();
         cleanup();
+        ServerTestUtils.prepareServerNoRegister();
         StorageService.instance.initServer();
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
