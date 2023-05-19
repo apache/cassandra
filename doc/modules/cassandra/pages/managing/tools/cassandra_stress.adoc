@@ -71,6 +71,10 @@ Primary Options:::
     Graph recorded metrics
   -tokenrange:;;
     Token range settings
+  -jmx:;;
+    Username and password for JMX connection
+  -credentials-file <path>:;;
+    Credentials file to specify for CQL, JMX and transport
 Suboptions:::
   Every command and primary option has its own collection of suboptions.
   These are too numerous to list here. For information on the suboptions

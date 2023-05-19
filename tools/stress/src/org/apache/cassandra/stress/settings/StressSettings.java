@@ -38,11 +38,13 @@ public class StressSettings implements Serializable
     public final SettingsColumn columns;
     public final SettingsErrors errors;
     public final SettingsLog log;
+    public final SettingsCredentials credentials;
     public final SettingsMode mode;
     public final SettingsNode node;
     public final SettingsSchema schema;
     public final SettingsTransport transport;
     public final SettingsPort port;
+    public final SettingsJMX jmx;
     public final SettingsGraph graph;
     public final SettingsTokenRange tokenRange;
 
@@ -53,11 +55,13 @@ public class StressSettings implements Serializable
                           SettingsColumn columns,
                           SettingsErrors errors,
                           SettingsLog log,
+                          SettingsCredentials credentials,
                           SettingsMode mode,
                           SettingsNode node,
                           SettingsSchema schema,
                           SettingsTransport transport,
                           SettingsPort port,
+                          SettingsJMX jmx,
                           SettingsGraph graph,
                           SettingsTokenRange tokenRange)
     {
@@ -68,11 +72,13 @@ public class StressSettings implements Serializable
         this.columns = columns;
         this.errors = errors;
         this.log = log;
+        this.credentials = credentials;
         this.mode = mode;
         this.node = node;
         this.schema = schema;
         this.transport = transport;
         this.port = port;
+        this.jmx = jmx;
         this.graph = graph;
         this.tokenRange = tokenRange;
     }
@@ -194,10 +200,12 @@ public class StressSettings implements Serializable
         SettingsColumn columns = SettingsColumn.get(clArgs);
         SettingsErrors errors = SettingsErrors.get(clArgs);
         SettingsLog log = SettingsLog.get(clArgs);
-        SettingsMode mode = SettingsMode.get(clArgs);
+        SettingsCredentials credentials = SettingsCredentials.get(clArgs);
+        SettingsMode mode = SettingsMode.get(clArgs, credentials);
         SettingsNode node = SettingsNode.get(clArgs);
         SettingsSchema schema = SettingsSchema.get(clArgs, command);
-        SettingsTransport transport = SettingsTransport.get(clArgs);
+        SettingsTransport transport = SettingsTransport.get(clArgs, credentials);
+        SettingsJMX jmx = SettingsJMX.get(clArgs, credentials);
         SettingsGraph graph = SettingsGraph.get(clArgs, command);
         if (!clArgs.isEmpty())
         {
@@ -216,7 +224,7 @@ public class StressSettings implements Serializable
             System.exit(1);
         }
 
-        return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, graph, tokenRange);
+        return new StressSettings(command, rate, generate, insert, columns, errors, log, credentials, mode, node, schema, transport, port, jmx, graph, tokenRange);
     }
 
     private static Map<String, String[]> parseMap(String[] args)
@@ -290,10 +298,14 @@ public class StressSettings implements Serializable
         transport.printSettings(out);
         out.println("Port:");
         port.printSettings(out);
+        out.println("JMX:");
+        jmx.printSettings(out);
         out.println("Graph:");
         graph.printSettings(out);
         out.println("TokenRange:");
         tokenRange.printSettings(out);
+        out.println("Credentials file:");
+        credentials.printSettings(out);
 
         if (command.type == Command.USER)
         {

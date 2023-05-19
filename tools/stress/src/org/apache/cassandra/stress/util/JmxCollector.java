@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.stress.settings.SettingsJMX;
 import org.apache.cassandra.tools.NodeProbe;
 
 public class JmxCollector implements Callable<JmxCollector.GcStats>
@@ -76,23 +77,26 @@ public class JmxCollector implements Callable<JmxCollector.GcStats>
     final NodeProbe[] probes;
 
     // TODO: should expand to whole cluster
-    public JmxCollector(Collection<String> hosts, int port)
+    public JmxCollector(Collection<String> hosts, int port, SettingsJMX jmx)
     {
         probes = new NodeProbe[hosts.size()];
         int i = 0;
         for (String host : hosts)
         {
-            probes[i] = connect(host, port);
+            probes[i] = connect(host, port, jmx);
             probes[i].getAndResetGCStats();
             i++;
         }
     }
 
-    private static NodeProbe connect(String host, int port)
+    private static NodeProbe connect(String host, int port, SettingsJMX jmx)
     {
         try
         {
-            return new NodeProbe(host, port);
+            if (jmx.user != null && jmx.password != null)
+                return new NodeProbe(host, port, jmx.user, jmx.password);
+            else
+                return new NodeProbe(host, port);
         }
         catch (IOException e)
         {
