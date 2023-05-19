@@ -30,8 +30,6 @@ import java.util.function.Consumer;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
 
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -43,13 +41,13 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.utils.SigarLibrary;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.distributed.test.jmx.JMXFeatureTest.JMX_SERVICE_URL_FMT;
 import static org.hamcrest.Matchers.startsWith;
 
 /* Resource Leak Test - useful when tracking down issues with in-JVM framework cleanup.
@@ -233,16 +231,14 @@ public class ResourceLeakTest extends TestBaseImpl
             // starts returning `localhost` - use `.getAddress().getHostAddress()` to work around this.
             for (IInvokableInstance instance:cluster.get(1, cluster.size()))
             {
-                String jmxHost = instance.config().broadcastAddress().getAddress().getHostAddress();
-                int jmxPort = instance.config().jmxPort();
-                String url = String.format(JMX_SERVICE_URL_FMT, jmxHost, jmxPort);
-                try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null))
+                IInstanceConfig config = instance.config();
+                try (JMXConnector jmxc = JMXUtil.getJmxConnector(config))
                 {
                     MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
                     // instances get their default domain set to their IP address, so us it
                     // to check that we are actually connecting to the correct instance
                     String defaultDomain = mbsc.getDefaultDomain();
-                    Assert.assertThat(defaultDomain, startsWith(jmxHost + ":" + jmxPort));
+                    Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ":" + config.jmxPort()));
                 }
                 catch (IOException e)
                 {

@@ -1013,8 +1013,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES));
             
-            error = parallelRun(error, executor,
-                                this::stopJmx);
+            error = parallelRun(error, executor, this::stopJmx);
 
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
