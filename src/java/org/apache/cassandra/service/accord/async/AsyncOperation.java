@@ -32,7 +32,6 @@ import org.slf4j.MDC;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.messages.Request;
 import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -42,7 +41,6 @@ import org.apache.cassandra.service.accord.AccordSafeCommand;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeState;
-import org.apache.cassandra.service.accord.AccordService;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
 
@@ -77,7 +75,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     enum State
     {
         INITIALIZED,
-        WAITING_ON_EPOCH,
         LOADING,
         PREPARING_OPERATION,  // setup safe store for RUNNING
         RUNNING,
@@ -233,23 +230,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         switch (state)
         {
             case INITIALIZED:
-                state = State.WAITING_ON_EPOCH;
-                if (preLoadContext instanceof Request)
-                {
-                    Request request = (Request) preLoadContext;
-                    long knownEpoch = request.knownEpoch();
-                    if (!commandStore.isEpochKnown(knownEpoch))
-                    {
-                        AccordService.instance().fetchTopologyForEpoch(knownEpoch);
-                        long waitForEpoch = request.waitForEpoch();
-                        if (!commandStore.isEpochKnown(waitForEpoch))
-                        {
-                            commandStore.waitForEpoch(waitForEpoch, this::callback);
-                            return;
-                        }
-                    }
-                }
-            case WAITING_ON_EPOCH:
                 state = State.LOADING;
             case LOADING:
                 if (!loader.load(context, this::callback))
