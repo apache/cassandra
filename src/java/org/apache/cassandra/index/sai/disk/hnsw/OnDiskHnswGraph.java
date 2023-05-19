@@ -54,7 +54,7 @@ public class OnDiskHnswGraph extends HnswGraph
         int numNodes = reader.readInt();
         long firstOffset = reader.getFilePointer();
         long lastOffset = firstOffset + numNodes * 12L;
-        long entryOffset = binarySearchNodeOffset(level, firstOffset, lastOffset, target);
+        long entryOffset = binarySearchNodeOffset(firstOffset, lastOffset, target);
         reader.seek(entryOffset);
         var diskNodeId = reader.readInt();
         assert diskNodeId == target : String.format("Expected node %d, but found %d", target, diskNodeId);
@@ -65,25 +65,20 @@ public class OnDiskHnswGraph extends HnswGraph
         currentNeighborsRead = 0;
     }
 
-    private long binarySearchNodeOffset(int level, long firstOffset, long lastOffset, int target) throws IOException {
-        long left = firstOffset;
-        long right = lastOffset - 12;
-
-        while (left <= right) {
-            long mid = left + ((right - left) / 2 / 12) * 12;
-            reader.seek(mid);
-            int midValue = reader.readInt();
-
-            if (midValue < target) {
-                left = mid + 12;
-            } else if (midValue > target) {
-                right = mid - 12;
-            } else {
-                return mid;
+    private long binarySearchNodeOffset(long firstOffset, long lastOffset, int target) throws IOException {
+        long index = DiskBinarySearch.searchInt(0, Math.toIntExact((lastOffset - firstOffset) / 12), target, i -> {
+            try
+            {
+                long offset = firstOffset + i * 12;
+                reader.seek(offset);
+                return reader.readInt();
             }
-        }
-
-        throw new IllegalStateException(String.format("Node %d not found on level %d in %s", target, level, reader.getPath()));
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+        return firstOffset + index * 12;
     }
 
     @Override

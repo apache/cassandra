@@ -73,13 +73,11 @@ class OnDiskOrdinalsMap
     public int getOrdinalForRowId(int rowId) throws IOException
     {
         // Compute the offset of the start of the rowId to vectorOrdinal mapping
-        logger.info("Ordinal->row initial offset is {}", rowOrdinalOffset);
         var high = (reader.length() - 8 - rowOrdinalOffset) / 8;
         DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
             try
             {
                 long offset = rowOrdinalOffset + i * 8;
-                logger.info("Scanning element {} at offset {}", i, offset);
                 reader.seek(offset);
                 return reader.readInt();
             }
@@ -153,7 +151,6 @@ class OnDiskOrdinalsMap
         // Write the pairs to the file
         long startOffset = out.position();
         for (var pair : pairs) {
-            logger.info("Writing rowId {} vectorOrdinal {} at {}", pair.left, pair.right, out.position());
             out.writeInt(pair.left);
             out.writeInt(pair.right);
         }
