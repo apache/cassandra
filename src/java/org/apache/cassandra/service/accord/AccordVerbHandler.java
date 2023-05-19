@@ -45,10 +45,17 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         logger.debug("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
         Node.Id from = EndpointMapping.getId(message.from());
-        // CMS updates received in another messaging thread can race with node upates
-        if (node.epoch() < request.waitForEpoch())
-            node.withEpoch(request.waitForEpoch(), () -> request.process(node, from, message));
-        else
-            request.process(node, from, message);
+        long knownEpoch = request.knownEpoch();
+        if (!node.topology().hasEpoch(knownEpoch))
+        {
+            node.configService().fetchTopologyForEpoch(knownEpoch);
+            long waitForEpoch = request.waitForEpoch();
+            if (!node.topology().hasEpoch(waitForEpoch))
+            {
+                node.withEpoch(waitForEpoch, () -> request.process(node, from, message));
+                return;
+            }
+        }
+        request.process(node, from, message);
     }
 }

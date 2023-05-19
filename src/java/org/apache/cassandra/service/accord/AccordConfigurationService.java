@@ -20,8 +20,9 @@ package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.GuardedBy;
 
 import accord.api.ConfigurationService;
 import accord.local.Node;
@@ -39,7 +40,8 @@ import org.apache.cassandra.service.StorageService;
 public class AccordConfigurationService implements ConfigurationService
 {
     private final Node.Id localId;
-    private final List<Listener> listeners = new ArrayList<>();
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+    @GuardedBy("this")
     private final List<Topology> epochs = new ArrayList<>();
 
     public AccordConfigurationService(Node.Id localId)
@@ -64,7 +66,7 @@ public class AccordConfigurationService implements ConfigurationService
     }
 
     @Override
-    public synchronized void registerListener(Listener listener)
+    public void registerListener(Listener listener)
     {
         listeners.add(listener);
     }
@@ -76,7 +78,7 @@ public class AccordConfigurationService implements ConfigurationService
     }
 
     @Override
-    public Topology getTopologyForEpoch(long epoch)
+    public synchronized Topology getTopologyForEpoch(long epoch)
     {
         return epochs.get((int) epoch);
     }
@@ -85,7 +87,8 @@ public class AccordConfigurationService implements ConfigurationService
     public synchronized void fetchTopologyForEpoch(long epoch)
     {
         Topology current = currentTopology();
-        Preconditions.checkArgument(epoch > current.epoch(), "Requested to fetch epoch %s which is <= %s (current epoch)", epoch, current.epoch());
+        if (epoch < current.epoch())
+            return;
         while (current.epoch() < epoch)
         {
             current = AccordTopologyUtils.createTopology(epochs.size());
