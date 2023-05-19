@@ -88,7 +88,6 @@ public class Info extends NodeToolCmd
         CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
         // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        Double hitRate = (Double)probe.getCacheMetric("KeyCache", "HitRate");
         out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                 "Key Cache",
                 probe.getCacheMetric("KeyCache", "Entries"),
@@ -96,11 +95,10 @@ public class Info extends NodeToolCmd
                 FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Capacity")),
                 probe.getCacheMetric("KeyCache", "Hits"),
                 probe.getCacheMetric("KeyCache", "Requests"),
-                   (Double.isNaN(hitRate))? 0.0: hitRate,
+                probe.getCacheMetric("KeyCache", "HitRate"),
                 cacheService.getKeyCacheSavePeriodInSeconds());
 
         // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        hitRate = (Double)probe.getCacheMetric("RowCache", "HitRate");
         out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                 "Row Cache",
                 probe.getCacheMetric("RowCache", "Entries"),
@@ -108,11 +106,10 @@ public class Info extends NodeToolCmd
                 FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Capacity")),
                 probe.getCacheMetric("RowCache", "Hits"),
                 probe.getCacheMetric("RowCache", "Requests"),
-                (Double.isNaN(hitRate))? 0.0: hitRate,
+                probe.getCacheMetric("RowCache", "HitRate"),
                 cacheService.getRowCacheSavePeriodInSeconds());
 
         // Counter Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        hitRate = (Double)probe.getCacheMetric("CounterCache", "HitRate");
         out.printf("%-23s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                 "Counter Cache",
                 probe.getCacheMetric("CounterCache", "Entries"),
@@ -120,13 +117,12 @@ public class Info extends NodeToolCmd
                 FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Capacity")),
                 probe.getCacheMetric("CounterCache", "Hits"),
                 probe.getCacheMetric("CounterCache", "Requests"),
-                   (Double.isNaN(hitRate))? 0.0: hitRate,
+                probe.getCacheMetric("CounterCache", "HitRate"),
                 cacheService.getCounterCacheSavePeriodInSeconds());
 
         // Chunk Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
         try
         {
-            hitRate = (Double)probe.getCacheMetric("ChunkCache", "HitRate");
             out.printf("%-23s: entries %d, size %s, capacity %s, %d misses, %d requests, %.3f recent hit rate, %.3f %s miss latency%n",
                     "Chunk Cache",
                     probe.getCacheMetric("ChunkCache", "Entries"),
@@ -134,7 +130,7 @@ public class Info extends NodeToolCmd
                     FileUtils.stringifyFileSize((long) probe.getCacheMetric("ChunkCache", "Capacity")),
                     probe.getCacheMetric("ChunkCache", "Misses"),
                     probe.getCacheMetric("ChunkCache", "Requests"),
-                       (Double.isNaN(hitRate))? 0.0: hitRate,
+                    probe.getCacheMetric("ChunkCache", "HitRate"),
                     probe.getCacheMetric("ChunkCache", "MissLatency"),
                     probe.getCacheMetric("ChunkCache", "MissLatencyUnit"));
         }
