@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
@@ -190,7 +191,7 @@ public class CommandsForRanges
     {
         if (matches.isEmpty())
             return null;
-        return fromRangeSummary(seekable, matches);
+        return new Holder(seekable, matches);
     }
 
     public int size()
@@ -201,6 +202,12 @@ public class CommandsForRanges
     public Builder unbuild()
     {
         return new Builder(rangesToCommands.unbuild());
+    }
+
+    @Override
+    public String toString()
+    {
+        return rangesToCommands.unbuild().toString();
     }
 
     private static RoutingKey normalize(RoutingKey key, boolean inclusive, boolean upOrDown)
@@ -219,35 +226,49 @@ public class CommandsForRanges
         }
     }
 
-    private static CommandTimeseriesHolder fromRangeSummary(Seekable keyOrRange, List<RangeCommandSummary> matches)
+    private static class Holder implements CommandTimeseriesHolder
     {
-        return new CommandTimeseriesHolder()
-        {
-            @Override
-            public CommandTimeseries<?> byId()
-            {
-                CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
-                for (RangeCommandSummary m : matches)
-                {
-                    if (m.status == SaveStatus.Invalidated)
-                        continue;
-                    builder.add(m.txnId, m);
-                }
-                return builder.build();
-            }
+        private final Seekable keyOrRange;
+        private final List<RangeCommandSummary> matches;
 
-            @Override
-            public CommandTimeseries<?> byExecuteAt()
+        private Holder(Seekable keyOrRange, List<RangeCommandSummary> matches)
+        {
+            this.keyOrRange = keyOrRange;
+            this.matches = matches;
+        }
+
+        @Override
+        public CommandTimeseries<?> byId()
+        {
+            return build(m -> m.txnId);
+        }
+
+        @Override
+        public CommandTimeseries<?> byExecuteAt()
+        {
+            return build(m -> m.executeAt != null ? m.executeAt : m.txnId);
+        }
+
+        private CommandTimeseries<?> build(Function<RangeCommandSummary, Timestamp> fn)
+        {
+            CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
+            builder.ignoreTestKind(true);
+            for (RangeCommandSummary m : matches)
             {
-                CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(null, RangeCommandSummaryLoader.INSTANCE);
-                for (RangeCommandSummary m : matches)
-                {
-                    if (m.status == SaveStatus.Invalidated)
-                        continue;
-                    builder.add(m.executeAt != null ? m.executeAt : m.txnId, m);
-                }
-                return builder.build();
+                if (m.status == SaveStatus.Invalidated)
+                    continue;
+                builder.add(fn.apply(m), m);
             }
-        };
+            return builder.build();
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Holder{" +
+                   "keyOrRange=" + keyOrRange +
+                   ", matches=" + matches +
+                   '}';
+        }
     }
 }

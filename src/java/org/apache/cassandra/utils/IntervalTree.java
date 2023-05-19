@@ -409,5 +409,11 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         {
             return IntervalTree.build(intervals);
         }
+
+        @Override
+        public String toString()
+        {
+            return intervals.toString();
+        }
     }
 }
