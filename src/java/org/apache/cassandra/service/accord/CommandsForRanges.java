@@ -18,11 +18,20 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.AbstractIterator;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
@@ -30,6 +39,7 @@ import accord.impl.CommandTimeseries;
 import accord.impl.CommandTimeseriesHolder;
 import accord.local.Command;
 import accord.local.SaveStatus;
+import accord.primitives.AbstractKeys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
@@ -37,6 +47,8 @@ import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
@@ -172,11 +184,59 @@ public class CommandsForRanges
     
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands = IntervalTree.emptyTree();
 
-    @Nullable
-    public CommandTimeseriesHolder search(Key key)
+    public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)
     {
-        List<RangeCommandSummary> matches = rangesToCommands.search(key);
-        return result(key, matches);
+        // group by the keyspace, as ranges are based off TokenKey, which is scoped to a range
+        Map<String, List<Key>> groupByKeyspace = new HashMap<>();
+        for (Key key : keys)
+            groupByKeyspace.computeIfAbsent(((PartitionKey) key).keyspace(), ignore -> new ArrayList<>()).add(key);
+        // TODO (determinism) : this can break simulator as its not deteramnistic
+        return () -> new AbstractIterator<CommandTimeseriesHolder>()
+        {
+            Iterator<String> ksIt = groupByKeyspace.keySet().iterator();
+            Iterator<Map.Entry<Range, Set<RangeCommandSummary>>> rangeIt;
+
+            @Override
+            protected CommandTimeseriesHolder computeNext()
+            {
+                while (true)
+                {
+                    if (rangeIt != null && rangeIt.hasNext())
+                    {
+                        Map.Entry<Range, Set<RangeCommandSummary>> next = rangeIt.next();
+                        return result(next.getKey(), next.getValue());
+                    }
+                    rangeIt = null;
+                    if (!ksIt.hasNext())
+                    {
+                        ksIt = null;
+                        return endOfData();
+                    }
+                    String ks = ksIt.next();
+                    List<Key> keys = groupByKeyspace.get(ks);
+                    // TODO (determinism) : this can break simulator as its not deteramnistic
+                    Map<Range, Set<RangeCommandSummary>> groupByRange = new HashMap<>();
+                    for (Key key : keys)
+                    {
+                        List<Interval<RoutableKey, RangeCommandSummary>> matches = rangesToCommands.matches(key);
+                        if (matches.isEmpty())
+                            continue;
+                        for (Interval<RoutableKey, RangeCommandSummary> interval : matches)
+                            groupByRange.computeIfAbsent(toRange(interval), ignore -> new HashSet<>()).add(interval.data);
+                    }
+                    // TODO (determinism) : this can break simulator as its not deteramnistic
+                    rangeIt = groupByRange.entrySet().iterator();
+                }
+            }
+        };
+    }
+
+    private static Range toRange(Interval<RoutableKey, RangeCommandSummary> interval)
+    {
+        TokenKey start = (TokenKey) interval.min;
+        TokenKey end = (TokenKey) interval.max;
+        // TODO (correctness) : accord doesn't support wrap around, so decreaseSlightly may fail in some cases
+        return new TokenRange(start.withToken(start.token().decreaseSlightly()), end);
     }
 
     @Nullable
@@ -187,7 +247,7 @@ public class CommandsForRanges
         return result(range, matches);
     }
 
-    private CommandTimeseriesHolder result(Seekable seekable, List<RangeCommandSummary> matches)
+    private CommandTimeseriesHolder result(Seekable seekable, Collection<RangeCommandSummary> matches)
     {
         if (matches.isEmpty())
             return null;
@@ -219,7 +279,7 @@ public class CommandsForRanges
             case SENTINEL:
                 return normalize(ak.asSentinelKey().toTokenKey(), inclusive, upOrDown);
             case TOKEN:
-                AccordRoutingKey.TokenKey tk = ak.asTokenKey();
+                TokenKey tk = ak.asTokenKey();
                 return tk.withToken(upOrDown ? tk.token().increaseSlightly() : tk.token().decreaseSlightly());
             default:
                 throw new IllegalArgumentException("Unknown kind: " + ak.kindOfRoutingKey());
@@ -229,9 +289,9 @@ public class CommandsForRanges
     private static class Holder implements CommandTimeseriesHolder
     {
         private final Seekable keyOrRange;
-        private final List<RangeCommandSummary> matches;
+        private final Collection<RangeCommandSummary> matches;
 
-        private Holder(Seekable keyOrRange, List<RangeCommandSummary> matches)
+        private Holder(Seekable keyOrRange, Collection<RangeCommandSummary> matches)
         {
             this.keyOrRange = keyOrRange;
             this.matches = matches;

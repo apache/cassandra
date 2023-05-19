@@ -342,20 +342,14 @@ public class AccordCommandStore extends CommandStore
 
     <O> O mapReduceForRange(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
     {
+        keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
         switch (keysOrRanges.domain())
         {
             case Key:
             {
                 AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
-                // TODO (now) : TokenKey is scoped to keyspace and not table, so a conflict can happen when the same key exists in 2 different tables in the same keyspace... the caller sees the same key/range twice!!!
-                // what if we pass in all keys to the search function and produce a single summary?  The range could be the largest range for all matches?
-                for (Key key : keys)
+                for (CommandTimeseriesHolder summary : commandsForRanges.search(keys))
                 {
-                    if (!slice.contains(key)) continue;
-
-                    CommandTimeseriesHolder summary = commandsForRanges.search(key);
-                    if (summary == null)
-                        continue;
                     accumulate = map.apply(summary, accumulate);
                     if (accumulate.equals(terminalValue))
                         return accumulate;
@@ -365,7 +359,6 @@ public class AccordCommandStore extends CommandStore
             case Range:
             {
                 AbstractRanges<?> ranges = (AbstractRanges<?>) keysOrRanges;
-                ranges = ranges.slice(slice, Routables.Slice.Minimal);
                 for (Range range : ranges)
                 {
                     CommandTimeseriesHolder summary = commandsForRanges.search(range);
