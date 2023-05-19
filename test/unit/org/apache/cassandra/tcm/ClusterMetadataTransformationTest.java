@@ -97,7 +97,7 @@ public class ClusterMetadataTransformationTest
         assertModifications(transformed, NODE_DIRECTORY);
 
         transformed = transformed.metadata.transformer().proposeToken(n1, Collections.singleton(token(100))).build();
-        assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
+        assertModifications(transformed, TOKEN_MAP);
 
         transformed = transformed.metadata.transformer().unproposeTokens(n1).build();
         assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
@@ -106,6 +106,9 @@ public class ClusterMetadataTransformationTest
         assertModifications(transformed, NODE_DIRECTORY, TOKEN_MAP);
 
         transformed = transformed.metadata.transformer().withNodeState(n1, NodeState.REGISTERED).build();
+        assertModifications(transformed, NODE_DIRECTORY);
+
+        transformed = transformed.metadata.transformer().addToRackAndDC(n1).build();
         assertModifications(transformed, NODE_DIRECTORY);
 
         NodeAddresses replaceAddresses = getNonConflictingAddresses(random, transformed.metadata.directory);
