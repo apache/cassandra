@@ -55,6 +55,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -86,6 +89,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -306,6 +310,28 @@ public class Util
         // check that all nodes are in token metadata
         for (int i=0; i<endpointTokens.size(); ++i)
             assertTrue(!bootstrap || ClusterMetadata.current().directory.allAddresses().contains(hosts.get(i)));
+    }
+
+    public static void initGossipTokens(IPartitioner partitioner,
+                                        List<Token> endpointTokens,
+                                        List<InetAddressAndPort> hosts,
+                                        List<UUID> hostIds,
+                                        int howMany) throws UnknownHostException
+    {
+        for (int i=0; i<howMany; i++)
+        {
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + (i + 1));
+            hosts.add(ep);
+            UUID hostId = new UUID(0L, (long)i+1);
+            hostIds.add(hostId);
+            Token t = partitioner.getRandomToken();
+            endpointTokens.add(t);
+            Collection<Token> tokens = Collections.singleton(partitioner.getRandomToken());
+
+            Gossiper.instance.initializeNodeUnsafe(ep, hostId, MessagingService.current_version, 1);
+            VersionedValue.VersionedValueFactory values = new VersionedValue.VersionedValueFactory(partitioner);
+            Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, values.tokens(tokens));
+        }
     }
 
     public static Future<?> compactAll(ColumnFamilyStore cfs, long gcBefore)
