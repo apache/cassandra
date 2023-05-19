@@ -114,7 +114,8 @@ public class StressMetrics implements MeasurementSink
         try
         {
             gcStatsCollector = new JmxCollector(toJmxNodes(settings.node.resolveAllPermitted(settings)),
-                                                settings.port.jmxPort);
+                                                settings.port.jmxPort,
+                                                settings.jmx);
         }
         catch (Throwable t)
         {
