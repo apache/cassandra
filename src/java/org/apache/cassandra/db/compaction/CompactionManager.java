@@ -2336,6 +2336,11 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public double getCompactionRate()
+    {
+        return compactionRateLimiter.getRate();
+    }
+
     public List<Holder> getCompactionsMatching(Iterable<TableMetadata> columnFamilies, Predicate<CompactionInfo> predicate)
     {
         Preconditions.checkArgument(columnFamilies != null, "Attempted to getCompactionsMatching in CompactionManager with no columnFamilies specified.");

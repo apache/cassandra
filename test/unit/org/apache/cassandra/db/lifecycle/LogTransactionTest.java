@@ -41,6 +41,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
@@ -49,7 +50,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
@@ -1262,7 +1262,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         if (BigFormat.isDefault())
         {
-            Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), new SequenceBasedSSTableId(generation), SSTableFormat.Type.current());
+            Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), new SequenceBasedSSTableId(generation), DatabaseDescriptor.getSelectedSSTableFormat());
             Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC);
             for (Component component : components)
             {
@@ -1297,7 +1297,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
         }
         else
         {
-            throw new UnsupportedOperationException("Please implement this method for sstable format: " + SSTableFormat.Type.current().info.getClass().getName());
+            throw new UnsupportedOperationException("Please implement this method for sstable format: " + DatabaseDescriptor.getSelectedSSTableFormat().getClass().getName());
         }
     }
 

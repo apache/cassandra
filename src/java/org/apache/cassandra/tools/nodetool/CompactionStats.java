@@ -28,8 +28,6 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -73,7 +71,7 @@ public class CompactionStats extends NodeToolCmd
         Map<String, Map<String, Integer>> pendingTaskNumberByTable =
             (Map<String, Map<String, Integer>>) probe.getCompactionMetric("PendingTasksByTableName");
         StringBuffer toPrint = new StringBuffer();
-        toPrint.append(String.format("%s concurrent compactors, %s pending tasks", numConcurrentCompactorsConfigured(probe)
+        toPrint.append(String.format("%s concurrent compactors, %s pending tasks", probe.getConcurrentCompactors()
         , numPendingTasks(pendingTaskNumberByTable)));
         toPrint.append(LINE_SEPARATOR);
         for (Entry<String, Map<String, Integer>> ksEntry : pendingTaskNumberByTable.entrySet())
@@ -101,11 +99,6 @@ public class CompactionStats extends NodeToolCmd
         return numTotalPendingTasks;
     }
 
-    private static int numConcurrentCompactorsConfigured(NodeProbe probe)
-    {
-        return probe.getConcurrentCompactors();
-    }
-
     private static String compactionsCompletedStats(NodeProbe probe)
     {
         Long completedTasks = (Long)probe.getCompactionMetric("CompletedTasks");
@@ -129,12 +122,18 @@ public class CompactionStats extends NodeToolCmd
 
     private static String compactionThroughPutStats(NodeProbe probe)
     {
-        Config conf = DatabaseDescriptor.loadConfig();
-        double compactionTPConfigured = conf.compaction_throughput.toMebibytesPerSecond();
-        double compactionTPActual = probe.getCompactionThroughputMebibytesAsDouble();
-        double percentage = (compactionTPActual / compactionTPConfigured) * 100;
+        double configured = probe.getCompactionThroughputMebibytesAsDouble();
+        double actual = probe.getCompactionRate() / (1024 * 1024);
+        if(configured == 0)
+        {
+            return String.format("compaction throughput absolute: %s MBps", actual);
+        }
+        else
+        {
+            double percentage = (actual / configured) * 100;
+            return String.format("compaction throughput ratio: %s MBps / %s MBps (%s%s)", actual, configured, percentage, "%");
+        }
 
-        return String.format("compaction throughput: %s MBps / %s MBps (%s%s)", compactionTPActual, compactionTPConfigured, percentage, "%");
     }
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out)

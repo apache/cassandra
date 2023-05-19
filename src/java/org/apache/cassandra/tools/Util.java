@@ -309,7 +309,7 @@ public final class Util
     public static TableMetadata metadataFromSSTable(Descriptor desc) throws IOException
     {
         if (!desc.version.isCompatible())
-            throw new IOException("Unsupported SSTable version " + desc.getFormat().getType().name + "/" + desc.version);
+            throw new IOException("Unsupported SSTable version " + desc.getFormat().name() + "/" + desc.version);
 
         StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.STATS, MetadataType.HEADER);
         SerializationHeader.Component header = statsComponent.serializationHeader();

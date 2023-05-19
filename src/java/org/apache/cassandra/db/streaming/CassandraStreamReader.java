@@ -73,7 +73,6 @@ public class CassandraStreamReader implements IStreamReader
     protected final Version inputVersion;
     protected final long repairedAt;
     protected final TimeUUID pendingRepair;
-    protected final SSTableFormat.Type format;
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
@@ -93,7 +92,6 @@ public class CassandraStreamReader implements IStreamReader
         this.inputVersion = streamHeader.version;
         this.repairedAt = header.repairedAt;
         this.pendingRepair = header.pendingRepair;
-        this.format = streamHeader.format;
         this.sstableLevel = streamHeader.sstableLevel;
         this.header = streamHeader.serializationHeader;
         this.fileSeqNum = header.sequenceNumber;
@@ -125,7 +123,7 @@ public class CassandraStreamReader implements IStreamReader
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
-            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
+            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
             String sequenceName = writer.getFilename() + '-' + fileSeqNum;
             long lastBytesRead = 0;
             while (in.getBytesRead() < totalSize)
@@ -157,7 +155,7 @@ public class CassandraStreamReader implements IStreamReader
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
     @SuppressWarnings("resource")
-    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat.Type format) throws IOException
+    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?, ?> format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)

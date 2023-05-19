@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
@@ -115,12 +116,12 @@ public final class ComponentManifest implements Iterable<Component>
                '}';
     }
 
-    public static final Map<SSTableFormat.Type, IVersionedSerializer<ComponentManifest>> serializers;
+    public static final Map<String, IVersionedSerializer<ComponentManifest>> serializers;
 
     static
     {
-        ImmutableMap.Builder<SSTableFormat.Type, IVersionedSerializer<ComponentManifest>> b = ImmutableMap.builder();
-        for (SSTableFormat.Type formatType : SSTableFormat.Type.values())
+        ImmutableMap.Builder<String, IVersionedSerializer<ComponentManifest>> b = ImmutableMap.builder();
+        for (SSTableFormat<?, ?> format : DatabaseDescriptor.getSSTableFormats().values())
         {
             IVersionedSerializer<ComponentManifest> serializer = new IVersionedSerializer<ComponentManifest>()
             {
@@ -143,7 +144,7 @@ public final class ComponentManifest implements Iterable<Component>
 
                     for (int i = 0; i < size; i++)
                     {
-                        Component component = Component.parse(in.readUTF(), formatType);
+                        Component component = Component.parse(in.readUTF(), format);
                         long length = in.readUnsignedVInt();
                         components.put(component, length);
                     }
@@ -163,7 +164,7 @@ public final class ComponentManifest implements Iterable<Component>
                 }
             };
 
-            b.put(formatType, serializer);
+            b.put(format.name(), serializer);
         }
         serializers = b.build();
     }

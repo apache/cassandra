@@ -1342,6 +1342,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getCompactionThroughtputMibPerSecAsDouble();
     }
 
+    public double getCompactionRate()
+    {
+        return compactionProxy.getCompactionRate();
+    }
+
     public long getCompactionThroughputBytes()
     {
         return ssProxy.getCompactionThroughtputBytesPerSec();

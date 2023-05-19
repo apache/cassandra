@@ -93,7 +93,7 @@ public class SSTableUtils
         File cfDir = new File(tempdir, keyspaceName + File.pathSeparator() + cfname);
         cfDir.tryCreateDirectories();
         cfDir.deleteOnExit();
-        File datafile = new Descriptor(cfDir, keyspaceName, cfname, id, BigFormat.getInstance().getType()).fileFor(Components.DATA);
+        File datafile = new Descriptor(cfDir, keyspaceName, cfname, id, BigFormat.getInstance()).fileFor(Components.DATA);
         if (!datafile.createFileIfNotExists())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
