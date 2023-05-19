@@ -61,11 +61,38 @@ public class VectorTypeTest extends SAITester
 
         result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 5");
         assertThat(result).hasSize(5);
-        System.out.println(makeRowStrings(result));
+
+        // some data that only lives in memtable
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (8, 'I', [9.0, 5.0, 6.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (9, 'J', [10.0, 6.0, 7.0])");
+        result = execute("SELECT * FROM %s WHERE val ann of [9.5, 5.5, 6.5] LIMIT 5");
+        assertContainsInt(result, "pk", 8);
+        assertContainsInt(result, "pk", 9);
+
+        // data from sstables
+        result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertContainsInt(result, "pk", 1);
+        assertContainsInt(result, "pk", 2);
+    }
+
+    private void assertContainsInt(UntypedResultSet result, String pkName, int pk)
+    {
+        for (UntypedResultSet.Row row : result)
+        {
+            if (row.has(pkName)) // assuming 'pk' is the name of your primary key column
+            {
+                int value = row.getInt("pk");
+                if (value == pk)
+                {
+                    return;
+                }
+            }
+        }
+        throw new AssertionError("Result set does not contain a row with pk = " + pk);
     }
 
     @Test
-    public void testCombinedPredicates() throws Throwable
+    public void testTwoPredicates() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, b boolean, v float vector[3], PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
@@ -86,6 +113,31 @@ public class VectorTypeTest extends SAITester
 
         result = execute("SELECT * FROM %s WHERE b=true AND v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
         assertThat(result).hasSize(2);
+    }
+
+    @Test
+    public void testThreePredicates() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, b boolean, v float vector[3], str text, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(str) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, b, v, str) VALUES (0, true, [1.0, 2.0, 3.0], 'A')");
+        execute("INSERT INTO %s (pk, b, v, str) VALUES (1, true, [2.0, 3.0, 4.0], 'B')");
+        execute("INSERT INTO %s (pk, b, v, str) VALUES (2, false, [3.0, 4.0, 5.0], 'C')");
+
+        // the vector given is closest to row 2, but we exclude that row because b=false and str!='B'
+        var result = execute("SELECT * FROM %s WHERE b=true AND v ANN OF [3.1, 4.1, 5.1] AND str='B' LIMIT 2");
+        // TODO assert specific row keys
+        assertThat(result).hasSize(1);
+
+        flush();
+        compact();
+
+        result = execute("SELECT * FROM %s WHERE b=true AND v ANN OF [3.1, 4.1, 5.1] AND str='B' LIMIT 2");
+        assertThat(result).hasSize(1);
     }
 
     @Test
@@ -119,6 +171,23 @@ public class VectorTypeTest extends SAITester
 
         var result = execute("SELECT * FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 1");
         assertThat(result).hasSize(0);
+    }
+
+    @Test
+    public void testLimitLessThanInsertedRowCount() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // Insert more rows than the query limit
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [4.0, 5.0, 6.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', [7.0, 8.0, 9.0])");
+
+        // Query with limit less than inserted row count
+        var result = execute("SELECT * FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(2);
     }
 
     @Test
