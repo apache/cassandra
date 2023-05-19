@@ -164,7 +164,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
                                          'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'SERIAL', 'TRUNCATE',
-                                         'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS'))
+                                         'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS', 'history'))
 
     def test_complete_command_words(self):
         self.trycompletions('alt', '\b\b\bALTER ')
@@ -250,7 +250,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
                      'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
                      'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
-                     'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit',
+                     'TRUNCATE', 'UPDATE', 'USE', 'exit', 'history', 'quit',
                      'CLEAR', 'CLS'])
 
         self.trycompletions(
