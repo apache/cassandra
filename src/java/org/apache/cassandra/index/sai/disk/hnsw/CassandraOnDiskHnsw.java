@@ -145,18 +145,6 @@ public class CassandraOnDiskHnsw
         }
     }
 
-    private static class AnnResult
-    {
-        public final int vectorOrdinal;
-        public final int[] segmentRowIds;
-
-        public AnnResult(int vectorOrdinal, int[] segmentRowIds)
-        {
-            this.vectorOrdinal = vectorOrdinal;
-            this.segmentRowIds = segmentRowIds;
-        }
-    }
-
     public class AnnPostingList implements PostingList
     {
         private final PriorityQueue<Integer> results;
@@ -167,9 +155,8 @@ public class CassandraOnDiskHnsw
             results = new PriorityQueue<>(queue.size());
             while (queue.size() > 0) {
                 int ordinal = queue.pop();
-                AnnResult result = new AnnResult(ordinal, ordinalsMap.getSegmentRowIdsMatching(ordinal));
-                // FIXME convert segment to row ids
-                for (int segmentRowId : result.segmentRowIds)
+                // toIterator takes care of segmented id -> sstable row id conversion
+                for (int segmentRowId : ordinalsMap.getSegmentRowIdsMatching(ordinal))
                     results.add(segmentRowId);
             }
             size = results.size();
