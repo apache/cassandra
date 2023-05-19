@@ -269,7 +269,7 @@ browser is used to display help.
 === `HISTORY`
 
 Prints to the screen the last n cqlsh commands executed on the server.
-The number of lines defaults to 50 if not specified
+The number of lines defaults to 50 if not specified.
 
 `Usage`:
 

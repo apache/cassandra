@@ -1858,7 +1858,7 @@ class Shell(cmd.Cmd):
             history_item = readline.get_history_item(index)
             if history_item:
                 recent_history += history_item +"\n"
-        print("Recent Commands:\n\n" + recent_history)
+        print(recent_history)
 
 
     def do_unicode(self, parsed):
