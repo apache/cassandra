@@ -266,6 +266,18 @@ Gives information about cqlsh commands. To see available topics, enter
 `HELP <topic>`. Also see the `--browser` argument for controlling what
 browser is used to display help.
 
+=== `HISTORY`
+
+Prints to the screen the last n cqlsh commands executed on the server.
+The number of lines defaults to 50 if not specified
+
+`Usage`:
+
+[source,none]
+----
+HISTORY <n>
+----
+
 === `TRACING`
 
 Enables or disables tracing for queries. When tracing is enabled, once a

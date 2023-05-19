@@ -1835,6 +1835,31 @@ class Shell(cmd.Cmd):
                         self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
             else:
                 self.printerr("*** No help on %s" % (t,))
+    def do_history(self,parsed):
+        """
+        HISTORY [cqlsh only]
+
+           Displays the most recent commands executed in cqlsh
+
+        HISTORY (<n>)
+
+           If n is specified, the history display length is set to n for this session
+        """
+
+        recent_history = ""
+        history_length = readline.get_current_history_length()
+
+        n = parsed.get_binding('n')
+        if (n is not None):
+             val = int(n)
+             self.max_history_length_shown = val
+
+        for index in range(history_length, history_length-self.max_history_length_shown, -1):
+            history_item = readline.get_history_item(index)
+            if history_item:
+                recent_history += history_item +"\n"
+        print("Recent Commands:\n\n" + recent_history)
+
 
     def do_unicode(self, parsed):
         """
@@ -1912,6 +1937,27 @@ class Shell(cmd.Cmd):
             self.cov.stop()
             self.cov.save()
             self.cov = None
+
+    def init_history(self):
+        if readline is not None:
+            try:
+                readline.read_history_file(HISTORY)
+            except IOError:
+                pass
+            delims = readline.get_completer_delims()
+            delims.replace("'", "")
+            delims += '.'
+            readline.set_completer_delims(delims)
+
+            # configure length of history shown
+            self.max_history_length_shown = 50
+
+    def save_history(self):
+        if readline is not None:
+            try:
+                readline.write_history_file(HISTORY)
+            except IOError:
+                pass
 
 
 class SwitchCommand(object):
@@ -2193,26 +2239,6 @@ def setup_docspath(path):
         CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
 
 
-def init_history():
-    if readline is not None:
-        try:
-            readline.read_history_file(HISTORY)
-        except IOError:
-            pass
-        delims = readline.get_completer_delims()
-        delims.replace("'", "")
-        delims += '.'
-        readline.set_completer_delims(delims)
-
-
-def save_history():
-    if readline is not None:
-        try:
-            readline.write_history_file(HISTORY)
-        except IOError:
-            pass
-
-
 def insert_driver_hooks():
 
     class DateOverFlowWarning(RuntimeWarning):
@@ -2245,7 +2271,6 @@ def main(cmdline, pkgpath):
     setup_docspath(pkgpath)
     setup_cqlruleset(options.cqlmodule)
     setup_cqldocs(options.cqlmodule)
-    init_history()
     csv.field_size_limit(options.field_size_limit)
 
     if options.file is None:
@@ -2343,8 +2368,9 @@ def main(cmdline, pkgpath):
 
         signal.signal(signal.SIGHUP, handle_sighup)
 
+    shell.init_history()
     shell.cmdloop()
-    save_history()
+    shell.save_history()
 
     if shell.batch_mode and shell.statement_error:
         sys.exit(2)

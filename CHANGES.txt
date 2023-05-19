@@ -1,4 +1,5 @@
 5.0
+ * Add CQLSH command HISTORY (CASSANDRA-15046)
  * Fix sstable formats configuration (CASSANDRA-18441)
  * Add guardrail to bound timestamps (CASSANDRA-18352)
  * Add keyspace_name column to system_views.clients (CASSANDRA-18525)
