@@ -18,6 +18,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 
@@ -91,6 +92,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_IGNORE_REPLAY_ERRORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMIT_LOG_REPLAY_LIST;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_RELEVANT_PROPERTIES;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -103,6 +105,7 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.assertj.core.api.Assertions;
 
 @Ignore
 @RunWith(Parameterized.class)
@@ -816,22 +819,22 @@ public abstract class CommitLogTest
     public void testReplayListProperty() throws Throwable
     {
         // only keyspace
-        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(KEYSPACE1_REPLAY));
+        assertReplay(2, COMMIT_LOG_REPLAY_LIST, KEYSPACE1_REPLAY);
 
         // only keyspaces
-        assertReplay(3, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s,%s", KEYSPACE1_REPLAY, KEYSPACE2_REPLAY)));
+        assertReplay(3, COMMIT_LOG_REPLAY_LIST, format("%s,%s", KEYSPACE1_REPLAY, KEYSPACE2_REPLAY));
 
         // only table with keyspace
-        assertReplay(1, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1)));
+        assertReplay(1, COMMIT_LOG_REPLAY_LIST, format("%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1));
 
         // mix of keyspace and tables with keyspaces
-        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s,%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE2_REPLAY)));
+        assertReplay(2, COMMIT_LOG_REPLAY_LIST, format("%s.%s,%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE2_REPLAY));
 
         // only tables with keyspaces
-        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s,%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE2_REPLAY, KEYSPACE2_REPLAY_TABLE2)));
+        assertReplay(2, COMMIT_LOG_REPLAY_LIST, format("%s.%s,%s.%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE2_REPLAY, KEYSPACE2_REPLAY_TABLE2));
 
         // mix of keyspace and tables with keyspaces within same keyspace.
-        assertReplay(2, () -> COMMIT_LOG_REPLAY_LIST.setString(format("%s.%s,%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE1_REPLAY)));
+        assertReplay(2, COMMIT_LOG_REPLAY_LIST, format("%s.%s,%s", KEYSPACE1_REPLAY, KEYSPACE1_REPLAY_TABLE1, KEYSPACE1_REPLAY));
 
         // test for wrong formats
 
@@ -840,7 +843,7 @@ public abstract class CommitLogTest
         try
         {
             assertReplay(2,
-                         () -> COMMIT_LOG_REPLAY_LIST.setString(invalidFormat));
+                         COMMIT_LOG_REPLAY_LIST, invalidFormat);
             fail(format("replay should fail on -D%s=%s as it is in invalid format",
                         COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat));
         }
@@ -857,7 +860,7 @@ public abstract class CommitLogTest
         try
         {
             assertReplay(2,
-                         () -> COMMIT_LOG_REPLAY_LIST.setString(invalidFormat2));
+                         COMMIT_LOG_REPLAY_LIST, invalidFormat2);
             fail(format("replay should fail on -D%s=%s as it is in invalid format",
                         COMMIT_LOG_REPLAY_LIST.getKey(), invalidFormat2));
         }
@@ -890,12 +893,11 @@ public abstract class CommitLogTest
         }
     }
 
-    private void assertReplay(int expectedReplayedMutations, Runnable systemPropertySetter) throws Throwable
+    // private void assertReplay(int expectedReplayedMutations, Runnable systemPropertySetter) throws Throwable
+    private void assertReplay(int expectedReplayedMutations, CassandraRelevantProperties property, String propertyValue) throws Throwable
     {
-        try
+        try (WithProperties properties = new WithProperties().set(property, propertyValue))
         {
-            systemPropertySetter.run();
-
             CommitLog.instance.resetUnsafe(true);
 
             ColumnFamilyStore ks1tb1 = Keyspace.open(KEYSPACE1_REPLAY).getColumnFamilyStore(KEYSPACE1_REPLAY_TABLE1);
@@ -929,10 +931,6 @@ public abstract class CommitLogTest
             replayer.replayFiles(files);
 
             assertEquals(expectedReplayedMutations, replayer.count);
-        }
-        finally
-        {
-            System.clearProperty(COMMIT_LOG_REPLAY_LIST.getKey());
         }
     }
 
