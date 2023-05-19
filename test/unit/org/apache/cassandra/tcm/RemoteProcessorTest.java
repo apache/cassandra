@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
@@ -37,13 +38,17 @@ import static org.junit.Assert.assertTrue;
 
 public class RemoteProcessorTest
 {
-    @Before
-    public void before()
+    @BeforeClass
+    public static void beforeClass()
     {
-        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        ServerTestUtils.daemonInitialization();
         ServerTestUtils.prepareServer();
+    }
+
+    @Before
+    public void resetCMS()
+    {
+        ServerTestUtils.resetCMS();
     }
 
     @Test
