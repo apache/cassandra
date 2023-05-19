@@ -40,6 +40,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 public class MigrationCoordinatorTest extends TestBaseImpl
 {
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @Before
     public void setUp()
     {

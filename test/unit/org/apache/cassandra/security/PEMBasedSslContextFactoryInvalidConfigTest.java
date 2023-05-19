@@ -39,6 +39,7 @@ public class PEMBasedSslContextFactoryInvalidConfigTest
         CASSANDRA_CONFIG.setString("cassandra-pem-sslcontextfactory-invalidconfiguration.yaml");
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {

@@ -651,6 +651,7 @@ public class ConnectionTest
         {
             MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
                                                      current_version);
+            // checkstyle: suppress below 'clearValueSystemPropertyUsage'
             if (originalStoragePort != null)
                 SSL_STORAGE_PORT.setInt(originalStoragePort);
             else

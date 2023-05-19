@@ -60,6 +60,7 @@ public class ClientStateTest
         AuthCacheService.initializeAndRegisterCaches();
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void afterClass()
     {

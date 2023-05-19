@@ -92,7 +92,6 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_IGNORE_REPLAY_ERRORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMIT_LOG_REPLAY_LIST;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_RELEVANT_PROPERTIES;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -105,7 +104,6 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.assertj.core.api.Assertions;
 
 @Ignore
 @RunWith(Parameterized.class)
@@ -216,6 +214,7 @@ public abstract class CommitLogTest
         CommitLog.instance.resetUnsafe(true);
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @After
     public void afterTest()
     {
@@ -1122,11 +1121,12 @@ public abstract class CommitLogTest
         }
 
         CommitLog.instance.sync(true);
-        COMMIT_LOG_REPLAY_LIST.setString(KEYSPACE1 + '.' + STANDARD1);
-        // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
-        // If retries work subsequent flushes should clear up error and this should change to expect 0.
-        assertEquals(1, CommitLog.instance.resetUnsafe(false));
-        COMMIT_LOG_REPLAY_LIST.clearValue();
+        try (WithProperties properties = new WithProperties().set(COMMIT_LOG_REPLAY_LIST, KEYSPACE1 + '.' + STANDARD1))
+        {
+            // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
+            // If retries work subsequent flushes should clear up error and this should change to expect 0.
+            assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        }
     }
 
     public void testOutOfOrderFlushRecovery(BiConsumer<ColumnFamilyStore, Memtable> flushAction, boolean performCompaction)

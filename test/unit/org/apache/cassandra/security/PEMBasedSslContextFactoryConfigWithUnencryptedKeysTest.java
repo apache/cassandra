@@ -40,6 +40,7 @@ public class PEMBasedSslContextFactoryConfigWithUnencryptedKeysTest
         DISABLE_TCACTIVE_OPENSSL.setBoolean(true);
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {

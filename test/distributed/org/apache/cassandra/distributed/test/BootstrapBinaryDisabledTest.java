@@ -58,6 +58,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
         originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.setBoolean(false);
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void afterClass()
     {

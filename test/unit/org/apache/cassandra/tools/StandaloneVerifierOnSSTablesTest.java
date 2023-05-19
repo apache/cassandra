@@ -72,6 +72,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
         StorageService.instance.initServer();
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void teardown() throws Exception
     {

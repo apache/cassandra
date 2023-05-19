@@ -40,6 +40,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.LogResult;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -70,13 +71,13 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
     @Test
     public void dispatcherErrorDoesNotLock() throws IOException
     {
-        CUSTOM_QUERY_HANDLER_CLASS.setString(AlwaysRejectErrorQueryHandler.class.getName());
-        try (Cluster cluster = Cluster.build(1)
-                                      .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                        .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1")))
-                                      )
-                                      .start())
+        try (WithProperties properties = new WithProperties().set(CUSTOM_QUERY_HANDLER_CLASS, AlwaysRejectErrorQueryHandler.class.getName()))
         {
+            Cluster cluster = Cluster.build(1)
+                                     .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
+                                                       .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1")))
+                                     )
+                                     .start();
             try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).build().connect(false))
             {
                 client.execute("SELECT * FROM system.peers", ConsistencyLevel.ONE);
@@ -93,10 +94,6 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
             Assertions.assertThat(matches.getResult()).hasSize(1);
             matches = logs.grep("Unexpected exception during request");
             Assertions.assertThat(matches.getResult()).isEmpty();
-        }
-        finally
-        {
-            CUSTOM_QUERY_HANDLER_CLASS.clearValue();
         }
     }
 

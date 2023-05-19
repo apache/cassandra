@@ -129,6 +129,7 @@ public class PasswordAuthenticatorTest extends CQLTester
             if (oldProperty != null)
                 AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.setInt(oldProperty);
             else
+                // checkstyle: suppress below 'clearValueSystemPropertyUsage'
                 AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.clearValue();
         }
     }

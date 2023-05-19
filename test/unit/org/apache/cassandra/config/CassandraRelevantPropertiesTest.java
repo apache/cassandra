@@ -134,9 +134,10 @@ public class CassandraRelevantPropertiesTest
     public void testClearProperty()
     {
         assertNull(TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
-        TEST_CASSANDRA_RELEVANT_PROPERTIES.setString("test");
-        assertEquals("test", TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
-        TEST_CASSANDRA_RELEVANT_PROPERTIES.clearValue();
+        try (WithProperties properties = new WithProperties().set(TEST_CASSANDRA_RELEVANT_PROPERTIES, "test"))
+        {
+            assertEquals("test", TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
+        }
         assertNull(TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
     }
 }

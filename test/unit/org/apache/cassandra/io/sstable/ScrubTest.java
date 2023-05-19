@@ -163,6 +163,7 @@ public class ScrubTest
         TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void clearClassEnv()
     {

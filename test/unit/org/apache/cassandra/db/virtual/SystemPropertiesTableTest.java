@@ -32,15 +32,10 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.distributed.shared.WithProperties;
-import org.assertj.core.api.Assertions;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_RELEVANT_PROPERTIES;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 

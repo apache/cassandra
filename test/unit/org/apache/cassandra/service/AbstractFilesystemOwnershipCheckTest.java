@@ -216,6 +216,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(tempDir), options, MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @Test
     public void checkEnabledButClusterPropertyIsUnset()
     {

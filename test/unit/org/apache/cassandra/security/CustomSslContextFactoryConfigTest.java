@@ -37,6 +37,7 @@ public class CustomSslContextFactoryConfigTest
         CASSANDRA_CONFIG.setString("cassandra-sslcontextfactory.yaml");
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void tearDownDatabaseDescriptor() {
         CASSANDRA_CONFIG.clearValue();

@@ -473,6 +473,7 @@ public class GossipHelper
         withProperty(prop, Boolean.toString(value), r);
     }
 
+    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     public static void withProperty(CassandraRelevantProperties prop, String value, Runnable r)
     {
         String prev = prop.setString(value);

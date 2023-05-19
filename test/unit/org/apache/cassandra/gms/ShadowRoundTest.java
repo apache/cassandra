@@ -173,18 +173,13 @@ public class ShadowRoundTest
                 }, 1);
 
 
-        AUTO_BOOTSTRAP.setBoolean(false);
-        try
+        try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
             StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         }
         catch (Exception e)
         {
             assertEquals("Unable to gossip with any peers", e.getMessage());
-        }
-        finally
-        {
-            AUTO_BOOTSTRAP.clearValue();
         }
     }
 

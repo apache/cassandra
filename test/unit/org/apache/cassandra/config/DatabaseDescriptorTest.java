@@ -259,6 +259,7 @@ public class DatabaseDescriptorTest
         }
         finally
         {
+            // checkstyle: suppress below 'clearValueSystemPropertyUsage'
             if (previous == null)
                 PARTITIONER.clearValue();
             else
