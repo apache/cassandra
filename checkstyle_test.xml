@@ -122,7 +122,7 @@
       <property name="id" value="clearValueSystemPropertyUsage"/>
       <property name="format" value="\.clearValue\("/>
       <property name="ignoreComments" value="true"/>
-      <property name="message" value="Please use withProperties approach instead." />
+      <property name="message" value="Please use WithProperties in try-with-resources instead. See CASSANDRA-18453." />
     </module>
 
     <module name="RedundantImport"/>
