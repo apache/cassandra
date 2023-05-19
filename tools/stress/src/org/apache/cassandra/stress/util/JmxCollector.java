@@ -32,6 +32,7 @@ import org.apache.cassandra.tools.NodeProbe;
 
 public class JmxCollector implements Callable<JmxCollector.GcStats>
 {
+    private static final GcStats EMPTY_GC_STATS = new GcStats(0);
 
     public static class GcStats
     {
@@ -109,8 +110,17 @@ public class JmxCollector implements Callable<JmxCollector.GcStats>
             {
                 public GcStats call() throws Exception
                 {
-                    final double[] stats = probe.getAndResetGCStats();
-                    return new GcStats(stats[5], stats[4], stats[1], stats[2], stats[3]);
+                    try
+                    {
+                        final double[] stats = probe.getAndResetGCStats();
+                        return new GcStats(stats[5], stats[4], stats[1], stats[2], stats[3]);
+                    }
+                    catch (Throwable t)
+                    {
+                        System.err.printf("Unable to get GC statistics from %s:%s. Reason: %s\n.",
+                                          probe.host, probe.port, t.getMessage());
+                        return EMPTY_GC_STATS;
+                    }
                 }
             }));
         }

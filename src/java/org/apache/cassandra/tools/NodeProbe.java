@@ -129,8 +129,11 @@ public class NodeProbe implements AutoCloseable
 
     static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS.getLong();
 
-    final String host;
-    final int port;
+    // If JMX connection is lost, all methods to retrieve "host id" go through some MBean
+    // which will fail to resolve it because that connection is lost.
+    // We make host and port public to have at least some identifier of unreachable node available for logging purposes.
+    public final String host;
+    public final int port;
     private String username;
     private String password;
 
