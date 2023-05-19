@@ -312,7 +312,6 @@ public class CommandsForRanges
         private CommandTimeseries<?> build(Function<RangeCommandSummary, Timestamp> fn)
         {
             CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
-            builder.ignoreTestKind(true);
             for (RangeCommandSummary m : matches)
             {
                 if (m.status == SaveStatus.Invalidated)
