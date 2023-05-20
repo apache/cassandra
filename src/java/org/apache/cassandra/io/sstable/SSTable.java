@@ -290,7 +290,7 @@ public abstract class SSTable
     @Override
     public String toString()
     {
-        return String.format("%s:%s(path='%s')", getClass().getSimpleName(), descriptor.formatType.name, getFilename());
+        return String.format("%s:%s(path='%s')", getClass().getSimpleName(), descriptor.version.format.name(), getFilename());
     }
 
     public static void validateRepairedMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
@@ -349,7 +349,7 @@ public abstract class SSTable
         {
             if (components != null)
             {
-                components.forEach(c -> Preconditions.checkState(c.isValidFor(descriptor), "Invalid component type for sstable format " + descriptor.formatType.name));
+                components.forEach(c -> Preconditions.checkState(c.isValidFor(descriptor), "Invalid component type for sstable format " + descriptor.version.format.name()));
                 this.components = ImmutableSet.copyOf(components);
             }
             else

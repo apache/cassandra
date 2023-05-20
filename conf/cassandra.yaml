@@ -1767,6 +1767,13 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
 #
+# Guardrail to bound user-provided timestamps within a given range. Default is infinite (denoted by null).
+# Accepted values are durations of the form 12h, 24h, etc.
+# maximum_timestamp_warn_threshold:
+# maximum_timestamp_fail_threshold:
+# minimum_timestamp_warn_threshold:
+# minimum_timestamp_fail_threshold:
+#
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
 #
@@ -1928,14 +1935,12 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
-# Supported sstable formats
-# This is a list of elements consisting of class_name and parameters, where class_name should point to the class
-# implementing org.apache.cassandra.io.sstable.format.SSTableFormat. Parameters must include unique 'id' integer
-# which is used in some serialization to denote the format type in a compact way (such as local key cache); and 'name'
-# which will be used to recognize the format type - in particular that name will be used in sstable file names and in
-# stream headers so the name has to be the same for the same format across all the nodes in the cluster.
-sstable_formats:
-  - class_name: org.apache.cassandra.io.sstable.format.big.BigFormat
-    parameters:
-      id: 0
-      name: big
+# The sstable formats configuration. SSTable formats implementations are loaded using the service loader mechanism.
+# In this section, one can select the format for created sstables and pass additional parameters for the formats
+# available on the classpath.
+#sstable:
+#  selected_format: big
+#  format:
+#    big:
+#      param1: value1
+#      ...

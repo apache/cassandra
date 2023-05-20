@@ -27,6 +27,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
@@ -97,12 +98,12 @@ public class Flushing
                                        Directories.DataDirectory flushLocation)
     {
         Memtable.FlushablePartitionSet<?> flushSet = memtable.getFlushSet(from, to);
-        SSTableFormat.Type formatType = SSTableFormat.Type.current();
-        long estimatedSize = formatType.info.getWriterFactory().estimateSize(flushSet);
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
+        long estimatedSize = format.getWriterFactory().estimateSize(flushSet);
 
         Descriptor descriptor = flushLocation == null
-                                ? cfs.newSSTableDescriptor(cfs.getDirectories().getWriteableLocationAsFile(estimatedSize), formatType)
-                                : cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(flushLocation), formatType);
+                                ? cfs.newSSTableDescriptor(cfs.getDirectories().getWriteableLocationAsFile(estimatedSize), format)
+                                : cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(flushLocation), format);
 
         SSTableMultiWriter writer = createFlushWriter(cfs,
                                                       flushSet,

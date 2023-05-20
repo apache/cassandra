@@ -101,6 +101,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$PaxosStatePurging",
     "org.apache.cassandra.config.Config$PaxosVariant",
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
+    "org.apache.cassandra.config.Config$SSTableConfig",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",
@@ -177,6 +178,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.DurationSpec$IntSecondsBoundBeanInfo",
     "org.apache.cassandra.config.DurationSpec$IntSecondsBoundCustomizer",
     "org.apache.cassandra.config.DurationSpec$IntSecondsBoundCustomizer",
+    "org.apache.cassandra.config.DurationSpec$LongMicrosecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongMillisecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongMillisecondsBoundBeanInfo",
     "org.apache.cassandra.config.DurationSpec$LongMillisecondsBoundBeanInfo",
@@ -217,8 +219,6 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.ListenableProperty$Invoker",
     "org.apache.cassandra.config.ListenableProperty$PropertyValidateInvoker",
     "org.apache.cassandra.config.ListenableProperty$Remover",
-    "org.apache.cassandra.config.ValidatedPropertyLoader",
-    "org.apache.cassandra.config.ValidatedPropertyLoader$ValidationPropertyHandler",
     "org.apache.cassandra.config.Loader",
     "org.apache.cassandra.config.Mutable",
     "org.apache.cassandra.config.ParameterizedClass",
@@ -255,6 +255,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.TransparentDataEncryptionOptionsCustomizer",
     "org.apache.cassandra.config.TransparentDataEncryptionOptionsCustomizer",
     "org.apache.cassandra.config.ValidatedBy",
+    "org.apache.cassandra.config.ValidatedPropertyLoader",
+    "org.apache.cassandra.config.ValidatedPropertyLoader$ValidationPropertyHandler",
     "org.apache.cassandra.config.WithReplacementLoader",
     "org.apache.cassandra.config.YamlConfigurationLoader",
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
@@ -322,6 +324,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SSTableFormat",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$Components",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$Components$Types",
+    "org.apache.cassandra.io.sstable.format.SSTableFormat$Factory",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$KeyCacheValueSerializer",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$SSTableReaderFactory",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$SSTableWriterFactory",
@@ -337,6 +340,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SortedTableWriter$Builder",
     "org.apache.cassandra.io.sstable.format.Version",
     "org.apache.cassandra.io.sstable.format.big.BigFormat",
+    "org.apache.cassandra.io.sstable.format.big.BigFormat$BigFormatFactory",
     "org.apache.cassandra.io.sstable.format.big.BigFormat$BigTableReaderFactory",
     "org.apache.cassandra.io.sstable.format.big.BigFormat$BigTableWriterFactory",
     "org.apache.cassandra.io.sstable.format.big.BigFormat$BigVersion",
@@ -389,7 +393,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.concurrent.RefCounted",
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
-    "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
+    "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

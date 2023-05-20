@@ -115,7 +115,6 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -1260,6 +1259,6 @@ public class Util
 
     public static RuntimeException testMustBeImplementedForSSTableFormat()
     {
-        return new UnsupportedOperationException("Test must be implemented for sstable format " + SSTableFormat.Type.current().info.getClass().getName());
+        return new UnsupportedOperationException("Test must be implemented for sstable format " + DatabaseDescriptor.getSelectedSSTableFormat().getClass().getName());
     }
 }
