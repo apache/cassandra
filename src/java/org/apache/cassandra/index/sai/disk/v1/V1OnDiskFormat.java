@@ -42,6 +42,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -65,8 +66,10 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                                  IndexComponent.OFFSETS_VALUES);
 
     private static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
-                                                                             IndexComponent.META,
-                                                                             IndexComponent.VECTOR);
+                                                                            IndexComponent.META,
+                                                                            IndexComponent.VECTOR,
+                                                                            IndexComponent.TERMS_DATA, // REVIEWME okay to re-use this for the hnsw graph?
+                                                                            IndexComponent.POSTING_LISTS);
     private static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
                                                                              IndexComponent.TERMS_DATA,
@@ -170,7 +173,7 @@ public class V1OnDiskFormat implements OnDiskFormat
                                             RowMapping rowMapping)
     {
         if (index.getIndexContext().isVector())
-            return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
+            return new VectorIndexWriter((VectorMemtableIndex) index.getIndexContext().getPendingMemtableIndex(tracker), indexDescriptor, index.getIndexContext());
 
         // If we're not flushing or we haven't yet started the initialization build, flush from SSTable contents.
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())

@@ -398,7 +398,7 @@
 
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete>
-          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*"/>
+          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*,lucene-*"/>
         </delete>
         <delete dir="${build.dir}" />
         <delete dir="${doc.dir}/build" />
@@ -692,7 +692,7 @@
           <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
             <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
-            
+
           <dependency groupId="io.micrometer" artifactId="micrometer-core" version="1.5.5"/>
           <dependency groupId="org.latencyutils" artifactId="LatencyUtils" version="2.0.3"/>
         </dependencyManagement>
@@ -1303,7 +1303,7 @@
       <antcall target="build-test"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib"
           description="Compile test classes">
     <antcall target="_build-test"/>
   </target>

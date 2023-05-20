@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -125,6 +126,7 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
@@ -2238,6 +2240,10 @@ public abstract class CQLTester
                 values = typeFor(entry.getValue());
             }
             return MapType.getInstance(keys, values, true);
+        }
+        else if (value instanceof float[])
+        {
+            return VectorType.getInstance(Array.getLength(value));
         }
 
         throw new IllegalArgumentException("Unsupported value type (value is " + value + ")");

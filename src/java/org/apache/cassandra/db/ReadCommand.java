@@ -224,6 +224,14 @@ public abstract class ReadCommand extends AbstractReadQuery
         return indexQueryPlan;
     }
 
+    /**
+     * @return true given read query is a top-k request
+     */
+    public boolean isTopK()
+    {
+        return indexQueryPlan != null && indexQueryPlan.isTopK();
+    }
+
     @VisibleForTesting
     public Index.Searcher indexSearcher()
     {
@@ -458,7 +466,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public PartitionIterator postReconciliationProcessing(PartitionIterator result)
     {
-        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor().apply(result);
+        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor(this).apply(result);
     }
 
     @Override

@@ -123,6 +123,11 @@ public class VectorType extends AbstractType<float[]>
         @Override
         public ByteBuffer serialize(float[] value)
         {
+            return getByteBuffer(value);
+        }
+
+        public static ByteBuffer getByteBuffer(float[] value)
+        {
             if (value == null)
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
@@ -153,7 +158,9 @@ public class VectorType extends AbstractType<float[]>
             {
                 for (int index = 0; index < dimensions; offset += 4, index++)
                 {
-                    accessor.getFloat(value, offset);
+                    var a = accessor.getFloat(value, offset);
+                    if (!Float.isFinite(a))
+                        throw new MarshalException("Invalid float value " + a);
                 }
                 if (!accessor.isEmptyFromOffset(value, offset))
                     throw new MarshalException("Unexpected extraneous bytes after vector value");

@@ -24,15 +24,14 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -67,15 +66,15 @@ public class Vectors
             this.elements = elements;
         }
 
-        public static Value fromSerialized(ByteBuffer value, ProtocolVersion version) throws InvalidRequestException
+        public static Value fromSerialized(ByteBuffer value, AbstractType<?> type) throws InvalidRequestException
         {
             try
             {
-                List<Double> l = ListSerializer.getInstance(DoubleType.instance.getSerializer()).deserialize(value, ByteBufferAccessor.instance);
+                float[] floatArray = (float[]) type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
                 List<ByteBuffer> elements = new ArrayList<>();
-                for (Double element : l)
+                for (float element : floatArray)
                 {
-                    elements.add(element == null ? null : FloatType.instance.decompose((float)(double)element));
+                    elements.add(FloatType.instance.decompose(element));
                 }
                 return new Value(elements);
             }
@@ -178,7 +177,7 @@ public class Vectors
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 return UNSET_VALUE;
-            return Value.fromSerialized(value, options.getProtocolVersion());
+            return Value.fromSerialized(value, receiver.type);
         }
     }
 }

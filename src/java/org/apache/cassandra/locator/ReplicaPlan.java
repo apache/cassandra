@@ -144,6 +144,26 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         }
     }
 
+    public static class ForFullRangeRead extends ForRangeRead
+    {
+        public ForFullRangeRead(Keyspace keyspace,
+                                AbstractReplicationStrategy replicationStrategy,
+                                ConsistencyLevel consistencyLevel,
+                                AbstractBounds<PartitionPosition> range,
+                                EndpointsForRange candidates,
+                                EndpointsForRange contact,
+                                int vnodeCount)
+        {
+            super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, vnodeCount);
+        }
+
+        @Override
+        public int blockFor()
+        {
+            return candidates().size();
+        }
+    }
+
     public static abstract class ForWrite<E extends Endpoints<E>> extends ReplicaPlan<E>
     {
         // TODO: this is only needed because of poor isolation of concerns elsewhere - we can remove it soon, and will do so in a follow-up patch

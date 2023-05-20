@@ -74,7 +74,12 @@ public class RangeCommands
         Tracing.trace("Computing ranges to query");
 
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, consistencyLevel);
+        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(),
+                                                                   command.indexQueryPlan(),
+                                                                   keyspace,
+                                                                   consistencyLevel);
+        if (command.isTopK())
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), queryStartNanoTime, readTracker);
 
         int maxConcurrencyFactor = Math.min(replicaPlans.size(), MAX_CONCURRENT_RANGE_REQUESTS);
         int concurrencyFactor = maxConcurrencyFactor;
