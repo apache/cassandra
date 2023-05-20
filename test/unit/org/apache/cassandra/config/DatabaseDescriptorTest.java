@@ -590,32 +590,33 @@ public class DatabaseDescriptorTest
     {
         Config config = DatabaseDescriptor.loadConfig();
 
-        String expectedMsg = "Invalid value of entire_sstable_stream_throughput_outbound:";
+        String expectedMsg = "Invalid value: '2147483647MiB/s'";
         config.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
-        validateProperty(expectedMsg);
+        validateProperty(config, expectedMsg);
 
-        expectedMsg = "Invalid value of entire_sstable_stream_throughput_outbound:";
         config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
-        validateProperty(expectedMsg);
+        validateProperty(config, expectedMsg);
 
-        expectedMsg = "Invalid value of stream_throughput_outbound:";
+        expectedMsg = "Invalid value: '268435455875000B/s'";
         config.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
-        validateProperty(expectedMsg);
+        validateProperty(config, expectedMsg);
 
-        expectedMsg = "Invalid value of inter_dc_stream_throughput_outbound:";
         config.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
-        validateProperty(expectedMsg);
+        validateProperty(config, expectedMsg);
 
-        expectedMsg = "compaction_throughput:";
         config.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
-        validateProperty(expectedMsg);
+        validateProperty(config, expectedMsg);
     }
 
-    private static void validateProperty(String expectedMsg)
+    private static void validateProperty(Config config, String expectedMsg)
     {
         try
         {
-//            DatabaseDescriptor.validateUpperBoundStreamingConfig();
+            DatabaseDescriptor.validateThroughputUpperBoundMbits(config, config.stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbits(config, config.inter_dc_stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config, config.entire_sstable_stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config, config.entire_sstable_inter_dc_stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config, config.compaction_throughput);
         }
         catch (ConfigurationException ex)
         {

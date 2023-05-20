@@ -977,6 +977,20 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
     }
 
+    @VisibleForTesting
+    static void applyConcurrentValidations(Config config)
+    {
+        if (config.concurrent_validations < 1)
+        {
+            config.concurrent_validations = config.concurrent_compactors;
+        }
+        else if (config.concurrent_validations > config.concurrent_compactors && !allowUnlimitedConcurrentValidations)
+        {
+            throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
+                                             "set the system property -D" + ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getKey() + "=true");
+        }
+    }
+
     public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(Config conf, DataRateSpec.LongBytesPerSecondBound value)
     {
         return validateThroughputUpperBound(value, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
@@ -992,20 +1006,6 @@ public class DatabaseDescriptor
         if (throughput.applyAsDouble(value) >= Integer.MAX_VALUE)
             throw new ConfigurationException(String.format("Invalid value: '%s'", value), false);
         return value;
-    }
-
-    @VisibleForTesting
-    static void applyConcurrentValidations(Config config)
-    {
-        if (config.concurrent_validations < 1)
-        {
-            config.concurrent_validations = config.concurrent_compactors;
-        }
-        else if (config.concurrent_validations > config.concurrent_compactors && !allowUnlimitedConcurrentValidations)
-        {
-            throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
-                                             "set the system property -D" + ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getKey() + "=true");
-        }
     }
 
     @VisibleForTesting
@@ -3082,8 +3082,7 @@ public class DatabaseDescriptor
 
     public static long getSnapshotLinksPerSecond()
     {
-        Long value = (Long) getProperty(ConfigFields.SNAPSHOT_LINKS_PER_SECOND);
-        return value == 0 ? Long.MAX_VALUE : value;
+        return conf.snapshot_links_per_second == 0 ? Long.MAX_VALUE : conf.snapshot_links_per_second;
     }
 
     public static void setSnapshotLinksPerSecond(long throttle)
@@ -3605,11 +3604,6 @@ public class DatabaseDescriptor
         return conf.repair_session_space.toMebibytes();
     }
 
-    public static void setRepairSessionSpaceInMiB(int sizeInMiB)
-    {
-        setProperty(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
-    }
-
     public static DataStorageSpec.IntMebibytesBound validateRepairSessionSpace(Config conf, DataStorageSpec.IntMebibytesBound newValue)
     {
         DataStorageSpec.IntMebibytesBound value0 = newValue == null ? new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB)) : newValue;
@@ -3618,6 +3612,11 @@ public class DatabaseDescriptor
         else if (value0.toMebibytes() > SPACE_UPPER_BOUND_MB)
             logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, value0.toMebibytes());
         return value0;
+    }
+
+    public static void setRepairSessionSpaceInMiB(int sizeInMiB)
+    {
+        setProperty(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
     }
 
     public static int getPaxosRepairParallelism()

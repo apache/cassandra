@@ -34,8 +34,6 @@ public class ConfigFields
     public static final String ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_inter_dc_stream_throughput_outbound";
     /** String representation of the {@link org.apache.cassandra.config.Config#entire_sstable_stream_throughput_outbound}. */
     public static final String ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_stream_throughput_outbound";
-    /** String representation of the {@link org.apache.cassandra.config.Config#hinted_handoff_enabled}. */
-    public static final String HINTED_HANDOFF_ENABLED = "hinted_handoff_enabled";
     /** String representation of the {@link org.apache.cassandra.config.Config#inter_dc_stream_throughput_outbound}. */
     public static final String INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "inter_dc_stream_throughput_outbound";
     /** String representation of the {@link org.apache.cassandra.config.Config#repair_session_space}. */
