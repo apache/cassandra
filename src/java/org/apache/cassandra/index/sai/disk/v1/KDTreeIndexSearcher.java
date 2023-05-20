@@ -96,6 +96,13 @@ public class KDTreeIndexSearcher extends IndexSearcher
     }
 
     @Override
+    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    {
+        // TODO order by
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public String toString()
     {
         return MoreObjects.toStringHelper(this)

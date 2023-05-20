@@ -89,7 +89,9 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
      *
      * @param nextToken value to skip the iterator forward until matching
      *
-     * @return The next current token after the skip was performed
+     * @return The next current key after the skip was performed.
+     * This key will also be the next key returned by next(), i.e.,
+     * we are "peeking" at the next key as part of the skip.
      */
     public final PrimaryKey skipTo(PrimaryKey nextToken)
     {
@@ -114,8 +116,13 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
         return recomputeNext();
     }
 
+    /**
+     * Skip up to nextKey, but leave your internal state in a position where
+     * calling computeNext() will return nextKey or the first one after it.
+     */
     protected abstract void performSkipTo(PrimaryKey nextToken);
 
+    // protected because inherited from Guava. We don't want to expose this method.
     protected PrimaryKey recomputeNext()
     {
         return tryToComputeNext() ? peek() : endOfData();
@@ -236,6 +243,8 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
             // as it gives direct answer as to such iterator is going to produce any results.
             private boolean isOverlapping = true;
 
+            private boolean hasRange = false;
+
             public Statistics(IteratorType iteratorType)
             {
                 this.iteratorType = iteratorType;
@@ -268,11 +277,13 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
 
                             max = range.getMaximum();
                         }
+                        tokenCount += range.getCount();
                         break;
 
                     case UNION:
                         min = nullSafeMin(min, range.getMinimum());
                         max = nullSafeMax(max, range.getMaximum());
+                        tokenCount += range.getCount();
                         break;
 
                     case INTERSECTION:
@@ -280,6 +291,10 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
                         min = nullSafeMax(min, range.getMinimum());
                         // maximum of the intersection is the smallest maximum of individual iterators
                         max = nullSafeMin(max, range.getMaximum());
+                        if (hasRange)
+                            tokenCount = Math.min(tokenCount, range.getCount());
+                        else
+                            tokenCount = range.getCount();
                         break;
 
                     default:
@@ -293,7 +308,7 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
                 minRange = minRange == null ? range : min(minRange, range);
                 maxRange = maxRange == null ? range : max(maxRange, range);
 
-                tokenCount += range.getCount();
+                hasRange = true;
             }
 
             private RangeIterator min(RangeIterator a, RangeIterator b)

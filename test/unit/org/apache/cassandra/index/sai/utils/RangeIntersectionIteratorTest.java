@@ -142,15 +142,15 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         builder.add(new LongIterator(new long[]{4L, 5L, 9L}));
         builder.add(new LongIterator(new long[]{7L, 8L, 9L}));
 
-        Assert.assertEquals(9L, builder.getMaximum().token().getLongValue());
-        Assert.assertEquals(9L, builder.getTokenCount());
+        assertEquals(9L, builder.getMaximum().token().getLongValue());
+        assertEquals(3L, builder.getTokenCount());
 
         RangeIterator tokens = builder.build();
 
-        Assert.assertNotNull(tokens);
-        Assert.assertEquals(7L, tokens.getMinimum().token().getLongValue());
-        Assert.assertEquals(9L, tokens.getMaximum().token().getLongValue());
-        Assert.assertEquals(9L, tokens.getCount());
+        assertNotNull(tokens);
+        assertEquals(7L, tokens.getMinimum().token().getLongValue());
+        assertEquals(9L, tokens.getMaximum().token().getLongValue());
+        assertEquals(3L, tokens.getCount());
 
         Assert.assertEquals(convert(9L), convert(builder.build()));
     }
@@ -169,11 +169,11 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         builder.add(new LongIterator(new long[] { 4L, 5L, 6L }));
         builder.add(new LongIterator(new long[] { 6L, 8L, 9L }));
 
-        Assert.assertEquals(6L, builder.getMinimum().token().getLongValue());
-        Assert.assertEquals(6L, builder.getMaximum().token().getLongValue());
-        Assert.assertEquals(9L, builder.getTokenCount());
-        Assert.assertEquals(3L, builder.rangeCount());
-        Assert.assertFalse(builder.statistics.isDisjoint());
+        assertEquals(6L, builder.getMinimum().token().getLongValue());
+        assertEquals(6L, builder.getMaximum().token().getLongValue());
+        assertEquals(3L, builder.getTokenCount());
+        assertEquals(3L, builder.rangeCount());
+        assertFalse(builder.statistics.isDisjoint());
 
         Assert.assertEquals(1L, builder.rangeIterators.get(0).getMinimum().token().getLongValue());
         Assert.assertEquals(4L, builder.rangeIterators.get(1).getMinimum().token().getLongValue());

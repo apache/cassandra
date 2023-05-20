@@ -20,28 +20,26 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
-import java.util.PriorityQueue;
 
 import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.lucene.util.SparseFixedBitSet;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
  */
-public class VectorIndexSearcher extends IndexSearcher
+public class VectorIndexSearcher extends IndexSearcher implements SegmentOrdering
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -75,8 +73,32 @@ public class VectorIndexSearcher extends IndexSearcher
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
+        var results = graph.search(queryVector, limit, null, Integer.MAX_VALUE);
+        return toIterator(results, context, defer);
+    }
 
-        return toIterator(new BatchPostingList(queryVector, limit), context, defer);
+    @Override
+    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    {
+        // materialize the underlying iterator as a bitset, then ask hnsw to search.
+        // the iterator represents keys from the same sstable segment as us,
+        // so we can use row ids to order the results by vector similarity
+        SparseFixedBitSet bits;
+        try (var mapper = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(context))
+        {
+            bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+            while (iterator.hasNext())
+            {
+                var pk = iterator.next();
+                var segmentRowId = metadata.segmentedRowId(mapper.rowIdFromPrimaryKey(pk));
+                var ordinal = graph.getOrdinal(segmentRowId);
+                bits.set(ordinal);
+            }
+        }
+        ByteBuffer buffer = exp.lower.value.raw;
+        float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
+        var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
+        return toIterator(results, context, false);
     }
 
     @Override
@@ -91,93 +113,5 @@ public class VectorIndexSearcher extends IndexSearcher
     public void close() throws IOException
     {
         graph.close();
-    }
-
-    private class BatchPostingList implements PostingList
-    {
-        private final float[] queryVector;
-        private final PriorityQueue<Long> queue;
-
-        private final int limit;
-        private BitSet bitset;
-
-        BatchPostingList(float[] queryVector, int limit)
-        {
-            this.queryVector = queryVector;
-            this.limit = limit;
-            this.queue = new PriorityQueue<>();
-        }
-
-        @Override
-        public long nextPosting() throws IOException
-        {
-            return computeNextPosting();
-        }
-
-        @Override
-        public long size()
-        {
-            // TODO Figure out what this should be
-            return limit;
-        }
-
-        @Override
-        public long advance(long targetRowID) throws IOException
-        {
-            long rowId = computeNextPosting();
-            while (rowId < targetRowID)
-                rowId = computeNextPosting();
-
-            return rowId;
-        }
-
-        private long computeNextPosting()
-        {
-            if (queue.isEmpty())
-            {
-                readBatch();
-                if (queue.isEmpty())
-                    return PostingList.END_OF_STREAM;
-            }
-
-            return queue.poll();
-        }
-
-        private void readBatch()
-        {
-            var results = graph.search(queryVector, limit, new InvertedBits(bitset), Integer.MAX_VALUE);
-            if (bitset == null)
-                bitset = new SparseFixedBitSet(graph.size());
-            while (results.hasNext())
-            {
-                var r = results.next();
-                bitset.set(r.vectorOrdinal);
-                for (var rowId : r.rowIds) {
-                    queue.offer((long) rowId);
-                }
-            }
-        }
-    }
-
-    private static class InvertedBits implements Bits
-    {
-        private final Bits wrapped;
-
-        InvertedBits(Bits wrapped)
-        {
-            this.wrapped = wrapped;
-        }
-
-        @Override
-        public boolean get(int i)
-        {
-            return wrapped == null ? true : !wrapped.get(i);
-        }
-
-        @Override
-        public int length()
-        {
-            return wrapped == null ? 0 : wrapped.length();
-        }
     }
 }

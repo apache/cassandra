@@ -52,10 +52,14 @@ import static org.apache.cassandra.index.sai.virtual.SegmentsSystemView.MIN_TERM
 import static org.apache.cassandra.index.sai.virtual.SegmentsSystemView.START_TOKEN;
 import static org.apache.cassandra.index.sai.virtual.SegmentsSystemView.TABLE_NAME;
 
+/**
+ * A version specific implementation of the {@link SearchableIndex} where the
+ * index is segmented
+ */
 public class V1SearchableIndex implements SearchableIndex
 {
     private final IndexContext indexContext;
-    private final ImmutableList<Segment> segments;
+    public final ImmutableList<Segment> segments; // FIXME probably shouldn't be public
     private final List<SegmentMetadata> metadatas;
     private final DecoratedKey minKey;
     private final DecoratedKey maxKey; // in token order
@@ -172,6 +176,13 @@ public class V1SearchableIndex implements SearchableIndex
         }
 
         return iterators;
+    }
+
+    @Override
+    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    {
+        // FIXME for multiple components
+        return segments.get(0).reorderOneComponent(context, iterator, exp, limit);
     }
 
     @Override

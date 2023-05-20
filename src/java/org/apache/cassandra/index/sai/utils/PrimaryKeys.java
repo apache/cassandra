@@ -47,6 +47,12 @@ public class PrimaryKeys implements Iterable<PrimaryKey>
         return keys.add(key) ? SET_ENTRY_OVERHEAD : 0;
     }
 
+    public void addAll(Iterable<PrimaryKey> keys)
+    {
+        for (var key : keys)
+            add(key);
+    }
+
     public SortedSet<PrimaryKey> keys()
     {
         return keys;

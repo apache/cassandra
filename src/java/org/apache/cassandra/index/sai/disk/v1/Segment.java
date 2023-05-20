@@ -29,11 +29,13 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -41,7 +43,7 @@ import org.apache.cassandra.io.util.FileUtils;
  * or max segment rowId limit, because of lucene's limitation on 2B(Integer.MAX_VALUE). It also helps to reduce resource
  * consumption for read requests as only segments that intersect with read request data range need to be loaded.
  */
-public class Segment implements Closeable
+public class Segment implements Closeable, SegmentOrdering
 {
     private final Token minKey;
     private final Token.KeyBound minKeyBound;
@@ -150,6 +152,12 @@ public class Segment implements Closeable
     public int hashCode()
     {
         return Objects.hashCode(metadata);
+    }
+
+    @Override
+    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    {
+        return index.reorderOneComponent(context, iterator, exp, limit);
     }
 
     @Override

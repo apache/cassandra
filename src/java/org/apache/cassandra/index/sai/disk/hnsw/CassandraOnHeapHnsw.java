@@ -21,16 +21,14 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -60,12 +58,12 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 @SuppressWarnings("com.google.common.annotations.Beta")
 public class CassandraOnHeapHnsw
 {
-    private final ByteBufferVectorValues vectorValues;
+    final ByteBufferVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final AtomicInteger cachedDimensions = new AtomicInteger();
     private final TypeSerializer<float[]> serializer;
     private final VectorSimilarityFunction similarityFunction;
-    private final Map<ByteBuffer, VectorPostings> postingsMap;
+    final Map<ByteBuffer, VectorPostings> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
     // FIXME this is disgusting and possibly unnecessary
@@ -133,7 +131,7 @@ public class CassandraOnHeapHnsw
     /**
      * @return PrimaryKeys associated with the topK vectors near the query
      */
-    public Iterator<AnnResultPk> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
+    public PriorityQueue<PrimaryKey> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
     {
         NeighborQueue queue;
         try
@@ -151,24 +149,15 @@ public class CassandraOnHeapHnsw
         {
             throw new RuntimeException(e);
         }
-        return new Iterator<>()
+        var pq = new PriorityQueue<PrimaryKey>();
+        while (queue.size() > 0)
         {
-            int remaining = queue.size();
-
-            @Override
-            public boolean hasNext()
+            for (var pk : keysFromOrdinal(queue.pop()))
             {
-                return remaining > 0;
+                pq.add(pk);
             }
-
-            @Override
-            public AnnResultPk next()
-            {
-                remaining--;
-                int ordinal = queue.pop();
-                return new AnnResultPk(ordinal, keysFromOrdinal(ordinal));
-            }
-        };
+        }
+        return pq;
     }
 
     public long ramBytesUsed()
@@ -181,40 +170,9 @@ public class CassandraOnHeapHnsw
         return vectorValues.size();
     }
 
-    private int rowCount()
+    int rowCount()
     {
         return postingsMap.values().stream().mapToInt(p -> p.keys.size()).sum();
-    }
-
-    private void writeOrdinalToRowMapping(File file, Map<PrimaryKey, Integer> keyToRowId) throws IOException
-    {
-        Preconditions.checkState(keyToRowId.size() == rowCount(),
-                                 "Expected %s rows, but found %s", keyToRowId.size(), rowCount());
-        Preconditions.checkState(postingsMap.size() == vectorValues.size(),
-                                 "Postings entries %s do not match vectors entries %s", postingsMap.size(), vectorValues.size());
-        try (var iow = IndexFileUtils.instance.openOutput(file)) {
-            var out = iow.asSequentialWriter();
-            // total number of vectors
-            out.writeInt(vectorValues.size());
-
-            // Write the offsets of the postings for each ordinal
-            long offset = 4L + 8L * vectorValues.size();
-            for (var i = 0; i < vectorValues.size(); i++) {
-                // (ordinal is implied; don't need to write it)
-                out.writeLong(offset);
-                var postings = postingsMap.get(vectorValues.bufferValue(i));
-                offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
-            }
-
-            // Write postings lists
-            for (var i = 0; i < vectorValues.size(); i++) {
-                var postings = postingsMap.get(vectorValues.bufferValue(i));
-                out.writeInt(postings.keys.size());
-                for (var key : postings.keys) {
-                    out.writeInt(keyToRowId.get(key));
-                }
-            }
-        }
     }
 
     private void writeGraph(File file) throws IOException
@@ -243,7 +201,7 @@ public class CassandraOnHeapHnsw
         try
         {
             writeVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-            writeOrdinalToRowMapping(descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
+            OnDiskOrdinalsMap.writeOrdinalToRowMapping(this, descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
             writeGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
         }
         finally
@@ -252,7 +210,7 @@ public class CassandraOnHeapHnsw
         }
     }
 
-    private static class VectorPostings
+    static class VectorPostings
     {
         public final int ordinal;
         public final List<PrimaryKey> keys;
@@ -270,7 +228,7 @@ public class CassandraOnHeapHnsw
         }
     }
 
-    private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
+    class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
         private final Map<Integer, ByteBuffer> values = new ConcurrentSkipListMap<>();
 
@@ -312,18 +270,6 @@ public class CassandraOnHeapHnsw
         public ByteBuffer bufferValue(int node)
         {
             return values.get(node);
-        }
-    }
-
-    public static class AnnResultPk
-    {
-        public final int vectorOrdinal;
-        public final Collection<PrimaryKey> keys;
-
-        public AnnResultPk(int vectorOrdinal, Collection<PrimaryKey> keys)
-        {
-            this.vectorOrdinal = vectorOrdinal;
-            this.keys = keys;
         }
     }
 }

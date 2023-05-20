@@ -20,7 +20,16 @@ package org.apache.cassandra.cql3;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -42,6 +51,11 @@ import org.apache.cassandra.utils.FBUtilities;
 /** a utility for doing internal cql-based queries */
 public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 {
+    public Stream<Row> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
+    }
+
     public static UntypedResultSet create(ResultSet rs)
     {
         return new FromResultSet(rs);

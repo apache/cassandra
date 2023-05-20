@@ -225,6 +225,12 @@ public class SegmentMetadata implements Comparable<SegmentMetadata>
         return componentMetadatas.get(indexComponent).length;
     }
 
+    // REVIEWME is this already implemented somewhere else?
+    public int segmentedRowId(long sstableRowId)
+    {
+        return Math.toIntExact(sstableRowId - minSSTableRowId);
+    }
+
     public static class ComponentMetadataMap
     {
         private final Map<IndexComponent, ComponentMetadata> metas = new HashMap<>();

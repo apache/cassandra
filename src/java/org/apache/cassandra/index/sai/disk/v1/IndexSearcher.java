@@ -29,6 +29,7 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 
 /**
@@ -37,7 +38,7 @@ import org.apache.cassandra.index.sai.utils.TypeUtil;
  * Accepts shared resources (token/offset file readers), and uses them to perform lookups against on-disk data
  * structures.
  */
-public abstract class IndexSearcher implements Closeable
+public abstract class IndexSearcher implements Closeable, SegmentOrdering
 {
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerIndexFiles indexFiles;

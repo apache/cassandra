@@ -37,6 +37,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -44,7 +45,7 @@ import org.apache.cassandra.io.util.FileUtils;
 /**
  * SSTableIndex is created for each column index on individual sstable to track per-column indexer.
  */
-public class SSTableIndex
+public class SSTableIndex implements SegmentOrdering
 {
     // sort sstable index by first key then last key
     public static final Comparator<SSTableIndex> COMPARATOR = Comparator.comparing((SSTableIndex s) -> s.getSSTable().first)
@@ -221,6 +222,12 @@ public class SSTableIndex
     public int hashCode()
     {
         return Objects.hashCode(sstableContext, indexContext);
+    }
+
+    @Override
+    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    {
+        return searchableIndex.reorderOneComponent(context, iterator, exp, limit);
     }
 
     public String toString()

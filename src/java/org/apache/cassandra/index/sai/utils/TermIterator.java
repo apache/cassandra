@@ -52,42 +52,43 @@ public class TermIterator extends RangeIterator
     }
 
     @SuppressWarnings("resource")
-    public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext, int limit, boolean defer)
-    {
-        final List<RangeIterator> tokens = new ArrayList<>(1 + perSSTableIndexes.size());;
-
-        RangeIterator memtableIterator = e.context.searchMemtable(e, keyRange, limit);
-        if (memtableIterator != null)
-            tokens.add(memtableIterator);
-
-        for (final SSTableIndex index : perSSTableIndexes)
-        {
-            try
-            {
-                queryContext.checkpoint();
-                queryContext.incSstablesHit();
-                assert !index.isReleased();
-
-                SSTableQueryContext context = queryContext.getSSTableQueryContext(index.getSSTable());
-                List<RangeIterator> keyIterators = index.search(e, keyRange, context, defer, limit);
-
-                if (keyIterators == null || keyIterators.isEmpty())
-                    continue;
-
-                tokens.addAll(keyIterators);
-            }
-            catch (Throwable e1)
-            {
-                if (logger.isDebugEnabled() && !(e1 instanceof AbortedOperationException))
-                    logger.debug(String.format("Failed search an index %s, skipping.", index.getSSTable()), e1);
-
-                throw Throwables.cleaned(e1);
-            }
-        }
-
-        RangeIterator ranges = RangeUnionIterator.build(tokens);
-        return new TermIterator(ranges, perSSTableIndexes, queryContext);
-    }
+// FIXME left unmerged since I'm focusing on the AND case which is handled by QueryController now
+//    public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext, int limit, boolean defer)
+//    {
+//        final List<RangeIterator> tokens = new ArrayList<>(1 + perSSTableIndexes.size());;
+//
+//        RangeIterator memtableIterator = e.context.searchMemtable(e, keyRange, limit);
+//        if (memtableIterator != null)
+//            tokens.add(memtableIterator);
+//
+//        for (final SSTableIndex index : perSSTableIndexes)
+//        {
+//            try
+//            {
+//                queryContext.checkpoint();
+//                queryContext.incSstablesHit();
+//                assert !index.isReleased();
+//
+//                SSTableQueryContext context = queryContext.getSSTableQueryContext(index.getSSTable());
+//                List<RangeIterator> keyIterators = index.search(e, keyRange, context, defer, limit);
+//
+//                if (keyIterators == null || keyIterators.isEmpty())
+//                    continue;
+//
+//                tokens.addAll(keyIterators);
+//            }
+//            catch (Throwable e1)
+//            {
+//                if (logger.isDebugEnabled() && !(e1 instanceof AbortedOperationException))
+//                    logger.debug(String.format("Failed search an index %s, skipping.", index.getSSTable()), e1);
+//
+//                throw Throwables.cleaned(e1);
+//            }
+//        }
+//
+//        RangeIterator ranges = RangeUnionIterator.build(tokens);
+//        return new TermIterator(ranges, perSSTableIndexes, queryContext);
+//    }
 
     protected PrimaryKey computeNext()
     {

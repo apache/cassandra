@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.utils;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -130,6 +131,19 @@ public class RangeIntersectionIterator extends RangeIterator
         ranges.forEach(FileUtils::closeQuietly);
     }
 
+    public static Builder builder(List<RangeIterator> ranges, int limit)
+    {
+        var builder = new Builder(ranges.size(), limit);
+        for (var range : ranges)
+            builder.add(range);
+        return builder;
+    }
+
+    public static Builder builder(List<RangeIterator> ranges)
+    {
+        return builder(ranges, INTERSECTION_CLAUSE_LIMIT);
+    }
+
     public static Builder builder()
     {
         return new Builder();
@@ -148,17 +162,23 @@ public class RangeIntersectionIterator extends RangeIterator
     public static class Builder extends RangeIterator.Builder
     {
         private final int limit;
-        protected List<RangeIterator> rangeIterators = new ArrayList<>();
+        protected List<RangeIterator> rangeIterators;
 
         public Builder()
         {
             this(Integer.MAX_VALUE);
         }
 
-        public Builder(int limit)
+        public Builder(int size, int limit)
         {
             super(IteratorType.INTERSECTION);
+            rangeIterators = new ArrayList<>();
             this.limit = limit;
+        }
+
+        public Builder(int limit)
+        {
+            this(10, limit);
         }
 
         public RangeIterator.Builder add(RangeIterator range)

@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.auth.DCPermissions;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -100,9 +103,9 @@ public class RangeUnionIterator extends RangeIterator
         return new Builder();
     }
 
-    public static RangeIterator build(List<RangeIterator> tokens)
+    public static RangeIterator build(Iterable<RangeIterator> tokens)
     {
-        return new Builder(tokens.size()).add(tokens).build();
+        return new Builder(Iterables.size(tokens)).add(tokens).build();
     }
 
     public static class Builder extends RangeIterator.Builder
@@ -137,9 +140,9 @@ public class RangeUnionIterator extends RangeIterator
             return this;
         }
 
-        public RangeIterator.Builder add(List<RangeIterator> ranges)
+        public RangeIterator.Builder add(Iterable<RangeIterator> ranges)
         {
-            if (ranges == null || ranges.isEmpty())
+            if (ranges == null || Iterables.isEmpty(ranges))
                 return this;
 
             ranges.forEach(this::add);

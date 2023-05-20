@@ -19,11 +19,10 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
-import java.util.Iterator;
-
-import com.google.common.base.Preconditions;
+import java.util.PriorityQueue;
 
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.util.File;
@@ -63,7 +62,8 @@ public class CassandraOnDiskHnsw
     /**
      * @return Row IDs associated with the topK vectors near the query
      */
-    public Iterator<AnnResultRowId> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
+    // TODO make this return something with a size
+    public AnnPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
     {
         NeighborQueue queue;
         try
@@ -76,36 +76,12 @@ public class CassandraOnDiskHnsw
                                              hnsw,
                                              acceptBits,
                                              vistLimit);
+            return new AnnPostingList(queue);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
-        return new Iterator<>()
-        {
-            int remaining = queue.size();
-
-            @Override
-            public boolean hasNext()
-            {
-                return remaining > 0;
-            }
-
-            @Override
-            public AnnResultRowId next()
-            {
-                remaining--;
-                int ordinal = queue.pop();
-                try
-                {
-                    return new AnnResultRowId(ordinal, ordinalsMap.getRowIdsMatching(ordinal));
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
     }
 
     public void close()
@@ -115,39 +91,9 @@ public class CassandraOnDiskHnsw
         hnsw.close();
     }
 
-    private static class OnDiskOrdinalsMap
+    public int getOrdinal(int segmentRowId) throws IOException
     {
-        private final RandomAccessReader reader;
-        private final int size;
-
-        public OnDiskOrdinalsMap(File file) throws IOException
-        {
-            this.reader = RandomAccessReader.open(file);
-            this.size = reader.readInt();
-        }
-
-        public int[] getRowIdsMatching(int vectorOrdinal) throws IOException
-        {
-            Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
-
-            // read index entry
-            reader.seek(4L + vectorOrdinal * 8L);
-            long offset = reader.readLong();
-            // seek to and read ordinals
-            reader.seek(offset);
-            int postingsSize = reader.readInt();
-            int[] ordinals = new int[postingsSize];
-            for (int i = 0; i < ordinals.length; i++)
-            {
-                ordinals[i] = reader.readInt();
-            }
-            return ordinals;
-        }
-
-        public void close()
-        {
-            reader.close();
-        }
+        return ordinalsMap.getOrdinalForRowId(segmentRowId);
     }
 
     private static class OnDiskVectors implements RandomAccessVectorValues<float[]>
@@ -199,15 +145,46 @@ public class CassandraOnDiskHnsw
         }
     }
 
-    public static class AnnResultRowId
+    public class AnnPostingList implements PostingList
     {
-        public final int vectorOrdinal;
-        public final int[] rowIds;
+        private final PriorityQueue<Integer> results;
+        private final int size;
 
-        public AnnResultRowId(int vectorOrdinal, int[] rowIds)
+        public AnnPostingList(NeighborQueue queue) throws IOException
         {
-            this.vectorOrdinal = vectorOrdinal;
-            this.rowIds = rowIds;
+            results = new PriorityQueue<>(queue.size());
+            while (queue.size() > 0) {
+                int ordinal = queue.pop();
+                // toIterator takes care of segmented id -> sstable row id conversion
+                for (int segmentRowId : ordinalsMap.getSegmentRowIdsMatching(ordinal))
+                    results.add(segmentRowId);
+            }
+            size = results.size();
+        }
+
+        @Override
+        public long nextPosting() throws IOException
+        {
+            if (results.isEmpty())
+                return PostingList.END_OF_STREAM;
+            return results.poll();
+        }
+
+        @Override
+        public long size()
+        {
+            return size;
+        }
+
+        @Override
+        public long advance(long targetRowID) throws IOException
+        {
+            long rowId;
+            do
+            {
+                rowId = nextPosting();
+            } while (rowId < targetRowID);
+            return rowId;
         }
     }
 }

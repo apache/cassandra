@@ -67,8 +67,14 @@ public class View implements Iterable<SSTableIndex>
         this.keyIntervalTree = IntervalTree.build(keyIntervals);
     }
 
-    public Set<SSTableIndex> match(Expression expression)
+    /**
+     * Search for a list of {@link SSTableIndex}es that contain values within
+     * the value range requested in the {@link Expression}
+     */
+    public Collection<SSTableIndex> match(Expression expression)
     {
+        if (expression.getOp() == Expression.Op.ANN)
+            return getIndexes();
         return termTree.search(expression);
     }
 

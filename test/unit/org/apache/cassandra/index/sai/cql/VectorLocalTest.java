@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,12 +28,17 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorLocalTest extends SAITester
 {
+    private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
+
     private int dimensionCount;
 
     @Before
@@ -87,6 +93,42 @@ public class VectorLocalTest extends SAITester
     }
 
     @Test
+    public void multiSSTablesTest() throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(keyspace());
+
+        int sstableCount = getRandom().nextIntBetween(3, 6);
+        int vectorCountPerSSTable = getRandom().nextIntBetween(200, 400);
+        int pk = 0;
+
+        // create multiple sstables
+        List<float[]> allVectors = new ArrayList<>(sstableCount * vectorCountPerSSTable);
+        for (int i = 0; i < sstableCount; i++)
+        {
+            List<float[]> vectors = IntStream.range(0, vectorCountPerSSTable).mapToObj(s -> randomVector()).collect(Collectors.toList());
+            for (float[] vector : vectors)
+                execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(vector) + " )", pk++);
+
+            allVectors.addAll(vectors);
+            flush();
+        }
+        assertThat(getCurrentColumnFamilyStore(keyspace()).getLiveSSTables()).hasSize(sstableCount);
+
+        // query multiple on-disk indexes
+        int limit = Math.min(getRandom().nextIntBetween(30, 50), vectorCountPerSSTable);
+        float[] queryVector = randomVector();
+        UntypedResultSet resultSet = search(queryVector, limit);
+
+        // expect recall to be at least 0.8
+        List<float[]> resultVectors = getVectorsFromResult(resultSet);
+        double recall = getRecall(allVectors, queryVector, resultVectors);
+        assertThat(recall).isGreaterThanOrEqualTo(0.8);
+    }
+
+    @Test
     public void partitionRestrictedTest() throws Throwable
     {
         createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
@@ -129,10 +171,11 @@ public class VectorLocalTest extends SAITester
 //        searchWithKey(queryVector, key);
     }
 
-    private void search(float[] queryVector, int limit) throws Throwable
+    private UntypedResultSet search(float[] queryVector, int limit) throws Throwable
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
         assertThat(result).hasSize(limit);
+        return result;
     }
 
     private void searchWithKey(float[] queryVector, int key) throws Throwable
@@ -154,5 +197,44 @@ public class VectorLocalTest extends SAITester
             rawVector[i] = getRandom().nextFloat();
         }
         return rawVector;
+    }
+
+    private double getRecall(List<float[]> vectors, float[] query, List<float[]> result)
+    {
+        List<float[]> sortedVectors = new ArrayList<>(vectors);
+        sortedVectors.sort((a, b) -> Double.compare(function.compare(b, query), function.compare(a, query)));
+
+        assertThat(sortedVectors).containsAll(result);
+
+        List<float[]> nearestNeighbors = sortedVectors.subList(0, result.size());
+
+        int matches = 0;
+        for (float[] in : nearestNeighbors)
+        {
+            for (float[] out : result)
+            {
+                if (Arrays.compare(in, out) ==0)
+                {
+                    matches++;
+                    break;
+                }
+            }
+        }
+
+        return matches * 1.0 / result.size();
+    }
+
+    private List<float[]> getVectorsFromResult(UntypedResultSet result)
+    {
+        List<float[]> vectors = new ArrayList<>();
+        VectorType vectorType = VectorType.getInstance(dimensionCount);
+
+        // verify results are part of inserted vectors
+        for (UntypedResultSet.Row row: result)
+        {
+            vectors.add(vectorType.compose(row.getBytes("val")));
+        }
+
+        return vectors;
     }
 }

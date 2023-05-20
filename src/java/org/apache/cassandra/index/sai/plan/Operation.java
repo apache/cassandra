@@ -332,14 +332,10 @@ public class Operation
         @Override
         RangeIterator rangeIterator(QueryController controller)
         {
-            RangeIterator.Builder builder = controller.getIndexes(OperationType.AND, expressionMap.values());
+            // REVIEWME Caleb said this was fine in OSS, not sure if it's fine in CC
             for (Node child : children)
-            {
-                boolean canFilter = child.canFilter();
-                if (canFilter)
-                    builder.add(child.rangeIterator(controller));
-            }
-            return builder.build();
+                assert !child.canFilter() : "Nested boolean queries are not supported";
+            return controller.getIndexes(OperationType.AND, expressionMap.values());
         }
     }
 
@@ -360,11 +356,13 @@ public class Operation
         @Override
         RangeIterator rangeIterator(QueryController controller)
         {
-            RangeIterator.Builder builder = controller.getIndexes(OperationType.OR, expressionMap.values());
-            for (Node child : children)
-                if (child.canFilter())
-                    builder.add(child.rangeIterator(controller));
-            return builder.build();
+            // FIXME
+            throw new UnsupportedOperationException("OR queries are not supported");
+//            RangeIterator.Builder builder = controller.getIndexes(OperationType.OR, expressionMap.values());
+//            for (Node child : children)
+//                if (child.canFilter())
+//                    builder.add(child.rangeIterator(controller));
+//            return builder.build();
         }
     }
 
@@ -398,8 +396,8 @@ public class Operation
         @Override
         RangeIterator rangeIterator(QueryController controller)
         {
-            assert canFilter();
-            return controller.getIndexes(OperationType.AND, expressionMap.values()).build();
+            assert canFilter() : "Cannot process query with no expressions";
+            return controller.getIndexes(OperationType.AND, expressionMap.values());
         }
     }
 }
