@@ -206,7 +206,7 @@ public class Config
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
     @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateRepairSessionSpace")
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateRepairSessionSpace")
     @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
@@ -320,6 +320,8 @@ public class Config
      */
     public String auto_snapshot_ttl;
 
+    @Mutable
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateValueIsPositive")
     public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
@@ -333,11 +335,9 @@ public class Config
     public volatile DataStorageSpec.IntKibibytesBound batch_size_fail_threshold = new DataStorageSpec.IntKibibytesBound("50KiB");
 
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
-    @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateConcurrentCompactors")
     public volatile Integer concurrent_compactors;
     @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("64MiB/s");
     @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
@@ -362,18 +362,18 @@ public class Config
     public int max_streaming_retries = 3;
 
     @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbits")
     @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
     @Mutable
-    @Validate(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
+    @ValidatedBy(useClass = DATABASE_DESCRIPTOR_CLASS, useClassMethod = "validateThroughputUpperBoundMbytes")
     public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
 
     public String[] data_file_directories = new String[0];

@@ -17,161 +17,97 @@
  */
 package org.apache.cassandra.config;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Iterator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
 
-import com.google.common.base.Preconditions;
-import org.apache.commons.lang3.ArrayUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.introspector.Property;
 
 /**
  *
  */
-public class ListenableProperty<T> extends Property
+public class ListenableProperty<S, T> extends ForwardingProperty
 {
-    private static final Logger logger = LoggerFactory.getLogger(ListenableProperty.class);
-    private final Property delegate;
-    private final Invoker<T> validateInvoker;
-    private final List<PropertyListener<T>> listeners = new CopyOnWriteArrayList<>();
+    private final Map<EventType, List<Handler<S, T>>> handlers = new EnumMap<>(EventType.class);
 
     public ListenableProperty(Property property)
     {
-        super(property.getName(), property.getType());
-        this.delegate = property;
-        this.validateInvoker = property.getAnnotation(Validate.class) == null ?
-                               (conf, val) -> val :
-                               PropertyValidateInvoker.create(property);
-    }
-
-    @Override
-    public boolean isWritable()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean isReadable()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Class<?>[] getActualTypeArguments()
-    {
-        return delegate.getActualTypeArguments();
+        super(property.getName(), property);
+        for (EventType eventType : EventType.values())
+            handlers.put(eventType, new CopyOnWriteArrayList<>());
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public synchronized void set(Object config, Object newValue) throws Exception
+    public synchronized void set(Object source, Object newValue) throws Exception
     {
-        if (getAnnotation(Mutable.class) == null)
-            throw new ConfigurationException("Property is read-only: " + getName());
-
-        T validatedValue = validateInvoker.invoke((Config) config, (T) newValue);
-        T oldValue = get(config);
-        Iterator<PropertyListener<T>> iterator = listeners.iterator();
-        while (iterator.hasNext())
-            iterator.next().onBeforeChange(oldValue, validatedValue);
-        delegate.set(config, validatedValue);
-        while (iterator.hasNext())
-            iterator.next().onAfterChange(oldValue, validatedValue);
-        if (logger.isInfoEnabled())
-            logger.info("Updated {} from {} to {}", getName(), oldValue, validatedValue);
+        T oldValue = (T) get(source);
+        delegate().set(source, Handler.compose(handlers.get(EventType.BEFORE))
+                                      .handle((S) source, oldValue, (T) newValue));
+        Handler.compose(handlers.get(EventType.AFTER))
+               .handle((S) source, oldValue, (T) newValue);
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public T get(Object conf)
+    public synchronized Remover addBeforeHandler(Handler<S, T> handler)
     {
-        return (T) delegate.get(conf);
+        handlers.computeIfAbsent(EventType.BEFORE, k -> new CopyOnWriteArrayList<>()).add(handler);
+        return () -> handlers.get(EventType.BEFORE).remove(handler);
     }
 
-    @Override
-    public List<Annotation> getAnnotations()
+    public synchronized Remover addAfterHandler(Handler<S, T> handler)
     {
-        return delegate.getAnnotations();
+        handlers.computeIfAbsent(EventType.AFTER, k -> new CopyOnWriteArrayList<>()).add(handler);
+        return () -> handlers.get(EventType.AFTER).remove(handler);
     }
 
-    @Override
-    public <A extends Annotation> A getAnnotation(Class<A> aClass)
+    private enum EventType
     {
-        return delegate.getAnnotation(aClass);
+        BEFORE, AFTER
     }
 
-    public PropertyListener.Remover addListener(PropertyListener<T> listener)
+    /**
+     * The handler to be notified before and after a configuration value is changed.
+     * @param <S> the type of the object to mutate.
+     * @param <V> the type of the value to mutate.
+     */
+    @FunctionalInterface
+    public interface Handler<S, V>
     {
-        listeners.add(listener);
-        return () -> listeners.remove(listener);
-    }
+        V handle(S source, V oldValue, V newValue);
 
-    interface Invoker<T>
-    {
-        T invoke(Config config, T newValue);
-    }
-
-    private static class PropertyValidateInvoker<T> implements Invoker<T>
-    {
-        private final String name;
-        private final Method validateMethod;
-
-        private PropertyValidateInvoker(String name, Method validateMethod)
+        static <S, V> Handler<S, V> consume(BiConsumer<? super V, ? super  V> consumer)
         {
-            this.name = name;
-            this.validateMethod = validateMethod;
+            return (source, oldValue, newValue) -> {
+                consumer.accept(oldValue, newValue);
+                return newValue;
+            };
         }
 
-        public static <T> PropertyValidateInvoker<T> create(Property property)
+        static <S, V> Handler<S, V > compose(List<Handler < S, V >> handlers)
         {
-            Preconditions.checkNotNull(property.getAnnotation(Validate.class));
-            try
-            {
-                Validate annotation = property.getAnnotation(Validate.class);
-                Class<?> clazz = Class.forName(annotation.useClass());
-                for (Method validateMethod : clazz.getDeclaredMethods())
-                {
-                    if (validateMethod.getName().equals(annotation.useClassMethod()) &&
-                        Arrays.equals(ArrayUtils.addAll(validateMethod.getParameterTypes(), validateMethod.getReturnType()),
-                                      ArrayUtils.addAll(new Class<?>[]{Config.class, String.class, property.getType()}, property.getType())))
-                    {
-                        int modifiers = validateMethod.getModifiers();
-                        if (Modifier.isPrivate(modifiers) || Modifier.isProtected(modifiers))
-                            throw new ConfigurationException("Validate method must be public: " + validateMethod.getName(), false);
-                        return new PropertyValidateInvoker<>(property.getName(), validateMethod);
-                    }
-                }
-                throw new ConfigurationException("Validate method not found for field: " + property.getName(), false);
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Failed to initialize: " + e.getMessage(), e);
-            }
+            return (source, oldValue, newValue) -> {
+                V value = newValue;
+                for (Handler<S, V> handler : handlers)
+                    value = handler.handle(source, oldValue, value);
+                return value;
+            };
         }
+    }
 
-        @SuppressWarnings("unchecked")
+    /**
+     * The handler to remove a configuration value listener.
+     */
+    @FunctionalInterface
+    public interface Remover extends Runnable
+    {
+        void remove();
+
         @Override
-        public T invoke(Config config, T newValue)
+        default void run()
         {
-            try
-            {
-                return (T) validateMethod.invoke(null, config, name, newValue);
-            }
-            catch (Exception e)
-            {
-                if (e.getCause() instanceof ConfigurationException)
-                    throw (ConfigurationException) e.getCause();
-                throw new ConfigurationException(String.format("Failed to call validation method '%s' for property '%s'.", validateMethod.getName(), name), e);
-            }
+            remove();
         }
     }
 }

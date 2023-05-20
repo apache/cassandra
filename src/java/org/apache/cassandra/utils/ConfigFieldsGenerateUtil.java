@@ -50,7 +50,7 @@ public class ConfigFieldsGenerateUtil
         {
             String configPackage = configClazz.getPackage().getName();
             URL root = configClazz.getProtectionDomain().getCodeSource().getLocation();
-            destDir = Paths.get(new File(root.toURI()).getParentFile().getParent(), // checkstyle: permit this instantiation
+            destDir = Paths.get(new File(root.toURI()).getParentFile().getParentFile().getParent(), // checkstyle: permit this instantiation
                                 "src/java/",
                                 COMPILE.matcher(configPackage).replaceAll("/"),
                                 "/").toFile().getAbsolutePath(); // checkstyle: permit this invocation

@@ -30,16 +30,18 @@ public class ConfigFields
 {
     /** String representation of the {@link org.apache.cassandra.config.Config#compaction_throughput}. */
     public static final String COMPACTION_THROUGHPUT = "compaction_throughput";
-    /** String representation of the {@link org.apache.cassandra.config.Config#concurrent_compactors}. */
-    public static final String CONCURRENT_COMPACTORS = "concurrent_compactors";
     /** String representation of the {@link org.apache.cassandra.config.Config#entire_sstable_inter_dc_stream_throughput_outbound}. */
     public static final String ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_inter_dc_stream_throughput_outbound";
     /** String representation of the {@link org.apache.cassandra.config.Config#entire_sstable_stream_throughput_outbound}. */
     public static final String ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_stream_throughput_outbound";
+    /** String representation of the {@link org.apache.cassandra.config.Config#hinted_handoff_enabled}. */
+    public static final String HINTED_HANDOFF_ENABLED = "hinted_handoff_enabled";
     /** String representation of the {@link org.apache.cassandra.config.Config#inter_dc_stream_throughput_outbound}. */
     public static final String INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "inter_dc_stream_throughput_outbound";
     /** String representation of the {@link org.apache.cassandra.config.Config#repair_session_space}. */
     public static final String REPAIR_SESSION_SPACE = "repair_session_space";
+    /** String representation of the {@link org.apache.cassandra.config.Config#snapshot_links_per_second}. */
+    public static final String SNAPSHOT_LINKS_PER_SECOND = "snapshot_links_per_second";
     /** String representation of the {@link org.apache.cassandra.config.Config#stream_throughput_outbound}. */
     public static final String STREAM_THROUGHPUT_OUTBOUND = "stream_throughput_outbound";
 

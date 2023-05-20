@@ -120,8 +120,8 @@ public class UpdateSettingsTableTest extends CQLTester
         }
         assertNotNull(e);
         assertEquals("Unexpected error: " + e.getMessage(),
-                     "Invalid update request for property 'stream_throughput_outbound'. " +
-                     "Invalid value of 'stream_throughput_outbound': '2147483647MiB/s'",
+                     "Invalid update request 'stream_throughput_outbound'. Cause: Property " +
+                     "'stream_throughput_outbound' validation failed: Invalid value: '2147483647MiB/s'",
                      e.getMessage());
     }
 
@@ -135,20 +135,15 @@ public class UpdateSettingsTableTest extends CQLTester
     @Test
     public void testBactchUpdateSettings() throws Throwable
     {
-        Integer newConcurrnetCompactors = 5;
         DataRateSpec.LongBytesPerSecondBound newCompactionThroughput = new DataRateSpec.LongBytesPerSecondBound("44MiB/s");
         DataRateSpec.LongBytesPerSecondBound newStreamThroughputOutbound = new DataRateSpec.LongBytesPerSecondBound("14MiB/s");
         // LOGGED BATCH statements with virtual tables are not supported.
         execute("BEGIN UNLOGGED BATCH " +
-                String.format("UPDATE vts.settings SET value = '%s' WHERE name = '%s'; ",
-                              newConcurrnetCompactors, ConfigFields.CONCURRENT_COMPACTORS) +
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
                               propertyToStringConverter().convert(newCompactionThroughput), ConfigFields.COMPACTION_THROUGHPUT) +
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
                               propertyToStringConverter().convert(newStreamThroughputOutbound), ConfigFields.STREAM_THROUGHPUT_OUTBOUND) +
                 "APPLY BATCH ");
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.CONCURRENT_COMPACTORS),
-                      new Object[]{ ConfigFields.CONCURRENT_COMPACTORS, String.valueOf(newConcurrnetCompactors) });
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.COMPACTION_THROUGHPUT),
                       new Object[]{ ConfigFields.COMPACTION_THROUGHPUT, newCompactionThroughput.toString() });
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.STREAM_THROUGHPUT_OUTBOUND),
@@ -168,9 +163,10 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, propertyToStringConverter().convertNullable(value), propertyName));
+        String valueStr = propertyToStringConverter().convertNullable(value);
+        assertRowsNet(executeNet(statement, valueStr, propertyName));
         assertEquals(value, DatabaseDescriptor.getProperty(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, DatabaseDescriptor.TypeConverter.TO_STRING.convertNullable((value)) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, propertyToStringConverter().convertNullable(value) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)
@@ -199,7 +195,7 @@ public class UpdateSettingsTableTest extends CQLTester
                            .put(int.class, new Object[]{ 1, 2 })
                            .put(Long.class, new Object[]{ 1L, 2L })
                            .put(long.class, new Object[]{ 1L, 2L })
-                           .put(String.class, new Object[]{ "TestString1", "TestString2" })
+                           .put(String.class, new Object[]{ "1", "2" })
                            .put(DurationSpec.LongNanosecondsBound.class, new Object[]{ new DurationSpec.LongNanosecondsBound("100ns"), new DurationSpec.LongNanosecondsBound("200ns") })
                            .put(DurationSpec.LongMillisecondsBound.class, new Object[]{ new DurationSpec.LongMillisecondsBound("100ms"), new DurationSpec.LongMillisecondsBound("200ms") })
                            .put(DurationSpec.LongSecondsBound.class, new Object[]{ new DurationSpec.LongSecondsBound("1s"), new DurationSpec.LongSecondsBound("2s") })

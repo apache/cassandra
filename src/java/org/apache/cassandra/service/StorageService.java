@@ -107,11 +107,9 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
-import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.PropertyListener;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -921,10 +919,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(endpoint));
         }
 
-        PropertyListener.Remover unregister =
-            DatabaseDescriptor.addBeforeChangePropertyListener(ConfigFields.CONCURRENT_COMPACTORS,
-                                              Integer.class, (oldValue, newValue) -> CompactionManager.instance.setConcurrentCompactors(newValue));
-
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         drainOnShutdown = NamedThreadFactory.createThread(new WrappedRunnable()
         {
@@ -932,7 +926,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             public void runMayThrow() throws InterruptedException, ExecutionException, IOException
             {
                 drain(true);
-                unregister.run();
                 try
                 {
                     ExecutorUtils.shutdownNowAndWait(1, MINUTES, ScheduledExecutors.scheduledFastTasks);
@@ -1837,7 +1830,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setConcurrentCompactors(int value)
     {
+        if (value <= 0)
+            throw new IllegalArgumentException("Number of concurrent compactors should be greater than 0.");
         DatabaseDescriptor.setConcurrentCompactors(value);
+        CompactionManager.instance.setConcurrentCompactors(value);
     }
 
     public void bypassConcurrentValidatorsLimit()

@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -355,6 +356,20 @@ public class YamlConfigurationLoaderTest
         // NEGATIVE_MEBIBYTES_DATA_STORAGE_INT
         assertThat(from("sstable_preemptive_open_interval_in_mb", "1").sstable_preemptive_open_interval.toMebibytes()).isEqualTo(1);
         assertThat(from("sstable_preemptive_open_interval_in_mb", -2).sstable_preemptive_open_interval).isNull();
+    }
+
+    /**
+     * This test config is used to test @ValidatedBy annotations on configuration properties. This method
+     * is used to validate the configuration properties at runtime for both cases: before the configuration
+     * is loaded and after the configuration is attempted to be changed through JMX or SettingsTable.
+     */
+    @Test
+    public void testConfigValuesValidatedOnLoad()
+    {
+        Map<String, Object> map = ImmutableMap.of("snapshot_links_per_second", "-1");
+        assertThatThrownBy(() -> YamlConfigurationLoader.fromMap(map, Config.class))
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseMessage("Value must be positive");
     }
 
     private static Config from(Object... values)

@@ -118,7 +118,7 @@ public class ConfigCompatabilityTest
     {
         Class<Config> type = Config.class;
         ClassTree previous = load(original);
-        Loader loader = Properties.withReplacementsLoader();
+        Loader loader = Properties.defaultLoader();
         Map<Class<?>, Map<String, Replacement>> replacements = Replacements.getNameReplacements(type);
         Set<String> missing = new HashSet<>();
         Set<String> errors = new HashSet<>();
@@ -218,7 +218,7 @@ public class ConfigCompatabilityTest
     public static ClassTree toTree(Class<?> klass)
     {
         ClassTree node = new ClassTree(klass);
-        addProperties(Properties.withReplacementsLoader(), node, klass);
+        addProperties(Properties.defaultLoader(), node, klass);
         return node;
     }
 

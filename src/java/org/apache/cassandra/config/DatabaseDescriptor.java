@@ -28,7 +28,6 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -106,8 +105,6 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
-import org.yaml.snakeyaml.introspector.FieldProperty;
-import org.yaml.snakeyaml.introspector.MethodProperty;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static java.util.Optional.ofNullable;
@@ -137,9 +134,12 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYS
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.config.Properties.validatedPropertyLoader;
+import static org.apache.cassandra.config.Properties.withReplacementsLoader;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
+import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 public class DatabaseDescriptor
 {
@@ -430,17 +430,9 @@ public class DatabaseDescriptor
     private static void setConfig(Supplier<Config> config)
     {
         conf = config.get();
-        confValueAccessors = ImmutableMap.copyOf(Properties.withReplacementsLoader()
-                                                           .flatten(Config.class)
-                                                           .entrySet()
-                                                           .stream()
-                                                           .map(e -> {
-                                                               if (e.getValue() instanceof FieldProperty || e.getValue() instanceof MethodProperty)
-                                                                   return new AbstractMap.SimpleEntry<>(e.getKey(), new ListenableProperty<>(e.getValue()));
-                                                               else
-                                                                   return e;
-                                                           })
-                                                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        confValueAccessors = ImmutableMap.copyOf(
+            withReplacementsLoader(
+                validatedPropertyLoader(p -> p.getAnnotation(Mutable.class) == null)).flatten(Config.class));
     }
 
     private static void applyAll() throws ConfigurationException
@@ -770,7 +762,12 @@ public class DatabaseDescriptor
         if (conf.memtable_cleanup_threshold < 0.1f)
             logger.warn("memtable_cleanup_threshold is set very low [{}], which may cause performance degradation", conf.memtable_cleanup_threshold);
 
-        setProperty(ConfigFields.CONCURRENT_COMPACTORS, conf.concurrent_compactors);
+        if (conf.concurrent_compactors == null)
+            conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
+
+        if (conf.concurrent_compactors <= 0)
+            throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
+
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
         applyReadThresholdsValidations(conf);
@@ -904,9 +901,6 @@ public class DatabaseDescriptor
             }
         }
 
-        if (conf.snapshot_links_per_second < 0)
-            throw new ConfigurationException("snapshot_links_per_second must be >= 0");
-
         if (conf.max_value_size.toMebibytes() == 0)
             throw new ConfigurationException("max_value_size must be positive", false);
         else if (conf.max_value_size.toMebibytes() >= 2048)
@@ -983,20 +977,20 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
     }
 
-    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(Config conf, String name, DataRateSpec.LongBytesPerSecondBound value)
+    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(Config conf, DataRateSpec.LongBytesPerSecondBound value)
     {
-        return validateThroughputUpperBound(name, value, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
+        return validateThroughputUpperBound(value, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
     }
 
-    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbytes(Config conf, String name, DataRateSpec.LongBytesPerSecondBound value)
+    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbytes(Config conf, DataRateSpec.LongBytesPerSecondBound value)
     {
-        return validateThroughputUpperBound(name, value, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
+        return validateThroughputUpperBound(value, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
     }
 
-    private static <T extends DataRateSpec<T>> T validateThroughputUpperBound(String name, T value, ToDoubleFunction<T> throughput)
+    private static <T extends DataRateSpec<T>> T validateThroughputUpperBound(T value, ToDoubleFunction<T> throughput)
     {
         if (throughput.applyAsDouble(value) >= Integer.MAX_VALUE)
-            throw new ConfigurationException(String.format("Invalid value of '%s': '%s'", name, value), false);
+            throw new ConfigurationException(String.format("Invalid value: '%s'", value), false);
         return value;
     }
 
@@ -2117,7 +2111,7 @@ public class DatabaseDescriptor
 
     public static void setConcurrentCompactors(int value)
     {
-        setProperty(ConfigFields.CONCURRENT_COMPACTORS, value);
+        conf.concurrent_compactors = value;
     }
 
     public static int getCompactionThroughputMebibytesPerSecAsInt()
@@ -3088,15 +3082,19 @@ public class DatabaseDescriptor
 
     public static long getSnapshotLinksPerSecond()
     {
-        return conf.snapshot_links_per_second == 0 ? Long.MAX_VALUE : conf.snapshot_links_per_second;
+        Long value = (Long) getProperty(ConfigFields.SNAPSHOT_LINKS_PER_SECOND);
+        return value == 0 ? Long.MAX_VALUE : value;
     }
 
     public static void setSnapshotLinksPerSecond(long throttle)
     {
-        if (throttle < 0)
-            throw new IllegalArgumentException("Invalid throttle for snapshot_links_per_second: must be positive");
+        setProperty(ConfigFields.SNAPSHOT_LINKS_PER_SECOND, throttle);
+    }
 
-        conf.snapshot_links_per_second = throttle;
+    public static void validateValueIsPositive(Config conf, long value)
+    {
+        if (value < 0)
+            throw new ConfigurationException("Value must be positive", false);
     }
 
     public static RateLimiter getSnapshotRateLimiter()
@@ -3612,25 +3610,14 @@ public class DatabaseDescriptor
         setProperty(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
     }
 
-    public static DataStorageSpec.IntMebibytesBound validateRepairSessionSpace(Config conf, String name, DataStorageSpec.IntMebibytesBound newValue)
+    public static DataStorageSpec.IntMebibytesBound validateRepairSessionSpace(Config conf, DataStorageSpec.IntMebibytesBound newValue)
     {
         DataStorageSpec.IntMebibytesBound value0 = newValue == null ? new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB)) : newValue;
         if (value0.toMebibytes() < 1)
-            throw new ConfigurationException(String.format("Cannot set '%s' to '%s' < 1 mebibyte", name, value0.toMebibytes()));
+            throw new ConfigurationException(String.format("Cannot set to '%s' < 1 mebibyte", value0.toMebibytes()));
         else if (value0.toMebibytes() > SPACE_UPPER_BOUND_MB)
-            logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", name, value0.toMebibytes());
+            logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, value0.toMebibytes());
         return value0;
-    }
-
-    public static Integer validateConcurrentCompactors(Config conf, String name, Integer newValue)
-    {
-        if (newValue == null)
-            newValue = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
-
-        if (newValue <= 0)
-            throw new ConfigurationException(String.format("'%s' should be strictly greater than 0, but was '%s'",
-                                                           name, newValue), false);
-        return newValue;
     }
 
     public static int getPaxosRepairParallelism()
@@ -4756,24 +4743,35 @@ public class DatabaseDescriptor
         }
     }
 
-    public static <T> PropertyListener.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
+    public static <T> ListenableProperty.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
     {
-        return addPropertyListner(name, clazz, new PropertyListener<T>()
-        {
-            @Override
-            public void onBeforeChange(T oldValue, T newValue)
-            {
-                consumer.accept(oldValue, newValue);
-            }
-        });
+        return addPropertyListener(name, clazz, p -> p.addBeforeHandler(ListenableProperty.Handler.consume(consumer)));
+    }
+
+    public static <T> ListenableProperty.Remover addAfterChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
+    {
+        return addPropertyListener(name, clazz, p -> p.addAfterHandler(ListenableProperty.Handler.consume(consumer)));
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> PropertyListener.Remover addPropertyListner(String name, Class<T> clazz, PropertyListener<T> listener)
+    private static <T> ListenableProperty.Remover addPropertyListener(String name,
+                                                                      Class<T> clazz,
+                                                                      Function<ListenableProperty<Config, T>, ListenableProperty.Remover> adder)
     {
-        Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
-        if (property instanceof ListenableProperty && clazz.equals(property.getType()))
-            return ((ListenableProperty<T>) property).addListener(listener);
+        Property property = ofNullable(confValueAccessors.get(name))
+                            .map(p -> {
+                                // The case when replacement property is used and match the property's name.
+                                if (p instanceof Replacement.ReplacementProperty)
+                                    return ((Replacement.ReplacementProperty) p).delegate();
+                                else
+                                    return p;
+                            })
+                            .orElseThrow(() -> new PropertyNotFoundException(name));
+        if (!(property instanceof ListenableProperty))
+            throw new ConfigurationException(String.format("Property '%s' is not listenable.", name));
+
+        if (clazz.equals(property.getType()))
+            return adder.apply((ListenableProperty<Config, T>) property);
         else
             throw new ConfigurationException(String.format("Listener type '%s' doesn't match the property '%s' type '%s'.",
                                                            clazz.getSimpleName(), name, clazz.getSimpleName()));
@@ -4806,6 +4804,9 @@ public class DatabaseDescriptor
         try
         {
             Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
+            if (property.getAnnotation(Mutable.class) == null)
+                throw new ConfigurationException("Property is read-only: " + property.getName());
+
             if (value == null)
             {
                 property.set(conf, null);
@@ -4815,10 +4816,11 @@ public class DatabaseDescriptor
             if (property.getType().isAssignableFrom(value.getClass()))
                 property.set(conf, value);
             else if (String.class.equals(value.getClass()))
-                property.set(conf, propertyFromStringConverter(property.getType()).convert((String) value));
+                property.set(conf, propertyFromStringConverter(primitiveToWrapper(property.getType())).convert((String) value));
             else
                 throw new ConfigurationException(String.format("Cannot convert value '%s' to type '%s'.",
                                                                value, property.getType().getSimpleName()), false);
+            logger.info("Property {} updated to {}", name, value);
         }
         catch (ConfigurationException e)
         {
@@ -4865,8 +4867,6 @@ public class DatabaseDescriptor
      */
     public interface TypeConverter<T, R>
     {
-        TypeConverter<Object, String> TO_STRING = Object::toString;
-
         /**
          * Converts a value to the target type.
          * @param value Value to convert.

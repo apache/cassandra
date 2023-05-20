@@ -320,7 +320,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     @VisibleForTesting
     private static class PropertiesChecker extends PropertyUtils
     {
-        private final Loader loader = Properties.withReplacementsLoader();
+        private final Loader loader = Properties.withReplacementsLoader(Properties.validatedPropertyLoader());
         private final Set<String> missingProperties = new HashSet<>();
 
         private final Set<String> nullProperties = new HashSet<>();

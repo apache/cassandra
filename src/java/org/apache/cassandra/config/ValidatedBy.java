@@ -29,7 +29,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface Validate
+public @interface ValidatedBy
 {
     String useClass();
     String useClassMethod();

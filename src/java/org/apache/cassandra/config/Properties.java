@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Queue;
+import java.util.function.Predicate;
 
 import com.google.common.collect.Maps;
 
@@ -137,9 +138,19 @@ public final class Properties
         return new DefaultLoader();
     }
 
-    public static Loader withReplacementsLoader()
+    public static Loader validatedPropertyLoader()
     {
-        return new WithReplacementLoader(defaultLoader());
+        return validatedPropertyLoader(p -> false);
+    }
+
+    public static Loader validatedPropertyLoader(Predicate<Property> nonListenableProperty)
+    {
+        return new ValidatedPropertyLoader(nonListenableProperty);
+    }
+
+    public static Loader withReplacementsLoader(Loader loader)
+    {
+        return new WithReplacementLoader(loader);
     }
 
     /**

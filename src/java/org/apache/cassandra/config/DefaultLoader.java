@@ -52,7 +52,7 @@ public class DefaultLoader implements Loader
                     && !Modifier.isTransient(modifiers)
                     && Modifier.isPublic(modifiers)
                     && !properties.containsKey(name))
-                    properties.put(name, new FieldProperty(f));
+                    properties.put(name, createPropertyForField(c, f));
             }
         }
         try
@@ -80,6 +80,11 @@ public class DefaultLoader implements Loader
             throw new RuntimeException(e);
         }
         return properties;
+    }
+
+    protected Property createPropertyForField(Class<?> root, Field field)
+    {
+        return new FieldProperty(field);
     }
 
     /**

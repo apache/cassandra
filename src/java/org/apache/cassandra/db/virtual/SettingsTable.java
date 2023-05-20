@@ -73,7 +73,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         String name = partitionKey.value(0);
         String key = getKeyAndWarn(name);
         runExceptionally(() -> DatabaseDescriptor.setProperty(key, null),
-                         t -> invalidRequest("Unable to clear property '%s': %s", key, t.getMessage()));
+                         t -> invalidRequest("Invalid delete request. Cause: %s", t.getMessage()));
     }
 
     @Override
@@ -84,7 +84,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         String name = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
         runExceptionally(() -> DatabaseDescriptor.setProperty(getKeyAndWarn(name), value),
-                         t -> invalidRequest("Invalid update request for property '%s'. %s", name, t.getMessage()));
+                         t -> invalidRequest("Invalid update request '%s'. Cause: %s", name, t.getMessage()));
     }
 
     @Override
