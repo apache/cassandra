@@ -4824,7 +4824,6 @@ public class DatabaseDescriptor
         }
         catch (Exception e)
         {
-            e.printStackTrace();
             throw new ConfigurationException(e.getMessage(), false);
         }
     }

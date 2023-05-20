@@ -56,6 +56,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.db.virtual.SettingsTable.runExceptionally;
+
 /**
  * Manages the fixed-size memory pool for index summaries, periodically resizing them
  * in order to give more memory to hot sstables and less memory to cold sstables.
@@ -122,7 +124,11 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
 
     public void setResizeIntervalInMinutes(int resizeIntervalInMinutes)
     {
-        DatabaseDescriptor.setIndexSummaryResizeIntervalInMinutes(resizeIntervalInMinutes);
+        runExceptionally(() -> DatabaseDescriptor.setIndexSummaryResizeIntervalInMinutes(resizeIntervalInMinutes),
+                         e -> {
+                             logger.error("Unable to update index_summary_resize_interval", e);
+                             throw new RuntimeException(e.getMessage());
+                         });
     }
 
     private void handleResizeIntervalInMinutes(DurationSpec.IntMinutesBound oldValue, DurationSpec.IntMinutesBound newValue)
