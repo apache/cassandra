@@ -168,6 +168,31 @@ public class TypeParser
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
+    public int getVectorDimensions() throws SyntaxException, ConfigurationException
+    {
+        if (isEOS())
+            throw new IllegalStateException();
+
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+
+        if (!skipBlankAndComma())
+            throw new IllegalStateException();
+
+        try
+        {
+            return Integer.parseInt(readNextIdentifier());
+        }
+        catch (NumberFormatException e)
+        {
+            throw new IllegalStateException();
+        }
+
+
+    }
+
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
     {
         List<AbstractType<?>> list = new ArrayList<>();

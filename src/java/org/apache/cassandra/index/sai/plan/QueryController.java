@@ -355,14 +355,21 @@ public class QueryController
             View view = e.context.getView();
 
             NavigableSet<SSTableIndex> readers = new TreeSet<>(SSTableIndex.COMPARATOR);
-            if (primary != null && primary.right.size() > 0)
-            {
-                for (SSTableIndex index : primary.right)
-                    readers.addAll(view.match(index.minKey(), index.maxKey()));
+            // REVIEWME
+            if (e.context.isVector()) {
+                readers.addAll(view.getIndexes());
             }
             else
             {
-                readers.addAll(applyScope(view.match(e)));
+                if (primary != null && primary.right.size() > 0)
+                {
+                    for (SSTableIndex index : primary.right)
+                        readers.addAll(view.match(index.minKey(), index.maxKey()));
+                }
+                else
+                {
+                    readers.addAll(applyScope(view.match(e)));
+                }
             }
 
             indexes.put(e, readers);

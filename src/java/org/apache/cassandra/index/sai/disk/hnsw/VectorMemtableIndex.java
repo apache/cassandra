@@ -21,25 +21,21 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
-import java.util.TreeSet;
+import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.memory.FilteringKeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -50,6 +46,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -66,6 +63,9 @@ public class VectorMemtableIndex implements MemtableIndex
     private final AtomicInteger cachedDimensions = new AtomicInteger();
 
     private static final Token.KeyBound MIN_KEY_BOUND = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
+
+    private PrimaryKey minimumKey;
+    private PrimaryKey maximumKey;
 
     public VectorMemtableIndex(IndexContext indexContext) {
         this.indexContext = indexContext;
@@ -90,8 +90,17 @@ public class VectorMemtableIndex implements MemtableIndex
     public synchronized void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
     {
         var primaryKey = indexContext.keyFactory().create(key, clustering);
+        if (minimumKey == null)
+            minimumKey = primaryKey;
+        else if (primaryKey.compareTo(minimumKey) < 0)
+            minimumKey = primaryKey;
+        if (maximumKey == null)
+            maximumKey = primaryKey;
+        else if (primaryKey.compareTo(maximumKey) > 0)
+            maximumKey = primaryKey;
         keys.add(primaryKey);
         var vector = vectorValues.add(value);
+        writeCount.increment();
         try
         {
             builder.addGraphNode(vectorValues.size() - 1, vector);
@@ -109,33 +118,8 @@ public class VectorMemtableIndex implements MemtableIndex
 
         var buffer = expr.lower.value.raw;
         float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
-        NeighborQueue nn;
-        try
-        {
-            Bits bits = null;
-            // key range doesn't full token ring, we need to filter keys inside ANN search
-            if (!keys.isEmpty() && !coversFullRing(keyRange))
-                bits = new KeyRangeFilteringBits(keyRange);
 
-            nn = HnswGraphSearcher.search(qv,
-                                          limit,
-                                          vectorValues,
-                                          VectorEncoding.FLOAT32,
-                                          indexContext.getIndexWriterConfig().getSimilarityFunction(),
-                                          builder.getGraph(),
-                                          bits,
-                                          Integer.MAX_VALUE);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        TreeSet<PrimaryKey> keys = Arrays.stream(nn.nodes())
-                         .mapToObj(this.keys::get)
-                         .collect(Collectors.toCollection(TreeSet::new));
-
-        return keys.isEmpty() ? RangeIterator.empty() : new FilteringKeyRangeIterator(keys, keyRange);
+        return new BatchKeyRangeIterator(qv, limit, keyRange);
     }
 
     private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
@@ -209,6 +193,116 @@ public class VectorMemtableIndex implements MemtableIndex
             return keys.size();
         }
     }
+
+    private class BatchKeyRangeIterator extends RangeIterator
+    {
+        private final float[] queryVector;
+        private int limit;
+
+        private Bits bits;
+        private PriorityQueue<PrimaryKey> keyQueue = new PriorityQueue<>();
+
+        BatchKeyRangeIterator(float[] queryVector, int limit, AbstractBounds<PartitionPosition> keyRange)
+        {
+            super(minimumKey, maximumKey, writeCount.longValue());
+            this.queryVector = queryVector;
+            this.limit = limit;
+            // key range doesn't full token ring, we need to filter keys inside ANN search
+            if (!keys.isEmpty() && !coversFullRing(keyRange))
+                bits = new KeyRangeFilteringBits(keyRange);
+        }
+
+        @Override
+        protected void performSkipTo(PrimaryKey nextKey)
+        {
+            PrimaryKey key;
+            while ((key = doComputeNext()) != null)
+            {
+                if (key.compareTo(nextKey) >= 0)
+                    break;
+                keyQueue.poll();
+            }
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+        }
+
+        @Override
+        protected PrimaryKey computeNext()
+        {
+            return doComputeNext() == null ? null : keyQueue.poll();
+        }
+
+        private PrimaryKey doComputeNext()
+        {
+            if (keyQueue.isEmpty())
+            {
+                readBatch();
+                if (keyQueue.isEmpty())
+                    return null;
+            }
+            return keyQueue.peek();
+        }
+
+        private void readBatch()
+        {
+            try
+            {
+                NeighborQueue neighborQueue = HnswGraphSearcher.search(queryVector,
+                                                                       limit,
+                                                                       vectorValues,
+                                                                       VectorEncoding.FLOAT32,
+                                                                       indexContext.getIndexWriterConfig().getSimilarityFunction(),
+                                                                       builder.getGraph(),
+                                                                       bits,
+                                                                       Integer.MAX_VALUE);
+                if (bits == null || bits instanceof KeyRangeFilteringBits)
+                    bits = new InvertedFilteringBits(bits);
+                limit *= 2;
+
+                for (int node : neighborQueue.nodes())
+                {
+                    ((InvertedFilteringBits)bits).set(node);
+                    keyQueue.add(keys.get(node));
+                }
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private class InvertedFilteringBits implements Bits
+    {
+        private final FixedBitSet ignoredBits = new FixedBitSet(writeCount.intValue());
+        private final Bits rangeBits;
+
+        InvertedFilteringBits(Bits rangeBits)
+        {
+            this.rangeBits = rangeBits;
+        }
+
+        public void set(int index)
+        {
+            ignoredBits.set(index);
+        }
+
+        @Override
+        public boolean get(int index)
+        {
+            return (rangeBits == null || rangeBits.get(index)) && !ignoredBits.get(index);
+        }
+
+        @Override
+        public int length()
+        {
+            return ignoredBits.length();
+        }
+    }
+
     private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
         private final ArrayList<ByteBuffer> buffers = new ArrayList<>();
