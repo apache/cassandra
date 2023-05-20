@@ -547,6 +547,7 @@ public class Config
 
     @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public volatile DataStorageSpec.LongMebibytesBound index_summary_capacity;
+    @Mutable
     @Nullable
     @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converters.MINUTES_CUSTOM_DURATION, deprecated = true)
     public volatile DurationSpec.IntMinutesBound index_summary_resize_interval = new DurationSpec.IntMinutesBound("60m");

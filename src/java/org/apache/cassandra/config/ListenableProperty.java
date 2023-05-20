@@ -44,10 +44,9 @@ public class ListenableProperty<S, T> extends ForwardingProperty
     public synchronized void set(Object source, Object newValue) throws Exception
     {
         T oldValue = (T) get(source);
-        delegate().set(source, Handler.compose(handlers.get(EventType.BEFORE))
-                                      .handle((S) source, oldValue, (T) newValue));
-        Handler.compose(handlers.get(EventType.AFTER))
-               .handle((S) source, oldValue, (T) newValue);
+        T value = Handler.compose(handlers.get(EventType.BEFORE)).handle((S) source, oldValue, (T) newValue);
+        delegate().set(source, value);
+        Handler.compose(handlers.get(EventType.AFTER)).handle((S) source, oldValue, value);
     }
 
     public synchronized Remover addBeforeHandler(Handler<S, T> handler)

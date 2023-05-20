@@ -36,7 +36,9 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
@@ -72,6 +74,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
     private ScheduledFuture future;
 
     private final Supplier<List<T>> indexSummariesProvider;
+    private final List<Runnable> shutdownTasks = new ArrayList<>();
 
     private static <T extends SSTableReader & IndexSummarySupport> List<T> getAllSupportedReaders() {
         List<T> readers = new ArrayList<>();
@@ -100,6 +103,9 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
         logger.info("Initializing index summary manager with a memory pool size of {} MB and a resize interval of {} minutes",
                     indexSummarySizeInMB, interval);
 
+        shutdownTasks.add(DatabaseDescriptor.addAfterChangePropertyListener(ConfigFields.INDEX_SUMMARY_RESIZE_INTERVAL,
+                                                                            DurationSpec.IntMinutesBound.class,
+                                                                            this::handleResizeIntervalInMinutes));
         setMemoryPoolCapacityInMB(DatabaseDescriptor.getIndexSummaryCapacityInMiB());
         setResizeIntervalInMinutes(DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
     }
@@ -109,10 +115,20 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
         return DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
     }
 
+    private static int getDurationInMinutes(DurationSpec.IntMinutesBound duration)
+    {
+        return duration == null ? -1 : duration.toMinutes();
+    }
+
     public void setResizeIntervalInMinutes(int resizeIntervalInMinutes)
     {
-        int oldInterval = getResizeIntervalInMinutes();
         DatabaseDescriptor.setIndexSummaryResizeIntervalInMinutes(resizeIntervalInMinutes);
+    }
+
+    private void handleResizeIntervalInMinutes(DurationSpec.IntMinutesBound oldValue, DurationSpec.IntMinutesBound newValue)
+    {
+        int oldInterval = getDurationInMinutes(oldValue);
+        int resizeIntervalInMinutes = getDurationInMinutes(newValue);
 
         long initialDelay;
         if (future != null)
@@ -292,6 +308,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
             future.cancel(false);
             future = null;
         }
+        shutdownTasks.forEach(Runnable::run);
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
 }

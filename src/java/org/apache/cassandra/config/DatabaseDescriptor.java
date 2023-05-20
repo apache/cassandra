@@ -3652,10 +3652,7 @@ public class DatabaseDescriptor
 
     public static void setIndexSummaryResizeIntervalInMinutes(int value)
     {
-        if (value == -1)
-            conf.index_summary_resize_interval = null;
-        else
-            conf.index_summary_resize_interval = new DurationSpec.IntMinutesBound(value);
+        setProperty(ConfigFields.INDEX_SUMMARY_RESIZE_INTERVAL, value == -1 ? null : new DurationSpec.IntMinutesBound(value));
     }
 
     public static boolean hasLargeAddressSpace()
@@ -4827,6 +4824,7 @@ public class DatabaseDescriptor
         }
         catch (Exception e)
         {
+            e.printStackTrace();
             throw new ConfigurationException(e.getMessage(), false);
         }
     }
