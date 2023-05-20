@@ -1854,7 +1854,7 @@ class Shell(cmd.Cmd):
              val = int(n)
              self.max_history_length_shown = val
 
-        for index in range(history_length, history_length-self.max_history_length_shown, -1):
+        for index in range(history_length-self.max_history_length_shown, history_length):
             history_item = readline.get_history_item(index)
             if history_item:
                 recent_history += history_item +"\n"
