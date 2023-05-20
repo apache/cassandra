@@ -1846,19 +1846,14 @@ class Shell(cmd.Cmd):
            If n is specified, the history display length is set to n for this session
         """
 
-        recent_history = ""
         history_length = readline.get_current_history_length()
 
         n = parsed.get_binding('n')
         if (n is not None):
-             val = int(n)
-             self.max_history_length_shown = val
+             self.max_history_length_shown = int(n)
 
         for index in range(history_length-self.max_history_length_shown, history_length):
-            history_item = readline.get_history_item(index)
-            if history_item:
-                recent_history += history_item +"\n"
-        print(recent_history)
+            print(readline.get_history_item(index))
 
 
     def do_unicode(self, parsed):
