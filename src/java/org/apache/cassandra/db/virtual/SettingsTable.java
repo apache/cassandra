@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -37,6 +36,7 @@ import org.apache.cassandra.service.ClientWarn;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getStringProperty;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
 
 final class SettingsTable extends AbstractMutableVirtualTable
 {
@@ -124,23 +124,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
         return key;
-    }
-
-    /**
-     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
-     * @param runnable Runnable to wrap.
-     * @param exceptionFactory Factory to create the exception to throw.
-     */
-    public static void runExceptionally(Runnable runnable, Function<Exception, ? extends RuntimeException> exceptionFactory)
-    {
-        try
-        {
-            runnable.run();
-        }
-        catch (Exception e)
-        {
-            throw exceptionFactory.apply(e);
-        }
     }
 
     /**

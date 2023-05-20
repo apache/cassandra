@@ -56,7 +56,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.db.virtual.SettingsTable.runExceptionally;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
 
 /**
  * Manages the fixed-size memory pool for index summaries, periodically resizing them
