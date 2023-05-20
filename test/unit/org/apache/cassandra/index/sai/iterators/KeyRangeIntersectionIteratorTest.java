@@ -145,14 +145,14 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
         builder.add(new LongIterator(new long[]{7L, 8L, 9L}));
 
         assertEquals(9L, builder.getMaximum().token().getLongValue());
-        assertEquals(9L, builder.getCount());
+        assertEquals(3L, builder.getCount());
 
         KeyRangeIterator tokens = builder.build();
 
         assertNotNull(tokens);
         assertEquals(7L, tokens.getMinimum().token().getLongValue());
         assertEquals(9L, tokens.getMaximum().token().getLongValue());
-        assertEquals(9L, tokens.getCount());
+        assertEquals(3L, tokens.getCount());
 
         assertEquals(convert(9L), convert(builder.build()));
     }
@@ -173,7 +173,7 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
 
         assertEquals(6L, builder.getMinimum().token().getLongValue());
         assertEquals(6L, builder.getMaximum().token().getLongValue());
-        assertEquals(9L, builder.getCount());
+        assertEquals(3L, builder.getCount());
         assertEquals(3L, builder.rangeCount());
         assertFalse(builder.isDisjoint());
 

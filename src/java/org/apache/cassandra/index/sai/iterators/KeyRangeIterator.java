@@ -18,7 +18,6 @@
 package org.apache.cassandra.index.sai.iterators;
 
 import java.io.Closeable;
-import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
