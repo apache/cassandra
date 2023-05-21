@@ -177,7 +177,7 @@ public class CassandraOnHeapHnsw
 
     private void writeGraph(File file) throws IOException
     {
-        new ConcurrentHnswGraphWriter(builder.getGraph()).write(file);
+        new HnswGraphWriter(new ExtendedConcurrentHnswGraph(builder.getGraph())).write(file);
     }
 
     // TODO should we just save references to the vectors in the sstable itself?

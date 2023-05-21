@@ -24,19 +24,20 @@ import java.util.HashMap;
 
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.util.File;
-import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
-public class ConcurrentHnswGraphWriter
-{
-    private final ConcurrentOnHeapHnswGraph hnsw;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-    public ConcurrentHnswGraphWriter(ConcurrentOnHeapHnswGraph hnsw)
+public class HnswGraphWriter
+{
+    private final ExtendedHnswGraph hnsw;
+
+    public HnswGraphWriter(ExtendedHnswGraph hnsw)
     {
         this.hnsw = hnsw;
     }
 
-    private long levelSize(int level)
+    private long levelSize(int level) throws IOException
     {
         long size = 4; // number of nodes on level
         var nodesOnLevel = hnsw.getNodesOnLevel(level);
@@ -48,10 +49,11 @@ public class ConcurrentHnswGraphWriter
         return size;
     }
 
-    private long neighborSize(int level, int node)
+    private long neighborSize(int level, int node) throws IOException
     {
         // node neighbor count, and node neighbors
-        return 4L * (1 + hnsw.getNeighbors(level, node).size());
+        var n = hnsw.getNeighborCount(level, node);
+        return 4L * (1 + n);
     }
 
     public void write(File file) throws IOException
@@ -99,13 +101,13 @@ public class ConcurrentHnswGraphWriter
                 for (var node : sortedNodes)
                 {
                     assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
-                    var neighborSet = hnsw.getNeighbors(level, node);
-                    out.writeInt(neighborSet.size());
-                    var it = neighborSet.nodeIterator();
-                    while (it.hasNext())
+                    var n = hnsw.getNeighborCount(level, node);
+                    out.writeInt(n);
+                    hnsw.seek(level, node);
+                    int neighborId;
+                    while ((neighborId = hnsw.nextNeighbor()) != NO_MORE_DOCS)
                     {
-                        var neighbor = it.nextInt();
-                        out.writeInt(neighbor);
+                        out.writeInt(neighborId);
                     }
                 }
                 long expectedPosition = levelOffset + levelSize(level);

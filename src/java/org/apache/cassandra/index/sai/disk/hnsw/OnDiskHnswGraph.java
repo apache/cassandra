@@ -19,14 +19,16 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.lucene.util.hnsw.HnswGraph;
+import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-public class OnDiskHnswGraph extends HnswGraph
+// FIXME share cache across all readers
+public class OnDiskHnswGraph extends ExtendedHnswGraph
 {
     private final RandomAccessReader reader;
     private final int size;
@@ -35,34 +37,141 @@ public class OnDiskHnswGraph extends HnswGraph
 
     private int currentNeighborCount;
     private int currentNeighborsRead;
+    private long currentCachedLevelNode = -1;
+    private int[] currentCachedNeighbors;
+    private long[] levelOffsets;
 
-    public OnDiskHnswGraph(File file) throws IOException {
+    @VisibleForTesting
+    CachedLevel[] cachedLevels;
+    private int cacheSizeInBytes;
+
+    public OnDiskHnswGraph(File file, int cacheRamBudget) throws IOException {
         this.reader = RandomAccessReader.open(file);
 
         size = reader.readInt();
         numLevels = reader.readInt();
+        cachedLevels = new CachedLevel[numLevels];
         entryNode = reader.readInt();
+
+        // always load the level offsets
+        levelOffsets = new long[numLevels];
+        for (int i = 0; i < numLevels; i++) {
+            levelOffsets[i] = reader.readLong();
+        }
+
+        // cache levels based on cacheRamBudget starting with the top level
+        // if we have enough room left in the budget, cache the entire level including neighbors
+        // if we don't have enough room left in the budget, cache only the level's node offsets
+        int remainingRamBudget = cacheRamBudget;
+        int topLevel = numLevels - 1;
+        for (int level = topLevel; level >= 0 && remainingRamBudget > 0; level--) {
+            reader.seek(levelOffsets[level]);
+            int numNodes = reader.readInt();
+            long nodeIdsSize = (long) numNodes * Integer.BYTES;
+            long offsetsSize = (long) numNodes * Long.BYTES;
+            long neighborsSize = levelSize(level) - (offsetsSize + nodeIdsSize);
+
+            if (remainingRamBudget >= nodeIdsSize + neighborsSize) {
+                // Cache entire level including neighbors
+                int[] nodeIds = new int[numNodes];
+                int[][] neighbors = new int[numNodes][];
+
+                // Read node IDs
+                for (int i = 0; i < numNodes; i++) {
+                    nodeIds[i] = reader.readInt();  // read node id
+                    reader.skipBytes(Long.BYTES);   // skip offset
+                }
+
+                // Read neighbors
+                for (int i = 0; i < numNodes; i++) {
+                    int numNeighbors = reader.readInt();
+                    neighbors[i] = new int[numNeighbors];
+                    for (int j = 0; j < numNeighbors; j++) {
+                        neighbors[i][j] = reader.readInt();
+                    }
+                }
+
+                cachedLevels[level] = new CachedLevel(level, nodeIds, neighbors);
+                remainingRamBudget -= (nodeIdsSize + neighborsSize);
+            } else if (remainingRamBudget >= nodeIdsSize + offsetsSize) {
+                // Cache level's node offsets
+                int[] nodeIds = new int[numNodes];
+                long[] offsets = new long[numNodes];
+                for (int i = 0; i < numNodes; i++) {
+                    nodeIds[i] = reader.readInt();
+                    offsets[i] = reader.readLong();
+                }
+                cachedLevels[level] = new CachedLevel(level, nodeIds, offsets);
+                remainingRamBudget -= (nodeIdsSize + offsetsSize);
+            } else {
+                // No room left in the RAM budget
+                break;
+            }
+        }
+        cacheSizeInBytes = cacheRamBudget - remainingRamBudget;
+    }
+
+    int getCacheSizeInBytes() {
+        return cacheSizeInBytes;
+    }
+
+    @Override
+    public int getNeighborCount(int level, int node) throws IOException
+    {
+        seek(level, node);
+        return currentNeighborCount;
     }
 
     @Override
     public void seek(int level, int target) throws IOException {
-        // seek to the level
-        reader.seek(12L + 8L * level);
-        long offset = reader.readLong();
-        reader.seek(offset);
-        // binary search for the node's index entry within the level
-        int numNodes = reader.readInt();
-        long firstOffset = reader.getFilePointer();
-        long lastOffset = firstOffset + numNodes * 12L;
-        long entryOffset = binarySearchNodeOffset(firstOffset, lastOffset, target);
-        reader.seek(entryOffset);
-        var diskNodeId = reader.readInt();
-        assert diskNodeId == target : String.format("Expected node %d, but found %d", target, diskNodeId);
+        if (currentNeighborsRead == 0 && currentCachedLevelNode == levelNodeOf(level, target))
+        {
+            // seek was called redundantly (usually because getNeighborCount was also called)
+            return;
+        }
+
+        currentCachedLevelNode = -1;
+        currentCachedNeighbors = null;
+        currentNeighborsRead = 0;
+        long neighborsOffset;
+
+        var cachedLevel = cachedLevels[level];
+        if (cachedLevel != null)
+        {
+            if (cachedLevel.containsNeighbors())
+            {
+                currentCachedNeighbors = cachedLevel.neighborsFor(target);
+                currentCachedLevelNode = levelNodeOf(level, target);
+                currentNeighborCount = currentCachedNeighbors.length;
+                return;
+            }
+
+            // get the offset of the node's index entry from the cache, if present
+            neighborsOffset = cachedLevel.offsetFor(target);
+        }
+        else
+        {
+            // seek to the level
+            reader.seek(levelOffsets[level]);
+            // binary search for the node's index entry within the level
+            int numNodes = reader.readInt();
+            long firstOffset = reader.getFilePointer();
+            long lastOffset = firstOffset + numNodes * 12L;
+            long entryOffset = binarySearchNodeOffset(firstOffset, lastOffset, target);
+//            reader.seek(entryOffset);
+//            var diskNodeId = reader.readInt();
+//            assert diskNodeId == target : String.format("Expected node %d, but found %d", target, diskNodeId);
+            neighborsOffset = reader.readLong();
+        }
+
         // seek to the neighbor list
-        long neighborsOffset = reader.readLong();
         reader.seek(neighborsOffset);
         currentNeighborCount = reader.readInt();
-        currentNeighborsRead = 0;
+    }
+
+    private static long levelNodeOf(int level, int target)
+    {
+        return ((long) level << 32) | target;
     }
 
     private long binarySearchNodeOffset(long firstOffset, long lastOffset, int target) throws IOException {
@@ -86,11 +195,27 @@ public class OnDiskHnswGraph extends HnswGraph
         return size;
     }
 
+    @VisibleForTesting
+    long levelSize(int i) {
+        long currentLevelOffset = levelOffsets[i];
+        long nextLevelOffset;
+        int topLevel = numLevels - 1;
+        if (i < topLevel) {
+            nextLevelOffset = levelOffsets[i + 1];
+        } else {
+            nextLevelOffset = reader.length();
+        }
+        return nextLevelOffset - currentLevelOffset;
+    }
+
     @Override
     public int nextNeighbor() throws IOException {
         if (currentNeighborsRead++ < currentNeighborCount)
         {
-            return reader.readInt();
+            if (currentCachedNeighbors != null)
+                return currentCachedNeighbors[currentNeighborsRead - 1];
+            else
+                return reader.readInt();
         }
         return NO_MORE_DOCS;
     }
@@ -107,24 +232,31 @@ public class OnDiskHnswGraph extends HnswGraph
 
     @Override
     public NodesIterator getNodesOnLevel(int level) throws IOException {
-        reader.seek(12L + 8L * level);
-        long offset = reader.readLong();
-        reader.seek(offset);
+        if (cachedLevels[level] != null)
+        {
+            var nodes = cachedLevels[level].nodesOnLevel();
+            var it = Arrays.stream(nodes).iterator();
+            return new AbstractNodesIterator(nodes.length)
+            {
+                @Override
+                public int nextInt()
+                {
+                    return it.nextInt();
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return it.hasNext();
+                }
+            };
+        }
+
+        reader.seek(levelOffsets[level]);
         int numNodes = reader.readInt();
-        return new NodesIterator(numNodes)
+        return new AbstractNodesIterator(numNodes)
         {
             private int nodesRead = 0;
-
-            @Override
-            public int consume(int[] ints)
-            {
-                int i = 0;
-                while (i < ints.length && hasNext())
-                {
-                    ints[i++] = nextInt();
-                }
-                return i;
-            }
 
             @Override
             public int nextInt()
@@ -132,6 +264,7 @@ public class OnDiskHnswGraph extends HnswGraph
                 try
                 {
                     int value = reader.readInt();
+                    reader.skipBytes(Long.BYTES);
                     nodesRead++;
                     return value;
                 }
@@ -152,6 +285,76 @@ public class OnDiskHnswGraph extends HnswGraph
     public void close()
     {
         reader.close();
+    }
+
+    @VisibleForTesting
+    static class CachedLevel
+    {
+        private final int level;
+        private final int[] nodeIds;
+        private final long[] offsets;
+        private final int[][] neighbors;
+
+        public CachedLevel(int level, int[] nodeIds, long[] offsets)
+        {
+            this.level = level;
+            this.nodeIds = nodeIds;
+            this.offsets = offsets;
+            this.neighbors = null;
+        }
+
+        public CachedLevel(int level, int[] nodeIds, int[][] neighbors)
+        {
+            this.level = level;
+            this.nodeIds = nodeIds;
+            this.neighbors = neighbors;
+            offsets = null;
+        }
+
+        public boolean containsNeighbors() {
+            return neighbors != null;
+        }
+
+        public long offsetFor(int nodeId)
+        {
+            int i = Arrays.binarySearch(nodeIds, nodeId);
+            if (i < 0)
+                throw new IllegalStateException("Node " + nodeId + " not found in level " + level);
+            return offsets[i];
+        }
+
+        public int[] neighborsFor(int nodeId)
+        {
+            int i = Arrays.binarySearch(nodeIds, nodeId);
+            if (i < 0)
+                throw new IllegalStateException("Node " + nodeId + " not found in level " + level);
+            return neighbors[i];
+        }
+
+        public int[] nodesOnLevel()
+        {
+            return nodeIds;
+        }
+    }
+
+    @VisibleForTesting
+    abstract static class AbstractNodesIterator extends NodesIterator
+    {
+        public AbstractNodesIterator(int size)
+        {
+            super(size);
+        }
+
+        @Override
+        public int consume(int[] ints)
+        {
+            int i = 0;
+            while (i < ints.length && hasNext())
+            {
+                ints[i++] = nextInt();
+            }
+            return i;
+        }
     }
 }
 

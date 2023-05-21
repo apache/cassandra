@@ -46,12 +46,13 @@ public class CassandraOnDiskHnsw
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
         vectorValues = new OnDiskVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
         ordinalsMap = new OnDiskOrdinalsMap(descriptor.fileFor(IndexComponent.POSTING_LISTS, context));
-        hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
+        // TODO make cache size configurable, and is this a reasonable default?
+        hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context), 1024 * 1024);
     }
 
     public long ramBytesUsed()
     {
-        return 0; // FIXME
+        return hnsw.getCacheSizeInBytes();
     }
 
     public int size()
