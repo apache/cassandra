@@ -33,11 +33,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -73,22 +71,6 @@ public class PrepareLeaveTest
 
         ServerTestUtils.daemonInitialization();
         ServerTestUtils.prepareServer();
-
-        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
-        {
-            @Override
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                String ep = endpoint.toString(false);
-                return "rack"+ep.substring(ep.lastIndexOf('.') + 1);
-            }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                return hostDc.get(endpoint.getAddress());
-            }
-        });
 
         KSM = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));
         KSM_NTS = KeyspaceMetadata.create("ks_nts", KeyspaceParams.nts("dc1", 3, "dc2", 3));
@@ -139,6 +121,7 @@ public class PrepareLeaveTest
             Location l = new Location(hostDc.get(ep.getAddress()), "rack" + i);
             dir = dir.with(addr(ep), l);
             dir = dir.withNodeState(dir.peerId(ep), NodeState.JOINED);
+            dir = dir.withRackAndDC(dir.peerId(ep));
         }
         for (int i = 11; i <= 10 + countDc2; i++)
         {
@@ -146,6 +129,7 @@ public class PrepareLeaveTest
             Location l = new Location(hostDc.get(ep.getAddress()), "rack"+i);
             dir = dir.with(addr(ep), l);
             dir = dir.withNodeState(dir.peerId(ep), NodeState.JOINED);
+            dir = dir.withRackAndDC(dir.peerId(ep));
         }
         ClusterMetadata.Transformer transformer = new ClusterMetadata(Murmur3Partitioner.instance,
                                                                       dir,
