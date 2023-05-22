@@ -30,6 +30,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -78,7 +79,7 @@ public class VectorDistributedTest extends TestBaseImpl
     public static void setupCluster() throws Exception
     {
         cluster = Cluster.build(NUM_REPLICAS)
-                         .withTokenCount(8)
+                         .withTokenCount(1) // TODO in-jvm-test in CC branch doesn't support multiple tokens
                          .withDataDirCount(1) // TODO vector memtable flush doesn't support multiple directories yet
                          .withConfig(config -> config.with(GOSSIP).with(NETWORK))
                          .start();
@@ -179,6 +180,8 @@ public class VectorDistributedTest extends TestBaseImpl
         assertThat(recall).isGreaterThanOrEqualTo(MIN_RECALL);
     }
 
+    // TODO currently only allow 1 ann index
+    @Ignore
     @Test
     public void testMultiVectorIndexesSearch()
     {
