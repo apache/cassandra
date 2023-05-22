@@ -23,13 +23,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.junit.Assert.assertEquals;
@@ -38,19 +33,6 @@ import static org.junit.Assert.assertTrue;
 
 public class RemoteProcessorTest
 {
-    @BeforeClass
-    public static void beforeClass()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        ServerTestUtils.prepareServer();
-    }
-
-    @Before
-    public void resetCMS()
-    {
-        ServerTestUtils.resetCMS();
-    }
-
     @Test
     public void simpleTestCMSIterator()
     {
