@@ -71,7 +71,7 @@ public class EventsMetadataTest
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        ServerTestUtils.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         KSM = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));
         KSM_NTS = KeyspaceMetadata.create("ks_nts", KeyspaceParams.nts("dc1", 3, "dc2", 3));
     }
@@ -142,7 +142,7 @@ public class EventsMetadataTest
         assertTrue(ClusterMetadataTestHelper.bootstrapping(ClusterMetadata.current()).isEmpty());
 
         // join a second node
-        ClusterMetadataTestHelper.register(node1);
+        ClusterMetadataTestHelper.register(node2);
         nodeId = ClusterMetadata.current().directory.peerId(node2);
         ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
 
