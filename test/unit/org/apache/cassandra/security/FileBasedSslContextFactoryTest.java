@@ -47,11 +47,10 @@ public class FileBasedSslContextFactoryTest
         CASSANDRA_CONFIG.reset();
     }
 
-    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        CASSANDRA_CONFIG.clearValue();
+        CASSANDRA_CONFIG.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
 
     @Before

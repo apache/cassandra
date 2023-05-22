@@ -35,10 +35,9 @@ public class CustomSslContextFactoryInvalidConfigTest
         CASSANDRA_CONFIG.setString("cassandra-sslcontextfactory-invalidconfiguration.yaml");
     }
 
-    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void tearDownDatabaseDescriptor() {
-        CASSANDRA_CONFIG.clearValue();
+        CASSANDRA_CONFIG.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
 
     @Test(expected = IllegalArgumentException.class)

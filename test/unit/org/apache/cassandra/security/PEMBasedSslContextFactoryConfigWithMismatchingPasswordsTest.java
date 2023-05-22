@@ -39,11 +39,10 @@ public class PEMBasedSslContextFactoryConfigWithMismatchingPasswordsTest
         CASSANDRA_CONFIG.setString("cassandra-pem-sslcontextfactory-mismatching-passwords.yaml");
     }
 
-    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        CASSANDRA_CONFIG.clearValue();
+        CASSANDRA_CONFIG.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
 
     @Test(expected = ConfigurationException.class)

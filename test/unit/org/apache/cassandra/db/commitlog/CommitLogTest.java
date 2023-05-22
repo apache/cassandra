@@ -214,12 +214,11 @@ public abstract class CommitLogTest
         CommitLog.instance.resetUnsafe(true);
     }
 
-    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @After
     public void afterTest()
     {
         CommitLogSegmentReader.setAllowSkipSyncMarkerCrc(false);
-        COMMIT_LOG_REPLAY_LIST.clearValue();
+        COMMIT_LOG_REPLAY_LIST.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
         testKiller.reset();
     }
 

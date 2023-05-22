@@ -56,11 +56,10 @@ public class RangeCommandsTest extends CQLTester
         MAX_CONCURRENT_RANGE_REQUESTS.setInt(MAX_CONCURRENCY_FACTOR);
     }
 
-    // checkstyle: suppress below 'clearValueSystemPropertyUsage'
     @AfterClass
     public static void cleanup()
     {
-        MAX_CONCURRENT_RANGE_REQUESTS.clearValue();
+        MAX_CONCURRENT_RANGE_REQUESTS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
 
     @Test
