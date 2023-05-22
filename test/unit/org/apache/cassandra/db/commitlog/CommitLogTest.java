@@ -891,7 +891,6 @@ public abstract class CommitLogTest
         }
     }
 
-    // private void assertReplay(int expectedReplayedMutations, Runnable systemPropertySetter) throws Throwable
     private void assertReplay(int expectedReplayedMutations, CassandraRelevantProperties property, String propertyValue) throws Throwable
     {
         try (WithProperties properties = new WithProperties().set(property, propertyValue))
