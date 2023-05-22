@@ -27,6 +27,10 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
+
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Map;
@@ -43,6 +47,7 @@ public class ReplicaPlansTest
         DatabaseDescriptor.daemonInitialization();
     }
 
+    // TODO replace use of snitch in determining counts per DC with directory lookup
     static class Snitch extends AbstractNetworkTopologySnitch
     {
         final Set<InetAddressAndPort> dc1;
@@ -61,6 +66,13 @@ public class ReplicaPlansTest
         {
             return dc1.contains(endpoint) ? "DC1" : "DC2";
         }
+    }
+
+    @Before
+    public void setup()
+    {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     private static Keyspace ks(Set<InetAddressAndPort> dc1, Map<String, String> replication)
