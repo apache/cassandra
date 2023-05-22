@@ -60,6 +60,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -230,6 +231,7 @@ public class ClusterMetadata
 
     public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
     {
+        List<NodeId> joining = new ArrayList<>();
         List<NodeId> leaving = new ArrayList<>();
         List<NodeId> moving = new ArrayList<>();
 
@@ -237,6 +239,9 @@ public class ClusterMetadata
         {
             switch (entry.getValue())
             {
+                case BOOTSTRAPPING:
+                    joining.add(entry.getKey());
+                    break;
                 case LEAVING:
                     leaving.add(entry.getKey());
                     break;
@@ -247,6 +252,13 @@ public class ClusterMetadata
         }
 
         Transformer t = transformer();
+        for (NodeId node: joining)
+        {
+            InProgressSequence<?> joinSequence = inProgressSequences.get(node);
+            assert joinSequence instanceof BootstrapAndJoin;
+            Set<Token> tokens = ((BootstrapAndJoin)joinSequence).finishJoin.tokens;
+            t = t.proposeToken(node, tokens);
+        }
         for (NodeId node : leaving)
             t = t.proposeRemoveNode(node);
         // todo: add tests for move!
