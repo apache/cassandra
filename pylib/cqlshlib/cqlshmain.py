@@ -1835,6 +1835,7 @@ class Shell(cmd.Cmd):
                         self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
             else:
                 self.printerr("*** No help on %s" % (t,))
+
     def do_history(self, parsed):
         """
         HISTORY [cqlsh only]
