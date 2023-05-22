@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
@@ -394,6 +395,20 @@ public class SerializationHeader
         {
             return stats;
         }
+
+        @SuppressWarnings("unused")
+        public Component withMigratedKeyspaces(Map<String, String> keyspaceMapping)
+        {
+            if (keyspaceMapping.isEmpty())
+                return this;
+
+            AbstractType<?> newKeyType = keyType.overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks));
+            List<AbstractType<?>> clusteringTypes = this.clusteringTypes.stream().map(t -> t.overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks))).collect(Collectors.toList());
+            Map<ByteBuffer, AbstractType<?>> staticColumns = this.staticColumns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks))));
+            Map<ByteBuffer, AbstractType<?>> regularColumns = this.regularColumns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks))));
+            return new Component(newKeyType, clusteringTypes, staticColumns, regularColumns, stats);
+        }
+
     }
 
     public static class Serializer implements IMetadataComponentSerializer<Component>
