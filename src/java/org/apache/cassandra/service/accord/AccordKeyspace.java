@@ -101,6 +101,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.transform.FilteredPartitions;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
@@ -177,6 +178,7 @@ public class AccordKeyspace
     private enum TokenType
     {
         Murmur3((byte) 1),
+        ByteOrdered((byte) 2),
         ;
 
         private final byte value;
@@ -190,6 +192,8 @@ public class AccordKeyspace
         {
             if (token instanceof Murmur3Partitioner.LongToken)
                 return Murmur3;
+            if (token instanceof ByteOrderedPartitioner.BytesToken)
+                return ByteOrdered;
             throw new IllegalArgumentException("Unexpected token type: " + token.getClass());
         }
     }
