@@ -1853,7 +1853,7 @@ class Shell(cmd.Cmd):
         if (n is not None):
             self.max_history_length_shown = int(n)
 
-        for index in range(history_length - self.max_history_length_shown, history_length):
+        for index in range(max(1, history_length - self.max_history_length_shown), history_length):
             print(readline.get_history_item(index))
 
     def do_unicode(self, parsed):
