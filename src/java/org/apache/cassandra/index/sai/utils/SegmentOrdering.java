@@ -40,5 +40,5 @@ public interface SegmentOrdering
      * Reorder the results from a single component; sstable is null
      * if the component is a memtable.
      */
-    public abstract RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException;
+    public abstract RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit) throws IOException;
 }

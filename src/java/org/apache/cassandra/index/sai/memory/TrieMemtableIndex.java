@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.memory;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,7 +26,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -161,7 +159,7 @@ public class TrieMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         RangeConcatIterator.Builder builder = RangeConcatIterator.builder();
 
@@ -254,7 +252,7 @@ public class TrieMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit)
+    public RangeIterator<PrimaryKey> reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit)
     {
         // TODO when we implement ORDER BY
         throw new UnsupportedOperationException();

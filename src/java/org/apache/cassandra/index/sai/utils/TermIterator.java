@@ -17,32 +17,25 @@
  */
 package org.apache.cassandra.index.sai.utils;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Throwables;
 
-public class TermIterator extends RangeIterator
+public class TermIterator<T extends Comparable> extends RangeIterator<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(TermIterator.class);
 
     private final QueryContext context;
 
-    private final RangeIterator union;
+    private final RangeIterator<T> union;
     private final Set<SSTableIndex> referencedIndexes;
 
-    private TermIterator(RangeIterator union, Set<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    private TermIterator(RangeIterator<T> union, Set<SSTableIndex> referencedIndexes, QueryContext queryContext)
     {
         super(union.getMinimum(), union.getMaximum(), union.getCount());
 
@@ -90,11 +83,11 @@ public class TermIterator extends RangeIterator
 //        return new TermIterator(ranges, perSSTableIndexes, queryContext);
 //    }
 
-    protected PrimaryKey computeNext()
+    protected T computeNext()
     {
         try
         {
-            return union.hasNext() ? union.next() : endOfData();
+            return union.hasNext() ? union.next() : (T) endOfData();
         }
         finally
         {
@@ -102,7 +95,7 @@ public class TermIterator extends RangeIterator
         }
     }
 
-    protected void performSkipTo(PrimaryKey nextKey)
+    protected void performSkipTo(T nextKey)
     {
         try
         {

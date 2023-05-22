@@ -28,6 +28,7 @@ import org.apache.cassandra.index.sai.disk.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -86,9 +87,9 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
      * @param limit
      * @return {@link RangeIterator} that matches given expression
      */
-    public abstract RangeIterator search(Expression expression, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
+    public abstract RangeIterator<PrimaryKey> search(Expression expression, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
 
-    RangeIterator toIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
+    RangeIterator<PrimaryKey> toIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
     {
         if (postingList == null)
             return RangeIterator.empty();

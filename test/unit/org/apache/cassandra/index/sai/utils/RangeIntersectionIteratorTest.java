@@ -103,13 +103,13 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testSkipTo()
     {
-        RangeIterator.Builder builder = RangeIntersectionIterator.builder();
+        RangeIterator.Builder<PrimaryKey> builder = RangeIntersectionIterator.builder();
 
         builder.add(new LongIterator(new long[] { 1L, 4L, 6L, 7L, 9L, 10L }));
         builder.add(new LongIterator(new long[] { 2L, 4L, 5L, 6L, 7L, 10L, 12L }));
         builder.add(new LongIterator(new long[] { 4L, 6L, 7L, 9L, 10L }));
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
         Assert.assertNotNull(range);
 
         // first let's skipTo something before range
@@ -136,7 +136,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testMinMaxAndCount()
     {
-        RangeIterator.Builder builder = RangeIntersectionIterator.builder();
+        RangeIterator.Builder<PrimaryKey> builder = RangeIntersectionIterator.builder();
 
         builder.add(new LongIterator(new long[]{1L, 2L, 9L}));
         builder.add(new LongIterator(new long[]{4L, 5L, 9L}));
@@ -145,7 +145,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
         assertEquals(9L, builder.getMaximum().token().getLongValue());
         assertEquals(3L, builder.getTokenCount());
 
-        RangeIterator tokens = builder.build();
+        RangeIterator<PrimaryKey> tokens = builder.build();
 
         assertNotNull(tokens);
         assertEquals(7L, tokens.getMinimum().token().getLongValue());
@@ -158,7 +158,7 @@ public class RangeIntersectionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testBuilder()
     {
-        RangeIntersectionIterator.Builder builder = RangeIntersectionIterator.builder();
+        RangeIntersectionIterator.Builder<PrimaryKey> builder = RangeIntersectionIterator.builder();
 
         Assert.assertNull(builder.getMinimum());
         Assert.assertNull(builder.getMaximum());

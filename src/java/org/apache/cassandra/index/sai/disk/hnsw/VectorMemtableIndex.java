@@ -42,7 +42,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -94,7 +93,7 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public RangeIterator<PrimaryKey> search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
@@ -110,7 +109,7 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit)
+    public RangeIterator<PrimaryKey> reorderOneComponent(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
     {
         Set<PrimaryKey> results = new HashSet<>();
         while (iterator.hasNext())
@@ -202,7 +201,7 @@ public class VectorMemtableIndex implements MemtableIndex
         }
     }
 
-    private class AnnKeyRangeIterator extends RangeIterator
+    private class AnnKeyRangeIterator extends RangeIterator<PrimaryKey>
     {
         private final PriorityQueue<PrimaryKey> keyQueue;
 

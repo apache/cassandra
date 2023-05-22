@@ -35,6 +35,7 @@ import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.SearchableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -159,13 +160,13 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public List<RangeIterator> search(Expression expression,
+    public List<RangeIterator<PrimaryKey>> search(Expression expression,
                                       AbstractBounds<PartitionPosition> keyRange,
                                       SSTableQueryContext context,
                                       boolean defer,
                                       int limit) throws IOException
     {
-        List<RangeIterator> iterators = new ArrayList<>();
+        List<RangeIterator<PrimaryKey>> iterators = new ArrayList<>();
 
         for (Segment segment : segments)
         {
@@ -179,7 +180,7 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit) throws IOException
     {
         // FIXME for multiple components
         return segments.get(0).reorderOneComponent(context, iterator, exp, limit);

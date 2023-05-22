@@ -28,6 +28,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.utils.Pair;
@@ -48,7 +49,7 @@ public abstract class MemoryIndex
                              LongConsumer onHeapAllocationsTracker,
                              LongConsumer offHeapAllocationsTracker);
 
-    public abstract RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
+    public abstract RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
 
     public abstract ByteBuffer getMinTerm();
 

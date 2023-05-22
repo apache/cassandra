@@ -36,6 +36,7 @@ import org.apache.cassandra.index.sai.disk.SearchableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
@@ -137,7 +138,7 @@ public class SSTableIndex implements SegmentOrdering
         return searchableIndex.maxKey();
     }
 
-    public List<RangeIterator> search(Expression expression,
+    public List<RangeIterator<PrimaryKey>> search(Expression expression,
                                       AbstractBounds<PartitionPosition> keyRange,
                                       SSTableQueryContext context,
                                       boolean defer,

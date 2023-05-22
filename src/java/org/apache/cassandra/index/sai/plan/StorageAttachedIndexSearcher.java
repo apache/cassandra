@@ -117,7 +117,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      *
      * @return operation
      */
-    private RangeIterator analyze()
+    private RangeIterator<PrimaryKey> analyze()
     {
         return Operation.buildIterator(controller);
     }
@@ -143,7 +143,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final Iterator<DataRange> keyRanges;
         private AbstractBounds<PartitionPosition> currentKeyRange;
 
-        private final RangeIterator operation;
+        private final RangeIterator<PrimaryKey> operation;
         private final FilterTree filterTree;
         private final QueryController controller;
         private final ReadExecutionController executionController;

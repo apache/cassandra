@@ -177,7 +177,7 @@ public class QueryController
      *
      * @return range iterator builder based on given expressions and operation type.
      */
-    public RangeIterator getIndexes(Operation.OperationType op, Collection<Expression> expressions)
+    public RangeIterator<PrimaryKey> getIndexes(Operation.OperationType op, Collection<Expression> expressions)
     {
         boolean defer = op == Operation.OperationType.OR || RangeIntersectionIterator.shouldDefer(expressions.size());
 // FIXME I have only merged the AND case
@@ -194,7 +194,7 @@ public class QueryController
             expressions = expressions.stream().filter(e -> e != annExpression).collect(Collectors.toList());
 
         var queryView = new QueryViewBuilder(expressions, mergeRange).build();
-        Map<Memtable, List<RangeIterator>> iteratorsByMemtable = expressions
+        Map<Memtable, List<RangeIterator<PrimaryKey>>> iteratorsByMemtable = expressions
                                                                     .stream()
                                                                     .flatMap(expr -> {
                                                                         return expr.context.iteratorsForSearch(expr, mergeRange, getLimit()).stream();
@@ -203,7 +203,7 @@ public class QueryController
 
         try
         {
-            List<RangeIterator> sstableIntersections = queryView.view.entrySet()
+            List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
                                                                         .stream()
                                                                         .map(e -> {
                                                                             var it = createIntersectionIterator(e.getValue(), defer);
@@ -213,18 +213,18 @@ public class QueryController
                                                                         })
                                                                         .collect(Collectors.toList());
 
-            List<RangeIterator> memtableIntersections = iteratorsByMemtable.entrySet()
+            List<RangeIterator<PrimaryKey>> memtableIntersections = iteratorsByMemtable.entrySet()
                                                                               .stream()
                                                                               .map(e -> {
                                                                                   // we need to do all the intersections at the index level, or ordering won't work
-                                                                                  RangeIterator it = RangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
+                                                                                  RangeIterator<PrimaryKey> it = RangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
                                                                                   if (annExpression != null)
                                                                                       it = reorderAndLimitBy(it, e.getKey(), annExpression);
                                                                                   return it;
                                                                               })
                                                                               .collect(Collectors.toList());
 
-            Iterable<RangeIterator> allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
+            Iterable<RangeIterator<PrimaryKey>> allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
 
             queryContext.sstablesHit += queryView.referencedIndexes
                                         .stream()
@@ -277,7 +277,7 @@ public class QueryController
         return L.size() == 1 ? L.get(0) : null;
     }
 
-    private RangeIterator createIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
+    private RangeIterator<PrimaryKey> createIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
     {
         var subIterators = indexExpressions
                            .stream()
