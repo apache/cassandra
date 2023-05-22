@@ -362,32 +362,6 @@ public final class SchemaKeyspace
     }
 
     /**
-     * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
-     * will be converted into UUID which would act as content-based version of the schema.
-     */
-    public static UUID calculateSchemaDigest()
-    {
-        Digest digest = Digest.forSchema();
-        for (String table : ALL)
-        {
-            ReadCommand cmd = getReadCommandForTableSchema(table);
-            try (ReadExecutionController executionController = cmd.executionController();
-                 PartitionIterator schema = cmd.executeInternal(executionController))
-            {
-                while (schema.hasNext())
-                {
-                    try (RowIterator partition = schema.next())
-                    {
-                        if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
-                            RowIterators.digest(partition, digest);
-                    }
-                }
-            }
-        }
-        return UUID.nameUUIDFromBytes(digest.digest());
-    }
-
-    /**
      * @param schemaTableName The name of the table responsible for part of the schema
      * @return CFS responsible to hold low-level serialized schema
      */
