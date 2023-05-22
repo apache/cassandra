@@ -147,7 +147,7 @@ public class IndexContext
             this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
                                         ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
                                         : this.analyzerFactory;
-            this.segmentCompactionEnabled = Boolean.parseBoolean(config.options.getOrDefault(ENABLE_SEGMENT_COMPACTION_OPTION_NAME, "true"));
+            this.segmentCompactionEnabled = Boolean.parseBoolean(config.options.getOrDefault(ENABLE_SEGMENT_COMPACTION_OPTION_NAME, "false"));
         }
         else
         {
