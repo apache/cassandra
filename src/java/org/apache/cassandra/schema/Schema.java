@@ -72,15 +72,13 @@ public final class Schema implements SchemaProvider
 
     private static Schema initialize()
     {
-        Schema schema = new Schema();
-
-        if ((FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized()))
-        {
-            for (KeyspaceMetadata ks : schema.localKeyspaces)
-            {
-                schema.localKeyspaceInstances.put(ks.name, new LazyVariable<>(() -> Keyspace.forSchema(ks.name, schema)));
-            }
-        }
+        Keyspaces initialLocal = ((FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized()))
+                                 ? Keyspaces.of(SchemaKeyspace.metadata(),
+                                                SystemKeyspace.metadata())
+                                 : Keyspaces.NONE;
+        Schema schema = new Schema(initialLocal);
+        for (KeyspaceMetadata ks : schema.localKeyspaces)
+            schema.localKeyspaceInstances.put(ks.name, new LazyVariable<>(() -> Keyspace.forSchema(ks.name, schema)));
         return schema;
     }
 
@@ -91,9 +89,9 @@ public final class Schema implements SchemaProvider
     /**
      * Initialize empty schema object and load the hardcoded system tables
      */
-    private Schema()
+    private Schema(Keyspaces initialLocalKeyspaces)
     {
-        this.localKeyspaces = Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata());
+        localKeyspaces = initialLocalKeyspaces;
     }
 
     /**
