@@ -1835,7 +1835,7 @@ class Shell(cmd.Cmd):
                         self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
             else:
                 self.printerr("*** No help on %s" % (t,))
-    def do_history(self,parsed):
+    def do_history(self, parsed):
         """
         HISTORY [cqlsh only]
 
@@ -1850,11 +1850,10 @@ class Shell(cmd.Cmd):
 
         n = parsed.get_binding('n')
         if (n is not None):
-             self.max_history_length_shown = int(n)
+            self.max_history_length_shown = int(n)
 
-        for index in range(history_length-self.max_history_length_shown, history_length):
+        for index in range(history_length - self.max_history_length_shown, history_length):
             print(readline.get_history_item(index))
-
 
     def do_unicode(self, parsed):
         """
