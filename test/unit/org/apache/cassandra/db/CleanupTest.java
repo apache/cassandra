@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -45,12 +46,14 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.reads.range.TokenUpdater;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -81,9 +84,12 @@ public class CleanupTest
     }
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    public static void defineSchema() throws Exception
     {
         ServerTestUtils.prepareServerNoRegister();
+        ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.0.0.1"), "DC1", "RC1");
+        ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.0.0.2"), "DC1", "RC1");
+
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -112,6 +118,13 @@ public class CleanupTest
         SchemaLoader.createKeyspace(KEYSPACE3,
                                     KeyspaceParams.nts("DC1", 1),
                                     SchemaLoader.standardCFMD(KEYSPACE3, CF_STANDARD3));
+        ServerTestUtils.markCMS();
+    }
+
+    @Before
+    public void resetCMS()
+    {
+        ServerTestUtils.resetCMS();
     }
 
     @Test
@@ -119,7 +132,7 @@ public class CleanupTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
-
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), token(new byte[]{ 50 })).update();
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, "val", LOOPS);
@@ -144,7 +157,6 @@ public class CleanupTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEXED1);
-
 
         // insert data and verify we get it back w/ range query
         fillCF(cfs, "birthdate", LOOPS);
@@ -222,9 +234,9 @@ public class CleanupTest
         new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
                           .update();
 
-
         Keyspace keyspace = Keyspace.open(KEYSPACE2);
-//        keyspace.setMetadata(KeyspaceMetadata.create(KEYSPACE2, KeyspaceParams.nts("DC1", 1)));
+        KeyspaceMetadata ksm = keyspace.getMetadata().withSwapped(KeyspaceParams.nts("DC1", 1));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm, true);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD2);
 
         // insert data and verify we get it back w/ range query
@@ -232,7 +244,8 @@ public class CleanupTest
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
 
         // remove replication on DC1
-//        keyspace.setMetadata(KeyspaceMetadata.create(KEYSPACE2, KeyspaceParams.nts("DC1", 0)));
+        ksm = ksm.withSwapped(KeyspaceParams.nts("DC1", 0));
+        SchemaTestUtil.addOrUpdateKeyspace(ksm, true);
 
         // clear token range for localhost on DC1
         if (isUserDefined)
@@ -268,6 +281,7 @@ public class CleanupTest
         byte[] tk1 = new byte[] { 50 };
         new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
                           .update();
+
 
         for (byte i = 0; i < 100; i++)
         {
