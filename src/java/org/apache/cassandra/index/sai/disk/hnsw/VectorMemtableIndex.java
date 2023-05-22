@@ -65,7 +65,6 @@ public class VectorMemtableIndex implements MemtableIndex
         this.graph = new CassandraOnHeapHnsw(indexContext);
     }
 
-    // FIXME horrible no good hack that compacts in-memory
     public void index(PrimaryKey key, float[] vector)
     {
         graph.put(key, VectorType.Serializer.getByteBuffer(vector));

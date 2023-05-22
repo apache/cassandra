@@ -27,8 +27,9 @@ import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -58,6 +59,8 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 @SuppressWarnings("com.google.common.annotations.Beta")
 public class CassandraOnHeapHnsw
 {
+    private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapHnsw.class);
+
     final ByteBufferVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final AtomicInteger cachedDimensions = new AtomicInteger();
@@ -66,11 +69,9 @@ public class CassandraOnHeapHnsw
     final Map<ByteBuffer, VectorPostings> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
-    // FIXME this is disgusting and possibly unnecessary
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
-
     public CassandraOnHeapHnsw(IndexContext indexContext)
     {
+        logger.info("Creating hnsw index " + System.identityHashCode(this));
         vectorValues = new ByteBufferVectorValues();
         serializer = (TypeSerializer<float[]>) indexContext.getValidator().getSerializer();
         similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
@@ -94,28 +95,20 @@ public class CassandraOnHeapHnsw
 
     public void put(PrimaryKey key, ByteBuffer value)
     {
-        lock.readLock().lock();
-        try
-        {
-            var postings = postingsMap.computeIfAbsent(value, v -> {
-                var ordinal = nextOrdinal.getAndIncrement();
-                vectorValues.add(ordinal, value);
-                try
-                {
-                    builder.addGraphNode(ordinal, vectorValues);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                return new VectorPostings(ordinal);
-            });
-            postings.append(key);
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        var postings = postingsMap.computeIfAbsent(value, v -> {
+            var ordinal = nextOrdinal.getAndIncrement();
+            vectorValues.add(ordinal, value);
+            try
+            {
+                builder.addGraphNode(ordinal, vectorValues);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return new VectorPostings(ordinal);
+        });
+        postings.append(key);
     }
 
     public boolean isEmpty()
@@ -197,17 +190,9 @@ public class CassandraOnHeapHnsw
 
     public void write(IndexDescriptor descriptor, IndexContext context, Map<PrimaryKey, Integer> keyToRowId) throws IOException
     {
-        lock.writeLock().lock();
-        try
-        {
-            writeVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-            OnDiskOrdinalsMap.writeOrdinalToRowMapping(this, descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
-            writeGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+        writeVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
+        OnDiskOrdinalsMap.writeOrdinalToRowMapping(this, descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
+        writeGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
     }
 
     static class VectorPostings
