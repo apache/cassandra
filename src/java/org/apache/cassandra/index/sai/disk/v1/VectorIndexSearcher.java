@@ -111,7 +111,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         }
 
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
+        float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
         return toPrimaryKeyIterator(results, context);
     }
