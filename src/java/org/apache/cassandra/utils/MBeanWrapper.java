@@ -33,7 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_IS_IN_JVM_DTEST;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_IS_IN_JVM_DTEST;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MBEAN_REGISTRATION_CLASS;
 
 /**
@@ -50,7 +50,7 @@ public interface MBeanWrapper
     {
         // If we're running in the in-jvm dtest environment, always use the delegating
         // mbean wrapper even if we start off with no-op, so it can be switched later
-        if (TEST_IS_IN_JVM_DTEST.getBoolean())
+        if (DTEST_IS_IN_JVM_DTEST.getBoolean())
         {
             return new DelegatingMbeanWrapper(getmBeanWrapper());
         }
@@ -68,7 +68,7 @@ public interface MBeanWrapper
         String klass = MBEAN_REGISTRATION_CLASS.getString();
         if (klass == null)
         {
-            if (TEST_IS_IN_JVM_DTEST.getBoolean())
+            if (DTEST_IS_IN_JVM_DTEST.getBoolean())
             {
                 return new NoOpMBeanWrapper();
             }
