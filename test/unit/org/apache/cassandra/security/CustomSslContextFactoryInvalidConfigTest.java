@@ -24,20 +24,22 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 
 public class CustomSslContextFactoryInvalidConfigTest
 {
+    static WithProperties properties;
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        CASSANDRA_CONFIG.setString("cassandra-sslcontextfactory-invalidconfiguration.yaml");
+        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-sslcontextfactory-invalidconfiguration.yaml");
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor() {
-        CASSANDRA_CONFIG.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        properties.close();
     }
 
     @Test(expected = IllegalArgumentException.class)

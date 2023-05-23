@@ -42,15 +42,17 @@ public class NativeMixedVersionTest extends TestBaseImpl
     {
         // make sure to limit the netty thread pool to size 1, this will make the test determanistic as all work
         // will happen on the single thread.
-        try (WithProperties properties = new WithProperties().set(IO_NETTY_EVENTLOOP_THREADS, 1))
+        try (WithProperties properties = new WithProperties().set(IO_NETTY_EVENTLOOP_THREADS, 1);
+             Cluster cluster = Cluster.build(1)
+                                      .withConfig(c ->
+                                                  c.with(Feature.values())
+                                                   .set("read_thresholds_enabled", true)
+                                                   .set("local_read_size_warn_threshold", "1KiB")
+                                      )
+                                      .start();
+             )
         {
-            Cluster cluster = Cluster.build(1)
-                                     .withConfig(c ->
-                                                 c.with(Feature.values())
-                                                  .set("read_thresholds_enabled", true)
-                                                  .set("local_read_size_warn_threshold", "1KiB")
-                                     )
-                                     .start();
+
             init(cluster);
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck1 int, value blob, PRIMARY KEY (pk, ck1))"));
             IInvokableInstance node = cluster.get(1);

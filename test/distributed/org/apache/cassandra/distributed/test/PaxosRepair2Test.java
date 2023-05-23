@@ -335,12 +335,13 @@ public class PaxosRepair2Test extends TestBaseImpl
     @Test
     public void paxosAutoRepair() throws Throwable
     {
-        try (WithProperties properties = new WithProperties().set(AUTO_REPAIR_FREQUENCY_SECONDS, 1).set(DISABLE_PAXOS_AUTO_REPAIRS, true))
+        try (WithProperties properties = new WithProperties().set(AUTO_REPAIR_FREQUENCY_SECONDS, 1).set(DISABLE_PAXOS_AUTO_REPAIRS, true);
+             Cluster cluster = init(Cluster.create(3, cfg -> cfg
+                                                             .set("paxos_variant", "v2")
+                                                             .set("paxos_repair_enabled", true)
+                                                             .set("truncate_request_timeout_in_ms", 1000L)));
+             )
         {
-            Cluster cluster = init(Cluster.create(3, cfg -> cfg
-                                                            .set("paxos_variant", "v2")
-                                                            .set("paxos_repair_enabled", true)
-                                                            .set("truncate_request_timeout_in_ms", 1000L)));
             cluster.forEach(i -> {
                 Assert.assertFalse(CassandraRelevantProperties.CLOCK_GLOBAL.isPresent());
                 Assert.assertEquals(1, CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS.getInt());

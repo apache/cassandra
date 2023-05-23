@@ -79,6 +79,7 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -132,6 +133,8 @@ public class ScrubTest
 
     private static final AtomicInteger seq = new AtomicInteger();
 
+    static WithProperties properties;
+
     String ksName;
     Keyspace keyspace;
 
@@ -160,13 +163,13 @@ public class ScrubTest
         keyspace = Keyspace.open(ksName);
 
         CompactionManager.instance.disableAutoCompaction();
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
+        properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true);
     }
 
     @AfterClass
     public static void clearClassEnv()
     {
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        properties.close();
     }
 
     @Test

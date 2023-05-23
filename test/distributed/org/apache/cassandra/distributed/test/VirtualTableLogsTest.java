@@ -51,11 +51,12 @@ public class VirtualTableLogsTest extends TestBaseImpl
     @Test
     public void testVTableOutput() throws Throwable
     {
-        try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender.xml"))
+        try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender.xml");
+             Cluster cluster = Cluster.build(1)
+                                      .withConfig(c -> c.with(Feature.values()))
+                                      .start();
+             )
         {
-            Cluster cluster = Cluster.build(1)
-                                     .withConfig(c -> c.with(Feature.values()))
-                                     .start();
             List<TestingLogMessage> rows = getRows(cluster);
             assertFalse(rows.isEmpty());
 
@@ -67,11 +68,12 @@ public class VirtualTableLogsTest extends TestBaseImpl
     public void testMultipleAppendersFailToStartNode() throws Throwable
     {
         LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest_with_vtable_appender_invalid.xml");
-        try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender_invalid.xml"))
+        try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender_invalid.xml");
+             Cluster ignored = Cluster.build(1)
+                                      .withConfig(c -> c.with(Feature.values()))
+                                      .start();
+             )
         {
-            Cluster ignored = Cluster.build(1)
-                                     .withConfig(c -> c.with(Feature.values()))
-                                     .start();
             fail("Node should not start as there is supposed to be invalid logback configuration file.");
         }
         catch (IllegalStateException ex)

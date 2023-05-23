@@ -34,6 +34,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.CachedPartition;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -48,18 +49,20 @@ import static org.junit.Assert.assertEquals;
  */
 public class RangeCommandsTest extends CQLTester
 {
+
+    static WithProperties properties;
     private static final int MAX_CONCURRENCY_FACTOR = 4;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        MAX_CONCURRENT_RANGE_REQUESTS.setInt(MAX_CONCURRENCY_FACTOR);
+        properties = new WithProperties().set(MAX_CONCURRENT_RANGE_REQUESTS, MAX_CONCURRENCY_FACTOR);
     }
 
     @AfterClass
     public static void cleanup()
     {
-        MAX_CONCURRENT_RANGE_REQUESTS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        properties.close();
     }
 
     @Test

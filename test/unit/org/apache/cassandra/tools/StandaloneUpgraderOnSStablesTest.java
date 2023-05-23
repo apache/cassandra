@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.LegacySSTableTest;
@@ -48,19 +49,21 @@ import static org.junit.Assert.assertEquals;
  */
 public class StandaloneUpgraderOnSStablesTest
 {
+    static WithProperties properties;
+
     String legacyId = LegacySSTableTest.legacyVersions[LegacySSTableTest.legacyVersions.length - 1];
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         LegacySSTableTest.defineSchema();
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
+        properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true);
     }
 
     @AfterClass
     public static void clearClassEnv()
     {
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        properties.close();
     }
 
     @Test

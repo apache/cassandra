@@ -27,22 +27,25 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 
 public class PEMBasedSslContextFactoryConfigWithMismatchingPasswordsTest
 {
+    static WithProperties properties;
+
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        CASSANDRA_CONFIG.setString("cassandra-pem-sslcontextfactory-mismatching-passwords.yaml");
+        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-pem-sslcontextfactory-mismatching-passwords.yaml");
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        CASSANDRA_CONFIG.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        properties.close();
     }
 
     @Test(expected = ConfigurationException.class)
