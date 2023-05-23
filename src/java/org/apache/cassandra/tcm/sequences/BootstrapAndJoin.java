@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +56,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -189,8 +191,9 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                 {
                     Collection<Token> bootstrapTokens = SystemKeyspace.getSavedTokens();
                     ClusterMetadata metadata = ClusterMetadata.current();
-                    MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements, startJoin.delta());
-                    MovementMap strictMovementMap = toStrict(movementMap, finishJoin.delta());
+                    Pair<MovementMap, MovementMap> movements = getMovementMaps(metadata);
+                    MovementMap movementMap = movements.left;
+                    MovementMap strictMovementMap = movements.right;
                     if (streamData)
                     {
                         boolean dataAvailable = bootstrap(bootstrapTokens,
@@ -256,6 +259,14 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                 throw new IllegalStateException("Can't proceed with join from " + next);
         }
         return true;
+    }
+
+    @VisibleForTesting
+    public Pair<MovementMap, MovementMap> getMovementMaps(ClusterMetadata metadata)
+    {
+        MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements, startJoin.delta());
+        MovementMap strictMovementMap = toStrict(movementMap, finishJoin.delta());
+        return Pair.create(movementMap, strictMovementMap);
     }
 
     @Override
