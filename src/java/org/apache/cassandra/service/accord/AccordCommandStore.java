@@ -129,8 +129,7 @@ public class AccordCommandStore extends CommandStore
         AsyncPromise<CommandsForRanges> future = new AsyncPromise<>();
         AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "txn", "execute_at", "dependencies"), new Observable<UntypedResultSet.Row>()
         {
-            private CommandsForRanges result = new CommandsForRanges();
-            private CommandsForRanges.Builder builder = result.unbuild();
+            private CommandsForRanges.Builder builder = new CommandsForRanges.Builder();
             @Override
             public void onNext(UntypedResultSet.Row row) throws Exception
             {
@@ -153,17 +152,14 @@ public class AccordCommandStore extends CommandStore
             public void onError(Throwable t)
             {
                 builder = null;
-                result = null;
                 future.tryFailure(t);
             }
 
             @Override
             public void onCompleted()
             {
-                builder.apply();
+                CommandsForRanges result = this.builder.build();
                 builder = null;
-                CommandsForRanges result = this.result;
-                this.result = null;
                 future.trySuccess(result);
             }
         });
@@ -377,9 +373,9 @@ public class AccordCommandStore extends CommandStore
         return accumulate;
     }
 
-    CommandsForRanges.Builder unbuild()
+    CommandsForRanges.Updater updateRanges()
     {
-        return commandsForRanges.unbuild();
+        return commandsForRanges.update();
     }
 
     public void abortCurrentOperation()

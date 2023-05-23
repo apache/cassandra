@@ -130,50 +130,71 @@ public class CommandsForRanges
         }
     }
 
-    public class Builder
+    public static abstract class AbstractBuilder<T extends AbstractBuilder<T>>
     {
-        private final IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder;
+        protected final IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder;
 
-        private Builder(IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder)
+        private AbstractBuilder(IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder)
         {
             this.builder = builder;
         }
 
-        public Builder put(Ranges ranges, TxnId txnId, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
+        public T put(Ranges ranges, TxnId txnId, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
         {
             remove(txnId);
             return put(ranges, new RangeCommandSummary(txnId, status, execteAt, dependsOn));
         }
 
-        private Builder put(Ranges ranges, RangeCommandSummary summary)
+        private T put(Ranges ranges, RangeCommandSummary summary)
         {
             for (Range range : ranges)
                 put(range, summary);
-            return this;
+            return (T) this;
         }
 
-        private Builder put(Range range, RangeCommandSummary summary)
+        private T put(Range range, RangeCommandSummary summary)
         {
             builder.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
                                         normalize(range.end(), range.endInclusive(), false),
                                         summary));
-            return this;
+            return (T) this;
         }
 
-        private Builder remove(TxnId txnId)
+        private T remove(TxnId txnId)
         {
             return removeIf(data -> data.txnId.equals(txnId));
         }
 
-        private Builder removeIf(Predicate<RangeCommandSummary> predicate)
+        private T removeIf(Predicate<RangeCommandSummary> predicate)
         {
             return removeIf((i1, i2, data) -> predicate.test(data));
         }
 
-        private Builder removeIf(IntervalTree.Builder.TriPredicate<RoutableKey, RoutableKey, RangeCommandSummary> predicate)
+        private T removeIf(IntervalTree.Builder.TriPredicate<RoutableKey, RoutableKey, RangeCommandSummary> predicate)
         {
             builder.removeIf(predicate);
-            return this;
+            return (T) this;
+        }
+    }
+
+    public static class Builder extends AbstractBuilder<Builder>
+    {
+        public Builder()
+        {
+            super(new IntervalTree.Builder<>());
+        }
+
+        public CommandsForRanges build()
+        {
+            return new CommandsForRanges(builder.build());
+        }
+    }
+
+    public class Updater extends AbstractBuilder<Updater>
+    {
+        private Updater()
+        {
+            super(rangesToCommands.unbuild());
         }
 
         public void apply()
@@ -182,7 +203,17 @@ public class CommandsForRanges
         }
     }
 
-    private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands = IntervalTree.emptyTree();
+    private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands;
+
+    public CommandsForRanges()
+    {
+        this(IntervalTree.emptyTree());
+    }
+
+    public CommandsForRanges(IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands)
+    {
+        this.rangesToCommands = rangesToCommands;
+    }
 
     public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)
     {
@@ -257,9 +288,9 @@ public class CommandsForRanges
         return rangesToCommands.intervalCount();
     }
 
-    public Builder unbuild()
+    public Updater update()
     {
-        return new Builder(rangesToCommands.unbuild());
+        return new Updater();
     }
 
     @Override

@@ -19,11 +19,9 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.function.BiFunction;
 
 import javax.annotation.Nullable;
@@ -48,7 +46,6 @@ import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.AbstractKeys;
-import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
@@ -64,7 +61,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
-    private CommandsForRanges.Builder builder = null;
+    private CommandsForRanges.Updater builder = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
@@ -287,7 +284,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
                 TxnId txnId = liveCommand.txnId();
                 if (builder == null)
-                    builder = commandStore.unbuild();
+                    builder = commandStore.updateRanges();
 
                 builder.put(ranges, txnId, saveStatus, current.executeAt(), dependsOn);
 
@@ -301,7 +298,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                         if (current.saveStatus() == saveStatus)
                             return;
                         //TODO should we use ranges/depends from "current"?  Can it change? If so should old ranges be discarded?
-                        ((AccordCommandStore) safeStore.commandStore()).unbuild()
+                        ((AccordCommandStore) safeStore.commandStore()).updateRanges()
                                                                        .put(finalRanges, txnId, current.saveStatus(), current.executeAt(), dependsOn)
                                                                        .apply();
                     }
