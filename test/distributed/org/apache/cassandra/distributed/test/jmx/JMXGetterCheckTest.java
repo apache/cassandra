@@ -114,7 +114,7 @@ public class JMXGetterCheckTest extends TestBaseImpl
     }
 
     /**
-     * This class is meant to make new errors easier to read, by adding the JMX endpoint, and cleaning up the unneded JMX/Reflection logic cluttering the stacktrace
+     * This class is meant to make new errors easier to read, by adding the JMX endpoint, and cleaning up the unneeded JMX/Reflection logic cluttering the stacktrace
      */
     private static class Named extends RuntimeException
     {
