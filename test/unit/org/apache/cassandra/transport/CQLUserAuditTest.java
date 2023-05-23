@@ -64,7 +64,7 @@ public class CQLUserAuditTest
     public static void setup() throws Exception
     {
         OverrideConfigurationLoader.override((config) -> {
-            config.authenticator = "PasswordAuthenticator";
+            config.authenticator = new ParameterizedClass("PasswordAuthenticator");
             config.role_manager = "CassandraRoleManager";
             config.diagnostic_events_enabled = true;
             config.audit_logging_options.enabled = true;

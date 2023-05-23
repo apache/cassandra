@@ -69,7 +69,7 @@ public class AuditLoggerAuthTest
     public static void setup() throws Exception
     {
         OverrideConfigurationLoader.override((config) -> {
-            config.authenticator = "PasswordAuthenticator";
+            config.authenticator = new ParameterizedClass("PasswordAuthenticator");
             config.role_manager = "CassandraRoleManager";
             config.authorizer = "CassandraAuthorizer";
             config.audit_logging_options.enabled = true;

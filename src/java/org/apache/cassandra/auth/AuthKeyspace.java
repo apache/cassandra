@@ -58,7 +58,8 @@ public final class AuthKeyspace
     public static final String ROLE_PERMISSIONS = "role_permissions";
     public static final String RESOURCE_ROLE_INDEX = "resource_role_permissons_index";
     public static final String NETWORK_PERMISSIONS = "network_permissions";
-    public static final Set<String> TABLE_NAMES = ImmutableSet.of(ROLES, ROLE_MEMBERS, ROLE_PERMISSIONS, RESOURCE_ROLE_INDEX, NETWORK_PERMISSIONS);
+    public static final String IDENTITY_TO_ROLES = "identity_to_role";
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(ROLES, ROLE_MEMBERS, ROLE_PERMISSIONS, RESOURCE_ROLE_INDEX, NETWORK_PERMISSIONS, IDENTITY_TO_ROLES);
 
     public static final long SUPERUSER_SETUP_DELAY = SUPERUSER_SETUP_DELAY_MS.getLong();
 
@@ -72,6 +73,15 @@ public final class AuthKeyspace
               + "salted_hash text,"
               + "member_of set<text>,"
               + "PRIMARY KEY(role))");
+
+    private static final TableMetadata IdentityToRoles =
+        parse(IDENTITY_TO_ROLES,
+              "mtls authorized identities lookup table",
+              "CREATE TABLE %s ("
+              + "identity text," // opaque identity string for use by role authenticators
+              + "role text,"
+              + "PRIMARY KEY(identity))"
+          );
 
     private static final TableMetadata RoleMembers =
         parse(ROLE_MEMBERS,
@@ -119,6 +129,6 @@ public final class AuthKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex, NetworkPermissions));
+                                       Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex, NetworkPermissions, IdentityToRoles));
     }
 }
