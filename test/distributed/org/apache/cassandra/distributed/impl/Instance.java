@@ -649,7 +649,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private void stopJmx() throws NoSuchFieldException, InterruptedException, IllegalAccessException
     {
-        isolatedJmx.stopJmx();
+        if (config.has(JMX))
+        {
+            isolatedJmx.stopJmx();
+        }
     }
 
     // Update the messaging versions for all instances
