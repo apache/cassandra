@@ -252,7 +252,7 @@ public class QueryController
         try
         {
             if (sstableRowIdsIterator.getCount() <= 0)
-                return RangeIterator.empty();
+                return RangeIterator.emptyKeys();
 
             SSTableContextManager contextManager = StorageAttachedIndexGroup.getIndexGroup(cfs).sstableContextManager();
             SSTableContext sstableContext = contextManager.getContext(sstable);

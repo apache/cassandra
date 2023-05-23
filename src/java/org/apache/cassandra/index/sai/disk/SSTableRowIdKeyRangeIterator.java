@@ -73,7 +73,7 @@ public class SSTableRowIdKeyRangeIterator extends RangeIterator<PrimaryKey>
                                                    RangeIterator<Long> sstableRowIdIterator)
     {
         if (sstableRowIdIterator.getCount() <= 0)
-            return RangeIterator.empty();
+            return RangeIterator.emptyKeys();
 
         PrimaryKey min = primaryKeyMap.primaryKeyFromRowId(sstableRowIdIterator.getMinimum());
         PrimaryKey max = primaryKeyMap.primaryKeyFromRowId(sstableRowIdIterator.getMaximum());

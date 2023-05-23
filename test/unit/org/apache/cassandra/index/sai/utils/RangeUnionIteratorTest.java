@@ -217,16 +217,16 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
 
         FileUtils.closeQuietly(tokens);
 
-        RangeIterator emptyTokens = RangeUnionIterator.builder().build();
+        var emptyTokens = RangeUnionIterator.builder().build();
         Assert.assertEquals(0, emptyTokens.getCount());
 
         builder = RangeUnionIterator.builder();
-        Assert.assertEquals(0L, builder.add((RangeIterator) null).rangeCount());
-        Assert.assertEquals(0L, builder.add((List<RangeIterator>) null).getTokenCount());
+        Assert.assertEquals(0L, builder.add((RangeIterator<PrimaryKey>) null).rangeCount());
+        Assert.assertEquals(0L, builder.add((List<RangeIterator<PrimaryKey>>) null).getTokenCount());
         Assert.assertEquals(0L, builder.add(new LongIterator(new long[] {})).rangeCount());
 
-        RangeIterator single = new LongIterator(new long[] { 1L, 2L, 3L });
-        RangeIterator range = RangeIntersectionIterator.builder().add(single).build();
+        var single = new LongIterator(new long[] { 1L, 2L, 3L });
+        var range = RangeIntersectionIterator.<PrimaryKey>builder().add(single).build();
 
         // because build should return first element if it's only one instead of building yet another iterator
         Assert.assertEquals(range, single);
@@ -235,7 +235,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testSkipTo()
     {
-        RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
+        var builder = RangeUnionIterator.<PrimaryKey>builder();
 
         builder.add(new LongIterator(new long[]{1L, 2L, 3L}));
         builder.add(new LongIterator(new long[]{4L, 5L, 6L}));

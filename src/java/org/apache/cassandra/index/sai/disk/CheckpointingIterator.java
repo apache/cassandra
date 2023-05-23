@@ -28,7 +28,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 
-public class CheckpointingIterator<T extends Comparable> extends RangeIterator<T>
+public class CheckpointingIterator<T extends Comparable<T>> extends RangeIterator<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(CheckpointingIterator.class);
 

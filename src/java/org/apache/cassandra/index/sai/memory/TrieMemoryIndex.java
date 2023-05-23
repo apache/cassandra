@@ -181,7 +181,7 @@ public class TrieMemoryIndex extends MemoryIndex
         final PrimaryKeys primaryKeys = data.get(prefix);
         if (primaryKeys == null)
         {
-            return RangeIterator.empty();
+            return RangeIterator.emptyKeys();
         }
         return new FilteringKeyRangeIterator(primaryKeys.keys(), keyRange);
     }
@@ -218,7 +218,7 @@ public class TrieMemoryIndex extends MemoryIndex
 
         if (cd.mergedKeys.isEmpty())
         {
-            return RangeIterator.empty();
+            return RangeIterator.emptyKeys();
         }
 
         lastQueueSize.set(Math.max(MINIMUM_QUEUE_SIZE, cd.mergedKeys.size()));

@@ -34,7 +34,7 @@ import org.apache.cassandra.io.util.FileUtils;
  * ex. (1, 2, 2, 3) + (3, 4, 4, 6, 6, 7) -> (1, 2, 2, 3, 3, 4, 4, 6, 6, 7)
  *
  */
-public class RangeConcatIterator<T extends Comparable> extends RangeIterator<T>
+public class RangeConcatIterator<T extends Comparable<T>> extends RangeIterator<T>
 {
     private final PriorityQueue<RangeIterator<T>> ranges;
     private final List<RangeIterator<T>> toRelease;
@@ -56,7 +56,7 @@ public class RangeConcatIterator<T extends Comparable> extends RangeIterator<T>
             if (ranges.peek().getCurrent().compareTo(primaryKey) >= 0)
                 break;
 
-            RangeIterator head = ranges.poll();
+            var head = ranges.poll();
 
             if (head.getMaximum().compareTo(primaryKey) >= 0)
             {
@@ -95,17 +95,17 @@ public class RangeConcatIterator<T extends Comparable> extends RangeIterator<T>
         return endOfData();
     }
 
-    public static Builder builder()
+    public static <T extends Comparable<T>> Builder<T> builder()
     {
-        return new Builder();
+        return new Builder<T>();
     }
 
-    public static <T extends Comparable> RangeIterator<T> build(List<RangeIterator<T>> tokens)
+    public static <T extends Comparable<T>> RangeIterator<T> build(List<RangeIterator<T>> tokens)
     {
-        return new Builder().add(tokens).build();
+        return new Builder<T>().add(tokens).build();
     }
 
-    public static class Builder<T extends Comparable> extends RangeIterator.Builder<T>
+    public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>
     {
         public Builder()
         {
@@ -120,7 +120,7 @@ public class RangeConcatIterator<T extends Comparable> extends RangeIterator<T>
                     return ranges.poll();
 
                 default:
-                    return new RangeConcatIterator(statistics, ranges);
+                    return new RangeConcatIterator<>(statistics, ranges);
             }
         }
     }
