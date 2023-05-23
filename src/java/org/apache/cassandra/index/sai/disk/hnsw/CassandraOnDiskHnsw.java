@@ -19,7 +19,6 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
-import java.util.PriorityQueue;
 
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
@@ -30,6 +29,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.LongHeap;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
@@ -148,27 +148,27 @@ public class CassandraOnDiskHnsw
 
     public class AnnPostingList implements PostingList
     {
-        private final PriorityQueue<Integer> results;
+        private final LongHeap segmentRowIds;
         private final int size;
 
         public AnnPostingList(NeighborQueue queue) throws IOException
         {
-            results = new PriorityQueue<>(queue.size());
+            segmentRowIds = new LongHeap(queue.size());
             while (queue.size() > 0) {
                 int ordinal = queue.pop();
                 // toIterator takes care of segmented id -> sstable row id conversion
                 for (int segmentRowId : ordinalsMap.getSegmentRowIdsMatching(ordinal))
-                    results.add(segmentRowId);
+                    segmentRowIds.push(segmentRowId);
             }
-            size = results.size();
+            size = segmentRowIds.size();
         }
 
         @Override
         public long nextPosting() throws IOException
         {
-            if (results.isEmpty())
+            if (segmentRowIds.size() == 0)
                 return PostingList.END_OF_STREAM;
-            return results.poll();
+            return segmentRowIds.pop();
         }
 
         @Override
