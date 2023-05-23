@@ -624,7 +624,7 @@ public abstract class LocalLog implements Closeable
             processPendingInternal();
         }
 
-        void processPending()
+        synchronized void processPending()
         {
             processPendingInternal();
         }
