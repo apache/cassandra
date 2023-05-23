@@ -1092,6 +1092,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
                 throw new RuntimeException("Replace method removed; use " + REPLACE_ADDRESS.getKey() + " system property instead.");
 
+            DatabaseDescriptor.getInternodeAuthenticator().setupInternode();
             MessagingService.instance().listen();
 
             UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
@@ -1371,7 +1372,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             DatabaseDescriptor.getRoleManager().setup();
             DatabaseDescriptor.getAuthenticator().setup();
-            DatabaseDescriptor.getInternodeAuthenticator().setupInternode();
             DatabaseDescriptor.getAuthorizer().setup();
             DatabaseDescriptor.getNetworkAuthorizer().setup();
             AuthCacheService.initializeAndRegisterCaches();

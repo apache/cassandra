@@ -18,7 +18,18 @@
 
 package org.apache.cassandra.auth;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -32,7 +43,10 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
+import static org.junit.Assert.assertNotNull;
 
 
 public class AuthTestUtils
@@ -68,6 +82,12 @@ public class AuthTestUtils
         UntypedResultSet process(String query, ConsistencyLevel consistencyLevel)
         {
             return QueryProcessor.executeInternal(query);
+        }
+
+        @Override
+        UntypedResultSet process(String query, ConsistencyLevel consistencyLevel, ByteBuffer... values)
+        {
+            return QueryProcessor.executeInternal(query, (Object[]) values);
         }
 
         @Override
@@ -170,5 +190,31 @@ public class AuthTestUtils
         roleOptions.setOption(IRoleManager.Option.LOGIN, true);
         roleOptions.setOption(IRoleManager.Option.PASSWORD, "ignored");
         return roleOptions;
+    }
+
+    // mTLS authenticators related utility methods
+    public static InetAddress getMockInetAddress() throws UnknownHostException
+    {
+        return InetAddress.getByName("127.0.0.1");
+    }
+
+    public static Certificate[] loadCertificateChain(final String path) throws CertificateException
+    {
+        InputStream inputStream = MutualTlsAuthenticator.class.getClassLoader().getResourceAsStream(path);
+        assertNotNull(inputStream);
+        Collection<? extends Certificate> c = CertificateFactory.getInstance("X.509").generateCertificates(inputStream);
+        X509Certificate[] certs = new X509Certificate[c.size()];
+        for (int i = 0; i < certs.length; i++)
+        {
+            certs[i] = (X509Certificate) c.toArray()[i];
+        }
+        return certs;
+    }
+
+    public static void initializeIdentityRolesTable(final String identity) throws IOException, TimeoutException
+    {
+        StorageService.instance.truncate(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.IDENTITY_TO_ROLES);
+        String insertQuery = "Insert into %s.%s (identity, role) values ('%s', 'readonly_user');";
+        QueryProcessor.process(String.format(insertQuery, SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.IDENTITY_TO_ROLES, identity), ConsistencyLevel.ONE);
     }
 }
