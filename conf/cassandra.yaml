@@ -150,7 +150,14 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator: AllowAllAuthenticator
+authenticator:
+  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+# MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -820,8 +827,17 @@ listen_address: localhost
 
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
-# internode_authenticator: org.apache.cassandra.auth.AllowAllInternodeAuthenticator
-
+#internode_authenticator:
+#  class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+#  parameters :
+# MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+#    trusted_peer_identities: "spiffe1,spiffe2"
+#    node_identity: "spiffe1"
 # Whether to start the native transport server.
 # The address on which the native transport is bound is defined by rpc_address.
 start_native_transport: true

@@ -243,7 +243,8 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls());
     }
 
-    private class PlainTextSaslAuthenticator implements SaslNegotiator
+    @VisibleForTesting
+    class PlainTextSaslAuthenticator implements SaslNegotiator
     {
         private boolean complete = false;
         private String username;
