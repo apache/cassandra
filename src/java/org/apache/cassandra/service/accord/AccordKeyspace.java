@@ -35,7 +35,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
@@ -356,13 +355,6 @@ public class AccordKeyspace
     private static Tables tables()
     {
         return Tables.of(Commands, CommandsForKeys);
-    }
-
-    @VisibleForTesting
-    public static void truncateTables()
-    {
-        for (TableMetadata table : tables())
-            executeInternal(String.format("TRUNCATE %s", table));
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException

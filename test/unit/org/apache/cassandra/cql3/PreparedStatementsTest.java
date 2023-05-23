@@ -41,7 +41,6 @@ import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.serializers.BooleanSerializer;
 import org.apache.cassandra.serializers.Int32Serializer;
-import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -773,11 +772,8 @@ public class PreparedStatementsTest extends CQLTester
         return rs.getColumnDefinitions().asList().stream().map(d -> d.getName()).collect(Collectors.toList());
     }
 
-    private void updateTxnState()
+    private static void updateTxnState()
     {
-        // this class keeps dropping tables, so the commands_for_keys cache points to stale data
-        AccordKeyspace.truncateTables();
-
         //TODO Remove this method once CEP-21 and CEP-15 integrate
         AccordService.instance().createEpochFromConfigUnsafe();
         AccordService.instance().setCacheSize(0);
