@@ -185,7 +185,7 @@ public interface MBeanWrapper
         public void unregisterMBean(ObjectName mbeanName, OnException onException) {}
         public void unregisterMBean(String mbeanName, OnException onException) {}
         public Set<ObjectName> queryNames(ObjectName name, QueryExp query) {return Collections.emptySet(); }
-        public MBeanServer getMbs() {return null; }
+        public MBeanServer getMbs() { return null; }
     }
 
     class PlatformMBeanWrapper implements MBeanWrapper
