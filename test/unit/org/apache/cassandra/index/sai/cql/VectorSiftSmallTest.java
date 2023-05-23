@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.sai.SAITester;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class VectorSiftSmallTest extends SAITester
@@ -53,12 +54,12 @@ public class VectorSiftSmallTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
 
         insertVectors(baseVectors);
-        double recall = testRecall(queryVectors, groundTruth, true); // memtable hnsw is threadsafe
-        assertTrue(recall > 0.975);
+        double memoryRecall = testRecall(queryVectors, groundTruth, true); // memtable hnsw is threadsafe
+        assertTrue(memoryRecall > 0.975);
 
         flush();
-        recall = testRecall(queryVectors, groundTruth, false); // on disk hnsw is not threadsafe
-        assertTrue(recall > 0.975);
+        var diskRecall = testRecall(queryVectors, groundTruth, false); // on disk hnsw is not threadsafe
+        assertEquals(memoryRecall, diskRecall, 0.0000001);
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException
