@@ -42,7 +42,7 @@ public interface MBeanWrapper
 
     MBeanWrapper instance = create();
     String IS_DISABLED_MBEAN_REGISTRATION = "org.apache.cassandra.disable_mbean_registration";
-    String IS_IN_JVM_DTEST = "org.apache.cassandra.is_in_jvm_dtest";
+    String IS_IN_JVM_DTEST = "org.apache.cassandra.dtest.is_in_jvm_dtest";
     String MBEAN_REGISTRATION_CLASS = "org.apache.cassandra.mbean_registration_class";
 
     static MBeanWrapper create()
@@ -50,7 +50,9 @@ public interface MBeanWrapper
         // If we're running in the in-jvm dtest environment, always use the delegating
         // mbean wrapper even if we start off with no-op, so it can be switched later
         if (Boolean.getBoolean(IS_IN_JVM_DTEST))
+        {
             return new DelegatingMbeanWrapper(getmBeanWrapper());
+        }
 
         return getmBeanWrapper();
     }
@@ -58,14 +60,22 @@ public interface MBeanWrapper
     static MBeanWrapper getmBeanWrapper()
     {
         if (Boolean.getBoolean(IS_DISABLED_MBEAN_REGISTRATION))
+        {
             return new NoOpMBeanWrapper();
+        }
 
         String klass = System.getProperty(MBEAN_REGISTRATION_CLASS);
         if (klass == null)
+        {
             if (Boolean.getBoolean(IS_IN_JVM_DTEST))
+            {
                 return new NoOpMBeanWrapper();
+            }
             else
+            {
                 return new PlatformMBeanWrapper();
+            }
+        }
         return FBUtilities.construct(klass, "mbean");
     }
 
@@ -94,7 +104,9 @@ public interface MBeanWrapper
     {
         ObjectName name = create(mbeanName, onException);
         if (name == null)
+        {
             return;
+        }
         registerMBean(obj, name, onException);
     }
 
@@ -114,7 +126,9 @@ public interface MBeanWrapper
     {
         ObjectName name = create(mbeanName, onException);
         if (name == null)
+        {
             return false;
+        }
         return isRegistered(name, onException);
     }
 
@@ -134,7 +148,9 @@ public interface MBeanWrapper
     {
         ObjectName name = create(mbeanName, onException);
         if (name == null)
+        {
             return;
+        }
         unregisterMBean(name, onException);
     }
 
@@ -288,7 +304,9 @@ public interface MBeanWrapper
                 try
                 {
                     if (!name.getCanonicalName().contains("MBeanServerDelegate"))
+                    {
                         mbs.unregisterMBean(name);
+                    }
                 }
                 catch (Throwable e)
                 {
