@@ -185,12 +185,6 @@ public class QueryController
     public RangeIterator<PrimaryKey> getIndexes(Operation.OperationType op, Collection<Expression> expressions)
     {
         boolean defer = op == Operation.OperationType.OR || RangeIntersectionIterator.shouldDefer(expressions.size());
-// FIXME I have only merged the AND case
-//        RangeIterator.Builder builder = op == Operation.OperationType.OR
-//                                        ? RangeUnionIterator.builder()
-//                                        : RangeIntersectionIterator.selectiveBuilder();
-        if (op == Operation.OperationType.OR)
-            throw new UnsupportedOperationException("add back support for OR");
 
         // TODO this is super clunky, should the ANN expression move to ORDER BY? something like:
         // SELECT * FROM foo ORDER BY columnname ANN OF <?> LIMIT 10
@@ -205,14 +199,13 @@ public class QueryController
                                                                         return expr.context.iteratorsForSearch(expr, mergeRange, getLimit()).stream();
                                                                     }).collect(Collectors.groupingBy(pair -> pair.left,
                                                                                                      Collectors.mapping(pair -> pair.right, Collectors.toList())));
-
         try
         {
 
             List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
                                                                                  .stream()
                                                                                  .map(e -> {
-                                                                                     RangeIterator<Long> it = createRowIdIntersectionIterator(e.getValue(), defer);
+                                                                                     RangeIterator<Long> it = createRowIdIterator(op, e.getValue(), defer);
                                                                                      if (annExpressionInHybridSearch != null)
                                                                                          return reorderAndLimitBySSTableRowIds(it, e.getKey(), annExpressionInHybridSearch);
                                                                                      return convertToPrimaryKeyIterator(e.getKey(), it);
@@ -223,7 +216,7 @@ public class QueryController
                                                                                        .stream()
                                                                                        .map(e -> {
                                                                                            // we need to do all the intersections at the index level, or ordering won't work
-                                                                                           RangeIterator<PrimaryKey> it = RangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
+                                                                                           RangeIterator<PrimaryKey> it = buildIterator(op, e.getValue());
                                                                                            if (annExpressionInHybridSearch != null)
                                                                                                it = reorderAndLimitBy(it, e.getKey(), annExpressionInHybridSearch);
                                                                                            return it;
@@ -303,7 +296,7 @@ public class QueryController
         return L.size() == 1 ? L.get(0) : null;
     }
 
-    private RangeIterator<Long> createRowIdIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
+    private RangeIterator<Long> createRowIdIterator(Operation.OperationType op, List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
     {
         var subIterators = indexExpressions
                            .stream()
@@ -323,7 +316,15 @@ public class QueryController
                                     }).collect(Collectors.toList());
 
         // we need to do all the intersections at the index level, or ordering won't work
-        return RangeIntersectionIterator.builder(subIterators, Integer.MAX_VALUE).build();
+        return buildIterator(op, subIterators);
+    }
+
+    private static <T extends Comparable<T>> RangeIterator<T> buildIterator(Operation.OperationType op, List<RangeIterator<T>> subIterators)
+    {
+        var builder = op == Operation.OperationType.OR
+                      ? RangeUnionIterator.<T>builder(subIterators.size())
+                      : RangeIntersectionIterator.<T>builder(subIterators.size(), Integer.MAX_VALUE);
+        return builder.add(subIterators).build();
     }
 
     private int getLimit()
