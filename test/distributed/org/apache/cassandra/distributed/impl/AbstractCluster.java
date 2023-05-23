@@ -77,7 +77,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.reflections.Reflections;
 
-import static org.apache.cassandra.utils.MBeanWrapper.IS_IN_JVM_DTEST;
+import static org.apache.cassandra.utils.MBeanWrapper.TEST_IS_IN_JVM_DTEST;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -145,7 +145,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private volatile Thread.UncaughtExceptionHandler previousHandler = null;
 
     {
-        System.setProperty(IS_IN_JVM_DTEST, "true");
+        System.setProperty(TEST_IS_IN_JVM_DTEST, "true");
     }
     protected class Wrapper extends DelegatingInvokableInstance implements IUpgradeableInstance
     {
