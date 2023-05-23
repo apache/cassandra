@@ -104,7 +104,8 @@ public class VectorMemtableIndex implements MemtableIndex
         if (!graph.isEmpty() && !coversFullRing(keyRange))
             bits = new KeyRangeFilteringBits(keyRange);
 
-        return new AnnKeyRangeIterator(qv, limit, bits);
+        var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
+        return new ReorderingRangeIterator(keyQueue);
     }
 
     @Override
@@ -119,7 +120,8 @@ public class VectorMemtableIndex implements MemtableIndex
         ByteBuffer buffer = exp.lower.value.raw;
         float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
         var bits = new KeyFilteringBits(results);
-        return new AnnKeyRangeIterator(qv, limit, bits);
+        var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
+        return new ReorderingRangeIterator(keyQueue);
     }
 
     private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
@@ -200,14 +202,14 @@ public class VectorMemtableIndex implements MemtableIndex
         }
     }
 
-    private class AnnKeyRangeIterator extends RangeIterator<PrimaryKey>
+    private class ReorderingRangeIterator extends RangeIterator<PrimaryKey>
     {
         private final PriorityQueue<PrimaryKey> keyQueue;
 
-        AnnKeyRangeIterator(float[] queryVector, int limit, Bits toAccept)
+        ReorderingRangeIterator(PriorityQueue<PrimaryKey> keyQueue)
         {
             super(minimumKey, maximumKey, writeCount.longValue());
-            keyQueue = graph.search(queryVector, limit, toAccept, Integer.MAX_VALUE);
+            this.keyQueue = keyQueue;
         }
 
         @Override
