@@ -25,7 +25,7 @@ import java.util.function.LongFunction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
 
-public class LongIterator extends RangeIterator
+public class LongIterator extends RangeIterator<PrimaryKey>
 {
     private final List<PrimaryKey> keys;
     private int currentIdx = 0;
@@ -93,7 +93,7 @@ public class LongIterator extends RangeIterator
     }
 
 
-    public static List<Long> convert(RangeIterator tokens)
+    public static List<Long> convert(RangeIterator<PrimaryKey> tokens)
     {
         List<Long> results = new ArrayList<>();
         while (tokens.hasNext())

@@ -26,62 +26,59 @@ import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
 
-/**
- * A range iterator based on {@link PostingList}.
- *
- * <ol>
- *   <li> fetch next segment row id from posting list or skip to specific segment row id if {@link #skipTo(PrimaryKey)} is called </li>
- *   <li> add segmentRowIdOffset to obtain the sstable row id </li>
- *   <li> produce a {@link PrimaryKey} from {@link PrimaryKeyMap#primaryKeyFromRowId(long)} which is used
- *       to avoid fetching duplicated keys due to partition-level indexing on wide partition schema.
- *       <br/>
- *       Note: in order to reduce disk access in multi-index query, partition keys will only be fetched for intersected tokens
- *       in {@link org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher}.
- *  </li>
- * </ol>
- *
- */
 
+/**
+ * From sstable row id range iterator to primary key range iterator
+ */
 @NotThreadSafe
-public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
+public class SSTableRowIdKeyRangeIterator extends RangeIterator<PrimaryKey>
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private final Stopwatch timeToExhaust = Stopwatch.createStarted();
-    private final SSTableQueryContext queryContext;
-
-    private final PostingList postingList;
-    private final IndexContext indexContext;
+    private final QueryContext queryContext;
     private final PrimaryKeyMap primaryKeyMap;
-    private final IndexSearcherContext searcherContext;
+    private final RangeIterator<Long> sstableRowIdIterator;
 
     private boolean needsSkipping = false;
     private PrimaryKey skipToToken = null;
-
 
     /**
      * Create a direct PostingListRangeIterator where the underlying PostingList is materialised
      * immediately so the posting list size can be used.
      */
-    public PostingListRangeIterator(IndexContext indexContext,
-                                    PrimaryKeyMap primaryKeyMap,
-                                    IndexSearcherContext searcherContext)
+    private SSTableRowIdKeyRangeIterator(PrimaryKey min,
+                                         PrimaryKey max,
+                                         long count,
+                                         PrimaryKeyMap primaryKeyMap,
+                                         QueryContext queryContext,
+                                         RangeIterator<Long> sstableRowIdIterator)
     {
-        super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count());
+        super(min, max, count);
 
-        this.indexContext = indexContext;
         this.primaryKeyMap = primaryKeyMap;
-        this.postingList = searcherContext.postingList;
-        this.searcherContext = searcherContext;
-        this.queryContext = this.searcherContext.context;
+        this.queryContext = queryContext;
+        this.sstableRowIdIterator = sstableRowIdIterator;
+    }
+
+    public static RangeIterator<PrimaryKey> create(PrimaryKeyMap primaryKeyMap,
+                                                   QueryContext queryContext,
+                                                   RangeIterator<Long> sstableRowIdIterator)
+    {
+        if (sstableRowIdIterator.getCount() <= 0)
+            return RangeIterator.empty();
+
+        PrimaryKey min = primaryKeyMap.primaryKeyFromRowId(sstableRowIdIterator.getMinimum());
+        PrimaryKey max = primaryKeyMap.primaryKeyFromRowId(sstableRowIdIterator.getMaximum());
+        long count = sstableRowIdIterator.getCount();
+        return new SSTableRowIdKeyRangeIterator(min, max, count, primaryKeyMap, queryContext, sstableRowIdIterator);
     }
 
     @Override
@@ -99,7 +96,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
     {
         try
         {
-            queryContext.queryContext.checkpoint();
+            queryContext.checkpoint();
 
             // just end the iterator if we don't have a postingList or current segment is skipped
             if (exhausted())
@@ -115,7 +112,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
         {
             //TODO We aren't tidying up resources here
             if (!(t instanceof AbortedOperationException))
-                logger.error(indexContext.logMessage("Unable to provide next token!"), t);
+                logger.error("Unable to provide next token!", t);
 
             throw Throwables.cleaned(t);
         }
@@ -127,10 +124,10 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
         if (logger.isTraceEnabled())
         {
             final long exhaustedInMills = timeToExhaust.stop().elapsed(TimeUnit.MILLISECONDS);
-            logger.trace(indexContext.logMessage("PostinListRangeIterator exhausted after {} ms"), exhaustedInMills);
+            logger.trace("PostinListRangeIterator exhausted after {} ms", exhaustedInMills);
         }
 
-        FileUtils.closeQuietly(postingList, primaryKeyMap);
+        FileUtils.closeQuietly(sstableRowIdIterator, primaryKeyMap);
     }
 
     private boolean exhausted()
@@ -139,30 +136,27 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
     }
 
     /**
-     * reads the next sstable row ID from the underlying posting list, potentially skipping to get there.
+     * reads the next sstable row ID from the underlying range iterator, potentially skipping to get there.
      */
-    private long getNextRowId() throws IOException
+    private long getNextRowId()
     {
-        long segmentRowId;
+        long sstableRowId;
         if (needsSkipping)
         {
             long targetRowID = primaryKeyMap.rowIdFromPrimaryKey(skipToToken);
             // skipToToken is larger than max token in token file
             if (targetRowID < 0)
-            {
                 return PostingList.END_OF_STREAM;
-            }
 
-            segmentRowId = postingList.advance(targetRowID - searcherContext.segmentRowIdOffset);
+            sstableRowIdIterator.skipTo(targetRowID);
+            sstableRowId = sstableRowIdIterator.hasNext() ? sstableRowIdIterator.next() : PostingList.END_OF_STREAM;
             needsSkipping = false;
         }
         else
         {
-            segmentRowId = postingList.nextPosting();
+            sstableRowId = sstableRowIdIterator.hasNext() ? sstableRowIdIterator.next() : PostingList.END_OF_STREAM;
         }
 
-        return segmentRowId != PostingList.END_OF_STREAM
-               ? segmentRowId + searcherContext.segmentRowIdOffset
-               : PostingList.END_OF_STREAM;
+        return sstableRowId;
     }
 }

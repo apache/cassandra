@@ -28,13 +28,11 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.PrimaryKeys;
-import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.MemtableOrdering;
+import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -69,13 +67,9 @@ public interface MemtableIndex extends MemtableOrdering
 
     void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup);
 
-    RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);
+    RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);
 
     Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
-
-    @Override
-    // memtable version does not throw IOException
-    RangeIterator reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit);
 
     static MemtableIndex createIndex(IndexContext indexContext)
     {

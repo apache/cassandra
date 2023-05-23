@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
@@ -260,13 +259,13 @@ public class IndexContext
                             .orElse(null);
     }
 
-    public List<Pair<Memtable, RangeIterator>> iteratorsForSearch(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
+    public List<Pair<Memtable, RangeIterator<PrimaryKey>>> iteratorsForSearch(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
         return liveMemtables.entrySet()
                                    .stream()
                                    .map(e -> Pair.create(e.getKey(), e.getValue().search(expression, keyRange, limit))).collect(Collectors.toList());
     }
 
-    public RangeIterator reorderMemtable(Memtable memtable, QueryContext context, RangeIterator iterator, Expression exp, int limit)
+    public RangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
     {
         var index = liveMemtables.get(memtable);
         return index.reorderOneComponent(context, iterator, exp, limit);

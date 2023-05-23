@@ -109,7 +109,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testMinMaxAndCount()
     {
-        RangeIterator.Builder builder = getConcatBuilder();
+        RangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         builder.add(build(1L, 2L, 3L));
         builder.add(build(4L, 5L, 6L));
@@ -118,7 +118,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(9L, builder.getMaximum().token().getLongValue());
         assertEquals(9L, builder.getTokenCount());
 
-        RangeIterator tokens = builder.build();
+        RangeIterator<PrimaryKey> tokens = builder.build();
 
         assertNotNull(tokens);
         assertEquals(1L, tokens.getMinimum().token().getLongValue());
@@ -143,7 +143,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
                                                           build( 4L, 5L, 6L),
                                                           build( 7L, 8L, 9L));
 
-        RangeIterator tokens;
+        RangeIterator<PrimaryKey> tokens;
 
         tokens = init.get();
         tokens.skipTo(LongIterator.fromToken(5));
@@ -170,7 +170,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         // flow is single use..
         Supplier<RangeIterator> init = () ->  buildConcat(build(1L, 2L, 3L), build( 4L, 6L), build( 8L, 9L));
 
-        RangeIterator tokens;
+        RangeIterator<PrimaryKey> tokens;
 
         tokens = init.get();
         tokens.skipTo(LongIterator.fromToken(5L));
@@ -208,7 +208,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         builder.add(build());
         IntStream.range(10, 20).forEach(value -> builder.add(build(value)));
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
 
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
@@ -224,7 +224,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         builder.add(build());
         builder.add(build(10));
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(10L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
@@ -239,7 +239,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         IntStream.range(10, 20).forEach(value -> builder.add(build(value)));
         builder.add(build());
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
@@ -254,7 +254,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         builder.add(build(10));
         builder.add(build());
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(10L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
@@ -270,7 +270,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         IntStream.range(10, 20).forEach(value -> builder.add(build(value)));
         builder.add(build());
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
@@ -286,7 +286,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         builder.add(build());
         IntStream.range(15, 20).forEach(value -> builder.add(build(value)));
 
-        RangeIterator range = builder.build();
+        RangeIterator<PrimaryKey> range = builder.build();
         assertEquals(10L, range.getMinimum().token().getLongValue());
         assertEquals(19L, range.getMaximum().token().getLongValue());
         assertTrue(range.hasNext());
@@ -430,7 +430,7 @@ public class RangeConcatIteratorTest extends AbstractRangeIteratorTest
         assertEquals(convert(1L, 2L, 3L, 3L, 3L, 3L, 4L, 5L), convert(buildConcat(rangeA, rangeB)));
     }
 
-    private RangeIterator.Builder getConcatBuilder()
+    private RangeIterator.Builder<PrimaryKey> getConcatBuilder()
     {
         return RangeConcatIterator.builder();
     }

@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.disk;
 import java.io.Closeable;
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
@@ -39,11 +38,10 @@ public interface PrimaryKeyMap extends Closeable
         /**
          * Creates a new {@link PrimaryKeyMap} instance
          *
-         * @param context the context used to record query time metrics and for caching
          * @return a {@link PrimaryKeyMap}
          * @throws IOException
          */
-        PrimaryKeyMap newPerSSTablePrimaryKeyMap(SSTableQueryContext context) throws IOException;
+        PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException;
 
         @Override
         default void close() throws IOException

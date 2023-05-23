@@ -34,6 +34,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -192,7 +193,7 @@ public class Operation
         }
     }
 
-    static RangeIterator buildIterator(QueryController controller)
+    static RangeIterator<PrimaryKey> buildIterator(QueryController controller)
     {
         return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
     }
@@ -230,7 +231,7 @@ public class Operation
 
         abstract FilterTree filterTree();
 
-        abstract RangeIterator rangeIterator(QueryController controller);
+        abstract RangeIterator<PrimaryKey> rangeIterator(QueryController controller);
 
         static Node buildTree(RowFilter.FilterElement filterOperation)
         {
@@ -330,7 +331,7 @@ public class Operation
         }
 
         @Override
-        RangeIterator rangeIterator(QueryController controller)
+        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
         {
             // REVIEWME Caleb said this was fine in OSS, not sure if it's fine in CC
             for (Node child : children)

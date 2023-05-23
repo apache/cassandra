@@ -21,7 +21,6 @@ import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
@@ -105,15 +104,8 @@ public class BlockPackedReader implements LongArray.Factory
     @Override
     public LongArray open()
     {
-        return openTokenReader(0, null);
-    }
-
-    @Override
-    @SuppressWarnings("resource")
-    public LongArray openTokenReader(long sstableRowId, SSTableQueryContext context)
-    {
         final IndexInput indexInput = IndexFileUtils.instance.openInput(file);
-        return new AbstractBlockPackedReader(indexInput, blockBitsPerValue, blockShift, blockMask, sstableRowId, valueCount)
+        return new AbstractBlockPackedReader(indexInput, blockBitsPerValue, blockShift, blockMask, 0, valueCount)
         {
             @Override
             protected long blockOffsetAt(int block)

@@ -29,11 +29,11 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.io.util.FileUtils;
@@ -132,11 +132,25 @@ public class Segment implements Closeable, SegmentOrdering
      * @param context    to track per sstable cache and per query metrics
      * @param defer      create the iterator in a deferred state
      * @param limit
-     * @return range iterator that matches given expression
+     * @return range iterator of primary keys that matches given expression
      */
-    public RangeIterator search(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<PrimaryKey> search(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         return index.search(expression, context, defer, limit);
+    }
+
+    /**
+     * Search on-disk index synchronously
+     *
+     * @param expression to filter on disk index
+     * @param context    to track per sstable cache and per query metrics
+     * @param defer      create the iterator in a deferred state
+     * @param limit      the num of rows to returned, used by ANN index
+     * @return range iterator of sstable row ids that matches given expression
+     */
+    public RangeIterator<Long> searchSSTableRowIds(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    {
+        return index.searchSSTableRowIds(expression, context, defer, limit);
     }
 
     @Override
@@ -155,7 +169,7 @@ public class Segment implements Closeable, SegmentOrdering
     }
 
     @Override
-    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         return index.reorderOneComponent(context, iterator, exp, limit);
     }

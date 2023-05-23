@@ -34,6 +34,7 @@ import org.apache.cassandra.index.sai.disk.v1.kdtree.BKDReader;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 
 import static org.apache.cassandra.index.sai.disk.v1.kdtree.BKDQueries.bkdQueryFrom;
@@ -77,7 +78,20 @@ public class KDTreeIndexSearcher extends IndexSearcher
 
     @Override
     @SuppressWarnings("resource")
-    public RangeIterator search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    {
+        PostingList postingList = searchPosting(exp, context);
+        return toPrimaryKeyIterator(postingList, context, defer);
+    }
+
+    @Override
+    public RangeIterator<Long> searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+{
+        PostingList postingList = searchPosting(exp, context);
+        return toSSTableRowIdsIterator(postingList, context, defer);
+    }
+
+    private PostingList searchPosting(Expression exp, SSTableQueryContext context)
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -86,20 +100,12 @@ public class KDTreeIndexSearcher extends IndexSearcher
         {
             final BKDReader.IntersectVisitor query = bkdQueryFrom(exp, bkdReader.getNumDimensions(), bkdReader.getBytesPerDimension());
             QueryEventListener.BKDIndexEventListener listener = MulticastQueryEventListeners.of(context.queryContext, perColumnEventListener);
-            PostingList postingList = bkdReader.intersect(query, listener, context.queryContext);
-            return toIterator(postingList, context, defer);
+            return bkdReader.intersect(query, listener, context.queryContext);
         }
         else
         {
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during index query: " + exp));
         }
-    }
-
-    @Override
-    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
-    {
-        // TODO order by
-        throw new UnsupportedOperationException();
     }
 
     @Override

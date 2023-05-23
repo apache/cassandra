@@ -30,11 +30,15 @@ public class IndexSearcherContext
 
     final PrimaryKey minimumKey;
     final PrimaryKey maximumKey;
+    final long minSSTableRowId;
+    final long maxSSTableRowId;
     final long segmentRowIdOffset;
     final long maxPartitionOffset;
 
     public IndexSearcherContext(PrimaryKey minimumKey,
                                 PrimaryKey maximumKey,
+                                long minSSTableRowId,
+                                long maxSSTableRowId,
                                 long segmentRowIdOffset,
                                 SSTableQueryContext context,
                                 PostingList.PeekablePostingList postingList) throws IOException
@@ -49,6 +53,8 @@ public class IndexSearcherContext
         // use segment's metadata for the range iterator, may not be accurate, but should not matter to performance.
         this.maximumKey = maximumKey;
 
+        this.minSSTableRowId = minSSTableRowId;
+        this.maxSSTableRowId = maxSSTableRowId;
         this.maxPartitionOffset = Long.MAX_VALUE;
     }
 

@@ -27,7 +27,7 @@ import org.apache.cassandra.index.sai.utils.RangeIterator;
 /**
  * An in-memory {@link RangeIterator} that uses a {@link SortedSet} which has no duplication as its backing store.
  */
-public class KeyRangeIterator extends RangeIterator
+public class KeyRangeIterator extends RangeIterator<PrimaryKey>
 {
     private final PriorityQueue<PrimaryKey> keys;
     private final boolean uniqueKeys;

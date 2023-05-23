@@ -36,7 +36,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.FileUtils;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -134,7 +133,7 @@ public class LegacyOnDiskFormatTest
     {
         PrimaryKeyMap.Factory primaryKeyMapFactory = indexDescriptor.newPrimaryKeyMapFactory(sstable);
 
-        PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(SSTableQueryContext.forTest());
+        PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
 
         PrimaryKey expected = indexDescriptor.primaryKeyFactory.createTokenOnly(Murmur3Partitioner.instance.decorateKey(Int32Type.instance.decompose(23)).getToken());
 

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.memory;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,7 +26,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,7 +40,6 @@ import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
@@ -161,7 +158,7 @@ public class TrieMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         RangeConcatIterator.Builder builder = RangeConcatIterator.builder();
 
@@ -251,12 +248,5 @@ public class TrieMemtableIndex implements MemtableIndex
             Arrays.fill(rangeIndexEntriesToMerge, null);
             term = null;
         }
-    }
-
-    @Override
-    public RangeIterator reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit)
-    {
-        // TODO when we implement ORDER BY
-        throw new UnsupportedOperationException();
     }
 }

@@ -40,5 +40,8 @@ public interface MemtableOrdering
      * Reorder the results from a single component; sstable is null
      * if the component is a memtable.
      */
-    public abstract RangeIterator reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException;
+    default RangeIterator<PrimaryKey> reorderOneComponent(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
+    {
+        throw new UnsupportedOperationException();
+    }
 }
