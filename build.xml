@@ -398,7 +398,7 @@
 
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete>
-          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*,lucene-*"/>
+          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*"/>
         </delete>
         <delete dir="${build.dir}" />
         <delete dir="${doc.dir}/build" />
@@ -685,8 +685,8 @@
           </dependency>
           <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
           <dependency groupId="org.agrona" artifactId="agrona" version="0.9.26" />
-          <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="9.7.0-SNAPSHOT" scope="system" systempath="${project.basedir}/lib/lucene-core-9.7.0-SNAPSHOT.jar"/>
-          <dependency groupId="org.apache.lucene" artifactId="lucene-analysis-common" version="9.5.0" />
+          <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="9.7.0-ff11c0f02c" />
+          <dependency groupId="org.apache.lucene" artifactId="lucene-analysis-common" version="9.7.0-ff11c0f02c" />
           <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
 
           <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
