@@ -26,7 +26,6 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
@@ -145,9 +144,9 @@ public class SortedTermsReader
      * The cursor is valid as long this object hasn't been closed.
      * You must close the cursor when you no longer need it.
      */
-    public @Nonnull Cursor openCursor(SSTableQueryContext context) throws IOException
+    public @Nonnull Cursor openCursor() throws IOException
     {
-        return new Cursor(termsData, blockOffsetsFactory, context);
+        return new Cursor(termsData, blockOffsetsFactory);
     }
 
     /**
@@ -170,12 +169,12 @@ public class SortedTermsReader
         // The point id the cursor currently points to. -1 means before the first item.
         private long pointId = -1;
 
-        Cursor(FileHandle termsData, LongArray.Factory blockOffsetsFactory, SSTableQueryContext context) throws IOException
+        Cursor(FileHandle termsData, LongArray.Factory blockOffsetsFactory) throws IOException
         {
             this.termsData = IndexInputReader.create(termsData);
             SAICodecUtils.validate(this.termsData);
             this.termsDataFp = this.termsData.getFilePointer();
-            this.blockOffsets = new LongArray.DeferredLongArray(() -> blockOffsetsFactory.openTokenReader(0, context));
+            this.blockOffsets = new LongArray.DeferredLongArray(blockOffsetsFactory::open);
             this.currentTerm = new BytesRef(meta.maxTermLength);
         }
 

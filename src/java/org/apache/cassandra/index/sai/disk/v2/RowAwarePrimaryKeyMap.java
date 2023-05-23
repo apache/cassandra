@@ -107,12 +107,12 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         }
 
         @Override
-        public PrimaryKeyMap newPerSSTablePrimaryKeyMap(SSTableQueryContext context) throws IOException
+        public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
-            final LongArray rowIdToToken = new LongArray.DeferredLongArray(() -> tokenReaderFactory.openTokenReader(0, context));
+            final LongArray rowIdToToken = new LongArray.DeferredLongArray(() -> tokenReaderFactory.open());
             return new RowAwarePrimaryKeyMap(rowIdToToken,
                                              sortedTermsReader,
-                                             sortedTermsReader.openCursor(context),
+                                             sortedTermsReader.openCursor(),
                                              partitioner,
                                              primaryKeyFactory,
                                              clusteringComparator);

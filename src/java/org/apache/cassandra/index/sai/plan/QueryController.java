@@ -49,9 +49,14 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.SSTableContextManager;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.CheckpointingIterator;
+import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdKeyRangeIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
@@ -207,12 +212,10 @@ public class QueryController
             List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
                                                                                  .stream()
                                                                                  .map(e -> {
+                                                                                     RangeIterator<Long> it = createRowIdIntersectionIterator(e.getValue(), defer);
                                                                                      if (annExpressionInHybridSearch != null)
-                                                                                     {
-                                                                                         RangeIterator<Long> it = createRowIdIntersectionIterator(e.getValue(), defer);
                                                                                          return reorderAndLimitBySSTableRowIds(it, e.getKey(), annExpressionInHybridSearch);
-                                                                                     }
-                                                                                     return createIntersectionIterator(e.getValue(), defer);
+                                                                                     return convertToPrimaryKeyIterator(e.getKey(), it);
                                                                                  })
                                                                                  .collect(Collectors.toList());
 
@@ -241,6 +244,24 @@ public class QueryController
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
             queryView.referencedIndexes.forEach(SSTableIndex::release);
             throw t;
+        }
+    }
+
+    private RangeIterator<PrimaryKey> convertToPrimaryKeyIterator(SSTableReader sstable, RangeIterator<Long> sstableRowIdsIterator)
+    {
+        try
+        {
+            if (sstableRowIdsIterator.getCount() <= 0)
+                return RangeIterator.empty();
+
+            SSTableContextManager contextManager = StorageAttachedIndexGroup.getIndexGroup(cfs).sstableContextManager();
+            SSTableContext sstableContext = contextManager.getContext(sstable);
+            PrimaryKeyMap primaryKeyMap = sstableContext.primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
+            return SSTableRowIdKeyRangeIterator.create(primaryKeyMap, queryContext, sstableRowIdsIterator);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 
@@ -282,6 +303,7 @@ public class QueryController
         return L.size() == 1 ? L.get(0) : null;
     }
 
+    // FIXME to remove
     private RangeIterator<PrimaryKey> createIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
     {
         var subIterators = indexExpressions

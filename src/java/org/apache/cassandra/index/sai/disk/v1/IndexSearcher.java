@@ -106,7 +106,7 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
                                                                         queryContext,
                                                                         postingList.peekable());
 
-        return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(queryContext), searcherContext);
+        return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
     }
 
     RangeIterator<Long> toSSTableRowIdsIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException

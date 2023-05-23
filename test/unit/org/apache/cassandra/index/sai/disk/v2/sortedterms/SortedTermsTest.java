@@ -340,7 +340,7 @@ public class SortedTermsTest extends SaiRandomizedTest
     {
         withSortedTermsReader(descriptor, reader ->
         {
-            try (SortedTermsReader.Cursor cursor = reader.openCursor(SSTableQueryContext.forTest()))
+            try (SortedTermsReader.Cursor cursor = reader.openCursor())
             {
                 testCode.accept(cursor);
             }
