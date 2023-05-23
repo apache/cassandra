@@ -325,7 +325,7 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS(TableMetadata metadata)
     {
-        mockKS = KeyspaceMetadata.create(mockKS.name, mockKS.params, mockKS.tables.with(metadata), mockKS.views, mockKS.types, mockKS.userFunctions);
+        mockKS = KeyspaceMetadata.create(metadata.keyspace, mockKS.params, mockKS.tables.with(metadata), mockKS.views, mockKS.types, mockKS.userFunctions);
         return new ColumnFamilyStore(new Keyspace(mockKS), metadata.name, Util.newSeqGen(), metadata, new Directories(metadata), false, false, false);
     }
 
