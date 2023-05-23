@@ -151,7 +151,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         this.metrics = TrieMemtableMetricsView.getOrCreate(metadataRef.keyspace, metadataRef.name);
         this.shards = generatePartitionShards(boundaries.shardCount(), metadataRef, metrics);
         this.mergedTrie = makeMergedTrie(shards);
-        logger.debug("Created memtable with {} shards", this.shards.length);
+        logger.trace("Created memtable with {} shards", this.shards.length);
     }
 
     private static MemtableShard[] generatePartitionShards(int splits,

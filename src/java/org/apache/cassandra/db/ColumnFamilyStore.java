@@ -531,7 +531,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         additionalWriteLatencyNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) / 2;
         memtableFactory = metadata.get().params.memtable.factory;
 
-        logger.info("Initializing {}.{}", keyspace.getName(), name);
+        logger.debug("Initializing {}.{}", keyspace.getName(), name);
 
         // Create Memtable only on online
         if (DatabaseDescriptor.enableMemtableAndCommitLog())
@@ -1095,7 +1095,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         for (ColumnFamilyStore indexCfs : indexManager.getAllIndexColumnFamilyStores())
             indexCfs.getTracker().getView().getCurrentMemtable().addMemoryUsageTo(usage);
 
-        logger.info("Enqueuing flush of {} ({}): {}",
+        logger.debug("Enqueuing flush of {} ({}): {}",
                      name,
                      reason,
                      usage);
@@ -1577,7 +1577,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             shardBoundaries = new ShardBoundaries(positions.subList(0, positions.size() - 1),
                                                   localRanges.getRingVersion());
             cachedShardBoundaries = shardBoundaries;
-            logger.info("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), positions);
+            logger.debug("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), positions);
         }
         return shardBoundaries;
     }
@@ -2450,10 +2450,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 for (SSTableReader rdr : sstables)
                 {
                     rdr.selfRef().release();
-                    logger.info("Memtable ranges (keys {} size {}) written in {}",
-                                rdr.estimatedKeys(),
-                                rdr.getDataChannel().size(),
-                                rdr);
+                    logger.debug("Memtable ranges (keys {} size {}) written in {}",
+                                 rdr.estimatedKeys(),
+                                 rdr.getDataChannel().size(),
+                                 rdr);
                 }
             }
             catch (Throwable t)
