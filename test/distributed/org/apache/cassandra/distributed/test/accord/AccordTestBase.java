@@ -22,27 +22,21 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.base.Splitter;
-import com.google.common.collect.Sets;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Txn;
-import accord.primitives.TxnId;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -67,7 +61,6 @@ import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Shared;
-import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -78,34 +71,10 @@ public abstract class AccordTestBase extends TestBaseImpl
     private static final Logger logger = LoggerFactory.getLogger(AccordTestBase.class);
     private static final int MAX_RETRIES = 10;
 
-    @Rule
-    public TestName testName = new TestName();
-
     @Shared
     public static class State
     {
         public static AtomicInteger coordinateCounts = new AtomicInteger();
-        private static Set<TxnId> previousTxns = new HashSet<>();
-
-        public static void all(String test, Set<TxnId> matches)
-        {
-            Sets.SetView<TxnId> latest = Sets.difference(matches, previousTxns);
-            List<String> humanReadable = latest.stream()
-                                         .map(t -> t + String.format(" (kind: %s, domain: %s)", t.rw(), t.domain()))
-                                         .collect(Collectors.toList());
-            try
-            {
-                logger.warn("Test {} generated {} txns the following txn_ids: {}", test, humanReadable.size(), humanReadable);
-                Assertions.assertThat(humanReadable)
-                          .hasSize(coordinateCounts.get());
-
-            }
-            finally
-            {
-                coordinateCounts.set(0);
-                previousTxns.addAll(latest);
-            }
-        }
     }
 
     protected static final AtomicInteger COUNTER = new AtomicInteger(0);

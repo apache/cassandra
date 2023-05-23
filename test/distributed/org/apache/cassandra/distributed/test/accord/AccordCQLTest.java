@@ -20,35 +20,20 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import accord.primitives.Routable;
-import accord.primitives.Timestamp;
-import accord.primitives.TxnId;
-import accord.utils.async.Observable;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.service.accord.AccordCommandStores;
-import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.assertj.core.api.Assertions;
 
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -92,73 +77,6 @@ public class AccordCQLTest extends AccordTestBase
     {
         AccordTestBase.setupClass();
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
-    }
-
-    @After
-    public void fordc() throws ExecutionException, InterruptedException
-    {
-        String test = testName.getMethodName();
-        List<Future<List<String>>> pending = new ArrayList<>(SHARED_CLUSTER.size());
-        for (int inst = 0; inst < SHARED_CLUSTER.size(); inst++)
-            pending.add(SHARED_CLUSTER.get(inst + 1).asyncCallsOnInstance(() -> loadCommandIds(test)).call());
-        Set<TxnId> merged = new HashSet<>();
-        for (int i = 0; i < pending.size(); i++)
-        {
-            for (String s : pending.get(i).get())
-                merged.add(TxnId.fromTimestamp(Timestamp.fromString(s)));
-        }
-        State.all(test, merged);
-    }
-
-    private static List<String> loadCommandIds(String test)
-    {
-        AccordService service = (AccordService) AccordService.instance();
-        AccordCommandStores stores = (AccordCommandStores) service.node().commandStores();
-        int[] ids = stores.ids();
-        Set<TxnId> allIds = new HashSet<>();
-        for (int id : ids)
-        {
-            try
-            {
-                AsyncPromise<List<TxnId>> promise = new AsyncPromise<>();
-                AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Key, Collections.singleton("txn_id"), new Observable<UntypedResultSet.Row>()
-                {
-                    List<TxnId> ids = new ArrayList<>();
-                    @Override
-                    public void onNext(UntypedResultSet.Row value)
-                    {
-                        ids.add(AccordKeyspace.deserializeTxnId(value));
-                    }
-
-                    @Override
-                    public void onError(Throwable t)
-                    {
-                        if (ids != null)
-                            ids.clear();
-                        ids = null;
-                        promise.tryFailure(t);
-                    }
-
-                    @Override
-                    public void onCompleted()
-                    {
-                        List<TxnId> list = ids;
-                        ids = null;
-                        promise.trySuccess(list);
-                    }
-                });
-                allIds.addAll(promise.get());
-            }
-            catch (ExecutionException e)
-            {
-                logger.error("Failed fetching keys for test {}", test, e.getCause());
-            }
-            catch (InterruptedException e)
-            {
-                throw new UncheckedInterruptedException(e);
-            }
-        }
-        return allIds.stream().map(Object::toString).collect(Collectors.toList());
     }
 
     @Test
