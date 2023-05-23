@@ -303,30 +303,6 @@ public class QueryController
         return L.size() == 1 ? L.get(0) : null;
     }
 
-    // FIXME to remove
-    private RangeIterator<PrimaryKey> createIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
-    {
-        var subIterators = indexExpressions
-                           .stream()
-                           .flatMap(ie ->
-        {
-           try
-           {
-               var sstContext = queryContext.getSSTableQueryContext(ie.index.getSSTable());
-               return ie.index.search(ie.expression, mergeRange, sstContext, defer, getLimit()).stream();
-           }
-           catch (Throwable ex)
-           {
-               if (!(ex instanceof AbortedOperationException))
-                   logger.debug(ie.index.getIndexContext().logMessage(String.format("Failed search on index %s, aborting query.", ie.index.getSSTable())), ex);
-               throw Throwables.cleaned(ex);
-           }
-       }).collect(Collectors.toList());
-
-        // we need to do all the intersections at the index level, or ordering won't work
-        return RangeIntersectionIterator.builder(subIterators, Integer.MAX_VALUE).build();
-    }
-
     private RangeIterator<Long> createRowIdIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
     {
         var subIterators = indexExpressions
