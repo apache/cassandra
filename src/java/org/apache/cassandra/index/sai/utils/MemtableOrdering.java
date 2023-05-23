@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.index.sai.utils;
 
-import java.io.IOException;
-
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 
@@ -37,10 +35,15 @@ import org.apache.cassandra.index.sai.plan.Expression;
 public interface MemtableOrdering
 {
     /**
-     * Reorder the results from a single component; sstable is null
-     * if the component is a memtable.
+     * Filter the given RangeIterator results to the top `limit` results corresponding to the given expression,
+     * Returns an iterator over the results that is put back in token order.
+     *
+     * This requires materializing the results into a BitSet or List, so any intersections we can perform
+     * to minimize the input size should be performed before calling this.
+     *
+     * Assumes that the the given RangeIterator spans the same rows as the implementing index's segment.
      */
-    default RangeIterator<PrimaryKey> reorderOneComponent(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
+    default RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
     {
         throw new UnsupportedOperationException();
     }

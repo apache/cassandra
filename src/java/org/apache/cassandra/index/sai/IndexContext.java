@@ -268,7 +268,7 @@ public class IndexContext
     public RangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
     {
         var index = liveMemtables.get(memtable);
-        return index.reorderOneComponent(context, iterator, exp, limit);
+        return index.limitToTopResults(context, iterator, exp, limit);
     }
 
     public long liveMemtableWriteCount()
