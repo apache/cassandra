@@ -4366,7 +4366,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (keyspace != null)
         {
             if (isLocalSystemKeyspace(keyspace))
-                throw new IllegalArgumentException("Ownership values for keyspaces with LocalStrategy are meaningless");
+                throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
 
             KeyspaceMetadata keyspaceInstance = metadata.schema.getKeyspaces().getNullable(keyspace);
             if (keyspaceInstance == null)
