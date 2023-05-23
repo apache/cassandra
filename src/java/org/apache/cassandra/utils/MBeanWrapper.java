@@ -51,7 +51,9 @@ public interface MBeanWrapper
         // If we're running in the in-jvm dtest environment, always use the delegating
         // mbean wrapper even if we start off with no-op, so it can be switched later
         if (IS_IN_JVM_DTEST.getBoolean())
+        {
             return new DelegatingMbeanWrapper(getmBeanWrapper());
+        }
 
         return getmBeanWrapper();
     }
@@ -59,14 +61,22 @@ public interface MBeanWrapper
     static MBeanWrapper getmBeanWrapper()
     {
         if (ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean())
+        {
             return new NoOpMBeanWrapper();
+        }
 
         String klass = MBEAN_REGISTRATION_CLASS.getString();
         if (klass == null)
+        {
             if (IS_IN_JVM_DTEST.getBoolean())
+            {
                 return new NoOpMBeanWrapper();
+            }
             else
+            {
                 return new PlatformMBeanWrapper();
+            }
+        }
         return FBUtilities.construct(klass, "mbean");
     }
 
@@ -81,7 +91,9 @@ public interface MBeanWrapper
     {
         ObjectName name = create(mbeanName, onException);
         if (name == null)
+        {
             return;
+        }
         registerMBean(obj, name, onException);
     }
     default void registerMBean(Object obj, String mbeanName)
@@ -99,7 +111,9 @@ public interface MBeanWrapper
     {
         ObjectName name = create(mbeanName, onException);
         if (name == null)
+        {
             return false;
+        }
         return isRegistered(name, onException);
     }
     default boolean isRegistered(String mbeanName)
@@ -117,7 +131,9 @@ public interface MBeanWrapper
     {
         ObjectName name = create(mbeanName, onException);
         if (name == null)
+        {
             return;
+        }
         unregisterMBean(name, onException);
     }
     default void unregisterMBean(String mbeanName)
@@ -151,7 +167,7 @@ public interface MBeanWrapper
         public void unregisterMBean(ObjectName mbeanName, OnException onException) {}
         public void unregisterMBean(String mbeanName, OnException onException) {}
         public Set<ObjectName> queryNames(ObjectName name, QueryExp query) {return Collections.emptySet(); }
-        public MBeanServer getMbs() {return null; }
+        public MBeanServer getMbs() { return null; }
     }
 
     class PlatformMBeanWrapper implements MBeanWrapper
@@ -266,7 +282,9 @@ public interface MBeanWrapper
             mbs.queryNames(null, null).forEach(name -> {
                 try {
                     if (!name.getCanonicalName().contains("MBeanServerDelegate"))
+                    {
                         mbs.unregisterMBean(name);
+                    }
                 } catch (Throwable e) {
                     logger.debug("Could not unregister mbean {}", name.getCanonicalName());
                 }
