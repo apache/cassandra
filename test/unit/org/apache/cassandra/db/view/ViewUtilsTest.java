@@ -32,10 +32,8 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -43,6 +41,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
 
 public class ViewUtilsTest
 {
@@ -54,15 +53,15 @@ public class ViewUtilsTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         ServerTestUtils.cleanupAndLeaveDirs();
-        IEndpointSnitch snitch = new PropertyFileSnitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
         Keyspace.setInitialized();
+
     }
 
     @Before
     public void beforeEach()
     {
-        ClusterMetadataService.setInstance(ClusterMetadataTestHelper.instanceForTest());
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
     }
 
     @Test
