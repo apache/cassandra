@@ -158,17 +158,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
-        // TODO (now) : implement range support
-        // TODO: Seekables
-        // TODO: efficiency
-        return ((Keys)keysOrRanges).stream()
-                           .map(this::maybeCommandsForKey)
-                           .filter(Objects::nonNull)
-                           .map(SafeCommandsForKey::current)
-                           .filter(Objects::nonNull)
-                           .map(CommandsForKey::max)
-                           .max(Comparator.naturalOrder())
-                           .orElse(Timestamp.NONE);
+        return mapReduce(keysOrRanges, slice, (ts, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, null);
     }
 
     private <O> O mapReduce(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)

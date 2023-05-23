@@ -307,6 +307,12 @@ public class CommandsForRanges
             return build(m -> m.executeAt != null ? m.executeAt : m.txnId);
         }
 
+        @Override
+        public Timestamp max()
+        {
+            return byExecuteAt().maxTimestamp();
+        }
+
         private CommandTimeseries<?> build(Function<RangeCommandSummary, Timestamp> fn)
         {
             CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
