@@ -66,14 +66,14 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         CassandraOnDiskHnsw.AnnPostingList results = searchPosting(exp, limit);
-        return toPrimaryKeyIterator(results, context, defer);
+        return toPrimaryKeyIterator(results, context);
     }
 
     @Override
     public RangeIterator<Long> searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         CassandraOnDiskHnsw.AnnPostingList results = searchPosting(exp, limit);
-        return toSSTableRowIdsIterator(results, context, defer);
+        return toSSTableRowIdsIterator(results, context);
     }
 
     private CassandraOnDiskHnsw.AnnPostingList searchPosting(Expression exp, int limit)
@@ -113,7 +113,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
-        return toPrimaryKeyIterator(results, context, false);
+        return toPrimaryKeyIterator(results, context);
     }
 
     @Override

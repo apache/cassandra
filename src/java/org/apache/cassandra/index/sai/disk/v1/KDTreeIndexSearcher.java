@@ -81,14 +81,14 @@ public class KDTreeIndexSearcher extends IndexSearcher
     public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         PostingList postingList = searchPosting(exp, context);
-        return toPrimaryKeyIterator(postingList, context, defer);
+        return toPrimaryKeyIterator(postingList, context);
     }
 
     @Override
     public RangeIterator<Long> searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
 {
         PostingList postingList = searchPosting(exp, context);
-        return toSSTableRowIdsIterator(postingList, context, defer);
+        return toSSTableRowIdsIterator(postingList, context);
     }
 
     private PostingList searchPosting(Expression exp, SSTableQueryContext context)
