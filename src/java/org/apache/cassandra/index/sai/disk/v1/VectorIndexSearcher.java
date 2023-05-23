@@ -30,6 +30,7 @@ import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
+import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -65,18 +66,18 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        CassandraOnDiskHnsw.AnnPostingList results = searchPosting(exp, limit);
+        ReorderingPostingList results = searchPosting(exp, limit);
         return toPrimaryKeyIterator(results, context);
     }
 
     @Override
     public RangeIterator<Long> searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        CassandraOnDiskHnsw.AnnPostingList results = searchPosting(exp, limit);
+        ReorderingPostingList results = searchPosting(exp, limit);
         return toSSTableRowIdsIterator(results, context);
     }
 
-    private CassandraOnDiskHnsw.AnnPostingList searchPosting(Expression exp, int limit)
+    private ReorderingPostingList searchPosting(Expression exp, int limit)
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);

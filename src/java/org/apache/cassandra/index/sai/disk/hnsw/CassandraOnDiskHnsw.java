@@ -19,17 +19,20 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
+import java.util.stream.IntStream;
 
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.LongHeap;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
@@ -64,7 +67,7 @@ public class CassandraOnDiskHnsw
      * @return Row IDs associated with the topK vectors near the query
      */
     // TODO make this return something with a size
-    public AnnPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
+    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
     {
         NeighborQueue queue;
         try
@@ -77,12 +80,44 @@ public class CassandraOnDiskHnsw
                                              hnsw,
                                              acceptBits,
                                              vistLimit);
-            return new AnnPostingList(queue);
+            return annRowIdsToPostings(queue);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    private ReorderingPostingList annRowIdsToPostings(NeighborQueue queue) throws IOException
+    {
+        int originalSize = queue.size();
+        PrimitiveIterator.OfInt iterator = new PrimitiveIterator.OfInt() {
+            private PrimitiveIterator.OfInt segmentRowIdIterator = IntStream.empty().iterator();
+
+            @Override
+            public boolean hasNext() {
+                while (!segmentRowIdIterator.hasNext() && queue.size() > 0) {
+                    try
+                    {
+                        segmentRowIdIterator = Arrays.stream(ordinalsMap.getSegmentRowIdsMatching(queue.pop())).iterator();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+                return segmentRowIdIterator.hasNext();
+            }
+
+            @Override
+            public int nextInt() {
+                if (!hasNext())
+                    throw new NoSuchElementException();
+                return segmentRowIdIterator.nextInt();
+            }
+        };
+
+        return new ReorderingPostingList(iterator, originalSize);
     }
 
     public void close()
@@ -143,49 +178,6 @@ public class CassandraOnDiskHnsw
         public void close()
         {
             reader.close();
-        }
-    }
-
-    public class AnnPostingList implements PostingList
-    {
-        private final LongHeap segmentRowIds;
-        private final int size;
-
-        public AnnPostingList(NeighborQueue queue) throws IOException
-        {
-            segmentRowIds = new LongHeap(queue.size());
-            while (queue.size() > 0) {
-                int ordinal = queue.pop();
-                // toIterator takes care of segmented id -> sstable row id conversion
-                for (int segmentRowId : ordinalsMap.getSegmentRowIdsMatching(ordinal))
-                    segmentRowIds.push(segmentRowId);
-            }
-            size = segmentRowIds.size();
-        }
-
-        @Override
-        public long nextPosting() throws IOException
-        {
-            if (segmentRowIds.size() == 0)
-                return PostingList.END_OF_STREAM;
-            return segmentRowIds.pop();
-        }
-
-        @Override
-        public long size()
-        {
-            return size;
-        }
-
-        @Override
-        public long advance(long targetRowID) throws IOException
-        {
-            long rowId;
-            do
-            {
-                rowId = nextPosting();
-            } while (rowId < targetRowID);
-            return rowId;
         }
     }
 }
