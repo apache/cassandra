@@ -283,8 +283,10 @@ public class VectorTypeTest extends SAITester
     }
 
     @Test
-    public void batchLoadingSearcherTest() throws Throwable
+    public void intersectedSearcherTest() throws Throwable
     {
+        // check that we correctly get back the two rows with str_val=B even when those are not
+        // the closest rows to the query vector
         createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");

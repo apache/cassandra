@@ -117,6 +117,11 @@ public class VectorMemtableIndex implements MemtableIndex
             var key = iterator.next();
             results.add(key);
         }
+
+        int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
+        if (results.size() <= maxBruteForceRows)
+            return new ReorderingRangeIterator(new PriorityQueue<>(results));
+
         ByteBuffer buffer = exp.lower.value.raw;
         float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
         var bits = new KeyFilteringBits(results);

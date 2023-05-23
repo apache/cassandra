@@ -20,6 +20,9 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.PrimitiveIterator;
 
 import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
@@ -36,6 +39,8 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.lucene.util.SparseFixedBitSet;
+
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
@@ -97,6 +102,9 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         // the iterator represents keys from the same sstable segment as us,
         // so we can use row ids to order the results by vector similarity
         SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+        int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
+        int[] bruteForceRows = new int[maxBruteForceRows];
+        int n = 0;
         while (iterator.hasNext())
         {
             Long sstableRowId = iterator.peek();
@@ -107,14 +115,47 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             iterator.next();
 
             int segmentRowId = metadata.segmentedRowId(sstableRowId);
+            if (n < maxBruteForceRows)
+                bruteForceRows[n] = segmentRowId;
+            n++;
+
             int ordinal = graph.getOrdinal(segmentRowId);
             bits.set(ordinal);
+        }
+
+        // if we have a small number of results then let TopK processor do exact NN computation
+        if (n <= maxBruteForceRows)
+        {
+            var results = new ReorderingPostingList(Arrays.stream(bruteForceRows, 0, n).iterator(), n);
+            return toPrimaryKeyIterator(results, context);
         }
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
         return toPrimaryKeyIterator(results, context);
+    }
+
+    private static PrimitiveIterator.OfInt sparsedBitSetIterator(SparseFixedBitSet source)
+    {
+        return new PrimitiveIterator.OfInt()
+        {
+            int next = source.nextSetBit(0);
+
+            @Override
+            public boolean hasNext()
+            {
+                return next != NO_MORE_DOCS;
+            }
+
+            @Override
+            public int nextInt()
+            {
+                int current = next;
+                next = source.nextSetBit(next + 1);
+                return current;
+            }
+        };
     }
 
     @Override
