@@ -247,8 +247,6 @@ public enum CassandraRelevantProperties
     INTERNODE_EVENT_THREADS("cassandra.internode-event-threads"),
     IO_NETTY_EVENTLOOP_THREADS("io.netty.eventLoopThreads"),
     IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT("io.netty.transport.estimateSizeOnSubmit"),
-    /** This property indicates if the code is running under the in-jvm dtest framework */
-    IS_IN_JVM_DTEST("org.apache.cassandra.is_in_jvm_dtest"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES("javax.rmi.ssl.client.enabledCipherSuites"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS("javax.rmi.ssl.client.enabledProtocols"),
     /** Java class path. */
@@ -462,6 +460,8 @@ public enum CassandraRelevantProperties
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    TEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_LEGACY_SSTABLE_ROOT("legacy-sstable-root"),
     TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT("org.caffinitas.ohc.segmentCount"),
