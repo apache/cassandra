@@ -58,6 +58,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.rmi.transport.tcp.TCPEndpoint;
 
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.Util;
@@ -102,7 +103,6 @@ import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
-import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
@@ -159,11 +159,11 @@ import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
+import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
-import sun.rmi.transport.tcp.TCPEndpoint;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
