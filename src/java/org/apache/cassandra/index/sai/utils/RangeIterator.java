@@ -209,7 +209,7 @@ public abstract class RangeIterator<T extends Comparable> extends AbstractIterat
             return this;
         }
 
-        public final RangeIterator build()
+        public final RangeIterator<T> build()
         {
             if (rangeCount() == 0)
                 return empty();

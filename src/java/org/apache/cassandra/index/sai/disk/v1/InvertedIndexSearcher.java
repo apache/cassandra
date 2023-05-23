@@ -85,6 +85,19 @@ public class InvertedIndexSearcher extends IndexSearcher
     @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
+        PostingList postingList = searchPosting(exp, context);
+        return toPrimaryKeyIterator(postingList, context, defer);
+    }
+
+    @SuppressWarnings("resource")
+    public RangeIterator searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    {
+        PostingList postingList = searchPosting(exp, context);
+        return toSSTableRowIdsIterator(postingList, context, defer);
+    }
+
+    private PostingList searchPosting(Expression exp, SSTableQueryContext context)
+    {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
 
@@ -93,15 +106,7 @@ public class InvertedIndexSearcher extends IndexSearcher
 
         final ByteComparable term = ByteComparable.fixedLength(exp.lower.value.encoded);
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(context.queryContext, perColumnEventListener);
-        PostingList postingList = reader.exactMatch(term, listener, context.queryContext);
-        return toIterator(postingList, context, defer);
-    }
-
-    @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit) throws IOException
-    {
-        // TODO order by
-        throw new UnsupportedOperationException();
+        return reader.exactMatch(term, listener, context.queryContext);
     }
 
     @Override

@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -66,6 +65,19 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
+        CassandraOnDiskHnsw.AnnPostingList results = searchPosting(exp, limit);
+        return toPrimaryKeyIterator(results, context, defer);
+    }
+
+    @Override
+    public RangeIterator<Long> searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    {
+        CassandraOnDiskHnsw.AnnPostingList results = searchPosting(exp, limit);
+        return toSSTableRowIdsIterator(results, context, defer);
+    }
+
+    private CassandraOnDiskHnsw.AnnPostingList searchPosting(Expression exp, int limit)
+    {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
 
@@ -74,32 +86,34 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
-        var results = graph.search(queryVector, limit, null, Integer.MAX_VALUE);
-        return toIterator(results, context, defer);
+        return graph.search(queryVector, limit, null, Integer.MAX_VALUE);
     }
 
     @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         // materialize the underlying iterator as a bitset, then ask hnsw to search.
         // the iterator represents keys from the same sstable segment as us,
         // so we can use row ids to order the results by vector similarity
-        SparseFixedBitSet bits;
-        try (var mapper = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(context))
+        SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+        while (iterator.hasNext())
         {
-            bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
-            while (iterator.hasNext())
-            {
-                var pk = iterator.next();
-                var segmentRowId = metadata.segmentedRowId(mapper.rowIdFromPrimaryKey(pk));
-                var ordinal = graph.getOrdinal(segmentRowId);
-                bits.set(ordinal);
-            }
+            Long sstableRowId = iterator.peek();
+            // if sstable row id has exceed current ANN segment, stop
+            if (sstableRowId > metadata.maxSSTableRowId)
+                break;
+
+            iterator.next();
+
+            int segmentRowId = metadata.segmentedRowId(sstableRowId);
+            int ordinal = graph.getOrdinal(segmentRowId);
+            bits.set(ordinal);
         }
+
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
-        return toIterator(results, context, false);
+        return toPrimaryKeyIterator(results, context, false);
     }
 
     @Override

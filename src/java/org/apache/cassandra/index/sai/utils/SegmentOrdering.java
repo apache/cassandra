@@ -37,8 +37,10 @@ import org.apache.cassandra.index.sai.plan.Expression;
 public interface SegmentOrdering
 {
     /**
-     * Reorder the results from a single component; sstable is null
-     * if the component is a memtable.
+     * Reorder the results from a single component;
      */
-    public abstract RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit) throws IOException;
+    default RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    {
+        throw new UnsupportedOperationException();
+    }
 }

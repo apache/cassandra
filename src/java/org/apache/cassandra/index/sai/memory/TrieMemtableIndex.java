@@ -40,7 +40,6 @@ import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
@@ -249,12 +248,5 @@ public class TrieMemtableIndex implements MemtableIndex
             Arrays.fill(rangeIndexEntriesToMerge, null);
             term = null;
         }
-    }
-
-    @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(QueryContext context, RangeIterator iterator, Expression exp, int limit)
-    {
-        // TODO when we implement ORDER BY
-        throw new UnsupportedOperationException();
     }
 }

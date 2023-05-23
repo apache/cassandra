@@ -189,9 +189,9 @@ public class QueryController
 
         // TODO this is super clunky, should the ANN expression move to ORDER BY? something like:
         // SELECT * FROM foo ORDER BY columnname ANN OF <?> LIMIT 10
-        var annExpression = getAnnExpression(expressions);
-        if (annExpression != null)
-            expressions = expressions.stream().filter(e -> e != annExpression).collect(Collectors.toList());
+        var annExpressionInHybridSearch = getAnnExpressionInHybridSearch(expressions);
+        if (annExpressionInHybridSearch != null)
+            expressions = expressions.stream().filter(e -> e != annExpressionInHybridSearch).collect(Collectors.toList());
 
         var queryView = new QueryViewBuilder(expressions, mergeRange).build();
         Map<Memtable, List<RangeIterator<PrimaryKey>>> iteratorsByMemtable = expressions
@@ -203,26 +203,29 @@ public class QueryController
 
         try
         {
+
             List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
-                                                                        .stream()
-                                                                        .map(e -> {
-                                                                            var it = createIntersectionIterator(e.getValue(), defer);
-                                                                            if (annExpression != null)
-                                                                                it = reorderAndLimitBy(it, e.getKey(), annExpression);
-                                                                            return it;
-                                                                        })
-                                                                        .collect(Collectors.toList());
+                                                                                 .stream()
+                                                                                 .map(e -> {
+                                                                                     if (annExpressionInHybridSearch != null)
+                                                                                     {
+                                                                                         RangeIterator<Long> it = createRowIdIntersectionIterator(e.getValue(), defer);
+                                                                                         return reorderAndLimitBySSTableRowIds(it, e.getKey(), annExpressionInHybridSearch);
+                                                                                     }
+                                                                                     return createIntersectionIterator(e.getValue(), defer);
+                                                                                 })
+                                                                                 .collect(Collectors.toList());
 
             List<RangeIterator<PrimaryKey>> memtableIntersections = iteratorsByMemtable.entrySet()
-                                                                              .stream()
-                                                                              .map(e -> {
-                                                                                  // we need to do all the intersections at the index level, or ordering won't work
-                                                                                  RangeIterator<PrimaryKey> it = RangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
-                                                                                  if (annExpression != null)
-                                                                                      it = reorderAndLimitBy(it, e.getKey(), annExpression);
-                                                                                  return it;
-                                                                              })
-                                                                              .collect(Collectors.toList());
+                                                                                       .stream()
+                                                                                       .map(e -> {
+                                                                                           // we need to do all the intersections at the index level, or ordering won't work
+                                                                                           RangeIterator<PrimaryKey> it = RangeIntersectionIterator.builder(e.getValue(), Integer.MAX_VALUE).build();
+                                                                                           if (annExpressionInHybridSearch != null)
+                                                                                               it = reorderAndLimitBy(it, e.getKey(), annExpressionInHybridSearch);
+                                                                                           return it;
+                                                                                       })
+                                                                                       .collect(Collectors.toList());
 
             Iterable<RangeIterator<PrimaryKey>> allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
 
@@ -230,8 +233,8 @@ public class QueryController
                                         .stream()
                                         .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
             queryContext.checkpoint();
-            RangeIterator union = RangeUnionIterator.build(allIntersections);
-            return new CheckpointingIterator(union, queryView.referencedIndexes, queryContext);
+            RangeIterator<PrimaryKey> union = RangeUnionIterator.build(allIntersections);
+            return new CheckpointingIterator<>(union, queryView.referencedIndexes, queryContext);
         }
         catch (Throwable t)
         {
@@ -241,17 +244,16 @@ public class QueryController
         }
     }
 
-    private RangeIterator reorderAndLimitBy(RangeIterator original, Memtable memtable, Expression expression)
+    private RangeIterator<PrimaryKey> reorderAndLimitBy(RangeIterator<PrimaryKey> original, Memtable memtable, Expression expression)
     {
         return expression.context.reorderMemtable(memtable, queryContext, original, expression, getLimit());
     }
 
-    private RangeIterator reorderAndLimitBy(RangeIterator original, SSTableReader sstable, Expression expression)
+    private RangeIterator<PrimaryKey> reorderAndLimitBySSTableRowIds(RangeIterator<Long> original, SSTableReader sstable, Expression expression)
     {
         var index = expression.context.getView().getIndexes()
-                    .stream().filter(i -> i.getSSTable() == sstable).findFirst().orElseThrow();
+                                      .stream().filter(i -> i.getSSTable() == sstable).findFirst().orElseThrow();
         var sstContext = queryContext.getSSTableQueryContext(index.getSSTable());
-        // FIXME segment collation
         try
         {
             return index.reorderOneComponent(sstContext, original, expression, getLimit());
@@ -262,7 +264,10 @@ public class QueryController
         }
     }
 
-    private Expression getAnnExpression(Collection<Expression> expressions)
+    /**
+     * @return ann expression if expressions have one ANN index and at least one non-ANN index
+     */
+    private Expression getAnnExpressionInHybridSearch(Collection<Expression> expressions)
     {
         if (expressions.size() < 2)
         {
@@ -281,7 +286,6 @@ public class QueryController
     {
         var subIterators = indexExpressions
                            .stream()
-                           // FIXME this changes to normal map() once we have the view collating by segment
                            .flatMap(ie ->
         {
            try
@@ -296,6 +300,29 @@ public class QueryController
                throw Throwables.cleaned(ex);
            }
        }).collect(Collectors.toList());
+
+        // we need to do all the intersections at the index level, or ordering won't work
+        return RangeIntersectionIterator.builder(subIterators, Integer.MAX_VALUE).build();
+    }
+
+    private RangeIterator<Long> createRowIdIntersectionIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
+    {
+        var subIterators = indexExpressions
+                           .stream()
+                           .flatMap(ie ->
+                                    {
+                                        try
+                                        {
+                                            var sstContext = queryContext.getSSTableQueryContext(ie.index.getSSTable());
+                                            return ie.index.searchSSTableRowIds(ie.expression, mergeRange, sstContext, defer, getLimit()).stream();
+                                        }
+                                        catch (Throwable ex)
+                                        {
+                                            if (!(ex instanceof AbortedOperationException))
+                                                logger.debug(ie.index.getIndexContext().logMessage(String.format("Failed search on index %s, aborting query.", ie.index.getSSTable())), ex);
+                                            throw Throwables.cleaned(ex);
+                                        }
+                                    }).collect(Collectors.toList());
 
         // we need to do all the intersections at the index level, or ordering won't work
         return RangeIntersectionIterator.builder(subIterators, Integer.MAX_VALUE).build();

@@ -180,9 +180,29 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit) throws IOException
+    public List<RangeIterator<Long>> searchSSTableRowIds(Expression expression,
+                                                   AbstractBounds<PartitionPosition> keyRange,
+                                                   SSTableQueryContext context,
+                                                   boolean defer,
+                                                   int limit) throws IOException
     {
-        // FIXME for multiple components
+        List<RangeIterator<Long>> iterators = new ArrayList<>();
+
+        for (Segment segment : segments)
+        {
+            if (segment.intersects(keyRange))
+            {
+                iterators.add(segment.searchSSTableRowIds(expression, context, defer, limit));
+            }
+        }
+
+        return iterators;
+    }
+
+    @Override
+    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    {
+        // TODO for now, we only have one ANN segment per sstable
         return segments.get(0).reorderOneComponent(context, iterator, exp, limit);
     }
 

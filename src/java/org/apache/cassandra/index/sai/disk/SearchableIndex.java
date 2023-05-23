@@ -66,5 +66,10 @@ public interface SearchableIndex extends Closeable, SegmentOrdering
                                                   SSTableQueryContext context,
                                                   boolean defer, int limit) throws IOException;
 
+    public List<RangeIterator<Long>> searchSSTableRowIds(Expression expression,
+                                                         AbstractBounds<PartitionPosition> keyRange,
+                                                         SSTableQueryContext context,
+                                                         boolean defer, int limit) throws IOException;
+
     public void populateSystemView(SimpleDataSet dataSet, SSTableReader sstable);
 }

@@ -147,6 +147,15 @@ public class SSTableIndex implements SegmentOrdering
         return searchableIndex.search(expression, keyRange, context, defer, limit);
     }
 
+    public List<RangeIterator<Long>> searchSSTableRowIds(Expression expression,
+                                      AbstractBounds<PartitionPosition> keyRange,
+                                      SSTableQueryContext context,
+                                      boolean defer,
+                                      int limit) throws IOException
+    {
+        return searchableIndex.searchSSTableRowIds(expression, keyRange, context, defer, limit);
+    }
+
     public void populateSegmentView(SimpleDataSet dataSet)
     {
         searchableIndex.populateSystemView(dataSet, sstable);
@@ -226,7 +235,7 @@ public class SSTableIndex implements SegmentOrdering
     }
 
     @Override
-    public RangeIterator reorderOneComponent(SSTableQueryContext context, RangeIterator iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         return searchableIndex.reorderOneComponent(context, iterator, exp, limit);
     }

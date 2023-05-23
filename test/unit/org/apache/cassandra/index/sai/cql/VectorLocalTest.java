@@ -20,10 +20,13 @@ package org.apache.cassandra.index.sai.cql;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,6 +34,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -171,6 +175,59 @@ public class VectorLocalTest extends SAITester
 //        searchWithKey(queryVector, key);
     }
 
+    @Test
+    public void multipleNonAnnSegmentsTest() throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        disableCompaction(KEYSPACE);
+
+        int sstableCount = getRandom().nextIntBetween(3, 6);
+        int vectorCountPerSSTable = getRandom().nextIntBetween(200, 400);
+        int vectorCount = sstableCount * vectorCountPerSSTable;
+        int pk = 0;
+
+        // create multiple sstables
+        Multimap<String, float[]> vectorsByStringValue = ArrayListMultimap.create();
+        for (int i = 0; i < sstableCount; i++)
+        {
+            List<float[]> vectors = IntStream.range(0, vectorCountPerSSTable).mapToObj(s -> randomVector()).collect(Collectors.toList());
+            for (float[] vector : vectors)
+            {
+                String stringValue = String.valueOf(pk % 10); // 10 different string values
+                execute("INSERT INTO %s (pk, str_val, val) VALUES (?, '" + stringValue + "', " + vectorString(vector) + " )", pk++);
+                vectorsByStringValue.put(stringValue, vector);
+            }
+            flush();
+        }
+        assertThat(getCurrentColumnFamilyStore(keyspace()).getLiveSSTables()).hasSize(sstableCount);
+
+        // create indexes on existing sstable to flush multiple segments
+        SegmentBuilder.updateLastValidSegmentRowId(50); // 50 rows per segment
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // query multiple on-disk indexes
+        for (String stringValue : vectorsByStringValue.keySet())
+        {
+            int limit = Math.min(getRandom().nextIntBetween(30, 50), vectorCountPerSSTable);
+            float[] queryVector = randomVector();
+            UntypedResultSet resultSet = search(stringValue, queryVector, limit);
+
+            // expect recall to be at least 0.8
+            List<float[]> resultVectors = getVectorsFromResult(resultSet);
+            double recall = getRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors);
+            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+        }
+    }
+
+    private UntypedResultSet search(String stringValue, float[] queryVector, int limit) throws Throwable
+    {
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = '" + stringValue + "' AND val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        assertThat(result).hasSize(limit);
+        return result;
+    }
+
     private UntypedResultSet search(float[] queryVector, int limit) throws Throwable
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
@@ -199,7 +256,7 @@ public class VectorLocalTest extends SAITester
         return rawVector;
     }
 
-    private double getRecall(List<float[]> vectors, float[] query, List<float[]> result)
+    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result)
     {
         List<float[]> sortedVectors = new ArrayList<>(vectors);
         sortedVectors.sort((a, b) -> Double.compare(function.compare(b, query), function.compare(a, query)));

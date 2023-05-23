@@ -26,6 +26,8 @@ import org.apache.cassandra.index.sai.disk.IndexSearcherContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdPostingList;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdsRangeIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -89,17 +91,38 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
      */
     public abstract RangeIterator<PrimaryKey> search(Expression expression, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
 
-    RangeIterator<PrimaryKey> toIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
+    public abstract RangeIterator<Long> searchSSTableRowIds(Expression expression, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
+
+    RangeIterator<PrimaryKey> toPrimaryKeyIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
     {
         if (postingList == null)
             return RangeIterator.empty();
 
         IndexSearcherContext searcherContext = new IndexSearcherContext(metadata.minKey,
                                                                         metadata.maxKey,
+                                                                        metadata.minSSTableRowId,
+                                                                        metadata.maxSSTableRowId,
                                                                         metadata.segmentRowIdOffset,
                                                                         queryContext,
                                                                         postingList.peekable());
 
         return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(queryContext), searcherContext);
+    }
+
+    RangeIterator<Long> toSSTableRowIdsIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
+    {
+        if (postingList == null)
+            return RangeIterator.empty();
+
+        SSTableRowIdPostingList sstablePosting = new SSTableRowIdPostingList(postingList, metadata.segmentRowIdOffset);
+        IndexSearcherContext searcherContext = new IndexSearcherContext(metadata.minKey,
+                                                                        metadata.maxKey,
+                                                                        metadata.minSSTableRowId,
+                                                                        metadata.maxSSTableRowId,
+                                                                        metadata.segmentRowIdOffset,
+                                                                        queryContext,
+                                                                        sstablePosting.peekable());
+
+        return new SSTableRowIdsRangeIterator(indexContext, searcherContext);
     }
 }
