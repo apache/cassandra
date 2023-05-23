@@ -188,14 +188,15 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             break;
             case Range:
             {
-                // TODO (correctness): if a range is used, then the range must exist in the PreLoadContext, else the commandsForKeys won't be in-sync... can this be detected?
                 // Assuming the range provided is in the PreLoadContext, then AsyncLoader has populated commandsForKeys with keys that
                 // are contained within the ranges... so walk all keys found in commandsForKeys
-                keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
+                Routables<?, ?> sliced = keysOrRanges.slice(slice, Routables.Slice.Minimal);
+                if (!context.keys().slice(slice, Routables.Slice.Minimal).containsAll(sliced))
+                    throw new AssertionError("Range(s) detected not present in the PreLoadContext: expected " + context.keys() + " but given " + keysOrRanges);
                 for (RoutableKey key : commandsForKeys.keySet())
                 {
                     //TODO (duplicate code): this is a repeat of Key... only change is checking contains in range
-                    if (!keysOrRanges.contains(key)) continue;
+                    if (!sliced.contains(key)) continue;
                     SafeCommandsForKey forKey = commandsForKey(key);
                     accumulate = map.apply(forKey.current(), accumulate);
                     if (accumulate.equals(terminalValue))
