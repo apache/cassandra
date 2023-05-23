@@ -275,7 +275,7 @@ public class AccordKeyspace
               "accord commands per key",
               "CREATE TABLE %s ("
               + "store_id int, "
-              + "key_hash blob, " // can't use "token" as this is restricted word in CQL
+              + "key_token blob, " // can't use "token" as this is restricted word in CQL
               + format("key %s, ", KEY_TUPLE)
               + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
               + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
@@ -285,7 +285,7 @@ public class AccordKeyspace
               + "series int, "
               + format("timestamp %s, ", TIMESTAMP_TUPLE)
               + "data blob, "
-              + "PRIMARY KEY((store_id, key_hash, key), series, timestamp)"
+              + "PRIMARY KEY((store_id, key_token, key), series, timestamp)"
               + ')')
         .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
         .build();
@@ -828,7 +828,7 @@ public class AccordKeyspace
 
     private static class KeysBetween extends TableWalk
     {
-        private static final Set<String> COLUMNS_FOR_ITERATION = ImmutableSet.of("store_id", "key_hash");
+        private static final Set<String> COLUMNS_FOR_ITERATION = ImmutableSet.of("store_id", "key_token");
 
         private final int storeId;
         private final ByteBuffer start, end;
@@ -850,16 +850,16 @@ public class AccordKeyspace
             this.cqlFirst = String.format("SELECT DISTINCT %s\n" +
                                           "FROM %s\n" +
                                           "WHERE store_id = ?\n" +
-                                          (startInclusive ? "  AND key_hash >= ?\n" : "  AND key_hash > ?\n") +
-                                          (endInclusive ? "  AND key_hash <= ?\n" : "  AND key_hash < ?\n") +
+                                          (startInclusive ? "  AND key_token >= ?\n" : "  AND key_token > ?\n") +
+                                          (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
                                           "ALLOW FILTERING",
                                           selection, CommandsForKeys);
             this.cqlContinue = String.format("SELECT DISTINCT %s\n" +
                                              "FROM %s\n" +
                                              "WHERE store_id = ?\n" +
-                                             "  AND key_hash > ?\n" +
+                                             "  AND key_token > ?\n" +
                                              "  AND key > ?\n" +
-                                             (endInclusive ? "  AND key_hash <= ?\n" : "  AND key_hash < ?\n") +
+                                             (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
                                              "ALLOW FILTERING",
                                              selection, CommandsForKeys);
         }
@@ -873,7 +873,7 @@ public class AccordKeyspace
             }
             else
             {
-                ByteBuffer previousToken = lastSeen.getBytes("key_hash");
+                ByteBuffer previousToken = lastSeen.getBytes("key_token");
                 ByteBuffer previousKey = lastSeen.getBytes("key");
                 return executeInternal(cqlContinue, storeId, previousToken, previousKey, end);
             }
