@@ -210,7 +210,7 @@ public enum CassandraRelevantProperties
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
 
     /** This property indicates if the code is running under the in-jvm dtest framework */
-    IS_IN_JVM_DTEST("org.apache.cassandra.is_in_jvm_dtest"),
+    IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
 
     MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
     /** Defines how often schema definitions are pulled from the other nodes */
