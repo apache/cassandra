@@ -145,8 +145,9 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 GarbageCollectorMXBean gc = ManagementFactory.newPlatformMXBeanProxy(MBeanWrapper.instance.getMbs(), name.getCanonicalName(), GarbageCollectorMXBean.class);
                 gcStates.put(gc.getName(), new GCState(gc, assumeGCIsPartiallyConcurrent(gc), assumeGCIsOldGen(gc)));
             }
-
-            MBeanWrapper.instance.registerMBean(this, new ObjectName(MBEAN_NAME));
+            ObjectName me = new ObjectName(MBEAN_NAME);
+            if (!MBeanWrapper.instance.isRegistered(me))
+                MBeanWrapper.instance.registerMBean(this, me);
         }
         catch (Exception e)
         {
