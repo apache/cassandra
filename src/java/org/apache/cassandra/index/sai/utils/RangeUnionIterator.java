@@ -97,25 +97,24 @@ public class RangeUnionIterator<T extends Comparable<T>> extends RangeIterator<T
         ranges.forEach(FileUtils::closeQuietly);
     }
 
+    public static <T extends Comparable<T>> Builder<T> builder(int size)
+    {
+        return new Builder<>(size);
+    }
+
     public static <T extends Comparable<T>> Builder<T> builder()
     {
-        return new Builder<>();
+        return builder(10);
     }
 
     public static <T extends Comparable<T>> RangeIterator<T> build(Iterable<RangeIterator<T>> tokens)
     {
-        return new Builder<T>(Iterables.size(tokens)).add(tokens).build();
+        return RangeUnionIterator.<T>builder(Iterables.size(tokens)).add(tokens).build();
     }
 
     public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>
     {
         protected List<RangeIterator<T>> rangeIterators;
-
-        public Builder()
-        {
-            super(IteratorType.UNION);
-            this.rangeIterators = new ArrayList<>();
-        }
 
         public Builder(int size)
         {

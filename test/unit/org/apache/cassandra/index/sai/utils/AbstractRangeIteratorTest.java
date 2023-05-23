@@ -45,7 +45,7 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
 
     final RangeIterator<PrimaryKey> buildSelectiveIntersection(int limit, RangeIterator<PrimaryKey>... ranges)
     {
-        return RangeIntersectionIterator.<PrimaryKey>selectiveBuilder(limit).add(Arrays.asList(ranges)).build();
+        return RangeIntersectionIterator.<PrimaryKey>builder(limit).add(Arrays.asList(ranges)).build();
     }
 
     final RangeIterator<PrimaryKey> buildIntersection(long[]... ranges)

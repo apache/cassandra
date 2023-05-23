@@ -137,19 +137,19 @@ public class RangeIntersectionIterator<T extends Comparable<T>> extends RangeIte
         return builder;
     }
 
-    public static <T extends Comparable<T>> Builder<T> builder(List<RangeIterator<T>> ranges)
+    public static <T extends Comparable<T>> Builder<T> builder(int size, int limit)
     {
-        return builder(ranges, INTERSECTION_CLAUSE_LIMIT);
+        return new Builder<>(size, limit);
+    }
+
+    public static <T extends Comparable<T>> Builder<T> builder(int limit)
+    {
+        return builder(10, limit);
     }
 
     public static <T extends Comparable<T>> Builder<T> builder()
     {
-        return new Builder<>();
-    }
-
-    public static <T extends Comparable<T>> Builder<T> selectiveBuilder(int limit)
-    {
-        return new Builder<>(limit);
+        return builder(INTERSECTION_CLAUSE_LIMIT);
     }
 
     public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>
@@ -157,21 +157,11 @@ public class RangeIntersectionIterator<T extends Comparable<T>> extends RangeIte
         private final int limit;
         protected List<RangeIterator<T>> rangeIterators;
 
-        public Builder()
-        {
-            this(Integer.MAX_VALUE);
-        }
-
-        public Builder(int size, int limit)
+        private Builder(int size, int limit)
         {
             super(IteratorType.INTERSECTION);
-            rangeIterators = new ArrayList<>();
+            rangeIterators = new ArrayList<>(size);
             this.limit = limit;
-        }
-
-        public Builder(int limit)
-        {
-            this(10, limit);
         }
 
         public RangeIterator.Builder<T> add(RangeIterator<T> range)
