@@ -184,10 +184,12 @@ public class QueryController
      */
     public RangeIterator<PrimaryKey> getIndexes(Operation.OperationType op, Collection<Expression> expressions)
     {
+        assert !expressions.isEmpty() : "expressions should not be empty for " + op + " in " + filterOperation;
+
         boolean defer = op == Operation.OperationType.OR || RangeIntersectionIterator.shouldDefer(expressions.size());
 
-        // TODO this is super clunky, should the ANN expression move to ORDER BY? something like:
-        // SELECT * FROM foo ORDER BY columnname ANN OF <?> LIMIT 10
+        // FIXME having this at the expression level means that it only gets applied to Nodes at that level;
+        // moving it to ORDER BY will allow us to apply it correctly for other Node sub-trees
         var annExpressionInHybridSearch = getAnnExpressionInHybridSearch(expressions);
         if (annExpressionInHybridSearch != null)
             expressions = expressions.stream().filter(e -> e != annExpressionInHybridSearch).collect(Collectors.toList());
