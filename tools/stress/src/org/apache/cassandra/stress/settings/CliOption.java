@@ -40,7 +40,8 @@ public enum CliOption
     JMX("JMX credentials", SettingsJMX.helpPrinter()),
     GRAPH("-graph", "Graph recorded metrics", SettingsGraph.helpPrinter()),
     TOKENRANGE("Token range settings", SettingsTokenRange.helpPrinter()),
-    CREDENTIALS_FILE("Credentials file for CQL, JMX and transport", SettingsCredentials.helpPrinter());
+    CREDENTIALS_FILE("Credentials file for CQL, JMX and transport", SettingsCredentials.helpPrinter()),
+    REPORTING("Frequency of printing statistics and header for stress output", SettingsReporting.helpPrinter());
     ;
 
     private static final Map<String, CliOption> LOOKUP;
