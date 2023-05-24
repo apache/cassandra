@@ -28,32 +28,26 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
-import static java.nio.ByteBuffer.allocate;
-
 /**
- * Tests the guardrail for the size of partition size, {@link Guardrails#partitionSize}.
+ * Tests the guardrail for the number of tombstones in a partition, {@link Guardrails#partitionTombstones}.
  * <p>
  * This test only includes the activation of the guardrail during sstable writes, focusing on the emmitted log messages.
  * The tests for config, client warnings and diagnostic events are in
- * {@link org.apache.cassandra.db.guardrails.GuardrailPartitionSizeTest}.
+ * {@link org.apache.cassandra.db.guardrails.GuardrailPartitionTombstonesTest}.
  */
-public class GuardrailPartitionSizeTest extends GuardrailTester
+public class GuardrailPartitionTombstonesTest extends GuardrailTester
 {
-    private static final int WARN_THRESHOLD = 1024 * 1024; // bytes (1 MiB)
-    private static final int FAIL_THRESHOLD = WARN_THRESHOLD * 2; // bytes (2 MiB)
-
-    private static final int NUM_NODES = 1;
-    private static final int NUM_CLUSTERINGS = 5;
+    private static final int WARN_THRESHOLD = 500; // high enough to exceed system tables, which aren't excluded
+    private static final int FAIL_THRESHOLD = WARN_THRESHOLD * 2;
 
     private static Cluster cluster;
 
     @BeforeClass
     public static void setupCluster() throws IOException
     {
-        cluster = init(Cluster.build(NUM_NODES)
-                              .withConfig(c -> c.set("partition_size_warn_threshold", WARN_THRESHOLD + "B")
-                                                .set("partition_size_fail_threshold", FAIL_THRESHOLD + "B")
-                                                .set("compaction_large_partition_warning_threshold", "999GiB")
+        cluster = init(Cluster.build(1)
+                              .withConfig(c -> c.set("partition_tombstones_warn_threshold", WARN_THRESHOLD)
+                                                .set("partition_tombstones_fail_threshold", FAIL_THRESHOLD)
                                                 .set("memtable_heap_space", "512MiB")) // avoids flushes
                               .start());
         cluster.disableAutoCompaction(KEYSPACE);
@@ -73,69 +67,64 @@ public class GuardrailPartitionSizeTest extends GuardrailTester
     }
 
     @Test
-    public void testPartitionSize()
+    public void testPartitionTombstones()
     {
         // test yaml-loaded config
-        testPartitionSize(WARN_THRESHOLD, FAIL_THRESHOLD);
+        testPartitionTombstones(WARN_THRESHOLD, FAIL_THRESHOLD);
         schemaChange("DROP TABLE %s");
 
         // test dynamic config
-        int warn = WARN_THRESHOLD * 2;
-        int fail = FAIL_THRESHOLD * 2;
-        cluster.get(1).runOnInstance(() -> Guardrails.instance.setPartitionSizeThreshold(warn + "B", fail + "B"));
-        testPartitionSize(warn, fail);
+        int warn = WARN_THRESHOLD + 10;
+        int fail = FAIL_THRESHOLD + 10;
+        cluster.get(1).runOnInstance(() -> Guardrails.instance.setPartitionTombstonesThreshold(warn, fail));
+        testPartitionTombstones(warn, fail);
     }
 
-    private void testPartitionSize(int warn, int fail)
+    private void testPartitionTombstones(int warn, int fail)
     {
-        schemaChange("CREATE TABLE %s (k int, c int, v blob, PRIMARY KEY (k, c))");
+        schemaChange("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
 
         // empty table
         assertNotWarnedOnFlush();
         assertNotWarnedOnCompact();
 
-        // keep partition size lower than thresholds
-        execute("INSERT INTO %s (k, c, v) VALUES (1, 1, ?)", allocate(1));
+        // keep partition tombstones lower than thresholds
+        populateTable(warn);
         assertNotWarnedOnFlush();
         assertNotWarnedOnCompact();
 
         // exceed warn threshold
-        for (int c = 0; c < NUM_CLUSTERINGS; c++)
-        {
-            execute("INSERT INTO %s (k, c, v) VALUES (1, ?, ?)", c, allocate(warn / NUM_CLUSTERINGS));
-        }
+        populateTable(warn + 1);
         assertWarnedOnFlush(expectedMessages(1));
         assertWarnedOnCompact(expectedMessages(1));
 
         // exceed fail threshold
-        for (int c = 0; c < NUM_CLUSTERINGS * 10; c++)
-        {
-            execute("INSERT INTO %s (k, c, v) VALUES (1, ?, ?)", c, allocate(fail / NUM_CLUSTERINGS));
-        }
+        populateTable(fail + 1);
         assertFailedOnFlush(expectedMessages(1));
         assertFailedOnCompact(expectedMessages(1));
 
-        // remove most of the data to be under the threshold again
+        // remove most of the tombstones to be under the threshold again
         execute("DELETE FROM %s WHERE k = 1 AND c > 1");
         assertNotWarnedOnFlush();
         assertNotWarnedOnCompact();
 
-        // exceed warn threshold in multiple partitions
-        for (int c = 0; c < NUM_CLUSTERINGS; c++)
+        // exceed warn threshold in multiple partitions,
+        // this shouldn't trigger the fail threshold because the count is per-partition.
+        for (int c = 0; c <= warn; c++)
         {
-            execute("INSERT INTO %s (k, c, v) VALUES (1, ?, ?)", c, allocate(warn / NUM_CLUSTERINGS));
-            execute("INSERT INTO %s (k, c, v) VALUES (2, ?, ?)", c, allocate(warn / NUM_CLUSTERINGS));
+            execute("DELETE FROM %s WHERE k = 2 AND c = ?", c);
+            execute("DELETE FROM %s WHERE k = 3 AND c = ?", c);
         }
-        assertWarnedOnFlush(expectedMessages(1, 2));
-        assertWarnedOnCompact(expectedMessages(1, 2));
+        assertWarnedOnFlush(expectedMessages(2, 3));
+        assertWarnedOnCompact(expectedMessages(2, 3));
+    }
 
-        // exceed warn threshold in a new partition
-        for (int c = 0; c < NUM_CLUSTERINGS; c++)
+    private void populateTable(int numTombstones)
+    {
+        for (int c = 0; c < numTombstones; c++)
         {
-            execute("INSERT INTO %s (k, c, v) VALUES (3, ?, ?)", c, allocate(warn / NUM_CLUSTERINGS));
+            execute("DELETE FROM %s WHERE k = 1 AND c = ?", c);
         }
-        assertWarnedOnFlush(expectedMessages(3));
-        assertWarnedOnCompact(expectedMessages(1, 2, 3));
     }
 
     private void execute(String query, Object... args)
@@ -147,7 +136,7 @@ public class GuardrailPartitionSizeTest extends GuardrailTester
     {
         String[] messages = new String[keys.length];
         for (int i = 0; i < keys.length; i++)
-            messages[i] = String.format("Guardrail partition_size violated: Partition %s:%d", qualifiedTableName, keys[i]);
+            messages[i] = String.format("Guardrail partition_tombstones violated: Partition %s:%d", qualifiedTableName, keys[i]);
         return messages;
     }
 }
