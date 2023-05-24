@@ -533,7 +533,7 @@ public class StorageAttachedIndex implements Index
             return;
 
         // to avoid overflow HNSW internal data structure and avoid OOM when filtering top-k
-        if (command.limits().isUnlimited() || command.limits().count() >= MAX_TOP_K)
+        if (command.limits().isUnlimited() || command.limits().count() > MAX_TOP_K)
             throw new InvalidRequestException(String.format("Vector search for index %s requires specifying LIMIT that is not greater than %s, found: %s",
                                                             getIndexMetadata().name, MAX_TOP_K, command.limits().count()));
     }

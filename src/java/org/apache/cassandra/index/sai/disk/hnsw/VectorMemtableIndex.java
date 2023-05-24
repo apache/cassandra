@@ -43,6 +43,7 @@ import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.util.Bits;
@@ -53,8 +54,6 @@ public class VectorMemtableIndex implements MemtableIndex
     private final IndexContext indexContext;
     private final CassandraOnHeapHnsw graph;
     private final LongAdder writeCount = new LongAdder();
-
-    private static final Token.KeyBound MIN_KEY_BOUND = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
 
     private PrimaryKey minimumKey;
     private PrimaryKey maximumKey;
@@ -101,7 +100,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         Bits bits = null;
         // key range doesn't full token ring, we need to filter keys inside ANN search
-        if (!graph.isEmpty() && !coversFullRing(keyRange))
+        if (!graph.isEmpty() && !RangeUtil.coversFullRing(keyRange))
             bits = new KeyRangeFilteringBits(keyRange);
 
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
@@ -127,11 +126,6 @@ public class VectorMemtableIndex implements MemtableIndex
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
         return new ReorderingRangeIterator(keyQueue);
-    }
-
-    private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
-    {
-        return keyRange.left.equals(MIN_KEY_BOUND) && keyRange.right.equals(MIN_KEY_BOUND);
     }
 
     @Override

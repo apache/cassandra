@@ -145,6 +145,12 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
+    public long lastRowIdFromPrimaryKey(PrimaryKey key)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void close() throws IOException
     {
         FileUtils.closeQuietly(rowIdToToken, rowIdToOffset, reader);

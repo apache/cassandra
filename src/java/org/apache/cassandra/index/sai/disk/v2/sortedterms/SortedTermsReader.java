@@ -126,6 +126,25 @@ public class SortedTermsReader
         }
     }
 
+    public long getLastPointId(@Nonnull ByteComparable term)
+    {
+        Preconditions.checkNotNull(term, "term null");
+
+        try (TrieRangeIterator reader = new TrieRangeIterator(termsTrie.instantiateRebufferer(),
+                                                              meta.trieFP,
+                                                              term,
+                                                              null,
+                                                              true,
+                                                              true))
+        {
+            final Iterator<Pair<ByteSource, Long>> iterator = reader.iterator();
+            long pointId = Long.MAX_VALUE;
+            while (iterator.hasNext())
+                pointId = iterator.next().right; // FIXME travese to the end in trie
+            return pointId;
+        }
+    }
+
     /**
      * Returns the total number of terms.
      */

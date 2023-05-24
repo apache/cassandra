@@ -26,6 +26,8 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
@@ -83,14 +85,14 @@ public class InvertedIndexSearcher extends IndexSearcher
 
     @Override
     @SuppressWarnings("resource")
-    public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<PrimaryKey> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         PostingList postingList = searchPosting(exp, context);
         return toPrimaryKeyIterator(postingList, context);
     }
 
     @SuppressWarnings("resource")
-    public RangeIterator searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<Long> searchSSTableRowIds(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         PostingList postingList = searchPosting(exp, context);
         return toSSTableRowIdsIterator(postingList, context);

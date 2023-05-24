@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.PrimitiveIterator;
 
@@ -28,8 +27,11 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -37,6 +39,7 @@ import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.lucene.util.SparseFixedBitSet;
 
@@ -50,15 +53,19 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private final CassandraOnDiskHnsw graph;
+    private final PrimaryKey.Factory keyFactory;
+    private final PrimaryKeyMap primaryKeyMap;
 
     VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
-                        PerIndexFiles perIndexFiles, // TODO not used for now because lucene has different file extensions
+                        PerIndexFiles perIndexFiles,
                         SegmentMetadata segmentMetadata,
                         IndexDescriptor indexDescriptor,
                         IndexContext indexContext) throws IOException
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexDescriptor, indexContext);
         graph = new CassandraOnDiskHnsw(indexDescriptor, indexContext);
+        this.keyFactory = PrimaryKey.factory(indexContext.comparator(), indexContext.indexFeatureSet());
+        this.primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
     }
 
     @Override
@@ -69,20 +76,20 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
     @Override
     @SuppressWarnings("resource")
-    public RangeIterator<PrimaryKey> search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<PrimaryKey> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(exp, limit);
+        ReorderingPostingList results = searchPosting(exp, keyRange, limit);
         return toPrimaryKeyIterator(results, context);
     }
 
     @Override
-    public RangeIterator<Long> searchSSTableRowIds(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<Long> searchSSTableRowIds(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(exp, limit);
+        ReorderingPostingList results = searchPosting(exp, keyRange, limit);
         return toSSTableRowIdsIterator(results, context);
     }
 
-    private ReorderingPostingList searchPosting(Expression exp, int limit)
+    private ReorderingPostingList searchPosting(Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -90,9 +97,50 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         if (exp.getOp() != Expression.Op.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
+        SparseFixedBitSet bits = bitsetForKeyRange(keyRange);
+
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
-        return graph.search(queryVector, limit, null, Integer.MAX_VALUE);
+        return graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
+    }
+
+    private SparseFixedBitSet bitsetForKeyRange(AbstractBounds<PartitionPosition> keyRange)
+    {
+        // not restricted
+        if (RangeUtil.coversFullRing(keyRange))
+            return null;
+
+        PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
+        PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
+
+        // it will return the next row id if given key is not found.
+        long minSSTableRowId = primaryKeyMap.rowIdFromPrimaryKey(firstPrimaryKey);
+        long maxSSTableRowId = primaryKeyMap.lastRowIdFromPrimaryKey(lastPrimaryKey);
+
+        // if it covers entire segment, skip bit set
+        if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
+            return null;
+
+        minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
+        maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
+
+        // TODO this is inefficient when range covers most of the segment. Can we change HNSW bit set to filter on row id instead of graph ordinal?
+        SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+        for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
+        {
+            try
+            {
+                int segmentRowId = metadata.segmentedRowId(sstableRowId);
+                // FIXME what if row id doesn't exist in hnsw? e.g. null vector column
+                int ordinal = graph.getOrdinal(segmentRowId);
+                bits.set(ordinal);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        return bits;
     }
 
     @Override
@@ -108,7 +156,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         while (iterator.hasNext())
         {
             Long sstableRowId = iterator.peek();
-            // if sstable row id has exceed current ANN segment, stop
+            // if sstable row id has exceeded current ANN segment, stop
             if (sstableRowId > metadata.maxSSTableRowId)
                 break;
 
@@ -170,5 +218,6 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     public void close() throws IOException
     {
         graph.close();
+        primaryKeyMap.close();
     }
 }

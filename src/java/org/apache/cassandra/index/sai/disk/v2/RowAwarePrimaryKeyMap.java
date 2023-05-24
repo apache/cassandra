@@ -31,7 +31,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -161,6 +160,13 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     {
         return sortedTermsReader.getPointId(v -> key.asComparableBytes(v));
     }
+
+    @Override
+    public long lastRowIdFromPrimaryKey(PrimaryKey key)
+    {
+        return sortedTermsReader.getLastPointId(v -> key.asComparableBytes(v));
+    }
+
 
     @Override
     public void close() throws IOException

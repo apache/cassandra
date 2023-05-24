@@ -80,6 +80,12 @@ public class KDTreeIndexBuilder
         {
             return key.token().getLongValue();
         }
+
+        @Override
+        public long lastRowIdFromPrimaryKey(PrimaryKey key)
+        {
+            return key.token().getLongValue();
+        }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;
 
