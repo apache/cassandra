@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
@@ -176,6 +177,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * This property and anything that checks it should be removed in 5.0
      */
     private volatile boolean upgradeInProgressPossible = true;
+
+    // Inflight echo requests.
+    private final Set<InetAddressAndPort> inflightEcho = new ConcurrentSkipListSet<>();
 
     public void clearUnsafe()
     {
@@ -1299,14 +1303,37 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
+        if (liveEndpoints.contains(addr))
+        {
+            return;
+        }
+        if (inflightEcho.contains(addr))
+        {
+            return;
+        }
+        inflightEcho.add(addr);
+
         localState.markDead();
 
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
         logger.trace("Sending ECHO_REQ to {}", addr);
-        RequestCallback echoHandler = msg ->
+        RequestCallback echoHandler = new RequestCallback()
         {
-            // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
-            runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
+            @Override
+            public void onResponse(Message msg)
+            {
+                // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
+                runInGossipStageBlocking(() -> {
+                    realMarkAlive(addr, localState);
+                    inflightEcho.remove(addr);
+                });
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                inflightEcho.remove(addr);
+            }
         };
 
         MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
@@ -2224,31 +2251,34 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             return;
         }
-        final int GOSSIP_SETTLE_MIN_WAIT_MS = 5000;
-        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = 1000;
-        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = 3;
+        final int GOSSIP_SETTLE_MIN_WAIT_MS = Integer.getInteger("cassandra.gossip_settle_min_wait_ms", 5000);
+        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = Integer.getInteger("cassandra.gossip_settle_interval_ms", 1000);
+        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = Integer.getInteger("cassandra.gossip_settle_poll_success_required", 3);
 
         logger.info("Waiting for gossip to settle...");
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
         int totalPolls = 0;
         int numOkay = 0;
         int epSize = Gossiper.instance.getEndpointCount();
+        int liveSize = Gossiper.instance.getLiveMembers().size();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             int currentSize = Gossiper.instance.getEndpointCount();
+            int currentLive = Gossiper.instance.getLiveMembers().size();
             totalPolls++;
-            if (currentSize == epSize)
+            if (currentSize == epSize && currentLive == liveSize)
             {
-                logger.debug("Gossip looks settled.");
+                logger.debug("Gossip looks settled with {} states and {} live endpoints after {} polls.", currentSize, currentLive, totalPolls);
                 numOkay++;
             }
             else
             {
-                logger.info("Gossip not settled after {} polls.", totalPolls);
+                logger.info("Gossip not settled with {} states and {} live endpoints after {} polls.", currentSize, currentLive, totalPolls);
                 numOkay = 0;
             }
             epSize = currentSize;
+            liveSize = currentLive;
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
                 logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip total polls: {}",
