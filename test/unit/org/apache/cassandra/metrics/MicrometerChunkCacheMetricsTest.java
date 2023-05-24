@@ -123,6 +123,17 @@ public class MicrometerChunkCacheMetricsTest
     }
 
     @Test
+    public void testEvictionRecording()
+    {
+        long initialEvictionCount = chunkCacheMetrics.snapshot().evictionCount();
+        chunkCacheMetrics.recordEviction(4);
+        assertEquals(initialEvictionCount + 4, chunkCacheMetrics.snapshot().evictionCount());
+
+        chunkCacheMetrics.recordEviction();
+        assertEquals(initialEvictionCount + 4 + 1, chunkCacheMetrics.snapshot().evictionCount());
+    }
+
+    @Test
     public void testRegister()
     {
         ((MicrometerChunkCacheMetrics) chunkCacheMetrics).register(new SimpleMeterRegistry(), Tags.of("tagKey", "tagValue"));
