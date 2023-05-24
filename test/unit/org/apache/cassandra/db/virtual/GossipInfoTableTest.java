@@ -77,8 +77,7 @@ public class GossipInfoTableTest extends CQLTester
 
             assertThat(resultSet.size()).isEqualTo(1);
             UntypedResultSet.Row row = resultSet.one();
-            // TODO (integrate with TCM) : revert back to 64 once TCM integrated
-            assertThat(row.getColumns().size()).isEqualTo(66);
+            assertThat(row.getColumns().size()).isEqualTo(64);
 
             assertThat(endpoint).isNotNull();
             assertThat(localState).isNotNull();
