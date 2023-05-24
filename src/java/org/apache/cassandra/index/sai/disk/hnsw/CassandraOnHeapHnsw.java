@@ -117,6 +117,10 @@ public class CassandraOnHeapHnsw<T>
      */
     public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept, int visitedLimit)
     {
+        // search() errors out when an empty graph is passed to it
+        if (vectorValues.size() == 0)
+            return new PriorityQueue<>();
+
         NeighborQueue queue;
         try
         {

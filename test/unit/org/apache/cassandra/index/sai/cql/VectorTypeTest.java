@@ -182,8 +182,10 @@ public class VectorTypeTest extends SAITester
 
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', null)");
         var result = execute("SELECT * FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(0);
 
-        result = execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [4.0, 5.0, 6.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [4.0, 5.0, 6.0])");
+        result = execute("SELECT pk FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 1");
         assertRows(result, row(1));
     }
 
