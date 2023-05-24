@@ -57,9 +57,6 @@ public enum ApplicationState
      **/
     SSTABLE_VERSIONS,
     DISK_USAGE,
-
-    // TODO (replace with TCM) : This is a temp solution to know what epoch is current for each instance in the cluster, used for topology ACK callbacks
-    ACCORD_EPOCH,
     // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
     X1,
     X2,

@@ -142,11 +142,6 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             this.partitioner = partitioner;
         }
-
-        public VersionedValue accordEpoch(long epoch)
-        {
-            return new VersionedValue(Long.toString(epoch));
-        }
         
         public VersionedValue cloneWithHigherVersion(VersionedValue value)
         {
