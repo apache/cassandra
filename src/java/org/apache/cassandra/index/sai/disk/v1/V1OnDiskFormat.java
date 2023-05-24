@@ -179,8 +179,8 @@ public class V1OnDiskFormat implements OnDiskFormat
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
             NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
-            logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
-                        prettyPrintMemory(limiter.currentBytesUsed()));
+            logger.debug(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
+                         prettyPrintMemory(limiter.currentBytesUsed()));
 
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
         }
