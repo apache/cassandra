@@ -330,7 +330,7 @@ public class QueryController
             builder = RangeUnionIterator.<T>builder(subIterators.size());
         else if (hasAnn)
             // if there is ANN, intersect all available indexes so result will be correct top-k
-            builder = RangeIntersectionIterator.<T>builder(subIterators.size());
+            builder = RangeIntersectionIterator.<T>builder(subIterators.size(), subIterators.size());
         else
             // Otherwise, pick 2 most selective indexes for better performance
             builder = RangeIntersectionIterator.<T>builder();
