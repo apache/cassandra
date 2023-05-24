@@ -19,11 +19,12 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PerIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
@@ -44,8 +46,11 @@ import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.lucene.util.StringHelper;
 
 /**
  * Column index writer that flushes indexed data directly from the corresponding Memtable index, without buffering index
@@ -57,21 +62,28 @@ public class MemtableIndexWriter implements PerIndexWriter
 
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
-    private final MemtableIndex memtable;
+    private final MemtableIndex memtableIndex;
     private final RowMapping rowMapping;
 
-    public MemtableIndexWriter(MemtableIndex memtable,
+    private final int nowInSec = FBUtilities.nowInSeconds();
+    private final CassandraOnHeapHnsw<PrimaryKey> graphIndex;
+
+    public MemtableIndexWriter(MemtableIndex memtableIndex,
                                IndexDescriptor indexDescriptor,
                                IndexContext indexContext,
                                RowMapping rowMapping)
     {
         assert rowMapping != null && rowMapping != RowMapping.DUMMY : "Row mapping must exist during FLUSH.";
 
-        Preconditions.checkState(!(indexContext.isVector()));
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        this.memtable = memtable;
+        this.memtableIndex = memtableIndex;
         this.rowMapping = rowMapping;
+
+        if (indexContext.isVector())
+            graphIndex = new CassandraOnHeapHnsw<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
+        else
+            graphIndex = null;
     }
 
     @Override
@@ -86,6 +98,12 @@ public class MemtableIndexWriter implements PerIndexWriter
         // Memtable indexes are flushed directly to disk with the aid of a mapping between primary
         // keys and row IDs in the flushing SSTable. This writer, therefore, does nothing in
         // response to the flushing of individual rows.
+        if (indexContext.isVector())
+        {
+            ByteBuffer value = indexContext.getValueOf(key.partitionKey(), row, nowInSec);
+            if (value != null)
+                graphIndex.add(value, key);
+        }
     }
 
     @Override
@@ -102,7 +120,7 @@ public class MemtableIndexWriter implements PerIndexWriter
 
         try
         {
-            if (!rowMapping.hasRows() || (memtable == null) || memtable.isEmpty())
+            if (!rowMapping.hasRows() || (memtableIndex == null) || memtableIndex.isEmpty())
             {
                 logger.debug(indexContext.logMessage("No indexed rows to flush from SSTable {}."), indexDescriptor.descriptor);
                 // Write a completion marker even though we haven't written anything to the index
@@ -114,25 +132,20 @@ public class MemtableIndexWriter implements PerIndexWriter
             final DecoratedKey minKey = rowMapping.minKey.partitionKey();
             final DecoratedKey maxKey = rowMapping.maxKey.partitionKey();
 
-            final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtable);
-
-            try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
+            if (indexContext.isVector())
             {
-                long cellCount = flush(minKey, maxKey, indexContext.getValidator(), terms, rowMapping.maxSegmentRowId);
+                flushVectorIndex(minKey, maxKey, start, stopwatch);
+            }
+            else
+            {
+                final Iterator<Pair<ByteComparable, LongArrayList>> iterator = rowMapping.merge(memtableIndex);
 
-                indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+                try (MemtableTermsIterator terms = new MemtableTermsIterator(memtableIndex.getMinTerm(), memtableIndex.getMaxTerm(), iterator))
+                {
+                    long cellCount = flush(minKey, maxKey, indexContext.getValidator(), terms, rowMapping.maxSegmentRowId);
 
-                indexContext.getIndexMetrics().memtableIndexFlushCount.inc();
-
-                long elapsed = stopwatch.elapsed(TimeUnit.MILLISECONDS);
-
-                logger.debug(indexContext.logMessage("Completed flushing {} memtable index cells to SSTable {}. Duration: {} ms. Total elapsed: {} ms"),
-                             cellCount,
-                             indexDescriptor.descriptor,
-                             elapsed - start,
-                             elapsed);
-
-                indexContext.getIndexMetrics().memtableFlushCellsPerSecond.update((long) (cellCount * 1000.0 / Math.max(1, elapsed - start)));
+                    completeIndexFlush(cellCount, start, stopwatch);
+                }
             }
         }
         catch (Throwable t)
@@ -198,5 +211,50 @@ public class MemtableIndexWriter implements PerIndexWriter
         }
 
         return numRows;
+    }
+
+    private void flushVectorIndex(DecoratedKey minKey, DecoratedKey maxKey, long startTime, Stopwatch stopwatch) throws IOException
+    {
+        graphIndex.writeData(indexDescriptor, indexContext, rowMapping::get);
+
+        completeIndexFlush(rowMapping.size(), startTime, stopwatch);
+
+        SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
+
+        // we don't care about root/offset/length for vector. segmentId is used in searcher
+        Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
+        metadataMap.put(IndexComponent.VECTOR, 0, 0, 0, vectorConfigs);
+
+        SegmentMetadata metadata = new SegmentMetadata(0,
+                                                       rowMapping.size(),
+                                                       0,
+                                                       rowMapping.maxSegmentRowId,
+                                                       indexDescriptor.primaryKeyFactory.createPartitionKeyOnly(minKey),
+                                                       indexDescriptor.primaryKeyFactory.createPartitionKeyOnly(maxKey),
+                                                       ByteBufferUtil.bytes(0), // TODO by pass min max terms for vectors
+                                                       ByteBufferUtil.bytes(0), // TODO by pass min max terms for vectors
+                                                       metadataMap);
+
+        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexContext)))
+        {
+            SegmentMetadata.write(writer, Collections.singletonList(metadata));
+        }
+    }
+
+    private void completeIndexFlush(long cellCount, long startTime, Stopwatch stopwatch) throws IOException
+    {
+        indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
+
+        indexContext.getIndexMetrics().memtableIndexFlushCount.inc();
+
+        long elapsedTime = stopwatch.elapsed(TimeUnit.MILLISECONDS);
+
+        logger.debug(indexContext.logMessage("Completed flushing {} memtable index cells to SSTable {}. Duration: {} ms. Total elapsed: {} ms"),
+                     cellCount,
+                     indexDescriptor.descriptor,
+                     elapsedTime - startTime,
+                     elapsedTime);
+
+        indexContext.getIndexMetrics().memtableFlushCellsPerSecond.update((long) (cellCount * 1000.0 / Math.max(1, elapsedTime - startTime)));
     }
 }

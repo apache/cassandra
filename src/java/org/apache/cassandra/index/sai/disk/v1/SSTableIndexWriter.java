@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -370,12 +369,14 @@ public class SSTableIndexWriter implements PerIndexWriter
 
     private SegmentBuilder newSegmentBuilder()
     {
-        // vector uses VectorIndexSearcher
-        Preconditions.checkState(!(indexContext.isVector()));
+        SegmentBuilder builder;
 
-        SegmentBuilder builder = TypeUtil.isLiteral(indexContext.getValidator())
-                                 ? new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter)
-                                 : new SegmentBuilder.KDTreeSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
+        if (indexContext.isVector())
+            builder = new SegmentBuilder.VectorSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
+        else if (indexContext.isLiteral())
+            builder = new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter);
+        else
+            builder = new SegmentBuilder.KDTreeSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
 
         long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
         logger.debug(indexContext.logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),
