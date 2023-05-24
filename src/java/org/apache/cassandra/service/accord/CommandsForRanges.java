@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -27,11 +28,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ImmutableSet;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
@@ -132,11 +135,18 @@ public class CommandsForRanges
 
     public static abstract class AbstractBuilder<T extends AbstractBuilder<T>>
     {
+        protected final Set<TxnId> txnIds = new HashSet<>();
         protected final IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder;
 
         private AbstractBuilder(IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder)
         {
             this.builder = builder;
+        }
+
+        public T merge(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
+        {
+            // TODO (impl) : basic signature of Map.merge, need to keep similar semantics I guess?
+            return (T) this;
         }
 
         public T put(Ranges ranges, TxnId txnId, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
@@ -147,6 +157,7 @@ public class CommandsForRanges
 
         private T put(Ranges ranges, RangeCommandSummary summary)
         {
+            txnIds.add(summary.txnId);
             for (Range range : ranges)
                 put(range, summary);
             return (T) this;
@@ -162,6 +173,7 @@ public class CommandsForRanges
 
         private T remove(TxnId txnId)
         {
+            txnIds.remove(txnId);
             return removeIf(data -> data.txnId.equals(txnId));
         }
 
@@ -186,7 +198,7 @@ public class CommandsForRanges
 
         public CommandsForRanges build()
         {
-            return new CommandsForRanges(builder.build());
+            return new CommandsForRanges(this);
         }
     }
 
@@ -195,24 +207,34 @@ public class CommandsForRanges
         private Updater()
         {
             super(rangesToCommands.unbuild());
+            txnIds.addAll(CommandsForRanges.this.txnIds);
         }
 
         public void apply()
         {
             rangesToCommands = builder.build();
+            CommandsForRanges.this.txnIds = ImmutableSet.copyOf(txnIds);
         }
     }
 
+    private Set<TxnId> txnIds;
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands;
 
     public CommandsForRanges()
     {
-        this(IntervalTree.emptyTree());
+        rangesToCommands = IntervalTree.emptyTree();
+        txnIds = Collections.emptySet();
     }
 
-    public CommandsForRanges(IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands)
+    private CommandsForRanges(Builder builder)
     {
-        this.rangesToCommands = rangesToCommands;
+        this.rangesToCommands = builder.builder.build();
+        this.txnIds = ImmutableSet.copyOf(builder.txnIds);
+    }
+
+    public boolean contains(TxnId txnId)
+    {
+        return txnIds.contains(txnId);
     }
 
     public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)

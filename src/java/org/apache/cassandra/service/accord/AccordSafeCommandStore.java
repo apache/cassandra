@@ -61,7 +61,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
-    private CommandsForRanges.Updater builder = null;
+    CommandsForRanges.Updater builder = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
