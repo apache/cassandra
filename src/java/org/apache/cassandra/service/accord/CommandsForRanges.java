@@ -260,7 +260,9 @@ public class CommandsForRanges
     {
         public CommandsForRanges build()
         {
-            return new CommandsForRanges(this);
+            CommandsForRanges cfr = new CommandsForRanges();
+            cfr.set(this);
+            return cfr;
         }
     }
 
@@ -273,9 +275,7 @@ public class CommandsForRanges
 
         public void apply()
         {
-            CommandsForRanges.this.localCommands = ImmutableSet.copyOf(this.localTxns);
-            rangesToCommands = rangeToTxn.build();
-            CommandsForRanges.this.commandsToRanges = ImmutableSortedMap.copyOf(txnToRange);
+            CommandsForRanges.this.set(this);
         }
     }
 
@@ -349,7 +349,7 @@ public class CommandsForRanges
         rangesToCommands = IntervalTree.emptyTree();
     }
 
-    private CommandsForRanges(Builder builder)
+    private void set(AbstractBuilder<?> builder)
     {
         this.localCommands = ImmutableSet.copyOf(builder.localTxns);
         this.commandsToRanges = ImmutableSortedMap.copyOf(builder.txnToRange);
