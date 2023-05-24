@@ -181,7 +181,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         });
         CommandsForRanges commandsForRanges = commandStore.commandsForRanges();
         deps.rangeDeps.forEachUniqueTxnId(allRanges, txnId -> {
-            if (commandsForRanges.contains(txnId))
+            if (commandsForRanges.containsLocally(txnId))
                 return;
 
             Ranges ranges = deps.rangeDeps.ranges(txnId);
@@ -192,7 +192,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
             if (builder == null)
                 builder = commandsForRanges.update();
-            builder.merge(txnId, ranges.slice(allRanges), Ranges::with);
+            builder.mergeRemote(txnId, ranges.slice(allRanges), Ranges::with);
         });
     }
 

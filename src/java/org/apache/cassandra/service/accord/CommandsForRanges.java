@@ -33,6 +33,7 @@ import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Key;
@@ -48,6 +49,7 @@ import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -56,6 +58,17 @@ import org.apache.cassandra.utils.IntervalTree;
 
 public class CommandsForRanges
 {
+    public enum TxnType
+    {
+        UNKNOWN, LOCAL, REMOTE;
+
+        private boolean isSafeToMix(TxnType other)
+        {
+            if (this == UNKNOWN || other == UNKNOWN) return true;
+            return this == other;
+        }
+    }
+
     private static final class RangeCommandSummary
     {
         public final TxnId txnId;
@@ -151,13 +164,21 @@ public class CommandsForRanges
 
     public static abstract class AbstractBuilder<T extends AbstractBuilder<T>>
     {
+        protected final Set<TxnId> localTxns = new HashSet<>();
         protected final TreeMap<TxnId, RangeCommandSummary> txnToRange = new TreeMap<>();
         protected final IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangeToTxn = new IntervalTree.Builder<>();
+
+        public TxnType type(TxnId txnId)
+        {
+            if (!txnToRange.containsKey(txnId)) return TxnType.UNKNOWN;
+            return localTxns.contains(txnId) ? TxnType.LOCAL : TxnType.REMOTE;
+        }
 
         public T put(TxnId txnId, Ranges ranges, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
         {
             remove(txnId);
             RangeCommandSummary summary = new RangeCommandSummary(txnId, ranges, status, execteAt, dependsOn);
+            localTxns.add(txnId);
             txnToRange.put(txnId, summary);
             addRanges(summary);
             return (T) this;
@@ -175,6 +196,13 @@ public class CommandsForRanges
 
         public T putAll(CommandsForRanges other)
         {
+            for (TxnId id : other.localCommands)
+            {
+                TxnType thisType = type(id);
+                TxnType otherType = other.type(id);
+                Invariants.checkArgument(thisType.isSafeToMix(otherType), "Attempted to add %s; expected %s but was %s", id, thisType, otherType);
+            }
+            localTxns.addAll(other.localCommands);
             txnToRange.putAll(other.commandsToRanges);
             // If "put" was called before for a txn present in "other", to respect the "put" semantics that update must
             // be removed from "rangeToTxn" (as it got removed from "txnToRange").
@@ -185,8 +213,9 @@ public class CommandsForRanges
             return (T) this;
         }
 
-        public T merge(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
+        public T mergeRemote(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
         {
+            Invariants.checkArgument(!localTxns.contains(txnId), "Attempted to merge remote txn %s, but this is a local txn", txnId);
             RangeCommandSummary oldValue = txnToRange.get(txnId);
             RangeCommandSummary newValue = oldValue == null ?
                                            new RangeCommandSummary(txnId, ranges, SaveStatus.NotWitnessed, null, Collections.emptyList())
@@ -208,6 +237,7 @@ public class CommandsForRanges
         {
             if (txnToRange.containsKey(txnId))
             {
+                localTxns.remove(txnId);
                 txnToRange.remove(txnId);
                 rangeToTxn.removeIf(data -> data.txnId.equals(txnId));
             }
@@ -237,24 +267,33 @@ public class CommandsForRanges
         }
     }
 
+    private ImmutableSet<TxnId> localCommands;
     private ImmutableSortedMap<TxnId, RangeCommandSummary> commandsToRanges;
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands;
 
     public CommandsForRanges()
     {
-        rangesToCommands = IntervalTree.emptyTree();
+        localCommands = ImmutableSet.of();
         commandsToRanges = ImmutableSortedMap.of();
+        rangesToCommands = IntervalTree.emptyTree();
     }
 
     private CommandsForRanges(Builder builder)
     {
-        this.rangesToCommands = builder.rangeToTxn.build();
+        this.localCommands = ImmutableSet.copyOf(builder.localTxns);
         this.commandsToRanges = ImmutableSortedMap.copyOf(builder.txnToRange);
+        this.rangesToCommands = builder.rangeToTxn.build();
     }
 
-    public boolean contains(TxnId txnId)
+    public TxnType type(TxnId txnId)
     {
-        return commandsToRanges.containsKey(txnId);
+        if (!commandsToRanges.containsKey(txnId)) return TxnType.UNKNOWN;
+        return localCommands.contains(txnId) ? TxnType.LOCAL : TxnType.REMOTE;
+    }
+
+    public boolean containsLocally(TxnId txnId)
+    {
+        return localCommands.contains(txnId);
     }
 
     public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)
