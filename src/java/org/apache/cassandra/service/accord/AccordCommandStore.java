@@ -42,7 +42,6 @@ import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
-import accord.impl.SafeCommandsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
@@ -50,7 +49,6 @@ import accord.local.CommandStores.RangesForEpochHolder;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.primitives.Deps;
 import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
@@ -183,45 +181,6 @@ public class AccordCommandStore extends CommandStore
     public boolean inStore()
     {
         return Thread.currentThread().getId() == threadId;
-    }
-
-    @Override
-    protected void registerHistoricalTransactions(Deps deps)
-    {
-        // TODO (api) : why is this in CommandStore and not SafeCommandStore?  We need to push this to Safe so we "save" it in C*
-        // TODO (duplicate code) : honestly this is all copy/paste... can we push this in AbstractSafeCommand store?
-        if (current == null)
-            throw new IllegalStateException("Unable to register transactions outside of an operation");
-        AccordSafeCommandStore current = this.current;
-        // used in places such as accord.local.CommandStore.fetchMajorityDeps
-        // We find a set of dependencies for a range then update CommandsFor to know about them
-        Ranges allRanges = rangesForEpochHolder.get().all();
-        deps.keyDeps.keys().forEach(allRanges, key -> {
-            SafeCommandsForKey cfk = current.commandsForKey(key);
-            deps.keyDeps.forEach(key, txnId -> {
-                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (rangesForEpochHolder.get().coordinates(txnId).contains(key))
-                    return; // already coordinates, no need to replicate
-                if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).contains(key))
-                    return;
-
-                cfk.registerNotWitnessed(txnId);
-            });
-        });
-        deps.rangeDeps.forEachUniqueTxnId(allRanges, txnId -> {
-            if (commandsForRanges.contains(txnId))
-                return;
-
-            Ranges ranges = deps.rangeDeps.ranges(txnId);
-            if (rangesForEpochHolder.get().coordinates(txnId).intersects(ranges))
-                return; // already coordinates, no need to replicate
-            if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).intersects(ranges))
-                return;
-
-            if (current.builder == null)
-                current.builder = updateRanges();
-            current.builder.merge(txnId, ranges.slice(allRanges), Ranges::with);
-        });
     }
 
     public void setCacheSize(long bytes)
@@ -403,6 +362,11 @@ public class AccordCommandStore extends CommandStore
                 throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
         }
         return accumulate;
+    }
+
+    CommandsForRanges commandsForRanges()
+    {
+        return commandsForRanges;
     }
 
     CommandsForRanges.Updater updateRanges()

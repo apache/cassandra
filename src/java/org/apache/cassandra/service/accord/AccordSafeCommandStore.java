@@ -37,6 +37,7 @@ import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
 import accord.local.Command;
+import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommonAttributes;
 import accord.local.NodeTimeService;
@@ -46,6 +47,7 @@ import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.AbstractKeys;
+import accord.primitives.Deps;
 import accord.primitives.PartialDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
@@ -156,6 +158,42 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
         return mapReduce(keysOrRanges, slice, (ts, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, null);
+    }
+
+    @Override
+    public void registerHistoricalTransactions(Deps deps)
+    {
+        // used in places such as accord.local.CommandStore.fetchMajorityDeps
+        // We find a set of dependencies for a range then update CommandsFor to know about them
+        CommandStores.RangesForEpochHolder rangesForEpochHolder = commandStore.rangesForEpochHolder();
+        Ranges allRanges = rangesForEpochHolder.get().all();
+        deps.keyDeps.keys().forEach(allRanges, key -> {
+            SafeCommandsForKey cfk = commandsForKey(key);
+            deps.keyDeps.forEach(key, txnId -> {
+                // TODO (desired, efficiency): this can be made more efficient by batching by epoch
+                if (rangesForEpochHolder.get().coordinates(txnId).contains(key))
+                    return; // already coordinates, no need to replicate
+                if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).contains(key))
+                    return;
+
+                cfk.registerNotWitnessed(txnId);
+            });
+        });
+        CommandsForRanges commandsForRanges = commandStore.commandsForRanges();
+        deps.rangeDeps.forEachUniqueTxnId(allRanges, txnId -> {
+            if (commandsForRanges.contains(txnId))
+                return;
+
+            Ranges ranges = deps.rangeDeps.ranges(txnId);
+            if (rangesForEpochHolder.get().coordinates(txnId).intersects(ranges))
+                return; // already coordinates, no need to replicate
+            if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).intersects(ranges))
+                return;
+
+            if (builder == null)
+                builder = commandsForRanges.update();
+            builder.merge(txnId, ranges.slice(allRanges), Ranges::with);
+        });
     }
 
     private <O> O mapReduce(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
