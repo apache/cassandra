@@ -143,9 +143,9 @@ public class Info extends NodeToolCmd
         // network Cache: capacity, size
         try
         {
-            out.printf("%-23s: size %s, capacity %s%n", "Network Cache",
-                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Size") -
-                                                   (long) probe.getBufferPoolMetric("networking", "OverflowSize")),
+            out.printf("%-23s: size %s, overflow size: %s, capacity %s%n", "Network Cache",
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Size")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "OverflowSize")),
                        FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Capacity")));
         }
         catch (RuntimeException e)

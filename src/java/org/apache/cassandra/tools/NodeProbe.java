@@ -1404,7 +1404,7 @@ public class NodeProbe implements AutoCloseable
                             new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=MissLatency"),
                             CassandraMetricsRegistry.JmxTimerMBean.class).getDurationUnit();
                 default:
-                    throw new RuntimeException("Unknown cache metric name.");
+                    throw new RuntimeException("Unknown Cache metric name " + metricName);
 
             }
         }
@@ -1431,15 +1431,15 @@ public class NodeProbe implements AutoCloseable
                 case "Capacity":
                 case "Size":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                           new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope="+poolType+",name="+metricName),
+                           new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
                            CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
                 case "Hits":
                 case "Misses":
                     return JMX.newMBeanProxy(mbeanServerConn,
-                    new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope="+poolType+",name="+metricName),
+                    new ObjectName("org.apache.cassandra.metrics:type=BufferPool,scope=" + poolType + ",name=" + metricName),
                     CassandraMetricsRegistry.JmxMeterMBean.class).getCount();
                 default:
-                    throw new RuntimeException("Unknown cache metric name.");
+                    throw new RuntimeException("Unknown BufferPool metric name " + metricName);
             }
         }
         catch (MalformedObjectNameException e)
@@ -1499,7 +1499,7 @@ public class NodeProbe implements AutoCloseable
               case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
                   return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
               default:
-                  throw new AssertionError("Unknown metric name " + metricName);
+                  throw new AssertionError("Unknown ThreadPools metric name " + metricName);
           }
       }
       catch (Exception e)
