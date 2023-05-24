@@ -216,6 +216,11 @@ public class CommandsForRanges
         public T mergeRemote(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
         {
             Invariants.checkArgument(!localTxns.contains(txnId), "Attempted to merge remote txn %s, but this is a local txn", txnId);
+            // accord.impl.CommandTimeseries.mapReduce does the check on status and deps type, and NotWitnessed should match the semantics hard coded in InMemorySafeStore...
+            // in that store, the remote history is only ever included when minStauts == null and deps == ANY... but mapReduce sees accord.local.Status.KnownDeps.hasProposedOrDecidedDeps == false
+            // as a mis-match, so will be excluded... since NotWitnessed will return false it will only be included IFF deps = ANY.
+            // When it comes to the minStatus check, the current usage is "null", "Committed", "Accepted"... so NotWitnessed will only be included in the null case;
+            // the only subtle difference is if minStatus = NotWitnessed, this API will include these but InMemoryStore won't
             RangeCommandSummary oldValue = txnToRange.get(txnId);
             RangeCommandSummary newValue = oldValue == null ?
                                            new RangeCommandSummary(txnId, ranges, SaveStatus.NotWitnessed, null, Collections.emptyList())
