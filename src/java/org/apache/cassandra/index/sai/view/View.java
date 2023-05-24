@@ -57,7 +57,9 @@ public class View implements Iterable<SSTableIndex>
         for (SSTableIndex sstableIndex : indexes)
         {
             this.view.put(sstableIndex.getSSTable().descriptor, sstableIndex);
-            termTreeBuilder.add(sstableIndex);
+            if (!sstableIndex.getIndexContext().isVector())
+                termTreeBuilder.add(sstableIndex);
+
             keyIntervals.add(Interval.create(new Key(sstableIndex.minKey()),
                                              new Key(sstableIndex.maxKey()),
                                              sstableIndex));

@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.PostingListRangeIterator;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdsRangeIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
@@ -119,7 +120,7 @@ public class QueryTimeoutTest extends SAITester
     public void delayDuringTokenLookupShouldProvokeTimeoutInRangeIterator() throws Throwable
     {
         Injection token_lookup_delay = Injections.newPause("token_lookup_delay", DELAY)
-                                                 .add(newInvokePoint().onClass(PostingListRangeIterator.class)
+                                                 .add(newInvokePoint().onClass(SSTableRowIdsRangeIterator.class)
                                                                             .onMethod("computeNext")
                                                                             .at("INVOKE QueryContext.checkpoint"))
                                                  .build();

@@ -43,7 +43,7 @@ public class SSTableRowIdPostingList implements PostingList
     public long nextPosting() throws IOException
     {
         long segmentRowId = segmentPostingList.nextPosting();
-        return segmentRowId + segmentOffset;
+        return segmentRowId == PostingList.END_OF_STREAM ? segmentRowId : segmentRowId + segmentOffset;
     }
 
     @Override

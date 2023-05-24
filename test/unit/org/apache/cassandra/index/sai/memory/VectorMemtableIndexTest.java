@@ -100,11 +100,11 @@ public class VectorMemtableIndexTest extends SAITester
                                                    .build();
         cfs = MockSchema.newCFS(tableMetadata);
         partitioner = cfs.getPartitioner();
-        indexContext = SAITester.createIndexContext("index", Int32Type.instance, cfs);
+        dimensionCount = getRandom().nextIntBetween(1, 2048);
+        indexContext = SAITester.createIndexContext("index", VectorType.getInstance(dimensionCount), cfs);
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
         rowMap = new HashMap<Integer, ByteBuffer>();
-        dimensionCount = getRandom().nextIntBetween(1, 2048);
 
         Injections.inject(indexSearchCounter);
     }
@@ -135,7 +135,8 @@ public class VectorMemtableIndexTest extends SAITester
                                            .collect(Collectors.toSet());
 
             Set<Integer> foundKeys = new HashSet<>();
-            try (RangeIterator<PrimaryKey> iterator = memtableIndex.search(expression, keyRange, getRandom().nextIntBetween(1, 100)))
+            int limit = getRandom().nextIntBetween(1, 100);
+            try (RangeIterator<PrimaryKey> iterator = memtableIndex.search(expression, keyRange, limit))
             {
                 while (iterator.hasNext())
                 {
@@ -146,7 +147,7 @@ public class VectorMemtableIndexTest extends SAITester
                 }
             }
             // with -Dcassandra.test.random.seed=260652334768666, there is one missing key
-            long expectedResult = Math.min(expression.topK, keysInRange.size());
+            long expectedResult = Math.min(limit, keysInRange.size());
             assertEquals("Missing key: " + Sets.difference(keysInRange, foundKeys), expectedResult, foundKeys.size());
         }
     }
