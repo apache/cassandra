@@ -146,7 +146,7 @@ public class AccordCommandStore extends CommandStore
 
                 PartialDeps deps = AccordKeyspace.deserializeDependencies(row);
                 List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
-                builder.put(ranges, txnId, status, executeAt, dependsOn);
+                builder.put(txnId, ranges, status, executeAt, dependsOn);
             }
 
             @Override
@@ -188,6 +188,8 @@ public class AccordCommandStore extends CommandStore
     @Override
     protected void registerHistoricalTransactions(Deps deps)
     {
+        // TODO (api) : why is this in CommandStore and not SafeCommandStore?  We need to push this to Safe so we "save" it in C*
+        // TODO (duplicate code) : honestly this is all copy/paste... can we push this in AbstractSafeCommand store?
         if (current == null)
             throw new IllegalStateException("Unable to register transactions outside of an operation");
         AccordSafeCommandStore current = this.current;

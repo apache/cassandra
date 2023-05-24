@@ -30,11 +30,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedMap;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
@@ -60,16 +59,27 @@ public class CommandsForRanges
     private static final class RangeCommandSummary
     {
         public final TxnId txnId;
+        public final Ranges ranges;
         public final SaveStatus status;
         public final @Nullable Timestamp executeAt;
         public final List<TxnId> deps;
 
-        RangeCommandSummary(TxnId txnId, SaveStatus status, @Nullable Timestamp executeAt, List<TxnId> deps)
+        RangeCommandSummary(TxnId txnId, Ranges ranges, SaveStatus status, @Nullable Timestamp executeAt, List<TxnId> deps)
         {
             this.txnId = txnId;
+            this.ranges = ranges;
             this.status = status;
             this.executeAt = executeAt;
             this.deps = deps;
+        }
+
+        public boolean equalsDeep(RangeCommandSummary other)
+        {
+            return Objects.equals(txnId, other.txnId)
+                   && Objects.equals(ranges, other.ranges)
+                   && Objects.equals(status, other.status)
+                   && Objects.equals(executeAt, other.executeAt)
+                   && Objects.equals(deps, other.deps);
         }
 
         @Override
@@ -93,7 +103,13 @@ public class CommandsForRanges
             return "RangeCommandSummary{" +
                    "txnId=" + txnId +
                    ", status=" + status +
+                   ", ranges=" + ranges +
                    '}';
+        }
+
+        public RangeCommandSummary withRanges(Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
+        {
+            return new RangeCommandSummary(txnId, remappingFunction.apply(this.ranges, ranges), status, executeAt, deps);
         }
     }
 
@@ -135,67 +151,72 @@ public class CommandsForRanges
 
     public static abstract class AbstractBuilder<T extends AbstractBuilder<T>>
     {
-        protected final Set<TxnId> txnIds = new HashSet<>();
-        protected final IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder;
+        protected final TreeMap<TxnId, RangeCommandSummary> txnToRange = new TreeMap<>();
+        protected final IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangeToTxn = new IntervalTree.Builder<>();
 
-        private AbstractBuilder(IntervalTree.Builder<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> builder)
+        public T put(TxnId txnId, Ranges ranges, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
         {
-            this.builder = builder;
+            remove(txnId);
+            RangeCommandSummary summary = new RangeCommandSummary(txnId, ranges, status, execteAt, dependsOn);
+            txnToRange.put(txnId, summary);
+            addRanges(summary);
+            return (T) this;
+        }
+
+        private void addRanges(RangeCommandSummary summary)
+        {
+            for (Range range : summary.ranges)
+            {
+                rangeToTxn.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
+                                               normalize(range.end(), range.endInclusive(), false),
+                                               summary));
+            }
+        }
+
+        public T putAll(CommandsForRanges other)
+        {
+            txnToRange.putAll(other.commandsToRanges);
+            // If "put" was called before for a txn present in "other", to respect the "put" semantics that update must
+            // be removed from "rangeToTxn" (as it got removed from "txnToRange").
+            // The expected common case is that this method is called on an empty builder, so the removeIf is off an
+            // empty list (aka no-op)
+            rangeToTxn.removeIf(data -> other.commandsToRanges.containsKey(data.txnId));
+            rangeToTxn.addAll(other.rangesToCommands);
+            return (T) this;
         }
 
         public T merge(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
         {
-            // TODO (impl) : basic signature of Map.merge, need to keep similar semantics I guess?
+            RangeCommandSummary oldValue = txnToRange.get(txnId);
+            RangeCommandSummary newValue = oldValue == null ?
+                                           new RangeCommandSummary(txnId, ranges, SaveStatus.NotWitnessed, null, Collections.emptyList())
+                                           : oldValue.withRanges(ranges, remappingFunction);
+            if (newValue == null)
+            {
+                remove(txnId);
+            }
+            else if (!oldValue.equalsDeep(newValue))
+            {
+                // changes detected... have to update range index
+                rangeToTxn.removeIf(data -> data.txnId.equals(txnId));
+                addRanges(newValue);
+            }
             return (T) this;
         }
 
-        public T put(Ranges ranges, TxnId txnId, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
+        public T remove(TxnId txnId)
         {
-            remove(txnId);
-            return put(ranges, new RangeCommandSummary(txnId, status, execteAt, dependsOn));
-        }
-
-        private T put(Ranges ranges, RangeCommandSummary summary)
-        {
-            txnIds.add(summary.txnId);
-            for (Range range : ranges)
-                put(range, summary);
-            return (T) this;
-        }
-
-        private T put(Range range, RangeCommandSummary summary)
-        {
-            builder.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
-                                        normalize(range.end(), range.endInclusive(), false),
-                                        summary));
-            return (T) this;
-        }
-
-        private T remove(TxnId txnId)
-        {
-            txnIds.remove(txnId);
-            return removeIf(data -> data.txnId.equals(txnId));
-        }
-
-        private T removeIf(Predicate<RangeCommandSummary> predicate)
-        {
-            return removeIf((i1, i2, data) -> predicate.test(data));
-        }
-
-        private T removeIf(IntervalTree.Builder.TriPredicate<RoutableKey, RoutableKey, RangeCommandSummary> predicate)
-        {
-            builder.removeIf(predicate);
+            if (txnToRange.containsKey(txnId))
+            {
+                txnToRange.remove(txnId);
+                rangeToTxn.removeIf(data -> data.txnId.equals(txnId));
+            }
             return (T) this;
         }
     }
 
     public static class Builder extends AbstractBuilder<Builder>
     {
-        public Builder()
-        {
-            super(new IntervalTree.Builder<>());
-        }
-
         public CommandsForRanges build()
         {
             return new CommandsForRanges(this);
@@ -206,35 +227,34 @@ public class CommandsForRanges
     {
         private Updater()
         {
-            super(rangesToCommands.unbuild());
-            txnIds.addAll(CommandsForRanges.this.txnIds);
+            putAll(CommandsForRanges.this);
         }
 
         public void apply()
         {
-            rangesToCommands = builder.build();
-            CommandsForRanges.this.txnIds = ImmutableSet.copyOf(txnIds);
+            rangesToCommands = rangeToTxn.build();
+            CommandsForRanges.this.commandsToRanges = ImmutableSortedMap.copyOf(txnToRange);
         }
     }
 
-    private Set<TxnId> txnIds;
+    private ImmutableSortedMap<TxnId, RangeCommandSummary> commandsToRanges;
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands;
 
     public CommandsForRanges()
     {
         rangesToCommands = IntervalTree.emptyTree();
-        txnIds = Collections.emptySet();
+        commandsToRanges = ImmutableSortedMap.of();
     }
 
     private CommandsForRanges(Builder builder)
     {
-        this.rangesToCommands = builder.builder.build();
-        this.txnIds = ImmutableSet.copyOf(builder.txnIds);
+        this.rangesToCommands = builder.rangeToTxn.build();
+        this.commandsToRanges = ImmutableSortedMap.copyOf(builder.txnToRange);
     }
 
     public boolean contains(TxnId txnId)
     {
-        return txnIds.contains(txnId);
+        return commandsToRanges.containsKey(txnId);
     }
 
     public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)

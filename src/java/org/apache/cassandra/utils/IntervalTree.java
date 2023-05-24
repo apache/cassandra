@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
@@ -418,6 +420,18 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
         public Builder<C, D, I> removeIf(TriPredicate<C, C, D> predicate)
         {
             intervals.removeIf(i -> predicate.test(i.min, i.max, i.data));
+            return this;
+        }
+
+        public Builder<C, D, I> removeIf(BiPredicate<C, C> predicate)
+        {
+            intervals.removeIf(i -> predicate.test(i.min, i.max));
+            return this;
+        }
+
+        public Builder<C, D, I> removeIf(Predicate<D> predicate)
+        {
+            intervals.removeIf(i -> predicate.test(i.data));
             return this;
         }
 
