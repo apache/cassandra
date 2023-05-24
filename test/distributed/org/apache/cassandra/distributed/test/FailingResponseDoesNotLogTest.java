@@ -71,12 +71,11 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
     @Test
     public void dispatcherErrorDoesNotLock() throws IOException
     {
-        try (
-            WithProperties properties = new WithProperties().set(CUSTOM_QUERY_HANDLER_CLASS, AlwaysRejectErrorQueryHandler.class.getName());
-            Cluster cluster = Cluster.build(1)
-                                     .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                       .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1"))))
-                                     .start();
+        try (WithProperties properties = new WithProperties().set(CUSTOM_QUERY_HANDLER_CLASS, AlwaysRejectErrorQueryHandler.class.getName());
+             Cluster cluster = Cluster.build(1)
+                                      .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
+                                                        .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1"))))
+                                      .start();
 
         )
         {

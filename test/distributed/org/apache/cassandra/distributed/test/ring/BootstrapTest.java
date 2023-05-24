@@ -32,7 +32,6 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -45,11 +44,13 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.action.GossipHelper.bootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.pullSchemaFrom;
@@ -62,7 +63,7 @@ public class BootstrapTest extends TestBaseImpl
 {
     private long savedMigrationDelay;
 
-    static Boolean originalResetBootstrapProgress = null;
+    static WithProperties properties;
 
     @Before
     public void beforeTest()
@@ -73,20 +74,13 @@ public class BootstrapTest extends TestBaseImpl
         // When we are running multiple test cases in the class, where each starts a node but in the same JVM, the
         // up-time will be more or less relevant only for the first test. In order to enforce the startup-like behaviour
         // for each test case, the MIGRATION_DELAY time is adjusted accordingly
-        savedMigrationDelay = CassandraRelevantProperties.MIGRATION_DELAY.getLong();
-        CassandraRelevantProperties.MIGRATION_DELAY.setLong(ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
-
-        originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.getBoolean();
+        properties = new WithProperties().set(MIGRATION_DELAY, ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
     }
 
     @After
     public void afterTest()
     {
-        CassandraRelevantProperties.MIGRATION_DELAY.setLong(savedMigrationDelay);
-        if (originalResetBootstrapProgress == null)
-            RESET_BOOTSTRAP_PROGRESS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
-        else
-            RESET_BOOTSTRAP_PROGRESS.setBoolean(originalResetBootstrapProgress);
+        properties.close();
     }
 
     @Test

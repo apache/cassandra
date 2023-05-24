@@ -82,6 +82,7 @@ public class CassandraRelevantPropertiesTest
         try (WithProperties properties = new WithProperties())
         {
             TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean();
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean()).isFalse();
         }
     }
 

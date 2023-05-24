@@ -39,6 +39,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS;
@@ -49,18 +50,16 @@ public class MessageForwardingTest extends TestBaseImpl
     @Test
     public void mutationsForwardedToAllReplicasTest()
     {
-        // Set up the wait for tracing time system property, returning the previous value.
-        // Handles being called again to reset with the original value, replacing the null
-        // with the default value.
-        Integer originalTraceTimeout = WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS.setInt(1);
         final int numInserts = 100;
         Map<InetAddress, Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress, Integer> commitCounts = new HashMap<>();
 
-        try (Cluster cluster = (Cluster) init(builder()
+        try (WithProperties properties = new WithProperties().set(WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS, 1);
+             Cluster cluster = (Cluster) init(builder()
                                               .withDC("dc0", 1)
                                               .withDC("dc1", 3)
-                                              .start()))
+                                              .start());
+             )
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
@@ -118,13 +117,6 @@ public class MessageForwardingTest extends TestBaseImpl
         catch (IOException e)
         {
             Assert.fail("Threw exception: " + e);
-        }
-        finally
-        {
-            if (originalTraceTimeout == null)
-                WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
-            else
-                WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS.setInt(originalTraceTimeout);
         }
     }
 }
