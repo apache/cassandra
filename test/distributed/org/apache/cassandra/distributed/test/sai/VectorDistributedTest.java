@@ -130,18 +130,23 @@ public class VectorDistributedTest extends TestBaseImpl
         int limit = Math.min(getRandom().nextIntBetween(10, 50), vectors.size());
         float[] queryVector = randomVector();
         Object[][] result = searchWithLimit(queryVector, limit);
-        double memtableRecall = getRecall(vectors, queryVector, getVectors(result));
+
+        List<float[]> resultVectors = getVectors(result);
+        assertDescendingScore(queryVector, resultVectors);
+        double memtableRecall = getRecall(vectors, queryVector, resultVectors);
         assertThat(memtableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
 
         assertThatThrownBy(() -> searchWithoutLimit(randomVector(), vectorCount))
         .hasMessageContaining(INVALID_LIMIT_MESSAGE);
 
-        // Recall is lower with page size:
-        int pageSize = getRandom().nextIntBetween(2, 10);
+        int pageSize = getRandom().nextIntBetween(40, 70);
         limit = getRandom().nextIntBetween(20, 50);
         result = searchWithPageAndLimit(queryVector, pageSize, limit);
-        double memtableRecallWithPaging = getRecall(vectors, queryVector, getVectors(result));
-        assertThat(memtableRecallWithPaging).isGreaterThanOrEqualTo(0).isLessThan(memtableRecall);
+
+        resultVectors = getVectors(result);
+        assertDescendingScore(queryVector, resultVectors);
+        double memtableRecallWithPaging = getRecall(vectors, queryVector, resultVectors);
+        assertThat(memtableRecallWithPaging).isGreaterThanOrEqualTo(MIN_RECALL);
 
         assertThatThrownBy(() -> searchWithPageWithoutLimit(randomVector(), 10))
         .hasMessageContaining(INVALID_LIMIT_MESSAGE);
@@ -190,6 +195,8 @@ public class VectorDistributedTest extends TestBaseImpl
         Object[][] result = searchWithLimit(queryVector, limit);
 
         // expect recall to be at least 0.8
+        List<float[]> resultVectors = getVectors(result);
+        assertDescendingScore(queryVector, resultVectors);
         double recall = getRecall(allVectors, queryVector, getVectors(result));
         assertThat(recall).isGreaterThanOrEqualTo(MIN_RECALL);
     }
@@ -337,6 +344,19 @@ public class VectorDistributedTest extends TestBaseImpl
         assertThat(result).hasSize(1);
         float[] output = getVectors(result).get(0);
         assertThat(output).isEqualTo(vectors.get(key));
+    }
+
+    private void assertDescendingScore(float[] queryVector, List<float[]> resultVectors)
+    {
+        float prevScore = -1;
+        for (float[] current : resultVectors)
+        {
+            float score = function.compare(current, queryVector);
+            if (prevScore >= 0)
+                assertThat(score).isLessThanOrEqualTo(prevScore);
+
+            prevScore = score;
+        }
     }
 
     private double getRecall(List<float[]> vectors, float[] query, List<float[]> result)
