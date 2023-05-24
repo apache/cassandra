@@ -75,6 +75,8 @@ Primary Options:::
     Username and password for JMX connection
   -credentials-file <path>:;;
     Credentials file to specify for CQL, JMX and transport
+  -reporting:;;
+    Frequency of printing statistics and header for stress output
 Suboptions:::
   Every command and primary option has its own collection of suboptions.
   These are too numerous to list here. For information on the suboptions
