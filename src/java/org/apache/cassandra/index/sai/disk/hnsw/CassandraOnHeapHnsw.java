@@ -25,15 +25,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -67,7 +64,7 @@ public class CassandraOnHeapHnsw
     private final AtomicInteger cachedDimensions = new AtomicInteger();
     private final TypeSerializer<float[]> serializer;
     private final VectorSimilarityFunction similarityFunction;
-    final Map<ByteBuffer, VectorPostings> postingsMap;
+    final Map<float[], VectorPostings> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
     public CassandraOnHeapHnsw(IndexContext indexContext)
@@ -76,9 +73,7 @@ public class CassandraOnHeapHnsw
         vectorValues = new ByteBufferVectorValues();
         serializer = (TypeSerializer<float[]>) indexContext.getValidator().getSerializer();
         similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
-        postingsMap = new ConcurrentSkipListMap<>((left, right) -> {
-            return ValueAccessor.compare(left, ByteBufferAccessor.instance, right, ByteBufferAccessor.instance);
-        });
+        postingsMap = new ConcurrentHashMap<>();
 
         try
         {
@@ -96,9 +91,10 @@ public class CassandraOnHeapHnsw
 
     public void put(PrimaryKey key, ByteBuffer value)
     {
-        var postings = postingsMap.computeIfAbsent(value, v -> {
+        var vector = serializer.deserialize(value);
+        var postings = postingsMap.computeIfAbsent(vector, v -> {
             var ordinal = nextOrdinal.getAndIncrement();
-            vectorValues.add(ordinal, value);
+            vectorValues.add(ordinal, vector);
             try
             {
                 builder.addGraphNode(ordinal, vectorValues);
@@ -119,7 +115,7 @@ public class CassandraOnHeapHnsw
 
     public Collection<PrimaryKey> keysFromOrdinal(int node)
     {
-        return postingsMap.get(vectorValues.bufferValue(node)).keys;
+        return postingsMap.get(vectorValues.vectorValue(node)).keys;
     }
 
     /**
@@ -183,8 +179,8 @@ public class CassandraOnHeapHnsw
             out.writeInt(vectorValues.dimension());
 
             for (var i = 0; i < vectorValues.size(); i++) {
-                var buffer = vectorValues.bufferValue(i);
-                out.write(buffer);
+                var vector = vectorValues.vectorValue(i);
+                out.write(serializer.serialize(vector));
             }
         }
     }
@@ -217,7 +213,6 @@ public class CassandraOnHeapHnsw
     class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
         private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
-        private final Map<Integer, ByteBuffer> buffers = new ConcurrentHashMap<>();
 
         @Override
         public int size()
@@ -243,21 +238,15 @@ public class CassandraOnHeapHnsw
             return values.get(i);
         }
 
-        public void add(int ordinal, ByteBuffer buffer)
+        public void add(int ordinal, float[] vector)
         {
-            values.put(ordinal, serializer.deserialize(buffer));
-            buffers.put(ordinal, buffer);
+            values.put(ordinal, vector);
         }
 
         @Override
         public RandomAccessVectorValues<float[]> copy()
         {
             return this;
-        }
-
-        public ByteBuffer bufferValue(int node)
-        {
-            return buffers.get(node);
         }
     }
 }

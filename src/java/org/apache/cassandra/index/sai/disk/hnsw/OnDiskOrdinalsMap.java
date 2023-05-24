@@ -118,13 +118,13 @@ class OnDiskOrdinalsMap
         for (var i = 0; i < graph.vectorValues.size(); i++) {
             // (ordinal is implied; don't need to write it)
             out.writeLong(offset);
-            var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
+            var postings = graph.postingsMap.get(graph.vectorValues.vectorValue(i));
             offset += 4 + (postings.keys.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
         }
 
         // Write postings lists
         for (var i = 0; i < graph.vectorValues.size(); i++) {
-            var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
+            var postings = graph.postingsMap.get(graph.vectorValues.vectorValue(i));
             out.writeInt(postings.keys.size());
             for (var key : postings.keys) {
                 out.writeInt(keyToRowId.get(key));
@@ -138,7 +138,7 @@ class OnDiskOrdinalsMap
 
         // Collect all (rowId, vectorOrdinal) pairs
         for (var i = 0; i < graph.vectorValues.size(); i++) {
-            var postings = graph.postingsMap.get(graph.vectorValues.bufferValue(i));
+            var postings = graph.postingsMap.get(graph.vectorValues.vectorValue(i));
             for (var key : postings.keys) {
                 int rowId = keyToRowId.get(key);
                 pairs.add(Pair.create(rowId, i));
