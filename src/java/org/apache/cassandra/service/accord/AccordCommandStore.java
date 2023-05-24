@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -166,6 +167,17 @@ public class AccordCommandStore extends CommandStore
         {
             commandsForRanges = future.get();
             logger.debug("Loaded {} intervals", commandsForRanges.size());
+            List<TxnId> toLoad = commandsForRanges.stream()
+                                                  .filter(e -> !e.getValue().status.isComplete())
+                                                  .map(e -> e.getKey())
+                                                  .collect(Collectors.toList());
+            if (!toLoad.isEmpty())
+            {
+                execute(PreLoadContext.contextFor(null, toLoad), safeStore -> {
+                    for (TxnId id : toLoad)
+                        safeStore.command(id).addListener(new CommandsForRanges.Listener(id));
+                }).begin(agent());
+            }
         }
         catch (InterruptedException e)
         {

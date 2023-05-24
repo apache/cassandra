@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.AbstractIterator;
@@ -62,7 +63,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
-public class CommandsForRanges
+public class CommandsForRanges implements Iterable<Map.Entry<TxnId, CommandsForRanges.RangeCommandSummary>>
 {
     public enum TxnType
     {
@@ -75,7 +76,7 @@ public class CommandsForRanges
         }
     }
 
-    private static final class RangeCommandSummary
+    public static final class RangeCommandSummary
     {
         public final TxnId txnId;
         public final Ranges ranges;
@@ -365,6 +366,17 @@ public class CommandsForRanges
     public boolean containsLocally(TxnId txnId)
     {
         return localCommands.contains(txnId);
+    }
+
+    public Stream<Map.Entry<TxnId, RangeCommandSummary>> stream()
+    {
+        return commandsToRanges.entrySet().stream();
+    }
+
+    @Override
+    public Iterator<Map.Entry<TxnId, RangeCommandSummary>> iterator()
+    {
+        return commandsToRanges.entrySet().iterator();
     }
 
     public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)
