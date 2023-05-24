@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 
@@ -66,11 +67,14 @@ public abstract class AbstractFilesystemOwnershipCheckTest
 
     protected StartupChecksOptions options = new StartupChecksOptions();
 
+    static WithProperties properties;
+
     protected void setup()
     {
         cleanTempDir();
         tempDir = new File(com.google.common.io.Files.createTempDir());
         token = makeRandomString(10);
+        properties = new WithProperties();
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getKey());
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey());
@@ -188,6 +192,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void teardown() throws IOException
     {
         cleanTempDir();
+        properties.close();
     }
 
     // tests for enabling/disabling/configuring the check
