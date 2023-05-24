@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -30,11 +31,10 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
 {
-    private final AtomicInteger cachedDimensions = new AtomicInteger();
-    private final TypeSerializer<float[]> serializer;
+    private final VectorType.Serializer serializer;
     private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
 
-    public ConcurrentVectorValues(TypeSerializer<float[]> serializer)
+    public ConcurrentVectorValues(VectorType.Serializer serializer)
     {
         this.serializer = serializer;
     }
@@ -48,17 +48,7 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
     @Override
     public int dimension()
     {
-        int i = cachedDimensions.get();
-        if (i == 0)
-        {
-            if (values.isEmpty()) {
-                // temporary condition -- return placeholder
-                return 0;
-            }
-            i = vectorValue(0).length;
-            cachedDimensions.set(i);
-        }
-        return i;
+        return serializer.getDimensions();
     }
 
     @Override

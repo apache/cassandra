@@ -120,6 +120,11 @@ public class VectorType extends AbstractType<float[]>
             this.dimensions = dimensions;
         }
 
+        public int getDimensions()
+        {
+            return dimensions;
+        }
+
         @Override
         public ByteBuffer serialize(float[] value)
         {

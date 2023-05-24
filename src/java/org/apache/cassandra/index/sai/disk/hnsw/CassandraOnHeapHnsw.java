@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -46,14 +47,14 @@ public class CassandraOnHeapHnsw<T>
 {
     private final ConcurrentVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
-    private final TypeSerializer<float[]> serializer;
+    private final VectorType.Serializer serializer;
     private final VectorSimilarityFunction similarityFunction;
     final Map<float[], VectorPostings<T>> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
     public CassandraOnHeapHnsw(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
-        serializer = (TypeSerializer<float[]>) termComparator.getSerializer();
+        serializer = (VectorType.Serializer) termComparator.getSerializer();
         vectorValues = new ConcurrentVectorValues(serializer);
         similarityFunction = indexWriterConfig.getSimilarityFunction();
         postingsMap = new ConcurrentHashMap<>();
