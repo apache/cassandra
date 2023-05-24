@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -215,7 +216,8 @@ public class CassandraOnHeapHnsw
 
     class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
-        private final Map<Integer, ByteBuffer> values = new ConcurrentSkipListMap<>();
+        private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
+        private final Map<Integer, ByteBuffer> buffers = new ConcurrentHashMap<>();
 
         @Override
         public int size()
@@ -238,12 +240,13 @@ public class CassandraOnHeapHnsw
         @Override
         public float[] vectorValue(int i)
         {
-            return serializer.deserialize(values.get(i));
+            return values.get(i);
         }
 
         public void add(int ordinal, ByteBuffer buffer)
         {
-            values.put(ordinal, buffer);
+            values.put(ordinal, serializer.deserialize(buffer));
+            buffers.put(ordinal, buffer);
         }
 
         @Override
@@ -254,7 +257,7 @@ public class CassandraOnHeapHnsw
 
         public ByteBuffer bufferValue(int node)
         {
-            return values.get(node);
+            return buffers.get(node);
         }
     }
 }
