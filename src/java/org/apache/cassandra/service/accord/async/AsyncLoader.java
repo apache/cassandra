@@ -190,7 +190,6 @@ public class AsyncLoader
 
     private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
     {
-        // TODO (thread saftey) : context used to be mutated in a single thread, but now this is happening in another thread as well; which may not be safe
         AsyncChain<Set<? extends RoutableKey>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
         return overlappingKeys.flatMap(keys -> {
             if (keys.isEmpty())
