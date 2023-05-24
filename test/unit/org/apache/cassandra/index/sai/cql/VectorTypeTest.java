@@ -174,6 +174,20 @@ public class VectorTypeTest extends SAITester
     }
 
     @Test
+    public void testQueryTableWithNulls() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', null)");
+        var result = execute("SELECT * FROM %s WHERE val ANN OF [2.5, 3.5, 4.5] LIMIT 1");
+
+        result = execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [4.0, 5.0, 6.0])");
+        assertRows(result, row(1));
+    }
+
+    @Test
     public void testLimitLessThanInsertedRowCount() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");

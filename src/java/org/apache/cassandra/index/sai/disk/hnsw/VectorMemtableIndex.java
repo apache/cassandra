@@ -79,6 +79,9 @@ public class VectorMemtableIndex implements MemtableIndex
 
     private long index(PrimaryKey primaryKey, ByteBuffer value)
     {
+        if (value == null)
+            return 0;
+
         if (minimumKey == null)
             minimumKey = primaryKey;
         else if (primaryKey.compareTo(minimumKey) < 0)

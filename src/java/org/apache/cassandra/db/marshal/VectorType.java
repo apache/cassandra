@@ -141,7 +141,7 @@ public class VectorType extends AbstractType<float[]>
         @Override
         public <V> float[] deserialize(V value, ValueAccessor<V> accessor)
         {
-            if (accessor.isEmpty(value))
+            if (value == null || accessor.isEmpty(value))
                 return null;
 
             var vector = new float[dimensions];
