@@ -332,6 +332,7 @@ public class Config
     public volatile DataStorageSpec.IntMebibytesBound compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound("100MiB");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
+    @Deprecated
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
     // fraction of free disk space available for compaction after min free space is subtracted
@@ -875,6 +876,8 @@ public class Config
     public volatile boolean simplestrategy_enabled = true;
     public volatile DataStorageSpec.LongBytesBound partition_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound partition_size_fail_threshold = null;
+    public volatile long partition_tombstones_warn_threshold = -1;
+    public volatile long partition_tombstones_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound column_value_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound column_value_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_warn_threshold = null;

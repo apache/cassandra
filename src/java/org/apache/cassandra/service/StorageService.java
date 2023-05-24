@@ -6949,6 +6949,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
     }
 
+    @Override
     public void setCompactionTombstoneWarningThreshold(int count)
     {
         if (count < 0)
@@ -6957,6 +6958,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setCompactionTombstoneWarningThreshold(count);
     }
 
+    @Override
     public int getCompactionTombstoneWarningThreshold()
     {
         return DatabaseDescriptor.getCompactionTombstoneWarningThreshold();

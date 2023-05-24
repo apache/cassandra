@@ -316,11 +316,23 @@ public final class Guardrails implements GuardrailsMBean
      */
     public static final MaxThreshold partitionSize =
     new MaxThreshold("partition_size",
-                     "Too large partitions can cause performance problems. ",
+                     "Too large partitions can cause performance problems.",
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getPartitionSizeWarnThreshold()),
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getPartitionSizeFailThreshold()),
                      (isWarning, what, value, threshold) ->
                              format("Partition %s has size %s, this exceeds the %s threshold of %s.",
+                                    what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the number of rows of a partition.
+     */
+    public static final MaxThreshold partitionTombstones =
+    new MaxThreshold("partition_tombstones",
+                     "Partitions with too many tombstones can cause performance problems.",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionTombstonesWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionTombstonesFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                             format("Partition %s has %s tombstones, this exceeds the %s threshold of %s.",
                                     what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
@@ -821,6 +833,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setPartitionSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
     {
         DEFAULT_CONFIG.setPartitionSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    public long getPartitionTombstonesWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionTombstonesWarnThreshold();
+    }
+
+    @Override
+    public long getPartitionTombstonesFailThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionTombstonesFailThreshold();
+    }
+
+    @Override
+    public void setPartitionTombstonesThreshold(long warn, long fail)
+    {
+        DEFAULT_CONFIG.setPartitionTombstonesThreshold(warn, fail);
     }
 
     @Override

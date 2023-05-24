@@ -1115,8 +1115,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     void setKeyspaceCountWarnThreshold(int value);
 
-    public void setCompactionTombstoneWarningThreshold(int count);
-    public int getCompactionTombstoneWarningThreshold();
+    @Deprecated
+    void setCompactionTombstoneWarningThreshold(int count);
+    @Deprecated
+    int getCompactionTombstoneWarningThreshold();
 
     public boolean getReadThresholdsEnabled();
     public void setReadThresholdsEnabled(boolean value);

@@ -1564,7 +1564,8 @@ unlogged_batch_across_partitions_warn_threshold: 10
 # As of Cassandra 5.0, this property is deprecated in favour of partition_size_warn_threshold.
 compaction_large_partition_warning_threshold: 100MiB
 
-# Log a warning when writing more tombstones than this value to a partition
+# Log a warning when writing more tombstones than this value to a partition.
+# As of Cassandra 5.0, this property is deprecated in favour of partition_tombstones_warn_threshold.
 compaction_tombstone_warning_threshold: 100000
 
 # GC Pauses greater than 200 ms will be logged at INFO level
@@ -1841,6 +1842,15 @@ drop_compact_storage_enabled: false
 # The two thresholds default to null to disable.
 # partition_size_warn_threshold:
 # partition_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing partitions with more tombstones than threshold.
+# The guardrail is only checked when writing sstables (flush and compaction), and exceeding the fail threshold on that
+# moment will only log an error message, without interrupting the operation.
+# This operates on a per-sstable basis, so it won't detect a large partition if it is spread across multiple sstables.
+# The warning threshold replaces the deprecated config property compaction_tombstone_warning_threshold.
+# The two thresholds default to -1 to disable.
+# partition_tombstones_warn_threshold: -1
+# partition_tombstones_fail_threshold: -1
 #
 # Guardrail to warn or fail when writing column values larger than threshold.
 # This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the

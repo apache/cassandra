@@ -77,6 +77,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
         validateSizeThreshold(config.partition_size_warn_threshold, config.partition_size_fail_threshold, false, "partition_size");
+        validateMaxLongThreshold(config.partition_tombstones_warn_threshold, config.partition_tombstones_fail_threshold, "partition_tombstones", false);
         validateSizeThreshold(config.column_value_size_warn_threshold, config.column_value_size_fail_threshold, false, "column_value_size");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
@@ -565,6 +566,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.partition_size_fail_threshold,
                                   x -> config.partition_size_fail_threshold = x);
+    }
+
+    @Override
+    public long getPartitionTombstonesWarnThreshold()
+    {
+        return config.partition_tombstones_warn_threshold;
+    }
+
+    @Override
+    public long getPartitionTombstonesFailThreshold()
+    {
+        return config.partition_tombstones_fail_threshold;
+    }
+
+    public void setPartitionTombstonesThreshold(long warn, long fail)
+    {
+        validateMaxLongThreshold(warn, fail, "partition_tombstones", false);
+        updatePropertyWithLogging("partition_tombstones_warn_threshold",
+                                  warn,
+                                  () -> config.partition_tombstones_warn_threshold,
+                                  x -> config.partition_tombstones_warn_threshold = x);
+        updatePropertyWithLogging("partition_tombstones_fail_threshold",
+                                  fail,
+                                  () -> config.partition_tombstones_fail_threshold,
+                                  x -> config.partition_tombstones_fail_threshold = x);
     }
 
     @Override
