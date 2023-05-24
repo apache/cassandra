@@ -41,12 +41,18 @@ import accord.api.RoutingKey;
 import accord.impl.CommandTimeseries;
 import accord.impl.CommandTimeseriesHolder;
 import accord.local.Command;
+import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
+import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
+import accord.primitives.PartialDeps;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Seekable;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -267,8 +273,68 @@ public class CommandsForRanges
 
         public void apply()
         {
+            CommandsForRanges.this.localCommands = ImmutableSet.copyOf(this.localTxns);
             rangesToCommands = rangeToTxn.build();
             CommandsForRanges.this.commandsToRanges = ImmutableSortedMap.copyOf(txnToRange);
+        }
+    }
+
+    public static class Listener implements Command.TransientListener
+    {
+        private final TxnId txnId;
+        private transient SaveStatus saveStatus;
+
+        public Listener(TxnId txnId)
+        {
+            this.txnId = txnId;
+        }
+
+        @Override
+        public void onChange(SafeCommandStore safeStore, SafeCommand safeCommand)
+        {
+            Command current = safeCommand.current();
+            if (current.saveStatus() == saveStatus)
+                return;
+            saveStatus = current.saveStatus();
+            PartialDeps deps = current.partialDeps();
+            if (deps == null)
+                return;
+            Seekables<?, ?> keysOrRanges = current.partialTxn().keys();
+            Invariants.checkArgument(keysOrRanges.domain() == Routable.Domain.Range, "Expected txn %s to be a Range txn, but was a %s", txnId, keysOrRanges.domain());
+
+            List<TxnId> dependsOn = deps.txnIds();
+            ((AccordSafeCommandStore) safeStore).updateRanges()
+                                                .put(txnId, (Ranges) keysOrRanges, current.saveStatus(), current.executeAt(), dependsOn);
+        }
+
+        @Override
+        public PreLoadContext listenerPreLoadContext(TxnId caller)
+        {
+            return caller.equals(txnId) ? PreLoadContext.contextFor(txnId) : PreLoadContext.contextFor(txnId, Collections.singletonList(caller));
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Listener that = (Listener) o;
+            return txnId.equals(that.txnId);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(txnId);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Listener{" +
+                   "txnId=" + txnId +
+                   ", saveStatus=" + saveStatus +
+                   '}';
         }
     }
 

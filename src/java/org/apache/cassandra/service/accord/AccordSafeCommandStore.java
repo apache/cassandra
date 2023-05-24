@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.function.BiFunction;
@@ -36,19 +34,15 @@ import accord.impl.CommandTimeseries.CommandLoader;
 import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
-import accord.local.Command;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommonAttributes;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
-import accord.local.SafeCommand;
-import accord.local.SafeCommandStore;
-import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Deps;
-import accord.primitives.PartialDeps;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
 import accord.primitives.Routables;
@@ -63,7 +57,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
-    CommandsForRanges.Updater builder = null;
+    CommandsForRanges.Updater rangeUpdates = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
                                   Map<TxnId, AccordSafeCommand> commands,
@@ -190,9 +184,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).intersects(ranges))
                 return;
 
-            if (builder == null)
-                builder = commandsForRanges.update();
-            builder.mergeRemote(txnId, ranges.slice(allRanges), Ranges::with);
+            updateRanges().mergeRemote(txnId, ranges.slice(allRanges), Ranges::with);
         });
     }
 
@@ -291,13 +283,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public CommonAttributes completeRegistration(Seekable seekable, Ranges ranges, AccordSafeCommand liveCommand, CommonAttributes attrs)
     {
-        // TODO (review) : accord.impl.InMemoryCommandStore.registerHistoricalTransactions has 2 behaviors, that might make ense to put here / in the listeners?
-        // 1) for key deps, if the store covers the range the key is in, add SafeCommandsForKeys.registerNotWitnessed
-        // 2) for range deps, if the store intersects the range, add to a "historicalRangeCommands" (map txn_id -> Ranges); this acts similar to CommandsForRange
-        // What isn't clear is what is unique about Sync txn with reguard to "saving" deps that isn't true for normal txn?  If that logic gets merged here, then
-        // registerHistoricalTransactions could go away
-        // If that logic only makes sense for Sync, would it still make sense to merge that into the listener? Just so there is only 1 way things get indexed
-        // rather than 2.
         switch (seekable.domain())
         {
             case Key:
@@ -312,47 +297,29 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             }
             break;
             case Range:
-                Command current = liveCommand.current();
-                SaveStatus saveStatus = current.saveStatus();
-                if (saveStatus == SaveStatus.NotWitnessed)
-                    return attrs; // don't know the range/dependencies, so can't cache
-                ranges = ranges.slice(Ranges.single(seekable.asRange()), Routables.Slice.Minimal);
-                if (ranges.isEmpty())
+                Range range = seekable.asRange();
+                if (!ranges.intersects(range))
                     return attrs;
-                PartialDeps deps = current.partialDeps();
-                List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
-                TxnId txnId = liveCommand.txnId();
-                if (builder == null)
-                    builder = commandStore.updateRanges();
-
-                builder.put(txnId, ranges, saveStatus, current.executeAt(), dependsOn);
-
-                Ranges finalRanges = ranges;
-                liveCommand.addListener(new Command.TransientListener()
-                {
-                    @Override
-                    public void onChange(SafeCommandStore safeStore, SafeCommand safeCommand)
-                    {
-                        Command current = safeCommand.current();
-                        if (current.saveStatus() == saveStatus)
-                            return;
-                        //TODO should we use ranges/depends from "current"?  Can it change? If so should old ranges be discarded?
-                        ((AccordCommandStore) safeStore.commandStore()).updateRanges()
-                                                                       .put(txnId, finalRanges, current.saveStatus(), current.executeAt(), dependsOn)
-                                                                       .apply();
-                    }
-
-                    @Override
-                    public PreLoadContext listenerPreLoadContext(TxnId caller)
-                    {
-                        return caller.equals(txnId) ? PreLoadContext.contextFor(txnId) : PreLoadContext.contextFor(txnId, Collections.singletonList(caller));
-                    }
-                });
-            break;
+                // Range txn tracks at the Ranges level and not the Range level; this means multiple attempts to add a listener are going to happen.
+                // The listener defines equality based off the TxnId, and addListener uses set semantics, so multiple attempts to add a listener will be fine.
+                if (rangeUpdates != null && rangeUpdates.type(liveCommand.txnId()) == CommandsForRanges.TxnType.LOCAL)
+                    return attrs;
+                CommandsForRanges.Listener listener = new CommandsForRanges.Listener(liveCommand.txnId());
+                liveCommand.addListener(listener);
+                // trigger to allow it to run right away
+                listener.onChange(this, liveCommand);
+                break;
             default:
                 throw new UnsupportedOperationException("Unknown domain: " + seekable.domain());
         }
         return attrs;
+    }
+
+    protected CommandsForRanges.Updater updateRanges()
+    {
+        if (rangeUpdates == null)
+            rangeUpdates = commandStore.updateRanges();
+        return rangeUpdates;
     }
 
     @Override
@@ -374,7 +341,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         postExecute();
         commands.values().forEach(AccordSafeState::postExecute);
         commandsForKeys.values().forEach(AccordSafeState::postExecute);
-        if (builder != null)
-            builder.apply();
+        if (rangeUpdates != null)
+            rangeUpdates.apply();
     }
 }
