@@ -141,7 +141,7 @@ public class AccordService implements IAccordService, Shutdownable
                              messageSink,
                              configService,
                              AccordService::uniqueNow,
-                             () -> null,
+                             () -> AccordDataStore.INSTANCE,
                              new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
                              agent,
                              new DefaultRandom(),
@@ -300,6 +300,12 @@ public class AccordService implements IAccordService, Shutdownable
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownAndWait(timeout, unit, this);
+    }
+
+    @VisibleForTesting
+    public Node node()
+    {
+        return node;
     }
 
     private static Shutdownable toShutdownable(Node node)

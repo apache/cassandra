@@ -251,7 +251,7 @@ public class AsyncOperationTest
             @Override
             AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
             {
-                return new AsyncLoader(commandStore, txnIds(preLoadContext), (Iterable<RoutableKey>) preLoadContext.keys()) {
+                return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys()) {
 
                     @Override
                     void state(State state)
@@ -333,7 +333,7 @@ public class AsyncOperationTest
                 @Override
                 AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
                 {
-                    return new AsyncLoader(commandStore, txnIds(preLoadContext), (Iterable<RoutableKey>) preLoadContext.keys())
+                    return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys())
                     {
                         @Override
                         Function<TxnId, Command> loadCommandFunction()
