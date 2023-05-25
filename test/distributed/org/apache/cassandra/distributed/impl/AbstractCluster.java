@@ -1121,7 +1121,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return true;
         });
         if (!drain.isEmpty())
-            throw new ShutdownException(drain);
+        {
+            ShutdownException shutdownException = new ShutdownException(drain);
+            // also log as java will truncate log lists
+            logger.error("Unexpected errors", shutdownException);
+            throw shutdownException;
+        }
     }
 
     private void checkForThreadLeaks()

@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -350,6 +351,13 @@ public class AccordStateCache
             this.valClass = valClass;
             this.safeRefFactory = safeRefFactory;
             this.heapEstimator = heapEstimator;
+        }
+
+        public Stream<Node<K, V>> stream()
+        {
+            return cache.entrySet().stream()
+                        .filter(e -> keyClass.isAssignableFrom(e.getKey().getClass()))
+                        .map(e -> (Node<K, V>) e.getValue());
         }
 
         @Override
