@@ -88,7 +88,7 @@ public class Vectors
 
                 values.add(t);
             }
-            DelayedValue value = new DelayedValue(type, values);
+            DelayedValue<?> value = new DelayedValue<>(type, values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
