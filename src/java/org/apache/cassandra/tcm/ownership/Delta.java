@@ -76,7 +76,7 @@ public class Delta
     {
         change.asMap().forEach((ep, replicas) -> {
             replicas.forEach(replica -> {
-                if (!opposite.get(ep).contains(replica))
+                if (!opposite.get(ep).contains(replica) && !builder.get(ep).contains(replica))
                     builder.put(ep, replica);
             });
         });
