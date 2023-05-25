@@ -474,4 +474,9 @@ public class StressMetrics implements MeasurementSink
     {
         return totalSummaryInterval.opRate();
     }
+
+    public double latencyAtPercentileMs(double percentile)
+    {
+        return totalSummaryInterval.latencyAtPercentileMs(percentile);
+    }
 }

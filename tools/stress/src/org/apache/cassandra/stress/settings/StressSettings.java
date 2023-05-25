@@ -40,6 +40,7 @@ public class StressSettings implements Serializable
     public final SettingsLog log;
     public final SettingsCredentials credentials;
     public final SettingsMode mode;
+    public final SettingsTarget target;
     public final SettingsNode node;
     public final SettingsSchema schema;
     public final SettingsTransport transport;
@@ -58,6 +59,7 @@ public class StressSettings implements Serializable
                           SettingsLog log,
                           SettingsCredentials credentials,
                           SettingsMode mode,
+                          SettingsTarget target,
                           SettingsNode node,
                           SettingsSchema schema,
                           SettingsTransport transport,
@@ -76,6 +78,7 @@ public class StressSettings implements Serializable
         this.log = log;
         this.credentials = credentials;
         this.mode = mode;
+        this.target = target;
         this.node = node;
         this.schema = schema;
         this.transport = transport;
@@ -205,6 +208,7 @@ public class StressSettings implements Serializable
         SettingsLog log = SettingsLog.get(clArgs);
         SettingsCredentials credentials = SettingsCredentials.get(clArgs);
         SettingsMode mode = SettingsMode.get(clArgs, credentials);
+        SettingsTarget target = SettingsTarget.get(clArgs, command.targetUncertainty);
         SettingsNode node = SettingsNode.get(clArgs);
         SettingsSchema schema = SettingsSchema.get(clArgs, command);
         SettingsTransport transport = SettingsTransport.get(clArgs, credentials);
@@ -228,7 +232,7 @@ public class StressSettings implements Serializable
             System.exit(1);
         }
 
-        return new StressSettings(command, rate, generate, insert, columns, errors, log, credentials, mode, node, schema, transport, port, jmx, graph, tokenRange, reporting);
+        return new StressSettings(command, rate, generate, insert, columns, errors, log, credentials, mode, target, node, schema, transport, port, jmx, graph, tokenRange, reporting);
     }
 
     private static Map<String, String[]> parseMap(String[] args)
@@ -294,6 +298,8 @@ public class StressSettings implements Serializable
         log.printSettings(out);
         out.println("Mode:");
         mode.printSettings(out);
+        out.println("Target:");
+        target.printSettings(out);
         out.println("Node:");
         node.printSettings(out);
         out.println("Schema:");
