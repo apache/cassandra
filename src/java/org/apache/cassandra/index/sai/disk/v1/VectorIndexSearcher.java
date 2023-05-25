@@ -31,7 +31,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -131,9 +130,9 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             try
             {
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
-                // FIXME what if row id doesn't exist in hnsw? e.g. null vector column
                 int ordinal = graph.getOrdinal(segmentRowId);
-                bits.set(ordinal);
+                if (ordinal >= 0)
+                    bits.set(ordinal);
             }
             catch (IOException e)
             {
@@ -168,7 +167,8 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             n++;
 
             int ordinal = graph.getOrdinal(segmentRowId);
-            bits.set(ordinal);
+            if (ordinal >= 0)
+                bits.set(ordinal);
         }
 
         // if we have a small number of results then let TopK processor do exact NN computation

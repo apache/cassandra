@@ -71,6 +71,9 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
     {
+        if (value == null || value.remaining() == 0)
+            return;
+
         var primaryKey = indexContext.keyFactory().create(key, clustering);
         index(primaryKey, value);
     }

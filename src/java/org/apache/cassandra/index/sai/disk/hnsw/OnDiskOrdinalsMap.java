@@ -70,11 +70,14 @@ class OnDiskOrdinalsMap
         return ordinals;
     }
 
+    /**
+     * @return order if given row id is found; otherwise return -1
+     */
     public int getOrdinalForRowId(int rowId) throws IOException
     {
         // Compute the offset of the start of the rowId to vectorOrdinal mapping
         var high = (reader.length() - 8 - rowOrdinalOffset) / 8;
-        DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
+        long index = DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
             try
             {
                 long offset = rowOrdinalOffset + i * 8;
@@ -86,6 +89,11 @@ class OnDiskOrdinalsMap
                 throw new RuntimeException(e);
             }
         });
+
+        // not found
+        if (index < 0)
+            return -1;
+
         return reader.readInt();
     }
 

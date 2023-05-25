@@ -187,6 +187,9 @@ public class OnDiskHnswGraph extends ExtendedHnswGraph
                 throw new RuntimeException(e);
             }
         });
+        if (index < 0)
+            throw new IllegalStateException("Element " + target + " not found");
+
         return firstOffset + index * 12;
     }
 
