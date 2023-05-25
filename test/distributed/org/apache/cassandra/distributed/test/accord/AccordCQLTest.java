@@ -26,15 +26,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
-import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.assertj.core.api.Assertions;
+
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -50,7 +49,6 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
@@ -142,14 +140,8 @@ public class AccordCQLTest extends AccordTestBase
         String currentTable = keyspace + ".tbl";
         List<String> ddls = Arrays.asList("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
                                           "CREATE TABLE " + currentTable + " (k blob, c int, v int, primary key (k, c))");
-        List<String> tokens = SHARED_CLUSTER.stream()
-                                            .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
-                                            .collect(Collectors.toList());
-
-        List<ByteBuffer> keys = tokens.stream()
-                                      .map(t -> (Murmur3Partitioner.LongToken) Murmur3Partitioner.instance.getTokenFactory().fromString(t))
-                                      .map(Murmur3Partitioner.LongToken::keyForToken)
-                                      .collect(Collectors.toList());
+        List<String> tokens = tokens();
+        List<ByteBuffer> keys = tokensToKeys(tokens);
         List<String> keyStrings = keys.stream().map(bb -> "0x" + ByteBufferUtil.bytesToHex(bb)).collect(Collectors.toList());
         StringBuilder query = new StringBuilder("BEGIN TRANSACTION\n");
 
@@ -159,12 +151,12 @@ public class AccordCQLTest extends AccordTestBase
         query.append("  SELECT row0.v;\n")
              .append("  IF ");
 
-        for (int i = 0; i < keys.size(); i++)
+        for (int i = 0; i < keyStrings.size(); i++)
             query.append((i > 0 ? " AND row" : "row") + i + " IS NULL");
 
         query.append(" THEN\n");
 
-        for (int i = 0; i < keys.size(); i++)
+        for (int i = 0; i < keyStrings.size(); i++)
             query.append("    INSERT INTO " + currentTable + " (k, c, v) VALUES (" + keyStrings.get(i) + ", 0, " + i +");\n");
 
         query.append("  END IF\n");

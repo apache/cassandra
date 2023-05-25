@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -26,7 +27,9 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
+import com.google.common.base.Splitter;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -42,6 +45,7 @@ import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceValue;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -56,6 +60,7 @@ import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
+import org.apache.cassandra.utils.Shared;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -65,6 +70,12 @@ public abstract class AccordTestBase extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTestBase.class);
     private static final int MAX_RETRIES = 10;
+
+    @Shared
+    public static class State
+    {
+        public static AtomicInteger coordinateCounts = new AtomicInteger();
+    }
 
     protected static final AtomicInteger COUNTER = new AtomicInteger(0);
 
@@ -128,7 +139,7 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected int getAccordCoordinateCount()
     {
-        return SHARED_CLUSTER.get(1).callOnInstance(() -> BBAccordCoordinateCountHelper.count.get());
+        return State.coordinateCounts.get();
     }
 
     private static Cluster createCluster() throws IOException
@@ -137,7 +148,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         // disable vnode for now, but should enable before trunk
         return init(Cluster.build(2)
                            .withoutVNodes()
-                           .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s")
+                           .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("write_request_timeout", "10s")
                                                                    .set("transaction_timeout", "15s")
                                                                    .set("legacy_paxos_strategy", "migration")) // TODO: switch back to "accord" when TrM integration works
                            .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
@@ -188,7 +199,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return result;
     }
 
-    private SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
+    private static SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
     {
         try
         {
@@ -206,7 +217,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         }
     }
 
-    protected SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
+    protected static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
     {
         check = wrapInTxn(check);
 
@@ -218,7 +229,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return executeWithRetry0(0, cluster, check, boundValues);
     }
 
-    private boolean isIdempotent(Cluster cluster, String cql)
+    private static boolean isIdempotent(Cluster cluster, String cql)
     {
         return cluster.get(1).callOnInstance(() -> {
             TransactionStatement stmt = AccordTestUtils.parse(cql);
@@ -257,6 +268,21 @@ public abstract class AccordTestBase extends TestBaseImpl
         return numConstants == 0;
     }
 
+    static List<String> tokens()
+    {
+        return SHARED_CLUSTER.stream()
+                             .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
+                             .collect(Collectors.toList());
+    }
+
+    static List<ByteBuffer> tokensToKeys(List<String> tokens)
+    {
+        return tokens.stream()
+                     .map(t -> (Murmur3Partitioner.LongToken) Murmur3Partitioner.instance.getTokenFactory().fromString(t))
+                     .map(Murmur3Partitioner.LongToken::keyForToken)
+                     .collect(Collectors.toList());
+    }
+
     public static class EnforceUpdateDoesNotPerformRead
     {
         public static void install(ClassLoader classLoader, Integer num)
@@ -285,7 +311,6 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     public static class BBAccordCoordinateCountHelper
     {
-        static AtomicInteger count = new AtomicInteger();
         static void install(ClassLoader cl, int nodeNumber)
         {
             if (nodeNumber != 1)
@@ -299,7 +324,7 @@ public abstract class AccordTestBase extends TestBaseImpl
 
         public static TxnData coordinate(Txn txn, @SuperCall Callable<TxnData> actual) throws Exception
         {
-            count.incrementAndGet();
+            State.coordinateCounts.incrementAndGet();
             return actual.call();
         }
     }

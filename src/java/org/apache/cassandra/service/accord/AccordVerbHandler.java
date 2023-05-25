@@ -43,6 +43,19 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     public void doVerb(Message<T> message) throws IOException
     {
         logger.debug("Receiving {} from {}", message.payload, message.from());
-        message.payload.process(node, EndpointMapping.getId(message.from()), message);
+        T request = message.payload;
+        Node.Id from = EndpointMapping.getId(message.from());
+        long knownEpoch = request.knownEpoch();
+        if (!node.topology().hasEpoch(knownEpoch))
+        {
+            node.configService().fetchTopologyForEpoch(knownEpoch);
+            long waitForEpoch = request.waitForEpoch();
+            if (!node.topology().hasEpoch(waitForEpoch))
+            {
+                node.withEpoch(waitForEpoch, () -> request.process(node, from, message));
+                return;
+            }
+        }
+        request.process(node, from, message);
     }
 }

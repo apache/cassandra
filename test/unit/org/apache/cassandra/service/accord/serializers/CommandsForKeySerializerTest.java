@@ -24,7 +24,7 @@ import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import accord.impl.CommandsForKey;
+import accord.impl.CommandTimeseries;
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.Gens;
@@ -75,7 +75,7 @@ public class CommandsForKeySerializerTest
     @Test
     public void serde()
     {
-        CommandsForKey.CommandLoader<ByteBuffer> loader = CommandsForKeySerializer.loader;
+        CommandTimeseries.CommandLoader<ByteBuffer> loader = CommandsForKeySerializer.loader;
         qt().forAll(AccordGenerators.commands()).check(cmd -> {
             ByteBuffer bb = loader.saveForCFK(cmd);
             int size = bb.remaining();
