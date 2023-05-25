@@ -23,14 +23,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.RamUsageEstimator;
 
 public class VectorPostings<T>
 {
-    public static final long EMPTY_SIZE = ObjectSizes.measureDeep(new VectorPostings<Long>(0));
     public final int ordinal;
     public final List<T> postings;
-
-    private final Counter bytesUsed = Counter.newCounter();
 
     // TODO refactor this so we can add the first posting at construction time instead of having
     // to append it separately (which will require a copy of the list)
@@ -39,18 +37,28 @@ public class VectorPostings<T>
         this.ordinal = ordinal;
         // we expect that the overwhelmingly most common cardinality will be 1, so optimize for reads
         postings = new CopyOnWriteArrayList<>();
-        bytesUsed.addAndGet(EMPTY_SIZE);
     }
 
     public void append(T key)
     {
         postings.add(key);
-        // TODO how to get rid of measureDeep on the hot insert path?
-        bytesUsed.addAndGet(ObjectSizes.measureDeep(key));
     }
 
+    // we can't do this exactly without reflection, because keys could be Long or PrimaryKey.
+    // PK is larger, so we'll take that and return an upper bound.
+    // we already count the float[] vector in vectorValues, so leave it out here
     public long ramBytesUsed()
     {
-        return bytesUsed.get();
+        long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        long AH_BYTES = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+        return Integer.BYTES + REF_BYTES + AH_BYTES + postings.size() * bytesPerPosting();
+    }
+
+    public static long bytesPerPosting()
+    {
+        long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        return REF_BYTES
+               + 2 * Long.BYTES // hashes in PreHashedDecoratedKey
+               + REF_BYTES; // key ByteBuffer, this is used elsewhere so we don't take the deep size
     }
 }

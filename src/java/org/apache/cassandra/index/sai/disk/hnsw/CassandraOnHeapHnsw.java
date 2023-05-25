@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -165,9 +166,9 @@ public class CassandraOnHeapHnsw<T>
 
     private long postingsBytesUsed()
     {
-        // we already count the float[] vector in vectorValues, so leave it out here
+        // looping through vectorPostings entries is expensive, we assume there's one per entry
         return RamEstimation.concurrentHashMapRamUsed(postingsMap.size())
-               + postingsMap.values().stream().mapToLong(VectorPostings::ramBytesUsed).sum();
+               + postingsMap.size() * VectorPostings.bytesPerPosting();
     }
 
     private long exactRamBytesUsed()
