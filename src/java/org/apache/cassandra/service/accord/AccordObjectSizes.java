@@ -245,12 +245,15 @@ public class AccordObjectSizes
 
     private static final long EMPTY_COMMAND_LISTENER = measure(new Command.ProxyListener(null));
     private static final long EMPTY_CFK_LISTENER = measure(new CommandsForKey.Listener((Key) null));
+    private static final long EMPTY_CFR_LISTENER = measure(new CommandsForRanges.Listener(null));
     public static long listener(Command.DurableAndIdempotentListener listener)
     {
         if (listener instanceof Command.ProxyListener)
             return EMPTY_COMMAND_LISTENER + timestamp(((Command.ProxyListener) listener).txnId());
         if (listener instanceof CommandsForKey.Listener)
             return EMPTY_CFK_LISTENER + key(((CommandsForKey.Listener) listener).key());
+        if (listener instanceof CommandsForRanges.Listener)
+            return EMPTY_CFR_LISTENER + timestamp(((CommandsForRanges.Listener) listener).txnId);
         throw new IllegalArgumentException("Unhandled listener type: " + listener.getClass());
     }
 

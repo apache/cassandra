@@ -18,19 +18,29 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.DataStore;
+import accord.api.Key;
 import accord.api.ProgressLog;
+import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -39,20 +49,35 @@ import accord.local.CommandStores.RangesForEpochHolder;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
-import accord.primitives.Deps;
+import accord.local.SaveStatus;
+import accord.primitives.AbstractKeys;
+import accord.primitives.AbstractRanges;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
+import accord.primitives.Range;
+import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
+import accord.primitives.Routables;
+import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+import accord.utils.async.Observable;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
+
     private static long getThreadId(ExecutorService executor)
     {
         try
@@ -78,6 +103,7 @@ public class AccordCommandStore extends CommandStore
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
+    private CommandsForRanges commandsForRanges = new CommandsForRanges();
 
     public AccordCommandStore(int id,
                               NodeTimeService time,
@@ -94,17 +120,67 @@ public class AccordCommandStore extends CommandStore
         this.commandCache = stateCache.instance(TxnId.class, accord.local.Command.class, AccordSafeCommand::new, AccordObjectSizes::command);
         this.commandsForKeyCache = stateCache.instance(RoutableKey.class, CommandsForKey.class, AccordSafeCommandsForKey::new, AccordObjectSizes::commandsForKey);
         executor.execute(() -> CommandStore.register(this));
+        executor.execute(this::loadRangesToCommands);
+    }
+
+    private void loadRangesToCommands()
+    {
+        AsyncPromise<CommandsForRanges> future = new AsyncPromise<>();
+        AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "txn", "execute_at", "dependencies"), new Observable<UntypedResultSet.Row>()
+        {
+            private CommandsForRanges.Builder builder = new CommandsForRanges.Builder();
+            @Override
+            public void onNext(UntypedResultSet.Row row) throws Exception
+            {
+                TxnId txnId = AccordKeyspace.deserializeTxnId(row);
+                SaveStatus status = AccordKeyspace.deserializeStatus(row);
+                Timestamp executeAt = AccordKeyspace.deserializeExecuteAt(row);
+
+                PartialTxn txn = AccordKeyspace.deserializeTxn(row);
+                Seekables<?, ?> keys = txn.keys();
+                if (keys.domain() != Routable.Domain.Range)
+                    throw new AssertionError(String.format("Txn keys are not range", txn));
+                Ranges ranges = (Ranges) keys;
+
+                PartialDeps deps = AccordKeyspace.deserializeDependencies(row);
+                List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
+                builder.put(txnId, ranges, status, executeAt, dependsOn);
+            }
+
+            @Override
+            public void onError(Throwable t)
+            {
+                builder = null;
+                future.tryFailure(t);
+            }
+
+            @Override
+            public void onCompleted()
+            {
+                CommandsForRanges result = this.builder.build();
+                builder = null;
+                future.trySuccess(result);
+            }
+        });
+        try
+        {
+            commandsForRanges = future.get();
+            logger.debug("Loaded {} intervals", commandsForRanges.size());
+        }
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     @Override
     public boolean inStore()
     {
         return Thread.currentThread().getId() == threadId;
-    }
-
-    @Override
-    protected void registerHistoricalTransactions(Deps deps)
-    {
     }
 
     public void setCacheSize(long bytes)
@@ -234,7 +310,7 @@ public class AccordCommandStore extends CommandStore
 
     public AccordSafeCommandStore beginOperation(PreLoadContext preLoadContext,
                                                  Map<TxnId, AccordSafeCommand> commands,
-                                                 Map<RoutableKey, AccordSafeCommandsForKey> commandsForKeys)
+                                                 NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys)
     {
         Invariants.checkState(current == null);
         commands.values().forEach(AccordSafeState::preExecute);
@@ -250,6 +326,52 @@ public class AccordCommandStore extends CommandStore
         Invariants.checkState(current == store);
         current.complete();
         current = null;
+    }
+
+    <O> O mapReduceForRange(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    {
+        keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
+        switch (keysOrRanges.domain())
+        {
+            case Key:
+            {
+                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                for (CommandTimeseriesHolder summary : commandsForRanges.search(keys))
+                {
+                    accumulate = map.apply(summary, accumulate);
+                    if (accumulate.equals(terminalValue))
+                        return accumulate;
+                }
+            }
+            break;
+            case Range:
+            {
+                AbstractRanges<?> ranges = (AbstractRanges<?>) keysOrRanges;
+                for (Range range : ranges)
+                {
+                    CommandTimeseriesHolder summary = commandsForRanges.search(range);
+                    if (summary == null)
+                        continue;
+                    accumulate = map.apply(summary, accumulate);
+                    if (accumulate.equals(terminalValue))
+                        return accumulate;
+                }
+            }
+            break;
+            default:
+                throw new AssertionError("Unknown domain: " + keysOrRanges.domain());
+        }
+        return accumulate;
+    }
+
+    CommandsForRanges commandsForRanges()
+    {
+        return commandsForRanges;
+    }
+
+    CommandsForRanges.Updater updateRanges()
+    {
+        return commandsForRanges.update();
     }
 
     public void abortCurrentOperation()

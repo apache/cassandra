@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.accord.async;
 
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +33,7 @@ import org.junit.Test;
 
 import accord.impl.CommandsForKey;
 import accord.local.Command;
+import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
 import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
@@ -102,7 +102,7 @@ public class AsyncLoaderTest
         testLoad(safeCfk, commandsForKey(key));
         cfkCache.release(safeCfk);
 
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key));
 
         // everything is cached, so the loader should return immediately
         commandStore.executeBlocking(() -> {
@@ -143,7 +143,7 @@ public class AsyncLoaderTest
         AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
@@ -192,7 +192,7 @@ public class AsyncLoaderTest
         AccordKeyspace.getCommandsForKeyMutation(commandStore, safeCfk, commandStore.nextSystemTimestampMicros()).apply();
 
         // resources are on disk only, so the loader should suspend...
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key));
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         Context context = new Context();
         commandStore.executeBlocking(() -> {
@@ -244,7 +244,7 @@ public class AsyncLoaderTest
         testLoad(safeCfk, commandsForKey(key));
         cfkCache.release(safeCfk);
 
-        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
+        AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), Keys.of(key));
 
         // since there's a read future associated with the txnId, we'll wait for it to load
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
@@ -291,7 +291,7 @@ public class AsyncLoaderTest
 
         execute(commandStore, () -> {
             AtomicInteger loadCalls = new AtomicInteger();
-            AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), Collections.emptyList()){
+            AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), Keys.EMPTY){
 
                 @Override
                 Function<TxnId, Command> loadCommandFunction()

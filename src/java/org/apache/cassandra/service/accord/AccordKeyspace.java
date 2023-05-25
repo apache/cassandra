@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -29,10 +30,12 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
@@ -42,7 +45,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Result;
 import accord.impl.CommandsForKey;
-import accord.impl.CommandsForKey.CommandTimeseries;
+import accord.impl.CommandTimeseries;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommonAttributes;
@@ -53,11 +56,16 @@ import accord.local.Status;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Invariants;
+import accord.utils.async.Observable;
+import org.apache.cassandra.concurrent.DebuggableTask;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -76,11 +84,14 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -89,6 +100,10 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.transform.FilteredPartitions;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.LocalVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -96,6 +111,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
@@ -112,6 +128,7 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -128,9 +145,10 @@ public class AccordKeyspace
     public static final String COMMANDS = "commands";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
 
-    private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, int>";
     private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
-    private static final String KEY_TUPLE = "tuple<uuid, blob>";
+    private static final String TIMESTAMP_TUPLE = TIMESTAMP_TYPE.asCQL3Type().toString();
+    private static final TupleType KEY_TYPE = new TupleType(Arrays.asList(UUIDType.instance, BytesType.instance));
+    private static final String KEY_TUPLE = KEY_TYPE.asCQL3Type().toString();
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
 
@@ -156,12 +174,36 @@ public class AccordKeyspace
         }
     }
 
+    private enum TokenType
+    {
+        Murmur3((byte) 1),
+        ByteOrdered((byte) 2),
+        ;
+
+        private final byte value;
+
+        TokenType(byte b)
+        {
+            this.value = b;
+        }
+
+        static TokenType valueOf(Token token)
+        {
+            if (token instanceof Murmur3Partitioner.LongToken)
+                return Murmur3;
+            if (token instanceof ByteOrderedPartitioner.BytesToken)
+                return ByteOrdered;
+            throw new IllegalArgumentException("Unexpected token type: " + token.getClass());
+        }
+    }
+
     // TODO: store timestamps as blobs (confirm there are no negative numbers, or offset)
     private static final TableMetadata Commands =
         parse(COMMANDS,
               "accord commands",
               "CREATE TABLE %s ("
               + "store_id int,"
+              + "domain int," // this is stored as part of txn_id, used currently for more cheaper scans of the table
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "status int,"
               + "home_key blob,"
@@ -178,8 +220,10 @@ public class AccordKeyspace
               + format("waiting_on_commit set<%s>,", TIMESTAMP_TUPLE)
               + format("waiting_on_apply map<%s, blob>,", TIMESTAMP_TUPLE)
               + "listeners set<blob>, "
-              + "PRIMARY KEY((store_id, txn_id))"
-              + ')');
+              + "PRIMARY KEY((store_id, domain, txn_id))"
+              + ')')
+        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, Int32Type.instance, TIMESTAMP_TYPE)))
+        .build();
 
     // TODO: naming is not very clearly distinct from the base serializers
     private static class CommandsSerializers
@@ -231,6 +275,7 @@ public class AccordKeyspace
               "accord commands per key",
               "CREATE TABLE %s ("
               + "store_id int, "
+              + "key_token blob, " // can't use "token" as this is restricted word in CQL
               + format("key %s, ", KEY_TUPLE)
               + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
               + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
@@ -240,8 +285,10 @@ public class AccordKeyspace
               + "series int, "
               + format("timestamp %s, ", TIMESTAMP_TUPLE)
               + "data blob, "
-              + "PRIMARY KEY((store_id, key), series, timestamp)"
-              + ')');
+              + "PRIMARY KEY((store_id, key_token, key), series, timestamp)"
+              + ')')
+        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
+        .build();
 
     private static class CommandsForKeyColumns
     {
@@ -292,13 +339,12 @@ public class AccordKeyspace
         }
     }
 
-    private static TableMetadata parse(String name, String description, String cql)
+    private static TableMetadata.Builder parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), ACCORD_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(ACCORD_KEYSPACE_NAME, name))
                                    .comment(description)
-                                   .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90))
-                                   .build();
+                                   .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90));
     }
 
     public static KeyspaceMetadata metadata()
@@ -338,7 +384,7 @@ public class AccordKeyspace
 
     private static <T> T deserializeOrNull(ByteBuffer bytes, LocalVersionedSerializer<T> serializer) throws IOException
     {
-        return bytes != null && ! ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer) : null;
+        return bytes != null && !ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer) : null;
     }
 
     private static ImmutableSortedMap<Timestamp, TxnId> deserializeWaitingOnApply(Map<ByteBuffer, ByteBuffer> serialized)
@@ -524,6 +570,7 @@ public class AccordKeyspace
             }
 
             ByteBuffer key = CommandsColumns.keyComparator.make(commandStore.id(),
+                                                                command.txnId().domain().ordinal(),
                                                                 serializeTimestamp(command.txnId())).serializeAsPartitionKey();
             Row row = builder.build();
             if (row.isEmpty())
@@ -537,6 +584,20 @@ public class AccordKeyspace
         }
     }
 
+    public static ByteBuffer serializeToken(Token token)
+    {
+        return serializeToken(token, ByteBufferAccessor.instance);
+    }
+
+    private static <V> V serializeToken(Token token, ValueAccessor<V> accessor)
+    {
+        TokenType type = TokenType.valueOf(token);
+        byte[] ordered = token.getPartitioner().getTokenFactory().toOrderedByteArray(token, ByteComparable.Version.OSS50);
+        V value = accessor.allocate(ordered.length + 1);
+        accessor.putByte(value, 0, type.value);
+        ByteArrayAccessor.instance.copyTo(ordered, 0, value, accessor, 1, ordered.length);
+        return value;
+    }
 
     private static ByteBuffer serializeKey(PartitionKey key)
     {
@@ -595,11 +656,216 @@ public class AccordKeyspace
     {
         String cql = "SELECT * FROM %s.%s " +
                      "WHERE store_id = ? " +
+                     "AND domain = ? " +
                      "AND txn_id=(?, ?, ?)";
 
         return executeInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
                                commandStore.id(),
+                               txnId.domain().ordinal(),
                                txnId.msb, txnId.lsb, txnId.node.id);
+    }
+
+    public static void findAllCommandsByDomain(int commandStore, Routable.Domain domain, Set<String> columns, Observable<UntypedResultSet.Row> callback)
+    {
+        WalkCommandsForDomain work = new WalkCommandsForDomain(commandStore, domain, columns, Stage.READ.executor(), callback);
+        work.schedule();
+    }
+
+    private static abstract class TableWalk implements Runnable, DebuggableTask
+    {
+        private final long creationTimeNanos = Clock.Global.nanoTime();
+        private final Executor executor;
+        private final Observable<UntypedResultSet.Row> callback;
+        private long startTimeNanos = -1;
+        private int numQueries = 0;
+        private UntypedResultSet.Row lastSeen = null;
+
+        private TableWalk(Executor executor, Observable<UntypedResultSet.Row> callback)
+        {
+            this.executor = executor;
+            this.callback = callback;
+        }
+
+        protected abstract UntypedResultSet query(UntypedResultSet.Row lastSeen);
+
+        public final void schedule()
+        {
+            executor.execute(this);
+        }
+
+        @Override
+        public final void run()
+        {
+            try
+            {
+                if (startTimeNanos == -1)
+                    startTimeNanos = Clock.Global.nanoTime();
+                numQueries++;
+                UntypedResultSet result = query(lastSeen);
+                if (result.isEmpty())
+                {
+                    callback.onCompleted();
+                    return;
+                }
+                UntypedResultSet.Row lastRow = null;
+                for (UntypedResultSet.Row row : result)
+                {
+                    callback.onNext(row);
+                    lastRow = row;
+                }
+                lastSeen = lastRow;
+                schedule();
+            }
+            catch (Throwable t)
+            {
+                callback.onError(t);
+            }
+        }
+
+        @Override
+        public long creationTimeNanos()
+        {
+            return creationTimeNanos;
+        }
+
+        @Override
+        public long startTimeNanos()
+        {
+            return startTimeNanos;
+        }
+
+        @Override
+        public String description()
+        {
+            return String.format("Table Walker for %s; queries = %d", getClass().getSimpleName(), numQueries);
+        }
+    }
+
+    private static String selection(TableMetadata metadata, Set<String> requiredColumns, Set<String> forIteration)
+    {
+        StringBuilder selection = new StringBuilder();
+        if (requiredColumns.isEmpty())
+            selection.append("*");
+        else
+        {
+            Sets.SetView<String> other = Sets.difference(requiredColumns, forIteration);
+            for (String name : other)
+            {
+                ColumnMetadata meta = metadata.getColumn(new ColumnIdentifier(name, true));
+                if (meta == null)
+                    throw new IllegalArgumentException("Unknown column: " + name);
+            }
+            List<String> names = new ArrayList<>(forIteration.size() + other.size());
+            names.addAll(forIteration);
+            names.addAll(other);
+            // this sort is to make sure the CQL is determanistic
+            Collections.sort(names);
+            for (int i = 0; i < names.size(); i++)
+            {
+                if (i > 0)
+                    selection.append(", ");
+                selection.append(names.get(i));
+            }
+        }
+        return selection.toString();
+    }
+
+    private static class WalkCommandsForDomain extends TableWalk
+    {
+        private static final Set<String> COLUMNS_FOR_ITERATION = ImmutableSet.of("txn_id", "store_id", "domain");
+        private final String cql;
+        private final int storeId, domain;
+
+        private WalkCommandsForDomain(int commandStore, Routable.Domain domain, Set<String> requiredColumns, Executor executor, Observable<UntypedResultSet.Row> callback)
+        {
+            super(executor, callback);
+            this.storeId = commandStore;
+            this.domain = domain.ordinal();
+            cql = String.format("SELECT %s " +
+                                "FROM %s " +
+                                "WHERE store_id = ? " +
+                                "      AND domain = ? " +
+                                "      AND token(store_id, domain, txn_id) > token(?, ?, (?, ?, ?)) " +
+                                "ALLOW FILTERING", selection(Commands, requiredColumns, COLUMNS_FOR_ITERATION), Commands);
+        }
+
+        @Override
+        protected UntypedResultSet query(UntypedResultSet.Row lastSeen)
+        {
+            TxnId lastTxnId = lastSeen == null ?
+                              new TxnId(0, 0, Txn.Kind.Read, Routable.Domain.Key, Node.Id.NONE)
+                              : deserializeTxnId(lastSeen);
+            return executeInternal(cql, storeId, domain, storeId, domain, lastTxnId.msb, lastTxnId.lsb, lastTxnId.node.id);
+        }
+    }
+
+    public static void findAllKeysBetween(int commandStore,
+                                          Token start, boolean startInclusive,
+                                          Token end, boolean endInclusive,
+                                          Observable<PartitionKey> callback)
+    {
+        //TODO (optimize) : CQL doesn't look smart enough to only walk Index.db, and ends up walking the Data.db file for each row in the partitions found (for frequent keys, this cost adds up)
+        // it would be possible to find all SSTables that "could" intersect this range, then have a merge iterator over the Index.db (filtered to the range; index stores partition liveness)...
+        KeysBetween work = new KeysBetween(commandStore,
+                                           AccordKeyspace.serializeToken(start), startInclusive,
+                                           AccordKeyspace.serializeToken(end), endInclusive,
+                                           ImmutableSet.of("key"),
+                                           Stage.READ.executor(), Observable.distinct(callback).map(value -> AccordKeyspace.deserializeKey(value)));
+        work.schedule();
+    }
+
+    private static class KeysBetween extends TableWalk
+    {
+        private static final Set<String> COLUMNS_FOR_ITERATION = ImmutableSet.of("store_id", "key_token");
+
+        private final int storeId;
+        private final ByteBuffer start, end;
+        private final String cqlFirst;
+        private final String cqlContinue;
+
+        private KeysBetween(int storeId,
+                            ByteBuffer start, boolean startInclusive,
+                            ByteBuffer end, boolean endInclusive,
+                            Set<String> requiredColumns,
+                            Executor executor, Observable<UntypedResultSet.Row> callback)
+        {
+            super(executor, callback);
+            this.storeId = storeId;
+            this.start = start;
+            this.end = end;
+
+            String selection = selection(CommandsForKeys, requiredColumns, COLUMNS_FOR_ITERATION);
+            this.cqlFirst = String.format("SELECT DISTINCT %s\n" +
+                                          "FROM %s\n" +
+                                          "WHERE store_id = ?\n" +
+                                          (startInclusive ? "  AND key_token >= ?\n" : "  AND key_token > ?\n") +
+                                          (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
+                                          "ALLOW FILTERING",
+                                          selection, CommandsForKeys);
+            this.cqlContinue = String.format("SELECT DISTINCT %s\n" +
+                                             "FROM %s\n" +
+                                             "WHERE store_id = ?\n" +
+                                             "  AND key_token > ?\n" +
+                                             "  AND key > ?\n" +
+                                             (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
+                                             "ALLOW FILTERING",
+                                             selection, CommandsForKeys);
+        }
+
+        @Override
+        protected UntypedResultSet query(UntypedResultSet.Row lastSeen)
+        {
+            if (lastSeen == null)
+            {
+                return executeInternal(cqlFirst, storeId, start, end);
+            }
+            else
+            {
+                ByteBuffer previousToken = lastSeen.getBytes("key_token");
+                ByteBuffer previousKey = lastSeen.getBytes("key");
+                return executeInternal(cqlContinue, storeId, previousToken, previousKey, end);
+            }
+        }
     }
 
     public static Command loadCommand(AccordCommandStore commandStore, TxnId txnId)
@@ -616,19 +882,19 @@ public class AccordKeyspace
         try
         {
             UntypedResultSet.Row row = rows.one();
-            Invariants.checkState(deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits).equals(txnId));
-            SaveStatus status = SaveStatus.values()[row.getInt("status")];
+            Invariants.checkState(deserializeTxnId(row).equals(txnId));
+            SaveStatus status = deserializeStatus(row);
             CommonAttributes.Mutable attributes = new CommonAttributes.Mutable(txnId);
             // TODO: something less brittle than ordinal, more efficient than values()
             attributes.durability(Status.Durability.values()[row.getInt("durability", 0)]);
             attributes.homeKey(deserializeOrNull(row.getBlob("home_key"), CommandsSerializers.routingKey));
             attributes.progressKey(deserializeOrNull(row.getBlob("progress_key"), CommandsSerializers.routingKey));
             attributes.route(deserializeOrNull(row.getBlob("route"), CommandsSerializers.route));
-            attributes.partialTxn(deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn));
-            attributes.partialDeps(deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps));
+            attributes.partialTxn(deserializeTxn(row));
+            attributes.partialDeps(deserializeDependencies(row));
             attributes.setListeners(deserializeListeners(row, "listeners"));
 
-            Timestamp executeAt = deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
+            Timestamp executeAt = deserializeExecuteAt(row);
             Ballot promised = deserializeTimestampOrNull(row, "promised_ballot", Ballot::fromBits);
             Ballot accepted = deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits);
             ImmutableSortedSet<TxnId> waitingOnCommit = deserializeTxnIdNavigableSet(row, "waiting_on_commit");
@@ -667,6 +933,43 @@ public class AccordKeyspace
             logger.error("Exception loading AccordCommand " + txnId, t);
             throw t;
         }
+    }
+
+    public static PartialDeps deserializeDependencies(UntypedResultSet.Row row) throws IOException
+    {
+        return deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps);
+    }
+
+    public static Timestamp deserializeExecuteAt(UntypedResultSet.Row row)
+    {
+        return deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
+    }
+
+    public static SaveStatus deserializeStatus(UntypedResultSet.Row row)
+    {
+        return SaveStatus.values()[row.getInt("status")];
+    }
+
+    public static TxnId deserializeTxnId(UntypedResultSet.Row row)
+    {
+        return deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits);
+    }
+
+    public static PartialTxn deserializeTxn(UntypedResultSet.Row row) throws IOException
+    {
+        return deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn);
+    }
+
+    public static PartitionKey deserializeKey(UntypedResultSet.Row row)
+    {
+        ByteBuffer[] split = KEY_TYPE.split(ByteBufferAccessor.instance, row.getBytes("key"));
+        TableId tableId = TableId.fromUUID(UUIDSerializer.instance.deserialize(split[0]));
+        ByteBuffer key = split[1];
+
+        TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+        if (metadata == null)
+            throw new IllegalStateException("Table with id " + tableId + " could not be found; was it deleted?");
+        return new PartitionKey(metadata.keyspace, tableId, metadata.partitioner.decorateKey(key));
     }
 
     private static void addSeriesMutations(ImmutableSortedMap<Timestamp, ByteBuffer> prev,
@@ -713,7 +1016,9 @@ public class AccordKeyspace
 
     private static DecoratedKey makeKey(CommandStore commandStore, PartitionKey key)
     {
+        Token token = key.token();
         ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(commandStore.id(),
+                                                                  serializeToken(token),
                                                                   serializeKey(key)).serializeAsPartitionKey();
         return CommandsForKeys.partitioner.decorateKey(pk);
     }

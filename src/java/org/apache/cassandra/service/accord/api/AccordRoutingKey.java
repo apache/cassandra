@@ -45,7 +45,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public abstract class AccordRoutingKey extends AccordRoutableKey implements RoutingKey
 {
-    enum RoutingKeyKind
+    public enum RoutingKeyKind
     {
         TOKEN, SENTINEL
     }
@@ -57,6 +57,16 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
 
     public abstract RoutingKeyKind kindOfRoutingKey();
     public abstract long estimatedSizeOnHeap();
+
+    public SentinelKey asSentinelKey()
+    {
+        return (SentinelKey) this;
+    }
+
+    public TokenKey asTokenKey()
+    {
+        return (TokenKey) this;
+    }
 
     public static AccordRoutingKey of(Key key)
     {
@@ -189,6 +199,11 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         {
             super(keyspace);
             this.token = token;
+        }
+
+        public TokenKey withToken(Token token)
+        {
+            return new TokenKey(keyspace, token);
         }
 
         @Override
