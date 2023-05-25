@@ -35,7 +35,7 @@ import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -62,8 +62,8 @@ public class TopPartitionsTest
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
+        ServerTestUtils.prepareServerNoRegister();
+        executeInternal(format("CREATE KEYSPACE %s WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}", KEYSPACE));
         executeInternal(format("CREATE TABLE %s.%s (k text, c text, v text, PRIMARY KEY (k, c))", KEYSPACE, TABLE));
     }
 
