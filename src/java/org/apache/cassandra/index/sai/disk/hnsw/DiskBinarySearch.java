@@ -31,6 +31,8 @@ public class DiskBinarySearch
      *
      * This will not call f() after the target is found, so if f is performing disk seeks,
      * it will leave the underlying reader at the position right after reading the target.
+     *
+     * @return index if target is found; otherwise return -1 if targer is not found
      */
     public static long searchInt(long low, long high, int target, Function<Long, Integer> f)
     {
@@ -48,6 +50,6 @@ public class DiskBinarySearch
             else
                 high = i;
         }
-        throw new IllegalStateException("Element " + target + " not found");
+        return -1;
     }
 }

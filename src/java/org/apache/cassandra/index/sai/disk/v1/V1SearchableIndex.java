@@ -172,7 +172,7 @@ public class V1SearchableIndex implements SearchableIndex
         {
             if (segment.intersects(keyRange))
             {
-                iterators.add(segment.search(expression, context, defer, limit));
+                iterators.add(segment.search(expression, keyRange, context, defer, limit));
             }
         }
 
@@ -192,7 +192,7 @@ public class V1SearchableIndex implements SearchableIndex
         {
             if (segment.intersects(keyRange))
             {
-                iterators.add(segment.searchSSTableRowIds(expression, context, defer, limit));
+                iterators.add(segment.searchSSTableRowIds(expression, keyRange, context, defer, limit));
             }
         }
 

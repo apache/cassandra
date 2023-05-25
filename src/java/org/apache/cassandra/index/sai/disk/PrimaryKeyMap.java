@@ -65,6 +65,9 @@ public interface PrimaryKeyMap extends Closeable
      */
     long rowIdFromPrimaryKey(PrimaryKey key);
 
+
+    long lastRowIdFromPrimaryKey(PrimaryKey key);
+
     @Override
     default void close() throws IOException
     {

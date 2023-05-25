@@ -64,7 +64,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     private final ReadCommand command;
     private final QueryController controller;
     private final QueryContext queryContext;
-    private final PrimaryKey.Factory keyFactory;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
@@ -76,7 +75,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         this.command = command;
         this.queryContext = new QueryContext(executionQuotaMs);
         this.controller = new QueryController(cfs, command, filterOperation, indexFeatureSet, queryContext, tableQueryMetrics);
-        this.keyFactory = PrimaryKey.factory(cfs.metadata().comparator, indexFeatureSet);
     }
 
     @Override
@@ -109,7 +107,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext, keyFactory);
+        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
     }
 
     /**
@@ -152,12 +150,11 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
         private PrimaryKey lastKey;
 
-        private ResultRetriever(RangeIterator operation,
+        private ResultRetriever(RangeIterator<PrimaryKey> operation,
                                 FilterTree filterTree,
                                 QueryController controller,
                                 ReadExecutionController executionController,
-                                QueryContext queryContext,
-                                PrimaryKey.Factory keyFactory)
+                                QueryContext queryContext)
         {
             this.keyRanges = controller.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();
@@ -167,10 +164,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             this.controller = controller;
             this.executionController = executionController;
             this.queryContext = queryContext;
-            this.keyFactory = keyFactory;
+            this.keyFactory = controller.primaryKeyFactory();
 
-            this.firstPrimaryKey = keyFactory.createTokenOnly(controller.mergeRange().left.getToken());
-            this.lastPrimaryKey = keyFactory.createTokenOnly(controller.mergeRange().right.getToken());
+            this.firstPrimaryKey = controller.firstPrimaryKey();
+            this.lastPrimaryKey = controller.lastPrimaryKey();
         }
 
         @Override

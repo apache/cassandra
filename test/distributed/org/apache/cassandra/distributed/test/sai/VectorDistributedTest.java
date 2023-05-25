@@ -22,10 +22,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -35,6 +38,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
@@ -128,7 +133,7 @@ public class VectorDistributedTest extends TestBaseImpl
         double memtableRecall = getRecall(vectors, queryVector, getVectors(result));
         assertThat(memtableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
 
-        assertThatThrownBy(() -> searchWithoutLimit(queryVector, vectorCount))
+        assertThatThrownBy(() -> searchWithoutLimit(randomVector(), vectorCount))
         .hasMessageContaining(INVALID_LIMIT_MESSAGE);
 
         // Recall is lower with page size:
@@ -138,8 +143,17 @@ public class VectorDistributedTest extends TestBaseImpl
         double memtableRecallWithPaging = getRecall(vectors, queryVector, getVectors(result));
         assertThat(memtableRecallWithPaging).isGreaterThanOrEqualTo(0).isLessThan(memtableRecall);
 
-        assertThatThrownBy(() -> searchWithPageWithoutLimit(queryVector, 10))
+        assertThatThrownBy(() -> searchWithPageWithoutLimit(randomVector(), 10))
         .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+
+        // query on-disk index
+        cluster.forEach(n -> n.flush(KEYSPACE));
+
+        limit = Math.min(getRandom().nextIntBetween(10, 50), vectors.size());
+        queryVector = randomVector();
+        result = searchWithLimit(queryVector, limit);
+        double sstableRecall = getRecall(vectors, queryVector, getVectors(result));
+        assertThat(sstableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
     }
 
     @Test
@@ -222,20 +236,92 @@ public class VectorDistributedTest extends TestBaseImpl
             execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ", " + vectorString(vector) + " )");
 
         // query memtable index
-        float[] queryVector = randomVector();
+        for (int executionCount = 0; executionCount < 50; executionCount++)
+        {
+            int key = getRandom().nextIntBetween(1, vectorCount);
+            float[] queryVector = randomVector();
+            searchByKeyWithLimit(key, queryVector, 1, vectors);
+        }
 
-        assertThatThrownBy(() -> searchByKeyWithoutLimit(10, queryVector, vectors))
-        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+        cluster.forEach(n -> n.flush(KEYSPACE));
 
-        assertThatThrownBy(() -> searchByKeyWithLimit(10, queryVector, 5001, vectors))
-        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+        // query on-disk index
+        for (int executionCount = 0; executionCount < 50; executionCount++)
+        {
+            int key = getRandom().nextIntBetween(1, vectorCount);
+            float[] queryVector = randomVector();
+            searchByKeyWithLimit(key, queryVector, 1, vectors);
+        }
+    }
 
-        searchByKeyWithLimit(10, queryVector, 1, vectors);
+    @Test
+    public void rangeRestrictedTest() throws Throwable
+    {
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
 
-        // TODO: on-disk index doesn't support Bits filtering yet
-//        cluster.forEach(n -> n.flush(KEYSPACE));
-//        queryVector = randomVector();
-//        searchByKeyWithLimit(10, queryVector, 1, vectors);
+        int vectorCount = getRandom().nextIntBetween(500, 1000);
+        List<float[]> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
+
+        int pk = 0;
+        Multimap<Long, float[]> vectorsByToken = ArrayListMultimap.create();
+        for (float[] vector : vectors)
+        {
+            vectorsByToken.put(Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(pk)).getLongValue(), vector);
+            execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ',' + vectorString(vector) + " )");
+        }
+
+        // query memtable index
+        for (int executionCount = 0; executionCount < 50; executionCount++)
+        {
+            int key1 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token1 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key1)).getLongValue();
+            int key2 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token2 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key2)).getLongValue();
+
+            long minToken = Math.min(token1, token2);
+            long maxToken = Math.max(token1, token2);
+            List<float[]> expected = vectorsByToken.entries().stream()
+                                                   .filter(e -> e.getKey() >= minToken && e.getKey() <= maxToken)
+                                                   .map(Map.Entry::getValue)
+                                                   .collect(Collectors.toList());
+
+            float[] queryVector = randomVector();
+            List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
+            double recall = getRecall(resultVectors, queryVector, expected);
+            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+        }
+
+        cluster.forEach(n -> n.flush(KEYSPACE));
+
+        // query on-disk index with existing key:
+        for (int executionCount = 0; executionCount < 50; executionCount++)
+        {
+            int key1 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token1 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key1)).getLongValue();
+            int key2 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token2 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key2)).getLongValue();
+
+            long minToken = Math.min(token1, token2);
+            long maxToken = Math.max(token1, token2);
+            List<float[]> expected = vectorsByToken.entries().stream()
+                                                   .filter(e -> e.getKey() >= minToken && e.getKey() <= maxToken)
+                                                   .map(Map.Entry::getValue)
+                                                   .collect(Collectors.toList());
+
+            float[] queryVector = randomVector();
+            List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
+            double recall = getRecall(resultVectors, queryVector, expected);
+            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+        }
+    }
+
+    private List<float[]> searchWithRange(float[] queryVector, long minToken, long maxToken, int expectedSize) throws Throwable
+    {
+        Object[][] result = execute("SELECT val FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
+        assertThat(result).hasSize(expectedSize);
+        return getVectors(result);
     }
 
     private Object[][] searchWithLimit(float[] queryVector, int limit)

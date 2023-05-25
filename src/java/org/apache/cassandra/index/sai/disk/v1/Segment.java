@@ -129,28 +129,30 @@ public class Segment implements Closeable, SegmentOrdering
      * Search on-disk index synchronously
      *
      * @param expression to filter on disk index
+     * @param keyRange   key range specific in read command, used by ANN index
      * @param context    to track per sstable cache and per query metrics
      * @param defer      create the iterator in a deferred state
-     * @param limit
+     * @param limit      the num of rows to returned, used by ANN index
      * @return range iterator of primary keys that matches given expression
      */
-    public RangeIterator<PrimaryKey> search(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        return index.search(expression, context, defer, limit);
+        return index.search(expression, keyRange, context, defer, limit);
     }
 
     /**
      * Search on-disk index synchronously
      *
      * @param expression to filter on disk index
+     * @param keyRange   key range specific in read command, used by ANN index
      * @param context    to track per sstable cache and per query metrics
      * @param defer      create the iterator in a deferred state
      * @param limit      the num of rows to returned, used by ANN index
      * @return range iterator of sstable row ids that matches given expression
      */
-    public RangeIterator<Long> searchSSTableRowIds(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<Long> searchSSTableRowIds(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        return index.searchSSTableRowIds(expression, context, defer, limit);
+        return index.searchSSTableRowIds(expression, keyRange, context, defer, limit);
     }
 
     @Override

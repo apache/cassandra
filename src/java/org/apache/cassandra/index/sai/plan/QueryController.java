@@ -82,6 +82,10 @@ public class QueryController
     private final List<DataRange> ranges;
     private final AbstractBounds<PartitionPosition> mergeRange;
 
+    private final PrimaryKey.Factory keyFactory;
+    private final PrimaryKey firstPrimaryKey;
+    private final PrimaryKey lastPrimaryKey;
+
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
                            RowFilter.FilterElement filterOperation,
@@ -99,6 +103,25 @@ public class QueryController
         DataRange first = ranges.get(0);
         DataRange last = ranges.get(ranges.size() - 1);
         this.mergeRange = ranges.size() == 1 ? first.keyRange() : first.keyRange().withNewRight(last.keyRange().right);
+
+        this.keyFactory = PrimaryKey.factory(cfs.metadata().comparator, indexFeatureSet);
+        this.firstPrimaryKey = keyFactory.createTokenOnly(mergeRange.left.getToken());
+        this.lastPrimaryKey = keyFactory.createTokenOnly(mergeRange.right.getToken());
+    }
+
+    public PrimaryKey.Factory primaryKeyFactory()
+    {
+        return keyFactory;
+    }
+
+    public PrimaryKey firstPrimaryKey()
+    {
+        return firstPrimaryKey;
+    }
+
+    public PrimaryKey lastPrimaryKey()
+    {
+        return lastPrimaryKey;
     }
 
     public TableMetadata metadata()

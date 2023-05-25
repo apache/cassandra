@@ -323,4 +323,33 @@ public class VectorTypeTest extends SAITester
         assertThat(result).hasSize(2);
         System.out.println(makeRowStrings(result));
     }
+
+    @Test
+    public void nullVectorTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", Lists.newArrayList(1.0, 2.0 ,3.0));
+        execute("INSERT INTO %s (pk, str_val) VALUES (1, 'B')");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", Lists.newArrayList(3.0, 4.0, 5.0));
+        execute("INSERT INTO %s (pk, str_val) VALUES (3, 'D')");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", Lists.newArrayList(5.0, 6.0, 7.0));
+
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(0);
+
+        result = execute("SELECT * FROM %s WHERE str_val = 'A' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(1);
+
+        flush();
+
+        result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(0);
+
+        result = execute("SELECT * FROM %s WHERE str_val = 'A' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(1);
+    }
 }
