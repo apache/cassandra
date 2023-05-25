@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.config;
 
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 
@@ -30,40 +28,37 @@ import org.yaml.snakeyaml.introspector.Property;
  */
 public class ListenableProperty<S, T> extends ForwardingProperty
 {
-    private final Map<EventType, List<Handler<S, T>>> handlers = new EnumMap<>(EventType.class);
+    private final List<BeforeChangeListener<S, T>> beforeHandlers = new CopyOnWriteArrayList<>();
+    private final List<AfterChangeListener<S, T>> afterHandlers = new CopyOnWriteArrayList<>();
 
     public ListenableProperty(Property property)
     {
         super(property.getName(), property);
-        for (EventType eventType : EventType.values())
-            handlers.put(eventType, new CopyOnWriteArrayList<>());
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public synchronized void set(Object source, Object newValue) throws Exception
+    public void set(Object source, Object newValue) throws Exception
     {
         T oldValue = (T) get(source);
-        T value = Handler.compose(handlers.get(EventType.BEFORE)).handle((S) source, oldValue, (T) newValue);
+        T value = (T) newValue;
+        for (BeforeChangeListener<S, T> handler : beforeHandlers)
+            value = handler.before((S) source, getName(), oldValue, value);
         delegate().set(source, value);
-        Handler.compose(handlers.get(EventType.AFTER)).handle((S) source, oldValue, value);
+        for (AfterChangeListener<S, T> handler : afterHandlers)
+            handler.after((S) source, getName(), oldValue, value);
     }
 
-    public synchronized Remover addBeforeHandler(Handler<S, T> handler)
+    public Remover addBeforeListener(BeforeChangeListener<S, T> listener)
     {
-        handlers.computeIfAbsent(EventType.BEFORE, k -> new CopyOnWriteArrayList<>()).add(handler);
-        return () -> handlers.get(EventType.BEFORE).remove(handler);
+        beforeHandlers.add(listener);
+        return () -> beforeHandlers.remove(listener);
     }
 
-    public synchronized Remover addAfterHandler(Handler<S, T> handler)
+    public Remover addAfterListener(AfterChangeListener<S, T> listener)
     {
-        handlers.computeIfAbsent(EventType.AFTER, k -> new CopyOnWriteArrayList<>()).add(handler);
-        return () -> handlers.get(EventType.AFTER).remove(handler);
-    }
-
-    private enum EventType
-    {
-        BEFORE, AFTER
+        afterHandlers.add(listener);
+        return () -> afterHandlers.remove(listener);
     }
 
     /**
@@ -72,31 +67,37 @@ public class ListenableProperty<S, T> extends ForwardingProperty
      * @param <V> the type of the value to mutate.
      */
     @FunctionalInterface
-    public interface Handler<S, V>
+    public interface BeforeChangeListener<S, V>
     {
-        V handle(S source, V oldValue, V newValue);
+        V before(S source, String name, V oldValue, V newValue);
 
-        static <S, V> Handler<S, V> consume(BiConsumer<? super V, ? super  V> consumer)
+        static <S, V> BeforeChangeListener<S, V> consume(BiConsumer<? super V, ? super  V> consumer)
         {
-            return (source, oldValue, newValue) -> {
+            return (source, name, oldValue, newValue) -> {
                 consumer.accept(oldValue, newValue);
                 return newValue;
-            };
-        }
-
-        static <S, V> Handler<S, V > compose(List<Handler < S, V >> handlers)
-        {
-            return (source, oldValue, newValue) -> {
-                V value = newValue;
-                for (Handler<S, V> handler : handlers)
-                    value = handler.handle(source, oldValue, value);
-                return value;
             };
         }
     }
 
     /**
-     * The handler to remove a configuration value listener.
+     * The listener to be notified after a configuration value is changed.
+     * @param <S> the type of the object listened to.
+     * @param <V> the type of the value.
+     */
+    @FunctionalInterface
+    public interface AfterChangeListener<S, V>
+    {
+        void after(S source, String name, V oldValue, V newValue);
+
+        static <S, V> AfterChangeListener<S, V> consume(BiConsumer<? super V, ? super  V> consumer)
+        {
+            return (source, name, oldValue, newValue) -> consumer.accept(oldValue, newValue);
+        }
+    }
+
+    /**
+     * The handler to remove a configuration value listeners.
      */
     @FunctionalInterface
     public interface Remover extends Runnable

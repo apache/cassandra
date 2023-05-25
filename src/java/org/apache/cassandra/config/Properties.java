@@ -18,6 +18,7 @@
 package org.apache.cassandra.config;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -140,12 +141,7 @@ public final class Properties
 
     public static Loader validatedPropertyLoader()
     {
-        return validatedPropertyLoader(p -> false);
-    }
-
-    public static Loader validatedPropertyLoader(Predicate<Property> nonListenableProperty)
-    {
-        return new ValidatedPropertyLoader(nonListenableProperty);
+        return new ValidatedPropertyLoader();
     }
 
     public static Loader withReplacementsLoader(Loader loader)

@@ -21,11 +21,13 @@ package org.apache.cassandra.config;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.function.Predicate;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -33,75 +35,129 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.introspector.FieldProperty;
 import org.yaml.snakeyaml.introspector.Property;
 
-public class ValidatedPropertyLoader extends DefaultLoader
+public final class ValidatedPropertyLoader implements Loader
 {
-    private final Predicate<Property> nonListenableProperty;
+    private final Loader loader;
 
-    public ValidatedPropertyLoader(Predicate<Property> nonListenableProperty)
+    public ValidatedPropertyLoader()
     {
-        this.nonListenableProperty = nonListenableProperty;
+        this.loader = new DefaultLoader(ValidatedPropertyLoader::listenablePropertyFactory);
     }
 
     @Override
-    protected Property createPropertyForField(Class<?> root, Field field)
+    public Map<String, Property> getProperties(Class<?> root)
     {
-        Property property = new FieldProperty(field);
-        if (nonListenableProperty.test(property))
-            return property;
+        return loader.getProperties(root);
+    }
 
-        ListenableProperty<?, ?> listenable = new ListenableProperty<>(property);
-        if (property.getAnnotation(ValidatedBy.class) != null)
-            listenable.addBeforeHandler(ValidationPropertyHandler.create(root, listenable.delegate()));
+    private static Property listenablePropertyFactory(Field field)
+    {
+        ListenableProperty<?, ?> listenable = new ListenableProperty<>(new FieldProperty(field));
+        ValidatedByList validatedByList = field.getAnnotation(ValidatedByList.class);
+        ValidatedBy[] validatedByArray;
+        if (validatedByList == null)
+        {
+            if (field.getAnnotation(ValidatedBy.class) == null)
+                return listenable;
+            else
+                validatedByArray = new ValidatedBy[]{ field.getAnnotation(ValidatedBy.class) };
+        }
+        else
+            validatedByArray = validatedByList.value();
+
+        for (ValidatedBy validatedBy : validatedByArray)
+            listenable.addBeforeListener(createValidationListener(field, validatedBy));
+
         return listenable;
     }
 
-    private static class ValidationPropertyHandler<S, T> implements ListenableProperty.Handler<S, T>
+    private static <S, T> ListenableProperty.BeforeChangeListener<S, T> createValidationListener(Field field, ValidatedBy annotation)
     {
-        private final Method method;
-        private final String name;
-
-        private ValidationPropertyHandler(Method method, String name)
+        Class<?> clazz = FBUtilities.classForName(annotation.useClass(), "validate method");
+        List<Method> matches = new ArrayList<>();
+        for (Method method : clazz.getDeclaredMethods())
         {
-            this.method = method;
-            this.name = name;
+            if (method.getName().equals(annotation.useClassMethod()) &&
+                Modifier.isStatic(method.getModifiers()) &&
+                Modifier.isPublic(method.getModifiers()))
+                matches.add(method);
         }
 
-        public static <S, T> ValidationPropertyHandler<S, T> create(Class<?> root, Property property)
-        {
-            Preconditions.checkNotNull(property.getAnnotation(ValidatedBy.class));
-            ValidatedBy annotation = property.getAnnotation(ValidatedBy.class);
-            Class<?> clazz = FBUtilities.classForName(annotation.useClass(), "validate method");
-            Class<?>[] searchPattern = ArrayUtils.addAll(new Class<?>[]{ root, property.getType() });
-            for (Method refMethod : clazz.getDeclaredMethods())
-            {
-                int modifiers = refMethod.getModifiers();
-                if (Modifier.isPrivate(modifiers) || Modifier.isProtected(modifiers))
-                    continue;
-
-                if (refMethod.getName().equals(annotation.useClassMethod()) &&
-                    Arrays.equals(refMethod.getParameterTypes(), searchPattern) &&
-                    (refMethod.getReturnType() == Void.TYPE || refMethod.getReturnType().equals(property.getType())))
-                {
-                    return new ValidationPropertyHandler<>(refMethod, property.getName());
-                }
-            }
-            throw new ConfigurationException(String.format("Required method '%s(%s)' not found for field '%s'",
+        if (matches.isEmpty())
+            throw new ConfigurationException(String.format("Required public static method '%s' not found in class '%s'",
                                                            annotation.useClassMethod(),
-                                                           Arrays.stream(searchPattern)
-                                                                 .map(Class::getCanonicalName)
-                                                                 .collect(Collectors.joining(", ")),
-                                                           property.getName()), false);
+                                                           clazz.getCanonicalName()), false);
+
+        if (matches.size() > 1)
+            throw new ConfigurationException(String.format("Ambiguous public static method '%s' found in class '%s'. " +
+                                                           "You must specify a unique method name.",
+                                                           annotation.useClassMethod(),
+                                                           clazz.getCanonicalName()), false);
+        Method method = matches.get(0);
+        if (!(method.getReturnType().equals(Void.TYPE) || method.getReturnType().equals(field.getType())))
+            throw new ConfigurationException(String.format("Required method '%s' in class '%s' must return '%s' or 'void', " +
+                                                           "but returns '%s' instead. The field is '%s$%s'.",
+                                                           annotation.useClassMethod(),
+                                                           clazz.getSimpleName(),
+                                                           field.getType().getCanonicalName(),
+                                                           method.getReturnType().getCanonicalName(),
+                                                           field.getDeclaringClass().getSimpleName(),
+                                                           field.getName()), false);
+
+        switch (method.getParameterCount())
+        {
+            case 1:
+                return new MethodInvokeListener<>(method,
+                                                  new Class<?>[]{ field.getType() },
+                                                  (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, v)));
+            case 2:
+                return new MethodInvokeListener<>(method,
+                                                  new Class[]{ String.class, field.getType() },
+                                                  (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, n, v)));
+            case 3:
+                return new MethodInvokeListener<>(method,
+                                                  new Class[]{ field.getDeclaringClass(), String.class, field.getType() },
+                                                  (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, s, n, v)));
+            default:
+                throw new ConfigurationException(String.format("Required method '%s' in class '%s' must have one, two, " +
+                                                               "or three input parameters",
+                                                               annotation.useClassMethod(),
+                                                               clazz.getCanonicalName()), false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T, E extends Exception> T sneakyThrow(Callable<?> c) throws E
+    {
+        try { return (T) c.call(); }
+        catch (Exception ex) { throw (E) ex; }
+    }
+
+    private static class MethodInvokeListener<S, T> implements ListenableProperty.BeforeChangeListener<S, T>
+    {
+        private final Method method;
+        private final ListenableProperty.BeforeChangeListener<S, T> delegate;
+
+        private MethodInvokeListener(Method method, Class<?>[] arguments, ListenableProperty.BeforeChangeListener<S, T> delegate)
+        {
+            if (!Arrays.equals(method.getParameterTypes(), ArrayUtils.addAll(arguments)))
+                throw new ConfigurationException(String.format("Method '%s' must have exactly the following '(%s)' input arguments",
+                                                               method.getName(),
+                                                               Arrays.stream(arguments)
+                                                                     .map(Class::getCanonicalName)
+                                                                     .collect(Collectors.joining(", "))), false);
+            this.delegate = delegate;
+            this.method = method;
         }
 
         /** {@inheritDoc} */
-        @SuppressWarnings("unchecked")
         @Override
-        public T handle(S source, T oldValue, T newValue)
+        public T before(S source, String name, T oldValue, T newValue)
         {
             try
             {
-                Object result = method.invoke(source, source, newValue);
-                return method.getReturnType() == Void.TYPE ? newValue : (T) result;
+                T result = delegate.before(source, name, oldValue, newValue);
+                return method.getReturnType() == Void.TYPE ? newValue : result;
             }
             catch (Exception e)
             {

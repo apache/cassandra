@@ -436,9 +436,7 @@ public class DatabaseDescriptor
     private static void setConfig(Supplier<Config> config)
     {
         conf = config.get();
-        confValueAccessors = ImmutableMap.copyOf(
-            withReplacementsLoader(
-                validatedPropertyLoader(p -> p.getAnnotation(Mutable.class) == null)).flatten(Config.class));
+        confValueAccessors = ImmutableMap.copyOf(withReplacementsLoader(validatedPropertyLoader()).flatten(Config.class));
     }
 
     private static void applyAll() throws ConfigurationException
@@ -997,12 +995,12 @@ public class DatabaseDescriptor
         }
     }
 
-    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(Config conf, DataRateSpec.LongBytesPerSecondBound value)
+    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbits(DataRateSpec.LongBytesPerSecondBound value)
     {
         return validateThroughputUpperBound(value, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
     }
 
-    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbytes(Config conf, DataRateSpec.LongBytesPerSecondBound value)
+    public static DataRateSpec.LongBytesPerSecondBound validateThroughputUpperBoundMbytes(DataRateSpec.LongBytesPerSecondBound value)
     {
         return validateThroughputUpperBound(value, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
     }
@@ -3113,7 +3111,7 @@ public class DatabaseDescriptor
         setProperty(ConfigFields.SNAPSHOT_LINKS_PER_SECOND, throttle);
     }
 
-    public static void validateValueIsPositive(Config conf, long value)
+    public static void validateValueIsPositive(long value)
     {
         if (value < 0)
             throw new ConfigurationException("Value must be positive", false);
@@ -3627,7 +3625,7 @@ public class DatabaseDescriptor
         return conf.repair_session_space.toMebibytes();
     }
 
-    public static DataStorageSpec.IntMebibytesBound validateRepairSessionSpace(Config conf, DataStorageSpec.IntMebibytesBound newValue)
+    public static DataStorageSpec.IntMebibytesBound validateRepairSessionSpace(DataStorageSpec.IntMebibytesBound newValue)
     {
         DataStorageSpec.IntMebibytesBound value0 = newValue == null ? new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB)) : newValue;
         if (value0.toMebibytes() < 1)
@@ -4777,12 +4775,12 @@ public class DatabaseDescriptor
 
     public static <T> ListenableProperty.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
     {
-        return addPropertyListener(name, clazz, p -> p.addBeforeHandler(ListenableProperty.Handler.consume(consumer)));
+        return addPropertyListener(name, clazz, p -> p.addBeforeListener(ListenableProperty.BeforeChangeListener.consume(consumer)));
     }
 
     public static <T> ListenableProperty.Remover addAfterChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
     {
-        return addPropertyListener(name, clazz, p -> p.addAfterHandler(ListenableProperty.Handler.consume(consumer)));
+        return addPropertyListener(name, clazz, p -> p.addAfterListener(ListenableProperty.AfterChangeListener.consume(consumer)));
     }
 
     @SuppressWarnings("unchecked")
@@ -4799,6 +4797,9 @@ public class DatabaseDescriptor
                                     return p;
                             })
                             .orElseThrow(() -> new PropertyNotFoundException(name));
+        if (property.getAnnotation(Mutable.class) == null)
+            throw new ConfigurationException("Unable to add a listener for read-only property: " + property.getName());
+
         if (!(property instanceof ListenableProperty))
             throw new ConfigurationException(String.format("Property '%s' is not listenable.", name));
 

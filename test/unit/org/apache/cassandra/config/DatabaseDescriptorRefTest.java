@@ -215,7 +215,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.GuardrailsOptions$TableProperties",
     "org.apache.cassandra.config.InheritingClass",
     "org.apache.cassandra.config.ListenableProperty",
-    "org.apache.cassandra.config.ListenableProperty$Handler",
+    "org.apache.cassandra.config.ListenableProperty$Listener",
     "org.apache.cassandra.config.ListenableProperty$Invoker",
     "org.apache.cassandra.config.ListenableProperty$PropertyValidateInvoker",
     "org.apache.cassandra.config.ListenableProperty$Remover",

@@ -612,11 +612,11 @@ public class DatabaseDescriptorTest
     {
         try
         {
-            DatabaseDescriptor.validateThroughputUpperBoundMbits(config, config.stream_throughput_outbound);
-            DatabaseDescriptor.validateThroughputUpperBoundMbits(config, config.inter_dc_stream_throughput_outbound);
-            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config, config.entire_sstable_stream_throughput_outbound);
-            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config, config.entire_sstable_inter_dc_stream_throughput_outbound);
-            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config, config.compaction_throughput);
+            DatabaseDescriptor.validateThroughputUpperBoundMbits(config.stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbits(config.inter_dc_stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config.entire_sstable_stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config.entire_sstable_inter_dc_stream_throughput_outbound);
+            DatabaseDescriptor.validateThroughputUpperBoundMbytes(config.compaction_throughput);
         }
         catch (ConfigurationException ex)
         {
