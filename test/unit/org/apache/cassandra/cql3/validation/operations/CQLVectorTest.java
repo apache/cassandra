@@ -51,6 +51,15 @@ public class CQLVectorTest extends CQLTester.InMemory
     }
 
     @Test
+    public void selectNonPk()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, [1, 2])");
+        assertRows(execute("SELECT * FROM %s WHERE value=[1, 2] ALLOW FILTERING"), row(0, list(1, 2)));
+    }
+
+    @Test
     public void insert()
     {
         Runnable test = () -> {
