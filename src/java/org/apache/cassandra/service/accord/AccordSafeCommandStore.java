@@ -305,7 +305,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 if (rangeUpdates != null && rangeUpdates.type(liveCommand.txnId()) == CommandsForRanges.TxnType.LOCAL)
                     return attrs;
                 CommandsForRanges.Listener listener = new CommandsForRanges.Listener(liveCommand.txnId());
-                liveCommand.addListener(listener);
+                attrs = attrs.mutable().addListener(listener);
                 // trigger to allow it to run right away
                 listener.onChange(this, liveCommand);
                 break;
