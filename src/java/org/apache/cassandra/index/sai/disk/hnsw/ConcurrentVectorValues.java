@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,9 +74,15 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
         writer.writeInt(size());
         writer.writeInt(dimension());
 
+        // we will re-use this buffer
+        var byteBuffer = ByteBuffer.allocate(dimension() * Float.BYTES);
+        var floatBuffer = byteBuffer.asFloatBuffer();
+
         for (var i = 0; i < size(); i++) {
-            var buffer = serializer.serialize(vectorValue(i));
-            writer.write(buffer);
+            floatBuffer.put(vectorValue(i));
+            // bytebuffer and floatBuffer track their positions separately, and we never changed BB's, so don't need to rewind it
+            floatBuffer.rewind();
+            writer.write(byteBuffer);
         }
     }
 
