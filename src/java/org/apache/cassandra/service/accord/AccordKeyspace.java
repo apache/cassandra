@@ -686,11 +686,6 @@ public class AccordKeyspace
             this.callback = callback;
         }
 
-        protected boolean shouldContinue(UntypedResultSet.Row lastRow)
-        {
-            return true;
-        }
-
         protected abstract UntypedResultSet query(UntypedResultSet.Row lastSeen);
 
         public final void schedule()
@@ -718,15 +713,8 @@ public class AccordKeyspace
                     callback.onNext(row);
                     lastRow = row;
                 }
-                if (shouldContinue(lastRow))
-                {
-                    lastSeen = lastRow;
-                    schedule();
-                }
-                else
-                {
-                    lastSeen = null;
-                }
+                lastSeen = lastRow;
+                schedule();
             }
             catch (Throwable t)
             {
