@@ -95,9 +95,9 @@ public final class VectorType<T> extends AbstractType<List<T>>
                           new VariableLengthSerializer();
     }
 
-    public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimention)
+    public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimension)
     {
-        Key key = new Key(elements, dimention);
+        Key key = new Key(elements, dimension);
         return (VectorType<T>) instances.computeIfAbsent(key, Key::create);
     }
 
