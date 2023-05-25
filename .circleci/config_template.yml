@@ -3360,7 +3360,7 @@ commands:
                   # run the test
                   status="passes"
                   if !( set -o pipefail && \
-                        ant <<parameters.target>> $name_arg $methods_arg $vnodes_args -Dno-build-test=true | \
+                        ant <<parameters.target>> $name_arg $methods_arg $vnodes_args -Dno-build-test=true -Dno-checkstyle=true | \
                         tee stdout.txt \
                       ); then
                     status="fails"
@@ -3496,7 +3496,7 @@ commands:
 
                   # run the test
                   status="passes"
-                  if !( set -o pipefail && ant $target $name $methods $vnodes_args -Dno-build-test=true | tee stdout.txt ); then
+                  if !( set -o pipefail && ant $target $name $methods $vnodes_args -Dno-build-test=true -Dno-checkstyle=true | tee stdout.txt ); then
                     status="fails"
                     exit_code=1
                   fi
