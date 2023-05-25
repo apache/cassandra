@@ -221,6 +221,9 @@ public class CommandsForRanges
 
         public T mergeRemote(TxnId txnId, Ranges ranges, BiFunction<? super Ranges, ? super Ranges, ? extends Ranges> remappingFunction)
         {
+            // TODO (durability) : remote ranges are not made durable for now.  If this command is stored in commands table,
+            // then we have a NotWitnessed command with Ranges, which is not expected in accord.local.Command.NotWitnessed.
+            // To properly handle this, the long term storage looks like it will need to store these as well.
             Invariants.checkArgument(!localTxns.contains(txnId), "Attempted to merge remote txn %s, but this is a local txn", txnId);
             // accord.impl.CommandTimeseries.mapReduce does the check on status and deps type, and NotWitnessed should match the semantics hard coded in InMemorySafeStore...
             // in that store, the remote history is only ever included when minStauts == null and deps == ANY... but mapReduce sees accord.local.Status.KnownDeps.hasProposedOrDecidedDeps == false
