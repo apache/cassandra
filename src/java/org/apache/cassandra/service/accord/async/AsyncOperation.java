@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -32,7 +33,6 @@ import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.primitives.RoutableKey;
-import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
@@ -57,7 +57,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     static class Context
     {
         final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
-        final HashMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys = new HashMap<>();
+        final TreeMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys = new TreeMap<>();
 
         void releaseResources(AccordCommandStore commandStore)
         {
@@ -145,7 +145,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
-        return new AsyncLoader(commandStore, txnIds(preLoadContext), toRoutableKeys(preLoadContext.keys()));
+        return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys());
     }
 
     @VisibleForTesting
@@ -268,7 +268,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
     }
 
-
     @Override
     public void run()
     {
@@ -305,19 +304,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         Invariants.checkArgument(this.callback == null);
         this.callback = callback;
         commandStore.executor().execute(this);
-    }
-
-    private static Iterable<RoutableKey> toRoutableKeys(Seekables<?, ?> keys)
-    {
-        switch (keys.domain())
-        {
-            default: throw new AssertionError("Unexpected domain: " + keys.domain());
-            case Key:
-                return (Iterable<RoutableKey>) keys;
-            case Range:
-                // TODO (required): implement
-                throw new UnsupportedOperationException();
-        }
     }
 
     static class ForFunction<R> extends AsyncOperation<R>
