@@ -308,7 +308,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         return sb.toString();
     }
 
-    protected void check(List<?> values)
+    private void check(List<?> values)
     {
         if (values.size() != dimension)
             throw new MarshalException(String.format("Required %d elements, but saw %d", dimension, values.size()));
