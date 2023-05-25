@@ -123,7 +123,6 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
-        // TODO this is inefficient when range covers most of the segment. Can we change HNSW bit set to filter on row id instead of graph ordinal?
         SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
         for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
         {

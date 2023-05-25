@@ -327,8 +327,6 @@ public class VectorTypeTest extends SAITester
     @Test
     public void nullVectorTest() throws Throwable
     {
-        // check that we correctly get back the two rows with str_val=B even when those are not
-        // the closest rows to the query vector
         createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -346,14 +344,12 @@ public class VectorTypeTest extends SAITester
         result = execute("SELECT * FROM %s WHERE str_val = 'A' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(1);
 
-        // TODO: When flushing some rows with null vectors, the on-disk hnsw failed the same way as UCS splitting memtable.
-        //  It expects rows in graph to be the same as all seen rows.
-//        flush();
-//
-//        result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
-//        assertThat(result).hasSize(0);
-//
-//        result = execute("SELECT * FROM %s WHERE str_val = 'A' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
-//        assertThat(result).hasSize(1);
+        flush();
+
+        result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(0);
+
+        result = execute("SELECT * FROM %s WHERE str_val = 'A' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        assertThat(result).hasSize(1);
     }
 }
