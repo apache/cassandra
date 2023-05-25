@@ -23,6 +23,13 @@ import org.apache.commons.lang3.StringUtils;
 public class BinLogOptions
 {
     public String archive_command = StringUtils.EMPTY;
+
+    /**
+     * enable if a user should be able to set the archive command via nodetool/jmx
+     *
+     * do not make this a hotprop.
+     */
+    public boolean allow_nodetool_archive_command = false;
     /**
      * How often to roll BinLog segments so they can potentially be reclaimed. Available options are:
      * MINUTELY, HOURLY, DAILY, LARGE_DAILY, XLARGE_DAILY, HUGE_DAILY.
