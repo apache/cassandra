@@ -85,6 +85,8 @@ public class CassandraOnHeapHnsw<T>
 
     public long add(ByteBuffer term, T key)
     {
+        assert term != null && term.remaining() != 0;
+
         var initialBytesUsed = ramBytesUsed();
 
         var vector = serializer.deserialize(term);
