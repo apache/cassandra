@@ -121,7 +121,7 @@ public class IsolatedJmx
             jmxRmiServer = new RMIJRMPServerImpl(rmiPort, clientSocketFactory, serverSocketFactory,
                                                  env);
             JMXServiceURL serviceURL = new JMXServiceURL("rmi", hostname, rmiPort);
-            jmxConnectorServer = new RMIConnectorServer(serviceURL, env, jmxRmiServer, wrapper.getMbs());
+            jmxConnectorServer = new RMIConnectorServer(serviceURL, env, jmxRmiServer, wrapper.getMBeanServer());
 
             jmxConnectorServer.start();
 

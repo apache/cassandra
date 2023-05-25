@@ -51,13 +51,13 @@ public interface MBeanWrapper
         // mbean wrapper even if we start off with no-op, so it can be switched later
         if (Boolean.getBoolean(DTEST_IS_IN_JVM_DTEST))
         {
-            return new DelegatingMbeanWrapper(getmBeanWrapper());
+            return new DelegatingMbeanWrapper(getMBeanWrapper());
         }
 
-        return getmBeanWrapper();
+        return getMBeanWrapper();
     }
 
-    static MBeanWrapper getmBeanWrapper()
+    static MBeanWrapper getMBeanWrapper()
     {
         if (Boolean.getBoolean(IS_DISABLED_MBEAN_REGISTRATION))
         {
@@ -174,7 +174,7 @@ public interface MBeanWrapper
 
     Set<ObjectName> queryNames(ObjectName name, QueryExp query);
 
-    MBeanServer getMbs();
+    MBeanServer getMBeanServer();
 
     class NoOpMBeanWrapper implements MBeanWrapper
     {
@@ -185,7 +185,7 @@ public interface MBeanWrapper
         public void unregisterMBean(ObjectName mbeanName, OnException onException) {}
         public void unregisterMBean(String mbeanName, OnException onException) {}
         public Set<ObjectName> queryNames(ObjectName name, QueryExp query) {return Collections.emptySet(); }
-        public MBeanServer getMbs() { return null; }
+        public MBeanServer getMBeanServer() { return null; }
     }
 
     class PlatformMBeanWrapper implements MBeanWrapper
@@ -234,7 +234,7 @@ public interface MBeanWrapper
             return mbs.queryNames(name, query);
         }
 
-        public MBeanServer getMbs()
+        public MBeanServer getMBeanServer()
         {
             return mbs;
         }
@@ -293,7 +293,7 @@ public interface MBeanWrapper
             return mbs.queryNames(name, query);
         }
 
-        public MBeanServer getMbs()
+        public MBeanServer getMBeanServer()
         {
             return mbs;
         }
@@ -379,9 +379,9 @@ public interface MBeanWrapper
             return delegate.queryNames(name, query);
         }
 
-        public MBeanServer getMbs()
+        public MBeanServer getMBeanServer()
         {
-            return delegate.getMbs();
+            return delegate.getMBeanServer();
         }
     }
 }
