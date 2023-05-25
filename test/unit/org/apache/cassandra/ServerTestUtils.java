@@ -257,6 +257,13 @@ public final class ServerTestUtils
 
     public static void initCMS()
     {
+        // Effectively disable automatic snapshots using AtomicLongBackedProcessopr and LocaLLog.Sync interacts
+        // badly with submitting SealPeriod transformations from the log listener. In this configuration, SealPeriod
+        // commits performed on NonPeriodicTasks threads end up actually performing the transformations as well as
+        // calling the pre and post commit listeners, which is not threadsafe. In a non-test setup the processing of
+        // log entries is always done by the dedicated log follower thread.
+        DatabaseDescriptor.setMetadataSnapshotFrequency(Integer.MAX_VALUE);
+
         Function<LocalLog, Processor> processorFactory = AtomicLongBackedProcessor::new;
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         boolean addListeners = true;
