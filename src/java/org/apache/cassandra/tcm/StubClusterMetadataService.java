@@ -32,6 +32,11 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 public class StubClusterMetadataService extends ClusterMetadataService
 {
 
+    public static StubClusterMetadataService forClientTools()
+    {
+        return new StubClusterMetadataService(new ClusterMetadata(DatabaseDescriptor.getPartitioner()));
+    }
+
     public static StubClusterMetadataService forTesting()
     {
         return new StubClusterMetadataService(null,

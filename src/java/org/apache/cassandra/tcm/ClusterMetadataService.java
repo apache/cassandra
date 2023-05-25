@@ -205,6 +205,15 @@ public class ClusterMetadataService
         ClusterMetadataService.setInstance(cms);
     }
 
+    @SuppressWarnings("resource")
+    public static void initializeForClients()
+    {
+        if (instance != null)
+            return;
+
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools());
+    }
+
     public boolean isCurrentMember(InetAddressAndPort peer)
     {
         return ClusterMetadata.current().isCMSMember(peer);

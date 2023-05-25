@@ -65,6 +65,7 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
@@ -120,6 +121,7 @@ public class CQLSSTableWriter implements Closeable
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ClusterMetadataService.initializeForClients();
     }
 
     private final AbstractSSTableSimpleWriter writer;
@@ -569,7 +571,6 @@ public class CQLSSTableWriter implements Closeable
                                      CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getKey());
             synchronized (CQLSSTableWriter.class)
             {
-
                 String keyspaceName = schemaStatement.keyspace();
 
                 Schema.instance.submit(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspaceName,
@@ -579,7 +580,12 @@ public class CQLSSTableWriter implements Closeable
                                                                                                  Types.none(),
                                                                                                  UserFunctions.none()), true));
 
-                KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
+                KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspaceName,
+                                                               KeyspaceParams.simple(1),
+                                                               Tables.none(),
+                                                               Views.none(),
+                                                               Types.none(),
+                                                               Functions.none());
 
                 TableMetadata tableMetadata = ksm.tables.getNullable(schemaStatement.table());
                 if (tableMetadata == null)
