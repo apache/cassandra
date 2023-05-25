@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -35,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -47,6 +47,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -71,6 +72,9 @@ import static org.apache.cassandra.tcm.Epoch.FIRST;
 public class PartitionUpdate extends AbstractBTreePartition
 {
     protected static final Logger logger = LoggerFactory.getLogger(PartitionUpdate.class);
+
+    private static final String logMessageTemplate = "Mismatching schema version for {}.{}; Our version: {} Coordinator version: {}";
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
 
     public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer();
 
@@ -739,12 +743,12 @@ public class PartitionUpdate extends AbstractBTreePartition
             Epoch remoteVersion = Epoch.EMPTY;
             if (version >= MessagingService.VERSION_50)
                 remoteVersion = Epoch.serializer.deserialize(in);
-            if (remoteVersion != null && remoteVersion.isBefore(FIRST) && !remoteVersion.equals(metadata.epoch))
+            if (remoteVersion != null && !remoteVersion.isBefore(FIRST) && remoteVersion.isAfter(metadata.epoch))
             {
-                // This exception should never be thrown under normal condition. By the time partition update is serialized,
-                // replica should be able to fully catch up with coordinator.
-                throw new IncompatibleSchemaException(String.format("Incompatible table schema version. Our version: %s. Coordinator version: %s.",
-                                                                    metadata.epoch, remoteVersion));
+                // TODO we can't issue a catch up at this point yet because this is called on messaging event loop. We
+                //  need for the coordinator to handle an incompatible schema response by retrying, perhaps after
+                //  stimulating a catchup via a sending some kind of ping (maybe CurrentEpochRequest)
+                noSpamLogger.info(logMessageTemplate, metadata.keyspace, metadata.name, metadata.epoch, remoteVersion);
             }
 
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, flag);
