@@ -277,7 +277,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
             terms.add(elementType.fromJSONObject(element));
         }
 
-        return new Vectors.DelayedValue(this, terms);
+        return new Vectors.DelayedValue<>(this, terms);
     }
 
     @Override
