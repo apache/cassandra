@@ -165,7 +165,7 @@ public class Vectors
 
                 buffers.add(bytes);
             }
-            return new Value(type, buffers);
+            return new Value<>(type, buffers);
         }
 
         public void addFunctionsTo(List<Function> functions)
