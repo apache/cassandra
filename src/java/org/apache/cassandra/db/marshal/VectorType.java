@@ -76,7 +76,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
     public final AbstractType<T> elementType;
     public final int dimension;
-    protected final TypeSerializer<T> elementSerializer;
+    private final TypeSerializer<T> elementSerializer;
     private final int valueLengthIfFixed;
     private final VectorSerializer serializer;
 
