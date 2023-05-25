@@ -300,14 +300,15 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 Range range = seekable.asRange();
                 if (!ranges.intersects(range))
                     return attrs;
-                // Range txn tracks at the Ranges level and not the Range level; this means multiple attempts to add a listener are going to happen.
-                // The listener defines equality based off the TxnId, and addListener uses set semantics, so multiple attempts to add a listener will be fine.
-                if (rangeUpdates != null && rangeUpdates.type(liveCommand.txnId()) == CommandsForRanges.TxnType.LOCAL)
-                    return attrs;
-                CommandsForRanges.Listener listener = new CommandsForRanges.Listener(liveCommand.txnId());
-                attrs = attrs.mutable().addListener(listener);
-                // trigger to allow it to run right away
-                listener.onChange(this, liveCommand);
+                // TODO (api) : cleaner way to deal with this?  This is tracked at the Ranges level and not Range level
+                // but we register at the Range level...
+                if (!attrs.durableListeners().stream().anyMatch(l -> l instanceof CommandsForRanges.Listener))
+                {
+                    CommandsForRanges.Listener listener = new CommandsForRanges.Listener(liveCommand.txnId());
+                    attrs = attrs.mutable().addListener(listener);
+                    // trigger to allow it to run right away
+                    listener.onChange(this, liveCommand);
+                }
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown domain: " + seekable.domain());
