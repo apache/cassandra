@@ -644,6 +644,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         liveEndpoints.remove(endpoint);
+        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         MessagingService.instance().versions.reset(endpoint);
         quarantineEndpoint(endpoint);
@@ -1067,7 +1068,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                             // to make sure that the previous read data was correct
                             logger.info("Race condition marking {} as a FatClient; ignoring", endpoint);
                             return;
-                        }                        
+                        }
                         removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
                         evictFromMembership(endpoint); // can get rid of the state immediately
                     });
@@ -1330,6 +1331,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
 
             @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
+            }
+
+            @Override
             public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
             {
                 inflightEcho.remove(addr);
@@ -1387,6 +1394,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         localState.markDead();
         liveEndpoints.remove(addr);
+        inflightEcho.remove(addr);
         unreachableEndpoints.put(addr, System.nanoTime());
     }
 
