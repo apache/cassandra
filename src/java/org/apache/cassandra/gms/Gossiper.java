@@ -1304,10 +1304,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
-        if (liveEndpoints.contains(addr))
-        {
-            return;
-        }
         if (inflightEcho.contains(addr))
         {
             return;
