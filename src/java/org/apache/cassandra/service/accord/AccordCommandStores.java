@@ -29,12 +29,14 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.local.ShardDistributor;
+import accord.primitives.Range;
 import accord.primitives.Routables;
 import accord.topology.Topology;
 import accord.utils.MapReduceConsume;
 import accord.utils.RandomSource;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.journal.AsyncWriteCallback;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
 public class AccordCommandStores extends CommandStores
 {
@@ -94,6 +96,26 @@ public class AccordCommandStores extends CommandStores
                 mapReduceConsume.accept(null, error);
             }
         });
+    }
+
+    @Override
+    protected boolean shouldBootstrap(Node node, Topology previous, Topology updated, Range range)
+    {
+        if (!super.shouldBootstrap(node, previous, updated, range))
+            return false;
+        // we see new ranges when a new keyspace is added, so avoid bootstrap in these cases
+        return contains(previous, ((AccordRoutingKey)  range.start()).keyspace());
+    }
+
+    private static boolean contains(Topology previous, String searchKeyspace)
+    {
+        for (Range range : previous.ranges())
+        {
+            String keyspace = ((AccordRoutingKey)  range.start()).keyspace();
+            if (keyspace.equals(searchKeyspace))
+                return true;
+        }
+        return false;
     }
 
     private long cacheSize;
