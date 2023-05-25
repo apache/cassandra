@@ -74,7 +74,7 @@ public class AbstractTypeTest
         CassandraRelevantProperties.TEST_BLOB_SHARED_SEED.setInt(42);
     }
 
-    //TODO
+    // TODO
     // isCompatibleWith/isValueCompatibleWith/isSerializationCompatibleWith,
     // withUpdatedUserType/expandUserTypes/referencesDuration - types that recursive check types
     // getMaskedValue

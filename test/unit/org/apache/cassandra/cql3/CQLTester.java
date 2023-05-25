@@ -1569,7 +1569,7 @@ public abstract class CQLTester
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
                     if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
                     {
-                        //TODO confirm this isn't a bug...
+                        // TODO confirm this isn't a bug...
                         // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
                         // If the user writes a null for each column, then the whole tuple is null
                         if (column.type.isUDT() && actualValue == null)
