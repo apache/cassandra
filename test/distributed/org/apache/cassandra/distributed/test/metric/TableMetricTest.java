@@ -281,7 +281,7 @@ public class TableMetricTest extends TestBaseImpl
         }
 
         @Override
-        public MBeanServer getMbs()
+        public MBeanServer getMBeanServer()
         {
             return null;
         }
