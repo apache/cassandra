@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -30,7 +31,9 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.RAMStringIndexer;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
 import org.apache.cassandra.index.sai.disk.io.BytesRefUtil;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.BKDTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
@@ -38,8 +41,10 @@ import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.StringHelper;
 
 /**
  * Creates an on-heap index data structure to be flushed to an SSTable index.
@@ -160,6 +165,42 @@ public abstract class SegmentBuilder
             {
                 return writer.writeAll(ramIndexer.getTermsWithPostings());
             }
+        }
+    }
+
+    public static class VectorSegmentBuilder extends SegmentBuilder
+    {
+        private final CassandraOnHeapHnsw<Integer> graphIndex;
+
+        public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
+        {
+            super(termComparator, limiter);
+            graphIndex = new CassandraOnHeapHnsw<>(termComparator, indexWriterConfig);
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return graphIndex.isEmpty();
+        }
+
+        @Override
+        protected long addInternal(ByteBuffer term, int segmentRowId)
+        {
+            return graphIndex.add(term, segmentRowId);
+        }
+
+        @Override
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+        {
+            graphIndex.writeData(indexDescriptor, indexContext, p -> p);
+            SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
+
+            // we don't care about root/offset/length for vector. segmentId is used in searcher
+            Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
+            metadataMap.put(IndexComponent.VECTOR, 0, 0, 0, vectorConfigs);
+
+            return metadataMap;
         }
     }
 

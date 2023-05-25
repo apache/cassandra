@@ -22,17 +22,18 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.Nullable;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
@@ -40,32 +41,31 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
+import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.Bits;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.lucene.util.Bits;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
+    private final Logger logger = LoggerFactory.getLogger(VectorMemtableIndex.class);
+
     private final IndexContext indexContext;
-    private final CassandraOnHeapHnsw graph;
+    private final CassandraOnHeapHnsw<PrimaryKey> graph;
     private final LongAdder writeCount = new LongAdder();
 
     private PrimaryKey minimumKey;
     private PrimaryKey maximumKey;
 
-    public VectorMemtableIndex(IndexContext indexContext) {
-        this.indexContext = indexContext;
-        this.graph = new CassandraOnHeapHnsw(indexContext);
-    }
-
-    public void index(PrimaryKey key, float[] vector)
+    public VectorMemtableIndex(IndexContext indexContext)
     {
-        graph.put(key, VectorType.Serializer.getByteBuffer(vector));
+        this.indexContext = indexContext;
+        this.graph = new CassandraOnHeapHnsw<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
     }
 
     @Override
@@ -75,11 +75,15 @@ public class VectorMemtableIndex implements MemtableIndex
             return;
 
         var primaryKey = indexContext.keyFactory().create(key, clustering);
-        index(primaryKey, value);
+        long allocatedBytes = index(primaryKey, value);
+        memtable.markExtraOnHeapUsed(allocatedBytes, opGroup);
     }
 
-    private void index(PrimaryKey primaryKey, ByteBuffer value)
+    private long index(PrimaryKey primaryKey, ByteBuffer value)
     {
+        if (value == null || value.remaining() == 0)
+            return 0;
+
         if (minimumKey == null)
             minimumKey = primaryKey;
         else if (primaryKey.compareTo(minimumKey) < 0)
@@ -90,7 +94,7 @@ public class VectorMemtableIndex implements MemtableIndex
             maximumKey = primaryKey;
 
         writeCount.increment();
-        graph.put(primaryKey, value);
+        return graph.add(value, primaryKey);
     }
 
     @Override
@@ -176,9 +180,9 @@ public class VectorMemtableIndex implements MemtableIndex
         return null;
     }
 
-    public void writeData(IndexDescriptor descriptor, IndexContext context, Map<PrimaryKey, Integer> keyToRowId) throws IOException
+    public void writeData(IndexDescriptor indexDescriptor, RowMapping rowMapping) throws IOException
     {
-        graph.write(descriptor, context, keyToRowId);
+        graph.writeData(indexDescriptor, indexContext, rowMapping::get);
     }
 
     private class KeyRangeFilteringBits implements Bits
@@ -191,9 +195,9 @@ public class VectorMemtableIndex implements MemtableIndex
         }
 
         @Override
-        public boolean get(int index)
+        public boolean get(int ordinal)
         {
-            var keys = graph.keysFromOrdinal(index);
+            var keys = graph.keysFromOrdinal(ordinal);
             return keys.stream().anyMatch(k -> keyRange.contains(k.partitionKey()));
         }
 

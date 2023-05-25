@@ -128,7 +128,6 @@ public class QueryViewBuilder
     /**
      * Group the expressions and corresponding indexes by sstable
      */
-    // FIXME this should collate by Segment, not by sstable
     private Map<SSTableReader, List<IndexExpression>> getQueryView(Collection<Expression> expressions)
     {
         Map<SSTableReader, List<IndexExpression>> queryView = new HashMap<>();

@@ -51,6 +51,18 @@ public class RowMapping
 
         @Override
         public void add(PrimaryKey key, long sstableRowId) {}
+
+        @Override
+        public int get(PrimaryKey key)
+        {
+            return -1;
+        }
+
+        @Override
+        public int size()
+        {
+            return 0;
+        }
     };
 
     private final MemtableTrie<Long> rowMapping = new MemtableTrie<>(BufferType.OFF_HEAP);
@@ -61,6 +73,8 @@ public class RowMapping
     public PrimaryKey maxKey;
 
     public long maxSegmentRowId = -1;
+
+    public int count;
 
     private RowMapping()
     {}
@@ -145,10 +159,22 @@ public class RowMapping
         if (minKey == null)
             minKey = key;
         maxKey = key;
+        count++;
+    }
+
+    public int get(PrimaryKey key)
+    {
+        Long sstableRowId = rowMapping.get(v -> key.asComparableBytes(v));
+        return sstableRowId == null ? -1 : Math.toIntExact(sstableRowId);
+    }
+
+    public int size()
+    {
+        return count;
     }
 
     public boolean hasRows()
     {
-        return maxSegmentRowId >= 0;
+        return size() > 0;
     }
 }

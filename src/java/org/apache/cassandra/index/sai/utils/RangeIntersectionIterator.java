@@ -147,6 +147,11 @@ public class RangeIntersectionIterator<T extends Comparable<T>> extends RangeIte
         return builder(10, limit);
     }
 
+    public static <T extends Comparable<T>> Builder<T> sizedBuilder(int size)
+    {
+        return builder(size, INTERSECTION_CLAUSE_LIMIT);
+    }
+
     public static <T extends Comparable<T>> Builder<T> builder()
     {
         return builder(INTERSECTION_CLAUSE_LIMIT);

@@ -21,67 +21,51 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
-/**
- * This class needs to
- * (1) Map vectors in the HnswGraph, to ordinals
- * (2) Map vectors to row keys -- potentially more than one row has a given vector value
- * (3) Map ordinals to row keys (this is what allows us to search the graph)
- * (4) When writing to disk, remap row keys to row IDs, while retaining the vector-to-row mapping
- * (5) Do all this in a thread-safe api
- */
-@SuppressWarnings("com.google.common.annotations.Beta")
-public class CassandraOnHeapHnsw
+public class CassandraOnHeapHnsw<T>
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapHnsw.class);
-
-    final ByteBufferVectorValues vectorValues;
+    private final ConcurrentVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
-    private final AtomicInteger cachedDimensions = new AtomicInteger();
-    private final TypeSerializer<float[]> serializer;
+    private final VectorType.Serializer serializer;
     private final VectorSimilarityFunction similarityFunction;
-    final Map<float[], VectorPostings> postingsMap;
+    final Map<float[], VectorPostings<T>> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
-    public CassandraOnHeapHnsw(IndexContext indexContext)
+    public CassandraOnHeapHnsw(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
-        logger.info("Creating hnsw index " + System.identityHashCode(this));
-        vectorValues = new ByteBufferVectorValues();
-        serializer = (TypeSerializer<float[]>) indexContext.getValidator().getSerializer();
-        similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
+        serializer = (VectorType.Serializer) termComparator.getSerializer();
+        vectorValues = new ConcurrentVectorValues(serializer);
+        similarityFunction = indexWriterConfig.getSimilarityFunction();
         postingsMap = new ConcurrentHashMap<>();
 
         try
         {
             builder = ConcurrentHnswGraphBuilder.create(vectorValues,
-                                            VectorEncoding.FLOAT32,
-                                            similarityFunction,
-                                            indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
-                                            indexContext.getIndexWriterConfig().getConstructionBeamWidth());
+                                                        VectorEncoding.FLOAT32,
+                                                        similarityFunction,
+                                                        indexWriterConfig.getMaximumNodeConnections(),
+                                                        indexWriterConfig.getConstructionBeamWidth());
         }
         catch (IOException e)
         {
@@ -89,9 +73,23 @@ public class CassandraOnHeapHnsw
         }
     }
 
-    public void put(PrimaryKey key, ByteBuffer value)
+    public int size()
     {
-        var vector = serializer.deserialize(value);
+        return vectorValues.size();
+    }
+
+    public boolean isEmpty()
+    {
+        return size() == 0;
+    }
+
+    public long add(ByteBuffer term, T key)
+    {
+        assert term != null && term.remaining() != 0;
+
+        var initialBytesUsed = ramBytesUsed();
+
+        var vector = serializer.deserialize(term);
         var postings = postingsMap.computeIfAbsent(vector, v -> {
             var ordinal = nextOrdinal.getAndIncrement();
             vectorValues.add(ordinal, vector);
@@ -103,150 +101,77 @@ public class CassandraOnHeapHnsw
             {
                 throw new RuntimeException(e);
             }
-            return new VectorPostings(ordinal);
+            return new VectorPostings<>(ordinal);
         });
         postings.append(key);
+
+        // hnsw is too much of a black box for us to be able to estimate how many additional bytes are used other than this way
+        return ramBytesUsed() - initialBytesUsed;
     }
 
-    public boolean isEmpty()
+    public Collection<T> keysFromOrdinal(int node)
     {
-        return vectorValues.size() == 0;
-    }
-
-    public Collection<PrimaryKey> keysFromOrdinal(int node)
-    {
-        return postingsMap.get(vectorValues.vectorValue(node)).keys;
+        return postingsMap.get(vectorValues.vectorValue(node)).postings;
     }
 
     /**
-     * @return PrimaryKeys associated with the topK vectors near the query
+     * @return keys (PrimaryKey or segment row id) associated with the topK vectors near the query
      */
-    public PriorityQueue<PrimaryKey> search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
+    public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept, int visitedLimit)
     {
+        // search() errors out when an empty graph is passed to it
+        if (vectorValues.size() == 0)
+            return new PriorityQueue<>();
+
         NeighborQueue queue;
         try
         {
             queue = HnswGraphSearcher.search(queryVector,
-                                             topK,
+                                             limit,
                                              vectorValues,
                                              VectorEncoding.FLOAT32,
                                              similarityFunction,
                                              builder.getGraph().getView(),
-                                             acceptBits,
-                                             vistLimit);
+                                             toAccept,
+                                             visitedLimit);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
-        var pq = new PriorityQueue<PrimaryKey>();
+        PriorityQueue<T> keyQueue = new PriorityQueue<>();
         while (queue.size() > 0)
         {
-            for (var pk : keysFromOrdinal(queue.pop()))
-            {
-                pq.add(pk);
-            }
+            keyQueue.addAll(keysFromOrdinal(queue.pop()));
         }
-        return pq;
+        return keyQueue;
+    }
+
+    public void writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<T, Integer> postingTransformer) throws IOException
+    {
+        try (var vectorsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext));
+             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext)))
+        {
+            vectorValues.write(vectorsOutput.asSequentialWriter());
+            new VectorPostingsWriter<T>().writePostings(postingsOutput.asSequentialWriter(), vectorValues, postingsMap, postingTransformer);
+            new HnswGraphWriter(new ExtendedConcurrentHnswGraph(builder.getGraph())).write(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext));
+        }
     }
 
     public long ramBytesUsed()
     {
-        return builder.getGraph().ramBytesUsed(); // TODO close enough?
+        return postingsBytesUsed() + vectorValues.ramBytesUsed() + builder.getGraph().ramBytesUsed();
     }
 
-    public int size()
+    private long postingsBytesUsed()
     {
-        return vectorValues.size();
+        // we already count the float[] vector in vectorValues, so leave it out here
+        return RamEstimation.concurrentHashMapRamUsed(postingsMap.size())
+               + postingsMap.values().stream().mapToLong(VectorPostings::ramBytesUsed).sum();
     }
 
-    int rowCount()
+    private long exactRamBytesUsed()
     {
-        return postingsMap.values().stream().mapToInt(p -> p.keys.size()).sum();
-    }
-
-    private void writeGraph(File file) throws IOException
-    {
-        new HnswGraphWriter(new ExtendedConcurrentHnswGraph(builder.getGraph())).write(file);
-    }
-
-    // TODO should we just save references to the vectors in the sstable itself?
-    private void writeVectors(File file) throws IOException
-    {
-        try (var iow = IndexFileUtils.instance.openOutput(file)) {
-            var out = iow.asSequentialWriter();
-            out.writeInt(vectorValues.size());
-            out.writeInt(vectorValues.dimension());
-
-            for (var i = 0; i < vectorValues.size(); i++) {
-                var vector = vectorValues.vectorValue(i);
-                out.write(serializer.serialize(vector));
-            }
-        }
-    }
-
-    public void write(IndexDescriptor descriptor, IndexContext context, Map<PrimaryKey, Integer> keyToRowId) throws IOException
-    {
-        writeVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-        OnDiskOrdinalsMap.writeOrdinalToRowMapping(this, descriptor.fileFor(IndexComponent.POSTING_LISTS, context), keyToRowId);
-        writeGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context));
-    }
-
-    static class VectorPostings
-    {
-        public final int ordinal;
-        public final List<PrimaryKey> keys;
-
-        private VectorPostings(int ordinal)
-        {
-            this.ordinal = ordinal;
-            // we expect that the overwhelmingly most common cardinality will be 1, so optimize for reads
-            keys = new CopyOnWriteArrayList<>();
-        }
-
-        public void append(PrimaryKey key)
-        {
-            keys.add(key);
-        }
-    }
-
-    class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
-    {
-        private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
-
-        @Override
-        public int size()
-        {
-            return values.size();
-        }
-
-        @Override
-        public int dimension()
-        {
-            int i = cachedDimensions.get();
-            if (i == 0)
-            {
-                i = vectorValue(0).length;
-                cachedDimensions.set(i);
-            }
-            return i;
-        }
-
-        @Override
-        public float[] vectorValue(int i)
-        {
-            return values.get(i);
-        }
-
-        public void add(int ordinal, float[] vector)
-        {
-            values.put(ordinal, vector);
-        }
-
-        @Override
-        public RandomAccessVectorValues<float[]> copy()
-        {
-            return this;
-        }
+        return ObjectSizes.measureDeep(this);
     }
 }

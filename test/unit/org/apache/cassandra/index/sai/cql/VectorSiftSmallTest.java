@@ -52,6 +52,7 @@ public class VectorSiftSmallTest extends SAITester
         // Create table and index
         createTable("CREATE TABLE %s (pk int, val float vector[128], PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
 
         insertVectors(baseVectors);
         double memoryRecall = testRecall(queryVectors, groundTruth, true); // memtable hnsw is threadsafe
@@ -59,7 +60,7 @@ public class VectorSiftSmallTest extends SAITester
 
         flush();
         var diskRecall = testRecall(queryVectors, groundTruth, false); // on disk hnsw is not threadsafe
-        assertEquals(memoryRecall, diskRecall, 0.0000001);
+        assertTrue(diskRecall > 0.975);
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException

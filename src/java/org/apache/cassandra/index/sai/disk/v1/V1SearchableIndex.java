@@ -213,6 +213,9 @@ public class V1SearchableIndex implements SearchableIndex
 
         for (SegmentMetadata metadata : metadatas)
         {
+            String minTerm = indexContext.isVector() ? "N/A" : indexContext.getValidator().getSerializer().deserialize(metadata.minTerm).toString();
+            String maxTerm = indexContext.isVector() ? "N/A" : indexContext.getValidator().getSerializer().deserialize(metadata.maxTerm).toString();
+
             dataset.row(sstable.metadata().keyspace, indexContext.getIndexName(), sstable.getFilename(), metadata.segmentRowIdOffset)
                    .column(TABLE_NAME, sstable.descriptor.cfname)
                    .column(COLUMN_NAME, indexContext.getColumnName())
@@ -221,8 +224,8 @@ public class V1SearchableIndex implements SearchableIndex
                    .column(MAX_SSTABLE_ROW_ID, metadata.maxSSTableRowId)
                    .column(START_TOKEN, tokenFactory.toString(metadata.minKey.partitionKey().getToken()))
                    .column(END_TOKEN, tokenFactory.toString(metadata.maxKey.partitionKey().getToken()))
-                   .column(MIN_TERM, indexContext.getValidator().getSerializer().deserialize(metadata.minTerm).toString())
-                   .column(MAX_TERM, indexContext.getValidator().getSerializer().deserialize(metadata.maxTerm).toString())
+                   .column(MIN_TERM, minTerm)
+                   .column(MAX_TERM, maxTerm)
                    .column(COMPONENT_METADATA, metadata.componentMetadatas.asMap());
         }
     }

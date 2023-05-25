@@ -120,6 +120,11 @@ public class VectorType extends AbstractType<float[]>
             this.dimensions = dimensions;
         }
 
+        public int getDimensions()
+        {
+            return dimensions;
+        }
+
         @Override
         public ByteBuffer serialize(float[] value)
         {
@@ -141,7 +146,7 @@ public class VectorType extends AbstractType<float[]>
         @Override
         public <V> float[] deserialize(V value, ValueAccessor<V> accessor)
         {
-            if (accessor.isEmpty(value))
+            if (value == null || accessor.isEmpty(value))
                 return null;
 
             var vector = new float[dimensions];
