@@ -151,7 +151,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             ObjectName gcName = new ObjectName(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*");
             for (ObjectName name : MBeanWrapper.instance.queryNames(gcName, null))
             {
-                GarbageCollectorMXBean gc = ManagementFactory.newPlatformMXBeanProxy(MBeanWrapper.instance.getMbs(), name.getCanonicalName(), GarbageCollectorMXBean.class);
+                GarbageCollectorMXBean gc = ManagementFactory.newPlatformMXBeanProxy(MBeanWrapper.instance.getMBeanServer(), name.getCanonicalName(), GarbageCollectorMXBean.class);
                 gcStates.put(gc.getName(), new GCState(gc, assumeGCIsPartiallyConcurrent(gc), assumeGCIsOldGen(gc)));
             }
             ObjectName me = new ObjectName(MBEAN_NAME);
