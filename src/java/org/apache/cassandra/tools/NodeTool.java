@@ -94,6 +94,7 @@ public class NodeTool
     public int execute(String... args)
     {
         List<Class<? extends NodeToolCmdRunnable>> commands = newArrayList(
+                AbortBootstrap.class,
                 AddToCMS.class,
                 Assassinate.class,
                 CassHelp.class,

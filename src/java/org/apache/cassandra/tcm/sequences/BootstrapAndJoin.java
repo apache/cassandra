@@ -214,6 +214,11 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
 
                     commit(midJoin);
                 }
+                catch (IllegalStateException e)
+                {
+                    logger.error("Can't complete bootstrap", e);
+                    return false;
+                }
                 catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);

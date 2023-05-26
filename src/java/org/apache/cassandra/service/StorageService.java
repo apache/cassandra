@@ -212,6 +212,7 @@ import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
+import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
@@ -269,6 +270,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
+import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
 
@@ -1554,6 +1556,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return false;
     }
 
+    public void abortBootstrap(String nodeStr, String endpoint)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId;
+        if (!StringUtils.isEmpty(nodeStr))
+            nodeId = NodeId.fromString(nodeStr);
+        else
+            nodeId = metadata.directory.peerId(InetAddressAndPort.getByNameUnchecked(endpoint));
+        if (FailureDetector.instance.isAlive(metadata.directory.endpoint(nodeId)))
+            throw new RuntimeException("Can't abort bootstrap for " + nodeId + " - it is alive");
+        NodeState nodeState = metadata.directory.peerState(nodeId);
+        switch (nodeState)
+        {
+            case REGISTERED:
+            case BOOTSTRAPPING:
+                if (metadata.inProgressSequences.contains(nodeId))
+                {
+                    InProgressSequence<?> seq = metadata.inProgressSequences.get(nodeId);
+                    if (seq.kind() != InProgressSequences.Kind.JOIN)
+                        throw new RuntimeException("Can't abort bootstrap for " + nodeId + " since it is not bootstrapping");
+                    ClusterMetadataService.instance().commit(new CancelInProgressSequence(nodeId));
+                }
+                ClusterMetadataService.instance().commit(new Unregister(nodeId));
+                break;
+            default:
+                throw new RuntimeException("Can't abort bootstrap for node " + nodeId + " since the state is " + nodeState);
+        }
+    }
+
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
     {
         Stream<Stage> stageStream = stageNames.isEmpty() ? stream(Stage.values()) : stageNames.stream().map(Stage::fromPoolName);
@@ -1844,7 +1875,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private Map<String, String> getTokenToEndpointMap(boolean withPort)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        Map<Token, NodeId> mapNodeId = metadata.tokenMap.asMap();
+        Map<Token, NodeId> mapNodeId = new HashMap<>(metadata.tokenMap.asMap());
+        // we don't yet have the joining nodes in tokenmap - but they are required
+        // for nodetool status - grab them from the in progress sequences for the joining nodes;
+        for (NodeId nodeId : metadata.directory.peerIds())
+        {
+            if (metadata.directory.peerState(nodeId) == BOOTSTRAPPING ||
+                metadata.directory.peerState(nodeId) == REGISTERED)
+            {
+                InProgressSequence<?> seq = metadata.inProgressSequences.get(nodeId);
+                if (seq != null && seq.kind() == InProgressSequences.Kind.JOIN)
+                    for (Token t : ((BootstrapAndJoin)seq).finishJoin.tokens)
+                        mapNodeId.put(t, nodeId);
+            }
+        }
         // in order to preserve tokens in ascending order, we use LinkedHashMap here
         Map<String, String> mapString = new LinkedHashMap<>(mapNodeId.size());
         List<Token> tokens = new ArrayList<>(mapNodeId.keySet());

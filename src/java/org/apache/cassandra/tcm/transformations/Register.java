@@ -38,6 +38,7 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -106,14 +107,17 @@ public class Register implements Transformation
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         Location location = new Location(snitch.getLocalDatacenter(), snitch.getLocalRack());
 
-        NodeId nodeId = ClusterMetadata.current().directory.peerId(nodeAddresses.broadcastAddress);
-        if (nodeId == null)
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(nodeAddresses.broadcastAddress);
+        if (nodeId == null || metadata.directory.peerState(nodeId) == NodeState.LEFT)
         {
+            if (nodeId != null)
+                ClusterMetadataService.instance().commit(new Unregister(nodeId));
             nodeId = ClusterMetadataService.instance()
                                            .commit(new Register(nodeAddresses, location, nodeVersion),
-                                                   (metadata) -> !metadata.directory.isRegistered(nodeAddresses.broadcastAddress),
-                                                   (metadata) -> metadata.directory.peerId(nodeAddresses.broadcastAddress),
-                                                   (metadata, code, reason) -> metadata.directory.peerId(nodeAddresses.broadcastAddress));
+                                                   (metadata_) -> !metadata_.directory.isRegistered(nodeAddresses.broadcastAddress),
+                                                   (metadata_) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress),
+                                                   (metadata_, code, reason) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress));
         }
 
         logger.info("Registering with endpoint {}", nodeAddresses.broadcastAddress);

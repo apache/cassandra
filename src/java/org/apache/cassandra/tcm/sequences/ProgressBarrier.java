@@ -168,8 +168,11 @@ public class ProgressBarrier
                     case ONE:
                         waitFor = new WaitForOne(writes, reads);
                         break;
+                    case NODE_LOCAL:
+                        waitFor = new WaitForNone();
+                        break;
                     default:
-                        throw new IllegalArgumentException("Progress barrier only supports EACH_QUORUM, LOCAL_QUORUM, QUORUM, and ONE, but not " + cl);
+                        throw new IllegalArgumentException("Progress barrier only supports EACH_QUORUM, LOCAL_QUORUM, QUORUM, ONE and NODE_LOCAL, but not " + cl);
                 }
 
                 maxWaitFor = Math.max(waitFor.waitFor(), maxWaitFor);
@@ -232,6 +235,7 @@ public class ProgressBarrier
 
     public static ConsistencyLevel relaxConsistency(ConsistencyLevel cl)
     {
+        logger.debug("Relaxing ProgressBarrier consistency level {}", cl);
         switch (cl)
         {
             case EACH_QUORUM:
@@ -239,10 +243,24 @@ public class ProgressBarrier
             case QUORUM:
                 return ConsistencyLevel.LOCAL_QUORUM;
             case LOCAL_QUORUM:
-            case ONE:
                 return ConsistencyLevel.ONE;
+            case ONE:
+                return ConsistencyLevel.NODE_LOCAL;
             default:
                 throw new IllegalArgumentException(cl.toString());
+        }
+    }
+
+    public static class WaitForNone implements WaitFor
+    {
+        public boolean satisfiedBy(Set<InetAddressAndPort> responded)
+        {
+            return true;
+        }
+
+        public int waitFor()
+        {
+            return 0;
         }
     }
 

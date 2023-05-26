@@ -25,6 +25,9 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Sets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.PeersTable;
@@ -35,10 +38,14 @@ import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 
+import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
+import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 
 public class LegacyStateListener implements ChangeListener
 {
+    private static final Logger logger = LoggerFactory.getLogger(LegacyStateListener.class);
+
     @Override
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next)
     {
@@ -66,6 +73,14 @@ public class LegacyStateListener implements ChangeListener
                 {
                     switch (next.directory.peerState(change))
                     {
+                        case BOOTSTRAPPING:
+                            if (prev.directory.peerState(change) != BOOTSTRAPPING)
+                            {
+                                // legacy log messages for tests
+                                logger.info("JOINING: Starting to bootstrap");
+                                logger.info("JOINING: calculation complete, ready to bootstrap");
+                            }
+                            break;
                         case REGISTERED:
                             Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                             break;
@@ -77,6 +92,8 @@ public class LegacyStateListener implements ChangeListener
                             StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
                                          .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
                                          .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+                            if (prev.directory.peerState(change) == MOVING)
+                                logger.info("Node {} state jump to NORMAL", next.directory.endpoint(change));
                             break;
                     }
                 }

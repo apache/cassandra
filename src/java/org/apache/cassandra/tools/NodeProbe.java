@@ -2356,6 +2356,11 @@ public class NodeProbe implements AutoCloseable
 
         table.printTo(out);
     }
+
+    public void abortBootstrap(String nodeId, String endpoint)
+    {
+        ssProxy.abortBootstrap(nodeId, endpoint);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
