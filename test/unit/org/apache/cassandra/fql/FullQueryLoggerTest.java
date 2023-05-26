@@ -680,6 +680,7 @@ public class FullQueryLoggerTest extends CQLTester
 
         try
         {
+            DatabaseDescriptor.getFullQueryLogOptions().allow_nodetool_archive_command = false;
             StorageService.instance.enableFullQueryLogger(options.log_dir, options.roll_cycle, false, 1000, 1000, "/xyz/not/null", 0);
             fail("not allowed");
         }
@@ -688,6 +689,7 @@ public class FullQueryLoggerTest extends CQLTester
             assertTrue(e.getMessage().contains("Can't enable full query log archiving via nodetool"));
         }
 
+        options.allow_nodetool_archive_command = true;
         options.archive_command = "/xyz/not/null";
         options.log_dir = "/tmp/abc";
         DatabaseDescriptor.setFullQueryLogOptions(options);
