@@ -18,13 +18,11 @@
 package org.apache.cassandra.config;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Queue;
-import java.util.function.Predicate;
 
 import com.google.common.collect.Maps;
 

@@ -4775,12 +4775,27 @@ public class DatabaseDescriptor
 
     public static <T> ListenableProperty.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
     {
-        return addPropertyListener(name, clazz, p -> p.addBeforeListener(ListenableProperty.BeforeChangeListener.consume(consumer)));
+        return addPropertyListener(name, clazz, p -> p.addListener(new ListenableProperty.Listener<Config, T>()
+        {
+            @Override
+            public T before(Config source, String name, T oldValue, T newValue)
+            {
+                consumer.accept(oldValue, newValue);
+                return newValue;
+            }
+        }));
     }
 
     public static <T> ListenableProperty.Remover addAfterChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
     {
-        return addPropertyListener(name, clazz, p -> p.addAfterListener(ListenableProperty.AfterChangeListener.consume(consumer)));
+        return addPropertyListener(name, clazz, p -> p.addListener(new ListenableProperty.Listener<Config, T>()
+        {
+            @Override
+            public void after(Config source, String name, T oldValue, T newValue)
+            {
+                consumer.accept(oldValue, newValue);
+            }
+        }));
     }
 
     @SuppressWarnings("unchecked")

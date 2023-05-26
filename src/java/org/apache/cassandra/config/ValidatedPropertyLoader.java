@@ -19,9 +19,9 @@
 package org.apache.cassandra.config;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -66,12 +66,12 @@ public final class ValidatedPropertyLoader implements Loader
             validatedByArray = validatedByList.value();
 
         for (ValidatedBy validatedBy : validatedByArray)
-            listenable.addBeforeListener(createValidationListener(field, validatedBy));
+            listenable.addListener(createValidationListener(field, validatedBy));
 
         return listenable;
     }
 
-    private static <S, T> ListenableProperty.BeforeChangeListener<S, T> createValidationListener(Field field, ValidatedBy annotation)
+    private static <S, T> ListenableProperty.Listener<S, T> createValidationListener(Field field, ValidatedBy annotation)
     {
         Class<?> clazz = FBUtilities.classForName(annotation.useClass(), "validate method");
         List<Method> matches = Arrays.stream(clazz.getDeclaredMethods())
@@ -104,17 +104,17 @@ public final class ValidatedPropertyLoader implements Loader
         switch (method.getParameterCount())
         {
             case 1:
-                return new MethodInvokeListener<>(method,
-                                                  new Class<?>[]{ field.getType() },
-                                                  (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, v)));
+                return new MethodInvokeAdapter<>(method,
+                                                 new Class<?>[]{ field.getType() },
+                                                 (s, n, o, v) -> method.invoke(null, v));
             case 2:
-                return new MethodInvokeListener<>(method,
-                                                  new Class[]{ String.class, field.getType() },
-                                                  (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, n, v)));
+                return new MethodInvokeAdapter<>(method,
+                                                 new Class[]{ String.class, field.getType() },
+                                                 (s, n, o, v) -> method.invoke(null, n, v));
             case 3:
-                return new MethodInvokeListener<>(method,
-                                                  new Class[]{ field.getDeclaringClass(), String.class, field.getType() },
-                                                  (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, s, n, v)));
+                return new MethodInvokeAdapter<>(method,
+                                                 new Class[]{ field.getDeclaringClass(), String.class, field.getType() },
+                                                 (s, n, o, v) -> method.invoke(null, s, n, v));
             default:
                 throw new ConfigurationException(String.format("Required method '%s' in class '%s' must have one, two, " +
                                                                "or three input parameters, but it has '%s' instead.",
@@ -124,19 +124,31 @@ public final class ValidatedPropertyLoader implements Loader
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static <T, E extends Exception> T sneakyThrow(Callable<?> c) throws E
+    @FunctionalInterface
+    private interface MethodInvoker<S, V> extends ListenableProperty.Listener<S, V>
     {
-        try { return (T) c.call(); }
-        catch (Exception ex) { throw (E) ex; }
+        Object invoke(S source, String name, V oldValue, V newValue) throws IllegalAccessException, IllegalArgumentException,
+                                                                            InvocationTargetException;
+        @Override
+        default V before(S source, String name, V oldValue, V newValue)
+        {
+            return sneakyThrow(() -> invoke(source, name, oldValue, newValue));
+        }
+
+        @SuppressWarnings("unchecked")
+        static <V, E extends Exception> V sneakyThrow(Callable<?> c) throws E
+        {
+            try { return (V) c.call(); }
+            catch (Exception ex) { throw (E) ex; }
+        }
     }
 
-    private static class MethodInvokeListener<S, T> implements ListenableProperty.BeforeChangeListener<S, T>
+    private static class MethodInvokeAdapter<S, T> implements ListenableProperty.Listener<S, T>
     {
         private final Method method;
-        private final ListenableProperty.BeforeChangeListener<S, T> delegate;
+        private final ListenableProperty.Listener<S, T> delegate;
 
-        private MethodInvokeListener(Method method, Class<?>[] arguments, ListenableProperty.BeforeChangeListener<S, T> delegate)
+        private MethodInvokeAdapter(Method method, Class<?>[] arguments, MethodInvoker<S, T> delegate)
         {
             if (!Arrays.equals(method.getParameterTypes(), ArrayUtils.addAll(arguments)))
                 throw new ConfigurationException(String.format("Method '%s' must have exactly the following '(%s)' input arguments",

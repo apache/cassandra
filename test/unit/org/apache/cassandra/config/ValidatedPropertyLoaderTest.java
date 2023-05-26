@@ -68,10 +68,16 @@ public class ValidatedPropertyLoaderTest
         assertThat(LOADER.getProperties(TestConfig.class).get("test_property")).isInstanceOf(ListenableProperty.class);
 
         ListenableProperty<TestConfig, Integer> listenableProperty = (ListenableProperty<TestConfig, Integer>) property;
-        listenableProperty.addBeforeListener(ListenableProperty.BeforeChangeListener.consume((conf, value) -> {
-            if (value > 100)
-                throw new ConfigurationException("Value must not be greater than 100");
-        }));
+        listenableProperty.addListener(new ListenableProperty.Listener<TestConfig, Integer>()
+        {
+            @Override
+            public Integer before(TestConfig source, String name, Integer oldValue, Integer newValue)
+            {
+                if (newValue > 100)
+                    throw new ConfigurationException("Value must not be greater than 100");
+                return newValue;
+            }
+        });
 
         TestConfig conf = new TestConfig();
         assertThatThrownBy(() -> property.set(conf, 200))

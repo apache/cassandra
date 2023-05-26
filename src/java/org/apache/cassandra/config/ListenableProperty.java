@@ -19,7 +19,6 @@ package org.apache.cassandra.config;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.BiConsumer;
 
 import org.yaml.snakeyaml.introspector.Property;
 
@@ -28,8 +27,7 @@ import org.yaml.snakeyaml.introspector.Property;
  */
 public class ListenableProperty<S, T> extends ForwardingProperty
 {
-    private final List<BeforeChangeListener<S, T>> beforeHandlers = new CopyOnWriteArrayList<>();
-    private final List<AfterChangeListener<S, T>> afterHandlers = new CopyOnWriteArrayList<>();
+    private final List<Listener<S, T>> listeners = new CopyOnWriteArrayList<>();
 
     public ListenableProperty(Property property)
     {
@@ -42,23 +40,17 @@ public class ListenableProperty<S, T> extends ForwardingProperty
     {
         T oldValue = (T) get(source);
         T value = (T) newValue;
-        for (BeforeChangeListener<S, T> handler : beforeHandlers)
+        for (Listener<S, T> handler : listeners)
             value = handler.before((S) source, getName(), oldValue, value);
         delegate().set(source, value);
-        for (AfterChangeListener<S, T> handler : afterHandlers)
+        for (Listener<S, T> handler : listeners)
             handler.after((S) source, getName(), oldValue, value);
     }
 
-    public Remover addBeforeListener(BeforeChangeListener<S, T> listener)
+    public Remover addListener(Listener<S, T> listener)
     {
-        beforeHandlers.add(listener);
-        return () -> beforeHandlers.remove(listener);
-    }
-
-    public Remover addAfterListener(AfterChangeListener<S, T> listener)
-    {
-        afterHandlers.add(listener);
-        return () -> afterHandlers.remove(listener);
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
     }
 
     /**
@@ -66,34 +58,10 @@ public class ListenableProperty<S, T> extends ForwardingProperty
      * @param <S> the type of the object to mutate.
      * @param <V> the type of the value to mutate.
      */
-    @FunctionalInterface
-    public interface BeforeChangeListener<S, V>
+    public interface Listener<S, V>
     {
-        V before(S source, String name, V oldValue, V newValue);
-
-        static <S, V> BeforeChangeListener<S, V> consume(BiConsumer<? super V, ? super  V> consumer)
-        {
-            return (source, name, oldValue, newValue) -> {
-                consumer.accept(oldValue, newValue);
-                return newValue;
-            };
-        }
-    }
-
-    /**
-     * The listener to be notified after a configuration value is changed.
-     * @param <S> the type of the object listened to.
-     * @param <V> the type of the value.
-     */
-    @FunctionalInterface
-    public interface AfterChangeListener<S, V>
-    {
-        void after(S source, String name, V oldValue, V newValue);
-
-        static <S, V> AfterChangeListener<S, V> consume(BiConsumer<? super V, ? super  V> consumer)
-        {
-            return (source, name, oldValue, newValue) -> consumer.accept(oldValue, newValue);
-        }
+        default V before(S source, String name, V oldValue, V newValue) { return newValue; }
+        default void after(S source, String name, V oldValue, V newValue) {}
     }
 
     /**
