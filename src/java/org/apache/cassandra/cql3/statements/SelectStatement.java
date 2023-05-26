@@ -35,6 +35,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -968,6 +969,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             ReadSizeAbortException exception = new ReadSizeAbortException(clientMsg, options.getConsistency(), 0, 1, true,
                                                                           ImmutableMap.of(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_SIZE));
             StorageProxy.recordReadRegularAbort(options.getConsistency(), exception);
+            StorageProxyMetricsManager.getMetrics(keyspace(), options.getConsistency()).readMetrics.markAbort(exception);
             throw exception;
         }
     }

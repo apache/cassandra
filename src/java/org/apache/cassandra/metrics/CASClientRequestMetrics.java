@@ -38,6 +38,13 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         unknownResult = Metrics.meter(factory.createMetricName("UnknownResult"));
     }
 
+    public CASClientRequestMetrics(MetricNameFactory factory, String scope) {
+        super(factory, scope);
+        contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
+        unfinishedCommit = Metrics.counter(factory.createMetricName("UnfinishedCommit"));
+        unknownResult = Metrics.meter(factory.createMetricName("UnknownResult"));
+    }
+
     public void release()
     {
         super.release();

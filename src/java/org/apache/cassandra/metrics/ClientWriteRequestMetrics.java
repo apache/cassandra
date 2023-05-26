@@ -39,6 +39,12 @@ public class ClientWriteRequestMetrics extends ClientRequestMetrics
         mutationSize = Metrics.histogram(factory.createMetricName("MutationSizeHistogram"), false);
     }
 
+    public ClientWriteRequestMetrics(MetricNameFactory factory, String scope)
+    {
+        super(factory, scope);
+        mutationSize = Metrics.histogram(factory.createMetricName("MutationSizeHistogram"), false);
+    }
+
     public void release()
     {
         super.release();

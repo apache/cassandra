@@ -56,6 +56,22 @@ public class ClientRequestMetrics extends LatencyMetrics
         throttles = Metrics.meter(factory.createMetricName("Throttles"));
     }
 
+    // Creates Meter and LatencyMetrics with scope specified in factory
+    public ClientRequestMetrics(MetricNameFactory factory, String namePrefix)
+    {
+        super(factory, namePrefix);
+
+        timeouts = Metrics.meter(factory.createMetricName(this.namePrefix + "Timeouts"));
+        unavailables = Metrics.meter(factory.createMetricName(this.namePrefix + "Unavailables"));
+        failures = Metrics.meter(factory.createMetricName(this.namePrefix + "Failures"));
+        aborts = Metrics.meter(factory.createMetricName(this.namePrefix + "Aborts"));
+        tombstoneAborts = Metrics.meter(factory.createMetricName(this.namePrefix + "TombstoneAborts"));
+        readSizeAborts = Metrics.meter(factory.createMetricName(this.namePrefix + "ReadSizeAborts"));
+        localRequests = Metrics.meter(factory.createMetricName(this.namePrefix + "LocalRequests"));
+        remoteRequests = Metrics.meter(factory.createMetricName(this.namePrefix + "RemoteRequests"));
+        throttles = Metrics.meter(factory.createMetricName(this.namePrefix + "Throttles"));
+    }
+
     public void markAbort(Throwable cause)
     {
         aborts.mark();

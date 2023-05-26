@@ -46,6 +46,20 @@ public class ViewWriteMetrics extends ClientRequestMetrics
                 });
     }
 
+    public ViewWriteMetrics(MetricNameFactory factory, String scope) {
+        super(factory, scope);
+        viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
+        viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));
+        viewWriteLatency = Metrics.timer(factory.createMetricName("ViewWriteLatency"));
+        Metrics.register(factory.createMetricName("ViewPendingMutations"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return viewReplicasAttempted.getCount() - viewReplicasSuccess.getCount();
+            }
+        });
+    }
+
     public void release()
     {
         super.release();

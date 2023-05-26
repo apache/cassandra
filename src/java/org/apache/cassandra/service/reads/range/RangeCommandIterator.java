@@ -45,6 +45,7 @@ import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
@@ -144,28 +145,33 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             logger.debug("Throttling range request");
             Tracing.trace("Throttling range request");
             rangeMetrics.throttles.mark();
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.throttles.mark();
             throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
         }
         catch (UnavailableException e)
         {
             rangeMetrics.unavailables.mark();
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.unavailables.mark();
             StorageProxy.logRequestException(e, Collections.singleton(command));
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             rangeMetrics.timeouts.mark();
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.timeouts.mark();
             StorageProxy.logRequestException(e, Collections.singleton(command));
             throw e;
         }
         catch (ReadAbortException e)
         {
             rangeMetrics.markAbort(e);
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.markAbort(e);
             throw e;
         }
         catch (ReadFailureException e)
         {
             rangeMetrics.failures.mark();
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.failures.mark();
             throw e;
         }
     }

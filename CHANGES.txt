@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 
+ * [SO-20918] Add coordinator metrics and consistency level metrics with keyspace
 4.0.6.02
  * [SO-20813] Set cassandra-driver-core as not optional since cassandra-stress need it
 4.0.6.01
