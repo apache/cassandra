@@ -367,4 +367,16 @@ public class VectorTypeTest extends SAITester
 
         assertInvalid("SELECT * FROM %s ORDER BY val1 ann of [2.5, 3.5, 4.5], val2 ann of [2.1, 3.2, 4.0] LIMIT 2");
     }
+
+    @Test
+    public void selectFloatVectorFunctions() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        var result = execute("SELECT similarity_cosine(value, ?) FROM %s WHERe pk=0", vector(1f, 2f));
+        assertRows(result, row(1f));
+        result = execute("SELECT similarity_euclidean(value, ?) FROM %s WHERe pk=0", vector(1f, 2f));
+        assertRows(result, row(1f));
+    }
 }
