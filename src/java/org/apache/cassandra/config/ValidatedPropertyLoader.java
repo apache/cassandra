@@ -74,14 +74,11 @@ public final class ValidatedPropertyLoader implements Loader
     private static <S, T> ListenableProperty.BeforeChangeListener<S, T> createValidationListener(Field field, ValidatedBy annotation)
     {
         Class<?> clazz = FBUtilities.classForName(annotation.useClass(), "validate method");
-        List<Method> matches = new ArrayList<>();
-        for (Method method : clazz.getDeclaredMethods())
-        {
-            if (method.getName().equals(annotation.useClassMethod()) &&
-                Modifier.isStatic(method.getModifiers()) &&
-                Modifier.isPublic(method.getModifiers()))
-                matches.add(method);
-        }
+        List<Method> matches = Arrays.stream(clazz.getDeclaredMethods())
+                                     .filter(m -> m.getName().equals(annotation.useClassMethod()) &&
+                                                  Modifier.isStatic(m.getModifiers()) &&
+                                                  Modifier.isPublic(m.getModifiers()))
+                                     .collect(Collectors.toList());
 
         if (matches.isEmpty())
             throw new ConfigurationException(String.format("Required public static method '%s' not found in class '%s'",
@@ -120,9 +117,10 @@ public final class ValidatedPropertyLoader implements Loader
                                                   (s, n, o, v) -> sneakyThrow(() -> method.invoke(null, s, n, v)));
             default:
                 throw new ConfigurationException(String.format("Required method '%s' in class '%s' must have one, two, " +
-                                                               "or three input parameters",
+                                                               "or three input parameters, but it has '%s' instead.",
                                                                annotation.useClassMethod(),
-                                                               clazz.getCanonicalName()), false);
+                                                               clazz.getCanonicalName(),
+                                                               method.getParameterCount()), false);
         }
     }
 

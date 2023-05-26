@@ -24,6 +24,7 @@ import org.yaml.snakeyaml.introspector.Property;
 public class WithReplacementLoader implements Loader
 {
     private final Loader delegate;
+
     public WithReplacementLoader(Loader delegate)
     {
         this.delegate = delegate;
