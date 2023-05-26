@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.shared;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
-import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,12 +44,14 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import harry.core.VisibleForTesting;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -80,7 +81,6 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
-import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.Isolated;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -280,7 +280,8 @@ public class ClusterUtils
                                                               BiConsumer<I, WithProperties> fn)
     {
         IInstanceConfig toReplaceConf = toReplace.config();
-        I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true));
+        I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true)
+                                                           .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE));
         return startHostReplacement(toReplace, inst, fn);
 
     }
@@ -1373,24 +1374,7 @@ public class ClusterUtils
 
     public static void preventSystemExit()
     {
-        System.setSecurityManager(new SecurityManager()
-        {
-            @Override
-            public void checkExit(int status)
-            {
-                throw new SystemExitException(status);
-            }
-
-            @Override
-            public void checkPermission(Permission perm)
-            {
-            }
-
-            @Override
-            public void checkPermission(Permission perm, Object context)
-            {
-            }
-        });
+        System.setSecurityManager(new PreventSystemExit());
     }
 }
 

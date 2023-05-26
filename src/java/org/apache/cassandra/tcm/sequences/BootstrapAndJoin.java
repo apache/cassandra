@@ -226,7 +226,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.info("Exception committing midJoin", e);
-                    return true;
+                    return false;
                 }
 
                 break;

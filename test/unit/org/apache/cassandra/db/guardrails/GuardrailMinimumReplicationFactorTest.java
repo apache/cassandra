@@ -172,7 +172,7 @@ public class GuardrailMinimumReplicationFactorTest extends ThresholdTester
                                                  format("The keyspace %s has a replication factor of 2, below the warning threshold of %d.", KS, MINIMUM_REPLICATION_FACTOR_WARN_THRESHOLD));
 
         InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0.255");
-        Register.register(new NodeAddresses(ep, ep, ep));
+        Register.register(new NodeAddresses(ep));
         guardrails().setMinimumReplicationFactorThreshold(MINIMUM_REPLICATION_FACTOR_WARN_THRESHOLD, MINIMUM_REPLICATION_FACTOR_FAIL_THRESHOLD);
         assertValid("CREATE KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 4, 'datacenter2' : 4 }");
         execute("DROP KEYSPACE IF EXISTS ks");

@@ -26,7 +26,6 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 
@@ -61,7 +60,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 
 public class BootstrapTest extends TestBaseImpl
@@ -103,9 +101,7 @@ public class BootstrapTest extends TestBaseImpl
     @Test
     public void bootstrapUnspecifiedFailsOnResumeTest() throws Throwable
     {
-        // TODO (TCM) Revisit resumable bootstrap
-        fail("Resuming of failed bootstrap is not yet implemented for TCM");
-        RESET_BOOTSTRAP_PROGRESS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        RESET_BOOTSTRAP_PROGRESS.reset();
 
         // Need our partitioner active for rangeToBytes conversion below
         Config c = DatabaseDescriptor.loadConfig();
@@ -185,7 +181,7 @@ public class BootstrapTest extends TestBaseImpl
             if (rte.getMessage().contains("Discovered existing bootstrap data"))
                 sawException = true;
         }
-        Assert.assertTrue("Expected to see a RuntimeException w/'Discovered existing bootstrap data' in the error message; did not.",
+        assertTrue("Expected to see a RuntimeException w/'Discovered existing bootstrap data' in the error message; did not.",
                           sawException);
     }
 
@@ -211,7 +207,7 @@ public class BootstrapTest extends TestBaseImpl
             newInstance.startup(cluster);
 
             for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
-                Assert.assertEquals("Node " + e.getKey() + " has incorrect row state",
+                assertEquals("Node " + e.getKey() + " has incorrect row state",
                                     100L,
                                     e.getValue().longValue());
         }
@@ -238,7 +234,7 @@ public class BootstrapTest extends TestBaseImpl
 
             populate(cluster, 0, 100);
 
-            Assert.assertEquals(100, newInstance.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(100, newInstance.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
         }
     }
 

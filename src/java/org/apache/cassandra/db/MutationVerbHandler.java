@@ -42,7 +42,6 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 
     public void doVerb(Message<Mutation> message)
     {
-        ClusterMetadataService.instance().maybeCatchup(message.epoch());
         message.payload.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
 
         // Check if there were any forwarding headers in this message

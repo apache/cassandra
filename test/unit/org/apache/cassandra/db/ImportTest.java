@@ -415,9 +415,9 @@ public class ImportTest extends CQLTester
 
         // ep1 is registered during fixture setup
         assertEquals(NodeState.JOINED, ClusterMetadata.current().directory.peerState(ep1));
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)),
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2)),
                               BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3, ep3, ep3)),
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3)),
                               BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
 
         File backupdir = moveToBackupDir(sstables);
@@ -456,9 +456,9 @@ public class ImportTest extends CQLTester
 
         // ep1 is registered during fixture setup
         assertEquals(NodeState.JOINED, ClusterMetadata.current().directory.peerState(ep1));
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)),
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2)),
                               BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3, ep3, ep3)),
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3)),
                               BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
         File backupdir = moveToBackupDir(sstables);
         SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString())

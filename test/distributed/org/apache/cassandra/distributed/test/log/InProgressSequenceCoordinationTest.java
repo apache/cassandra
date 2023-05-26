@@ -46,6 +46,7 @@ import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_F
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_FULL_STARTUP;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
+import static org.apache.cassandra.net.Verb.TCM_CURRENT_EPOCH_REQ;
 import static org.apache.cassandra.net.Verb.TCM_REPLICATION;
 import static org.apache.cassandra.net.Verb.TCM_FETCH_PEER_LOG_RSP;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.BLOCKED;
@@ -203,14 +204,13 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             // Set expectation of FinishReplace & retrieve the epoch when it eventually gets committed
             Callable<Epoch> finishReplaceEpoch = getSequenceAfterCommit(cmsInstance, (e, r) -> e instanceof PrepareReplace.FinishReplace && r.isSuccess());
 
-            // Drop all messages from the CMS and LOG_REPLICATION from the joining node going to node 2. This will
+            // Drop all messages from the progress barrier discovery from the joining node going. This will
             // ensure that it does not receive the replace/join events for the new instance. It will then not be able to
             // ack them as the new node attempts to progress its startup sequence, which should consequently fail.
-            cluster.filters().allVerbs().from(1).to(2).drop();
-            cluster.filters().verbs(TCM_REPLICATION.id).from(4).to(2).drop();
+            cluster.filters().verbs(TCM_CURRENT_EPOCH_REQ.id).from(4).drop();
 
             // Have the joining node pause when the StartReplace event fails due to ack timeout.
-            Callable<Void> progressBlocked = waitForListener(replacement, BLOCKED);
+            Callable<Void> progressBlocked = waitForListener(replacement, CONTINUING, BLOCKED);
             new Thread(() -> {
                 try (WithProperties replacementProps = new WithProperties())
                 {
@@ -239,6 +239,10 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
         }
     }
 
+    /**
+     * Ensure that sequential execution results into given SequenceStates. Provide a state for each
+     * expected operation.
+     */
     private Callable<Void> waitForListener(IInvokableInstance instance, SequenceState...expected)
     {
         Callable<Void> remoteCallable = instance.callOnInstance(() -> {
@@ -297,8 +301,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                 return state;
 
             if (state != expectations[index])
-                throw new IllegalStateException(String.format("Unexpected outcome for %s; Expected: %s, Actual: %s",
-                                                              sequence.kind(), expectations[index], state));
+                throw new IllegalStateException(String.format("Unexpected outcome for %s@%s; Expected: %s, Actual: %s",
+                                                              sequence.kind(), sequence.nextStep(), expectations[index], state));
 
             if (++index == expectations.length)
             {

@@ -124,7 +124,7 @@ public class DiskBoundaryManagerTest extends CQLTester
         DiskBoundaryManager dbm = getCurrentColumnFamilyStore().diskBoundaryManager;
         DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
         InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0.10");
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep, ep, ep)), BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep)), BootStrapper.getRandomTokens(ClusterMetadata.current(), 10));
         DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
         assertFalse(dbv1.equals(dbv2));
     }

@@ -334,7 +334,7 @@ public class GossipHelper
         {
             InetAddressAndPort local = getEitherState(endpoint, epState, INTERNAL_ADDRESS_AND_PORT, INTERNAL_IP, DatabaseDescriptor.getStoragePort());
             InetAddressAndPort nativeAddress = getEitherState(endpoint, epState, NATIVE_ADDRESS_AND_PORT, RPC_ADDRESS, DatabaseDescriptor.getNativeTransportPort());
-            return new NodeAddresses(endpoint, local, nativeAddress);
+            return new NodeAddresses(UUID.randomUUID(), endpoint, local, nativeAddress);
         }
         catch (UnknownHostException e)
         {

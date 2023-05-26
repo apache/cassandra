@@ -89,25 +89,14 @@ public class Register implements Transformation
         return register(false);
     }
 
-    // Registers the node or return host id currently associated with its endpoint address
-    @VisibleForTesting
-    public static NodeId registerUnsafe()
-    {
-        return register(new NodeAddresses(FBUtilities.getBroadcastAddressAndPort()), NodeVersion.CURRENT, false);
-    }
-
     @VisibleForTesting
     public static NodeId register(NodeAddresses nodeAddresses)
     {
-        return register(nodeAddresses, NodeVersion.CURRENT, true);
+        return register(nodeAddresses, NodeVersion.CURRENT);
     }
 
+    @VisibleForTesting
     public static NodeId register(NodeAddresses nodeAddresses, NodeVersion nodeVersion)
-    {
-        return register(nodeAddresses, NodeVersion.CURRENT, true);
-    }
-
-    private static NodeId register(NodeAddresses nodeAddresses, NodeVersion nodeVersion, boolean throwIfAlreadyRegistered)
     {
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         Location location = new Location(snitch.getLocalDatacenter(), snitch.getLocalRack());
@@ -121,10 +110,19 @@ public class Register implements Transformation
             nodeId = ClusterMetadataService.instance()
                                            .commit(new Register(nodeAddresses, location, nodeVersion),
                                                    (metadata_) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress),
-                                                   (metadata_, code, reason) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress));
+                                                   (metadata_, code, reason) -> {
+                                                       NodeId registered = metadata_.directory.peerId(nodeAddresses.broadcastAddress);
+                                                       // Check if this registration happened within the lifetime of this node and was done by it
+                                                       if (registered != null && nodeAddresses.identityMatches(metadata_.directory.getNodeAddresses(registered)))
+                                                           return registered;
+
+                                                       throw new IllegalStateException("Can't register node: " + reason);
+                                                   });
         }
-        else if (throwIfAlreadyRegistered)
+        else
         {
+            // TODO: for now, we do not support replacing a node with the same address. It is still possible to support it by passing a boolean to Register, but we
+            //       would like to check implications.
             throw new IllegalStateException(String.format("A node with address %s already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.", nodeAddresses.broadcastAddress));
         }
 

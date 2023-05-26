@@ -55,6 +55,18 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.compatibility.GossipHelper;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1867,6 +1879,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         if (forceAfter == 0)
         {
             return;
+        }
+        // Previously gossip contained only nodes that were actually in the cluster. Now we
+        // initialize gossip with nodes that may be down. If we do not add the initial marker,
+        // they will never be marked as up.
+        for (NodeAddresses value : ClusterMetadata.current().directory.addresses.values())
+        {
+            if (!FBUtilities.getBroadcastAddressAndPort().equals(value.broadcastAddress))
+            {
+                FailureDetector.instance.report(value.broadcastAddress);
+                FailureDetector.instance.forceConviction(value.broadcastAddress);
+            }
         }
         final int GOSSIP_SETTLE_MIN_WAIT_MS = CassandraRelevantProperties.GOSSIP_SETTLE_MIN_WAIT_MS.getInt();
         final int GOSSIP_SETTLE_POLL_INTERVAL_MS = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_INTERVAL_MS.getInt();

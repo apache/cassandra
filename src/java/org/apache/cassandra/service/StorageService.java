@@ -175,6 +175,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosRepair;
@@ -214,6 +215,7 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
+import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
@@ -925,6 +927,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         StorageProxy.instance.initialLoadPartitionDenylist();
         LoadBroadcaster.instance.startBroadcasting();
+        DiskUsageBroadcaster.instance.startBroadcasting();
         HintsService.instance.startDispatch();
         BatchlogManager.instance.start();
         startSnapshotManager();
@@ -976,7 +979,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isReplacing()
     {
-
         if (REPLACE_ADDRESS_FIRST_BOOT.getString() != null && SystemKeyspace.bootstrapComplete())
         {
             logger.info("Replace address on the first boot requested; this node is already bootstrapped");
@@ -3911,17 +3913,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                      ClusterMetadataService.instance().placementProvider()),
                                                      (metadata_) -> null,
                                                      (metadata_, code, reason) -> {
-<<<<<<< HEAD
                                                          if (metadata_.directory.peerIds().contains(nodeId))
                                                          {
                                                              throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
                                                                                                            reason));
                                                          }
                                                          return null;
-=======
-                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
-                                                                                                       reason));
->>>>>>> 30a6c1ea1b ([CEP-21] Fix assassinate dtests)
                                                      });
         }
         catch (UnknownHostException e)

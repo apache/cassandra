@@ -117,8 +117,8 @@ public class ActiveRepairServiceTest
         LOCAL = FBUtilities.getBroadcastAddressAndPort();
         // generate a fake endpoint for which we can spoof receiving/sending trees
         REMOTE = InetAddressAndPort.getByName("127.0.0.2");
-        NodeId local = Register.register(new NodeAddresses(LOCAL, LOCAL, LOCAL));
-        NodeId remote = Register.register(new NodeAddresses(REMOTE, REMOTE, REMOTE));
+        NodeId local = Register.register(new NodeAddresses(LOCAL));
+        NodeId remote = Register.register(new NodeAddresses(REMOTE));
         UnsafeJoin.unsafeJoin(local, Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()));
         UnsafeJoin.unsafeJoin(remote, Collections.singleton(DatabaseDescriptor.getPartitioner().getMinimumToken()));
     }
@@ -266,7 +266,7 @@ public class ActiveRepairServiceTest
             InetAddressAndPort endpoint = InetAddressAndPort.getByName("127.0.0." + i);
             if (ClusterMetadata.current().directory.peerId(endpoint) == null)
             {
-                NodeId nodeId = Register.register(new NodeAddresses(endpoint, endpoint, endpoint));
+                NodeId nodeId = Register.register(new NodeAddresses(endpoint));
                 UnsafeJoin.unsafeJoin(nodeId, Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()));
             }
             endpoints.add(endpoint);

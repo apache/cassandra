@@ -273,7 +273,7 @@ public class ClusterMetadataTestHelper
 
     public static NodeAddresses addr(InetAddressAndPort address)
     {
-        return new NodeAddresses(address, address, address);
+        return new NodeAddresses(address);
     }
 
     public static NodeId register(int nodeIdx, String dc, String rack)

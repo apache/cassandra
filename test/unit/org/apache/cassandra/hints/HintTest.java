@@ -237,7 +237,7 @@ public class HintTest
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
-        NodeId targetId = Register.register(new NodeAddresses(endpoint, endpoint, endpoint));
+        NodeId targetId = Register.register(new NodeAddresses(endpoint));
         UnsafeJoin.unsafeJoin(targetId, Collections.singleton(mutation.key().getToken()));
 
         // sanity check that there is no data inside yet

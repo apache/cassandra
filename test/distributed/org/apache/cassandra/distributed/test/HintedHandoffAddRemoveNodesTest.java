@@ -20,15 +20,17 @@ package org.apache.cassandra.distributed.test;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.awaitility.Awaitility;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -106,7 +108,7 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2}"));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.decom_hint_test (key int PRIMARY KEY, value int)"));
             
-            cluster.get(4).shutdown().get();
+            cluster.get(5).shutdown().get();
             
             // Write data using the second node as the coordinator...
             populate(cluster, "decom_hint_test", 2, 0, 128, ConsistencyLevel.ONE);
@@ -115,30 +117,33 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
             Awaitility.await().until(() -> countTotalHints(cluster.get(2)) > 0);
             long totalHints = countTotalHints(cluster.get(2));
 
-            // Decomision node 1...
-            assertEquals(4, endpointsKnownTo(cluster, 2));
-            cluster.get(1).nodetoolResult("decommission --force").asserts().success();
-            await().pollDelay(1, SECONDS).until(() -> endpointsKnownTo(cluster, 2) == 3);
+            // Decomision node 2...
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
             // ...and verify that all data still exists on either node 2 or 3.
-            verify(cluster, "decom_hint_test", 2, 0, 128, ConsistencyLevel.ONE);
+            verify(cluster, "decom_hint_test", 1, 0, 128, ConsistencyLevel.ONE);
             
-            // Start node 4 back up and verify that all hints were delivered.
-            cluster.get(4).startup();
+            // Start node 5 back up and verify that all hints were delivered.
+            cluster.get(5).startup();
             await().atMost(30, SECONDS).pollDelay(3, SECONDS).until(() -> count(cluster, "decom_hint_test", 4) >= totalHints);
 
-            // Now decommission both nodes 2 and 3...
-            cluster.get(2).nodetoolResult("decommission --force").asserts().success();
-            cluster.get(3).nodetoolResult("decommission --force").asserts().success();
-            await().pollDelay(1, SECONDS).until(() -> endpointsKnownTo(cluster, 4) == 1);
+            // Now decommission both node 4
+            cluster.get(3).nodetoolResult("decommission", "--force").asserts().success();
+            cluster.get(4).nodetoolResult("decommission", "--force").asserts().success();
+            cluster.get(5).nodetoolResult("decommission", "--force").asserts().success();
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1), 2, 3, 4, 5);
             // ...and verify that even if we drop below the replication factor of 2, all data has been preserved.
-            verify(cluster, "decom_hint_test", 4, 0, 128, ConsistencyLevel.ONE);
+            verify(cluster, "decom_hint_test", 1, 0, 128, ConsistencyLevel.ONE);
         }
     }
 
     @Test
     public void shouldBootstrapWithHintsOutstanding() throws Exception
     {
-        try (Cluster cluster = builder().withNodes(3)
+        try (WithProperties properties = new WithProperties().set(CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT, "false");
+             Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4, 1))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
@@ -207,10 +212,5 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
     private long count(Cluster cluster, String table, int node)
     {
         return (Long) cluster.get(node).executeInternal("SELECT COUNT(*) FROM " + KEYSPACE + '.' + table)[0][0];
-    }
-
-    private int endpointsKnownTo(Cluster cluster, int node)
-    {
-        return cluster.get(node).callOnInstance(() -> ClusterMetadata.current().directory.allAddresses().size());
     }
 }

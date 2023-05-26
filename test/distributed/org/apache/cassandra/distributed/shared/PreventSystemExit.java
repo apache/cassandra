@@ -16,17 +16,29 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.distributed.shared;
 
+import java.security.Permission;
+
+import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.Shared;
 
 @Shared
-public class SystemExitException extends Error
+public class PreventSystemExit extends SecurityManager
 {
-    public final int status;
-
-    public SystemExitException(int status)
+    @Override
+    public void checkExit(int status)
     {
-        this.status = status;
+        throw new SystemExitException(status);
+    }
+
+    @Override
+    public void checkPermission(Permission perm)
+    {
+    }
+
+    @Override
+    public void checkPermission(Permission perm, Object context)
+    {
     }
 }

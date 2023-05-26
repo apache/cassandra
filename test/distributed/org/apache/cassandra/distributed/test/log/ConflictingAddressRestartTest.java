@@ -56,7 +56,8 @@ public class ConflictingAddressRestartTest extends TestBaseImpl
             }
             catch (Exception e)
             {
-                assertTrue(e.getMessage().contains("conflicts with existing node"));
+                assertTrue(String.format("Message " + e.getMessage()),
+                           e.getMessage().contains("conflicts with existing node"));
             }
         }
     }

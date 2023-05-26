@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.Random;
+import java.util.UUID;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -78,9 +79,9 @@ public class ReadCommandVerbHandlerTest
         InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.3");
         InetAddressAndPort ep3 = FBUtilities.getBroadcastAddressAndPort();
-        NodeId node1 = Register.register(new NodeAddresses(ep1, ep1, ep1));
-        NodeId node2 = Register.register(new NodeAddresses(ep2, ep2, ep2));
-        NodeId node3 = Register.register(new NodeAddresses(ep3, ep3, ep3));
+        NodeId node1 = Register.register(new NodeAddresses(UUID.randomUUID(), ep1, ep1, ep1));
+        NodeId node2 = Register.register(new NodeAddresses(UUID.randomUUID(), ep2, ep2, ep2));
+        NodeId node3 = Register.register(new NodeAddresses(UUID.randomUUID(), ep3, ep3, ep3));
         UnsafeJoin.unsafeJoin(node1, Collections.singleton(KEY.getToken()));
         UnsafeJoin.unsafeJoin(node2, Collections.singleton(key(metadata, 2).getToken()));
         UnsafeJoin.unsafeJoin(node3, Collections.singleton(key(metadata, 3).getToken()));

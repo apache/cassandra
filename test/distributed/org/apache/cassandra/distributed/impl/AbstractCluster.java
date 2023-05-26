@@ -61,8 +61,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Constants;
@@ -825,10 +823,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void disableAutoCompaction(String keyspace)
     {
-        forEach(() -> {
-            for (ColumnFamilyStore cs : Keyspace.open(keyspace).getColumnFamilyStores())
-                cs.disableAutoCompaction();
-        });
+        forEach((i) -> i.nodetool("disableautocompaction", keyspace));
     }
 
     public void schemaChange(String query)
@@ -1076,20 +1071,27 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     @Override
     public void close()
     {
+        // Make sure that a nodetool call is not preventing us from stopping the instance
+        System.setSecurityManager(null);
+
         logger.info("Closing cluster {}", this.clusterId);
         FBUtilities.closeQuietly(instanceInitializer);
-        FBUtilities.waitOnFutures(instances.stream()
-                                           .filter(i -> !i.isShutdown())
-                                           .map(IInstance::shutdown)
-                                           .collect(Collectors.toList()),
-                                  1L, TimeUnit.MINUTES);
+
+        List<Future<?>> futures = new ArrayList<>();
+        futures = instances.stream()
+                           .filter(i -> !i.isShutdown())
+                           .map(IInstance::shutdown)
+                           .collect(Collectors.toList());
+        FBUtilities.waitOnFutures(futures,1L, TimeUnit.MINUTES);
 
         instances.clear();
         instanceMap.clear();
         PathUtils.setDeletionListener(ignore -> {});
         // Make sure to only delete directory when threads are stopped
-        if (Files.exists(root))
+        if (Files.exists(root) && futures.stream().allMatch(f -> f.isDone()))
             PathUtils.deleteRecursive(root);
+        else
+            logger.error("Not removing directories, as some instances haven't fully stopped.");
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
         previousHandler = null;
         checkAndResetUncaughtExceptions();

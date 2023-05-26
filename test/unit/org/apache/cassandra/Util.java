@@ -1109,7 +1109,7 @@ public class Util
     public static void setUpgradeFromVersion(String version)
     {
         InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked("127.0.0.10");
-        Register.register(new NodeAddresses(ep, ep, ep),
+        Register.register(new NodeAddresses(ep),
                           new NodeVersion(new CassandraVersion(version), Version.OLD));
     }
 

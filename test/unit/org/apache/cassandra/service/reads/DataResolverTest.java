@@ -121,8 +121,9 @@ public class DataResolverTest extends AbstractReadResponseTest
             {
                 InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) });
                 replicas.add(ReplicaUtils.full(endpoint));
-                NodeId node = Register.register(new NodeAddresses(endpoint, endpoint, endpoint));
+                NodeId node = Register.register(new NodeAddresses(endpoint));
                 UnsafeJoin.unsafeJoin(node, Sets.newHashSet(token = token.nextValidToken()));
+
             }
             catch (UnknownHostException e)
             {

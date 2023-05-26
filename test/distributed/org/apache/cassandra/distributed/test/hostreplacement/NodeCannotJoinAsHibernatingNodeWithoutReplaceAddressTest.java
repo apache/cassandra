@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.hostreplacement;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
@@ -27,6 +28,9 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Assert;
 import org.junit.Test;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
@@ -37,9 +41,14 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.InstanceIDDefiner;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 import org.assertj.core.api.Assertions;
+
+import static net.bytebuddy.matcher.ElementMatchers.named;
 
 public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends TestBaseImpl
 {
@@ -92,11 +101,11 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
 
         private static void shutdownBeforeNormal(ClassLoader cl)
         {
-//            new ByteBuddy().rebase(PendingRangeCalculatorService.class)
-//                           .method(named("blockUntilFinished"))
-//                           .intercept(MethodDelegation.to(ShutdownBeforeNormal.class))
-//                           .make()
-//                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            new ByteBuddy().rebase(ClusterMetadataService.class)
+                           .method(named("commit"))
+                           .intercept(MethodDelegation.to(ShutdownBeforeNormal.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
     }
 
@@ -111,9 +120,11 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
 
     public static class ShutdownBeforeNormal
     {
-        public static void blockUntilFinished(@SuperCall Runnable fn)
+        public static ClusterMetadata commit(Transformation transform, @SuperCall Callable<ClusterMetadata> fn) throws Exception
         {
-            fn.run();
+            if (transform.kind() == Transformation.Kind.FINISH_JOIN)
+                return fn.call();
+
             int id = Integer.parseInt(InstanceIDDefiner.getInstanceId().replace("node", ""));
             ICluster cluster = Objects.requireNonNull(SharedState.cluster);
             // can't stop here as the stop method and start method share a lock; and block gets called in start...
@@ -122,6 +133,7 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
                 SharedState.shutdownComplete.countDown();
             });
             JVMStabilityInspector.killCurrentJVM(new RuntimeException("Attempting to stop the instance"), false);
+            throw new RuntimeException();
         }
     }
 }
