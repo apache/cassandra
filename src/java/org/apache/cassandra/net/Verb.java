@@ -21,7 +21,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
@@ -362,30 +361,20 @@ public enum Verb
      */
     Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
     {
-        this(NORMAL, id, priority, expiration, stage, serializer, handler, null, null);
-    }
-
-    Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Predicate<?> isFinalReply)
-    {
-        this(NORMAL, id, priority, expiration, stage, serializer, handler, null, isFinalReply);
+        this(NORMAL, id, priority, expiration, stage, serializer, handler, null);
     }
 
     Verb(int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
     {
-        this(NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb, null);
+        this(NORMAL, id, priority, expiration, stage, serializer, handler, responseVerb);
     }
 
     Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler)
     {
-        this(kind, id, priority, expiration, stage, serializer, handler, null, null);
+        this(kind, id, priority, expiration, stage, serializer, handler, null);
     }
 
-    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Predicate<?> isFinalReply)
-    {
-        this(kind, id, priority, expiration, stage, serializer, handler, null, isFinalReply);
-    }
-
-    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb, Predicate<?> isFinalReply)
+    Verb(Kind kind, int id, Priority priority, ToLongFunction<TimeUnit> expiration, Stage stage, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer, Supplier<? extends IVerbHandler<?>> handler, Verb responseVerb)
     {
         this.stage = stage;
         if (id < 0)
