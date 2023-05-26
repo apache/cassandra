@@ -37,6 +37,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.db.ClusteringPrefix.Kind.*;
 
@@ -121,6 +122,13 @@ public interface ValueAccessor<V>
     default int sizeWithShortLength(V value)
     {
         return 2 + size(value);
+    }
+
+    default int remaining(V value, int offset)
+    {
+        int size = size(value);
+        int rem = size - offset;
+        return rem > 0 ? rem : 0;
     }
 
     /**
@@ -309,6 +317,10 @@ public interface ValueAccessor<V>
     int toInt(V value);
     /** returns an int from offset {@param offset} */
     int getInt(V value, int offset);
+    default int getUnsignedVInt32(V value, int offset)
+    {
+        return VIntCoding.getUnsignedVInt32(value, this, offset);
+    }
     /** returns a long from offset 0 */
     long toLong(V value);
     /** returns a long from offset {@param offset} */
@@ -329,6 +341,11 @@ public interface ValueAccessor<V>
      */
     int putByte(V dst, int offset, byte value);
 
+    default int putBytes(V dst, int offset, byte[] src, int srcOffset, int length)
+    {
+        return ByteArrayAccessor.instance.copyTo(src, srcOffset, dst, this, offset, length);
+    }
+
     /**
      * writes the short value {@param value} to {@param dst} at offset {@param offset}
      * @return the number of bytes written to {@param value}
@@ -346,6 +363,11 @@ public interface ValueAccessor<V>
      * @return the number of bytes written to {@param value}
      */
     int putLong(V dst, int offset, long value);
+
+    default int putUnsignedVInt32(V dst, int offset, int value)
+    {
+        return VIntCoding.writeUnsignedVInt32(value, dst, offset, this);
+    }
 
     /** return a value with a length of 0 */
     V empty();

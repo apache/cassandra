@@ -507,38 +507,50 @@ public interface CQL3Type
 
     public static class Vector implements CQL3Type
     {
-        private final int dimensions;
+        private final VectorType<?> type;
 
-        public Vector(int dimensions)
+        public Vector(VectorType<?> type)
         {
-            this.dimensions = dimensions;
+            this.type = type;
+        }
+
+        public Vector(AbstractType<?> type, int dimensions)
+        {
+            this.type = VectorType.getInstance(type, dimensions);
         }
 
         @Override
-        public AbstractType<?> getType()
+        public VectorType<?> getType()
         {
-            return VectorType.getInstance(dimensions);
+            return type;
         }
 
         @Override
-        public String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version)
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
         {
-            if (bytes == null)
+            if (buffer == null)
                 return "null";
-
-            StringBuilder target = new StringBuilder();
-
-            target.append('[');
-            target.append(getType().getSerializer().toCQLLiteral(bytes));
-            target.append(']');
-
-            return target.toString();
+            buffer = buffer.duplicate();
+            CQL3Type elementType = type.elementType.asCQL3Type();
+            List<ByteBuffer> values = getType().split(buffer);
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            for (int i = 0; i < values.size(); i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+                sb.append(elementType.toCQLLiteral(values.get(i), version));
+            }
+            sb.append(']');
+            return sb.toString();
         }
 
         @Override
         public String toString()
         {
-            return "float vector[" + dimensions + ']';
+            StringBuilder sb = new StringBuilder();
+            sb.append("vector<").append(type.elementType.asCQL3Type()).append(", ").append(type.dimension).append('>');
+            return sb.toString();
         }
     }
 
@@ -576,6 +588,11 @@ public interface CQL3Type
         }
 
         public boolean isTuple()
+        {
+            return false;
+        }
+
+        public boolean isVector()
         {
             return false;
         }
@@ -643,9 +660,9 @@ public interface CQL3Type
             return new RawTuple(ts);
         }
 
-        public static Raw vector(int dimensions)
+        public static Raw vector(CQL3Type.Raw t, int dimention)
         {
-            return new RawVector(dimensions);
+            return new RawVector(t, dimention);
         }
 
         private static class RawType extends Raw
@@ -965,18 +982,20 @@ public interface CQL3Type
 
         private static class RawVector extends Raw
         {
-            private final int dimensions;
+            private final CQL3Type.Raw element;
+            private final int dimention;
 
-            protected RawVector(int dimensions)
+            private RawVector(Raw element, int dimention)
             {
-                super(false);
-                this.dimensions = dimensions;
+                super(true);
+                this.element = element;
+                this.dimention = dimention;
             }
 
             @Override
-            public boolean supportsFreezing()
+            public boolean isVector()
             {
-                return false;
+                return true;
             }
 
             @Override
@@ -986,15 +1005,28 @@ public interface CQL3Type
             }
 
             @Override
-            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            public boolean supportsFreezing()
             {
-                return new Vector(dimensions);
+                return false;
             }
 
             @Override
-            public String toString()
+            public boolean isFrozen()
             {
-                return "float vector[" + dimensions + ']';
+                return true;
+            }
+
+            @Override
+            public Raw freeze()
+            {
+                return super.freeze();
+            }
+
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            {
+                CQL3Type type = element.prepare(keyspace, udts);
+                return new Vector(type.getType(), dimention);
             }
         }
     }

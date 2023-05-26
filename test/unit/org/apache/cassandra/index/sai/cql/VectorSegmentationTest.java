@@ -28,7 +28,7 @@ public class VectorSegmentationTest extends SAITester
     @Test
     public void test() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, val float vector[4], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, val vector<float, 4>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -42,13 +42,13 @@ public class VectorSegmentationTest extends SAITester
         System.out.println(makeRowStrings(resultSet));
     }
 
-    private float[] nextVector()
+    private Vector nextVector()
     {
-        float[] vector = new float[4];
+        Float[] vector = new Float[4];
 
         for (int index = 0; index < vector.length; index++)
             vector[index] = getRandom().nextFloat();
 
-        return vector;
+        return new Vector<Float>(vector);
     }
 }

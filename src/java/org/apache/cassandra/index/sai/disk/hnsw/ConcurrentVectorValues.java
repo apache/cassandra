@@ -32,12 +32,12 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
 {
-    private final VectorType.Serializer serializer;
+    private final int dimensions;
     private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
 
-    public ConcurrentVectorValues(VectorType.Serializer serializer)
+    public ConcurrentVectorValues(int dimensions)
     {
-        this.serializer = serializer;
+        this.dimensions = dimensions;
     }
 
     @Override
@@ -49,7 +49,7 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
     @Override
     public int dimension()
     {
-        return serializer.getDimensions();
+        return dimensions;
     }
 
     @Override

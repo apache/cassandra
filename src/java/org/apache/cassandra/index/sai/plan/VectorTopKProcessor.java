@@ -46,6 +46,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
 import org.apache.cassandra.index.sai.utils.InMemoryUnfilteredPartitionIterator;
 import org.apache.cassandra.index.sai.utils.PartitionInfo;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -142,7 +143,7 @@ public class VectorTopKProcessor
                           if (sai == null)
                               return null;
 
-                          float[] qv = (float[]) sai.getIndexContext().getValidator().getSerializer().deserialize(e.getIndexValue().duplicate());
+                          float[] qv = TypeUtil.decomposeVector(sai.getIndexContext(), e.getIndexValue().duplicate());
                           return Pair.create(sai, qv);
                       }).filter(Objects::nonNull)
                       .collect(Collectors.toMap(p -> p.left, p -> p.right));
@@ -171,7 +172,7 @@ public class VectorTopKProcessor
             ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
             if (value != null)
             {
-                float[] vector = (float[]) indexContext.getValidator().getSerializer().deserialize(value.duplicate());
+                float[] vector = TypeUtil.decomposeVector(indexContext, value.duplicate());
                 score += indexContext.getIndexWriterConfig().getSimilarityFunction().compare(vector, e.getValue());
             }
         }

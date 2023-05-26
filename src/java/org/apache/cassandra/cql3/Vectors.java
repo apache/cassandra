@@ -40,69 +40,95 @@ import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 public class Vectors
 {
-    public static class Setter extends Operation
-    {
-        public Setter(ColumnMetadata column, Term t)
-        {
-            super(column, t);
-        }
+    private Vectors() {}
 
-        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
-        {
-            ByteBuffer value = t.bindAndGet(params.options);
-            if (value == null)
-                params.addTombstone(column);
-            else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
-                params.addCell(column, value);
-        }
+    private static AbstractType<?> elementsType(AbstractType<?> type)
+    {
+        return ((VectorType<?>) type.unwrap()).getElementsType();
     }
 
-    public static class Value extends Term.Terminal
+    private static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        public final List<ByteBuffer> elements;
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
+    }
 
-        public Value(List<ByteBuffer> elements)
+    public static class Literal extends Term.Raw
+    {
+        private final List<Term.Raw> elements;
+
+        public Literal(List<Term.Raw> elements)
         {
             this.elements = elements;
         }
 
-        public static Value fromSerialized(ByteBuffer value, AbstractType<?> type) throws InvalidRequestException
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            try
-            {
-                float[] floatArray = (float[]) type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
-                List<ByteBuffer> elements = new ArrayList<>();
-                for (float element : floatArray)
-                {
-                    elements.add(FloatType.instance.decompose(element));
-                }
-                return new Value(elements);
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
+            if (!(receiver.type instanceof VectorType))
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+            VectorType<?> type = (VectorType<?>) receiver.type;
+            if (elements.size() != type.dimension)
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+            ColumnSpecification valueSpec = valueSpecOf(receiver);
+            return AssignmentTestable.TestResult.testAll(receiver.ksName, valueSpec, elements);
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        @Override
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
-            var bb = ByteBuffer.allocate(Float.BYTES * elements.size());
-            for (var v : elements)
-                accessor.write(v, bb);
-            return accessor.valueOf(bb.flip());
+            if (!(receiver.type instanceof VectorType))
+                throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
+            VectorType<?> type = (VectorType<?>) receiver.type;
+            if (elements.size() != type.dimension)
+                throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s; expected %d elements, but given %d", receiver.name, receiver.type.asCQL3Type(), type.dimension, elements.size()));
+
+            ColumnSpecification valueSpec = valueSpecOf(receiver);
+            List<Term> values = new ArrayList<>(elements.size());
+            boolean allTerminal = true;
+            for (Term.Raw rt : elements)
+            {
+                if (!rt.testAssignment(keyspace, valueSpec).isAssignable())
+                    throw new InvalidRequestException(String.format("Invalid vector literal for %s: value %s is not of type %s", receiver.name, rt, valueSpec.type.asCQL3Type()));
+
+                Term t = rt.prepare(keyspace, valueSpec);
+
+                if (t instanceof Term.NonTerminal)
+                    allTerminal = false;
+
+                values.add(t);
+            }
+            DelayedValue<?> value = new DelayedValue<>(type, values);
+            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
-        public boolean equals(ListType lt, Lists.Value v)
+        @Override
+        public String getText()
         {
-            if (elements.size() != v.elements.size())
-                return false;
+            return Lists.listToString(elements, Term.Raw::getText);
+        }
 
-            for (int i = 0; i < elements.size(); i++)
-                if (lt.getElementsType().compare(elements.get(i), v.elements.get(i)) != 0)
-                    return false;
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            // not enough information to know dimension
+            return null;
+        }
+    }
 
-            return true;
+    public static class Value<T> extends Term.MultiItemTerminal
+    {
+        public final VectorType<T> type;
+        public final List<ByteBuffer> elements;
+
+        public Value(VectorType<T> type, List<ByteBuffer> elements)
+        {
+            this.type = type;
+            this.elements = elements;
+        }
+
+        public ByteBuffer get(ProtocolVersion version)
+        {
+            return type.decomposeRaw(elements);
         }
 
         public List<ByteBuffer> getElements()
@@ -114,70 +140,46 @@ public class Vectors
     /**
      * Basically similar to a Value, but with some non-pure function (that need
      * to be evaluated at execution time) in it.
-     *
-     * Note: this would also work for a list with bind markers, but we don't support
-     * that because 1) it's not excessively useful and 2) we wouldn't have a good
-     * column name to return in the ColumnSpecification for those markers (not a
-     * blocker per-se but we don't bother due to 1)).
      */
-    public static class DelayedValue extends Term.NonTerminal
+    public static class DelayedValue<T> extends Term.NonTerminal
     {
+        private final VectorType<T> type;
         private final List<Term> elements;
 
-        public DelayedValue(List<Term> elements)
+        public DelayedValue(VectorType<T> type, List<Term> elements)
         {
+            this.type = type;
             this.elements = elements;
         }
 
         public boolean containsBindMarker()
         {
-            // False since we don't support them in collection
-            return false;
+            return elements.stream().anyMatch(Term::containsBindMarker);
         }
 
         public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
+            elements.forEach(t -> t.collectMarkerSpecification(boundNames));
         }
 
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
-            List<ByteBuffer> buffers = new ArrayList<>(elements.size());
+            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(elements.size());
             for (Term t : elements)
             {
                 ByteBuffer bytes = t.bindAndGet(options);
 
-                if (bytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    return UNSET_VALUE;
+                if (bytes == null || bytes == ByteBufferUtil.UNSET_BYTE_BUFFER || type.elementType.isNull(bytes))
+                    throw new InvalidRequestException("null is not supported inside vectors");
 
                 buffers.add(bytes);
             }
-            return new Value(buffers);
+            return new Value<>(type, buffers);
         }
 
         public void addFunctionsTo(List<Function> functions)
         {
             Terms.addFunctions(elements, functions);
-        }
-    }
-
-    public static class Marker extends AbstractMarker
-    {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
-        {
-            super(bindIndex, receiver);
-            assert receiver.type instanceof VectorType;
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            ByteBuffer value = options.getValues().get(bindIndex);
-            if (value == null)
-                return null;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return UNSET_VALUE;
-            return Value.fromSerialized(value, receiver.type);
         }
     }
 }

@@ -40,6 +40,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.lucene.util.SparseFixedBitSet;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -99,7 +100,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         SparseFixedBitSet bits = bitsetForKeyRange(keyRange);
 
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
+        float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
         return graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
     }
 

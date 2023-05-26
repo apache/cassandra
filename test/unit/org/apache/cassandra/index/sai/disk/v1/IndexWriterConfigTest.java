@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -35,7 +36,7 @@ public class IndexWriterConfigTest
     @Test
     public void defaultsTest()
     {
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), new HashMap<>());
+        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), new HashMap<>());
 
         assertThat(config.getMaximumNodeConnections()).isEqualTo(16);
         assertThat(config.getConstructionBeamWidth()).isEqualTo(100);
@@ -47,21 +48,21 @@ public class IndexWriterConfigTest
     {
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "10");
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
         assertThat(config.getMaximumNodeConnections()).isEqualTo(10);
 
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "-1");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Maximum number of connections for index test cannot be <= 0 or > 512, was -1");
 
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, Integer.toString(IndexWriterConfig.MAXIMUM_MAXIMUM_NODE_CONNECTIONS + 1));
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Maximum number of connections for index test cannot be <= 0 or > 512, was " + (IndexWriterConfig.MAXIMUM_MAXIMUM_NODE_CONNECTIONS + 1));
 
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "abc");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Maximum number of connections abc is not a valid integer for index test");
     }
@@ -71,21 +72,21 @@ public class IndexWriterConfigTest
     {
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "150");
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
         assertThat(config.getConstructionBeamWidth()).isEqualTo(150);
 
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "-1");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Construction beam width for index test cannot be <= 0 or > 3200, was -1");
 
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, Integer.toString(IndexWriterConfig.MAXIMUM_CONSTRUCTION_BEAM_WIDTH + 1));
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Construction beam width for index test cannot be <= 0 or > 3200, was " + (IndexWriterConfig.MAXIMUM_CONSTRUCTION_BEAM_WIDTH + 1));
 
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "abc");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Construction beam width abc is not a valid integer for index test");
     }
@@ -95,15 +96,15 @@ public class IndexWriterConfigTest
     {
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "DOT_PRODUCT");
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
         assertThat(config.getSimilarityFunction()).isEqualTo(VectorSimilarityFunction.DOT_PRODUCT);
 
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "euclidean");
-        config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
         assertThat(config.getSimilarityFunction()).isEqualTo(VectorSimilarityFunction.EUCLIDEAN);
 
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "blah");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Similarity function BLAH was not recognized for index test. Valid values are: EUCLIDEAN, DOT_PRODUCT, COSINE");
     }

@@ -50,7 +50,7 @@ public class VectorSiftSmallTest extends SAITester
         var groundTruth = readIvecs(String.format("test/data/%s/%s_groundtruth.ivecs", siftName, siftName));
 
         // Create table and index
-        createTable("CREATE TABLE %s (pk int, val float vector[128], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, val vector<float, 128>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 

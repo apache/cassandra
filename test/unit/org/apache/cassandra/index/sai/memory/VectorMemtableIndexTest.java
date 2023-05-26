@@ -38,6 +38,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -101,7 +102,7 @@ public class VectorMemtableIndexTest extends SAITester
         cfs = MockSchema.newCFS(tableMetadata);
         partitioner = cfs.getPartitioner();
         dimensionCount = getRandom().nextIntBetween(1, 2048);
-        indexContext = SAITester.createIndexContext("index", VectorType.getInstance(dimensionCount), cfs);
+        indexContext = SAITester.createIndexContext("index", VectorType.getInstance(FloatType.instance, dimensionCount), cfs);
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
         rowMap = new HashMap<Integer, ByteBuffer>();
@@ -166,11 +167,11 @@ public class VectorMemtableIndexTest extends SAITester
     }
 
     private ByteBuffer randomVector() {
-        float[] rawVector = new float[dimensionCount];
+        List<Float> rawVector = new ArrayList<>(dimensionCount);
         for (int i = 0; i < dimensionCount; i++) {
-            rawVector[i] = getRandom().nextFloat();
+            rawVector.add(getRandom().nextFloat());
         }
-        return VectorType.getInstance(dimensionCount).getSerializer().serialize(rawVector);
+        return VectorType.getInstance(FloatType.instance, dimensionCount).getSerializer().serialize(rawVector);
     }
 
     private AbstractBounds<PartitionPosition> generateRandomBounds(List<DecoratedKey> keys)

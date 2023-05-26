@@ -28,18 +28,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
-import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -48,15 +47,15 @@ public class CassandraOnHeapHnsw<T>
 {
     private final ConcurrentVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
-    private final VectorType.Serializer serializer;
+    private final VectorType.VectorSerializer serializer;
     private final VectorSimilarityFunction similarityFunction;
     final Map<float[], VectorPostings<T>> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
 
     public CassandraOnHeapHnsw(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
-        serializer = (VectorType.Serializer) termComparator.getSerializer();
-        vectorValues = new ConcurrentVectorValues(serializer);
+        serializer = (VectorType.VectorSerializer)termComparator.getSerializer();
+        vectorValues = new ConcurrentVectorValues(((VectorType)termComparator).dimension);
         similarityFunction = indexWriterConfig.getSimilarityFunction();
         postingsMap = new ConcurrentHashMap<>();
 
@@ -90,7 +89,7 @@ public class CassandraOnHeapHnsw<T>
 
         var initialBytesUsed = ramBytesUsed();
 
-        var vector = serializer.deserialize(term);
+        var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
         var postings = postingsMap.computeIfAbsent(vector, v -> {
             var ordinal = nextOrdinal.getAndIncrement();
             vectorValues.add(ordinal, vector);

@@ -30,13 +30,11 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -46,6 +44,7 @@ import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -103,7 +102,7 @@ public class VectorMemtableIndex implements MemtableIndex
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
-        float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
+        float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
 
         Bits bits = null;
         // key range doesn't full token ring, we need to filter keys inside ANN search

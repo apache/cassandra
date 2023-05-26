@@ -60,8 +60,8 @@ public class VectorDistributedTest extends TestBaseImpl
     public SAITester.FailureWatcher failureRule = new SAITester.FailureWatcher();
 
     private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
-    private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val float vector[%d])";
-    private static final String CREATE_TABLE_TWO_VECTORS = "CREATE TABLE %%s (pk int primary key, val1 float vector[%d], val2 float vector[%d])";
+    private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val vector<float, %d>)";
+    private static final String CREATE_TABLE_TWO_VECTORS = "CREATE TABLE %%s (pk int primary key, val1 vector<float, %d>, val2 float vector[%d])";
     private static final String CREATE_INDEX = "CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'";
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
@@ -402,7 +402,13 @@ public class VectorDistributedTest extends TestBaseImpl
 
         // verify results are part of inserted vectors
         for (Object[] obj: result)
-            vectors.add((float[]) obj[0]);
+        {
+            List<Float> list = (List<Float>) obj[0];
+            float[] array = new float[list.size()];
+            for (int index = 0; index < list.size(); index++)
+                array[index] = list.get(index);
+            vectors.add(array);
+        }
 
         return vectors;
     }

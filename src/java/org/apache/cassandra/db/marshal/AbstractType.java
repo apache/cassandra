@@ -279,6 +279,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public AbstractType<T> unwrap()
+    {
+        return isReversed() ? ((ReversedType<T>) this).baseType.unwrap() : this;
+    }
+
     public boolean isVector()
     {
         return false;
@@ -460,6 +465,16 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final boolean isValueLengthFixed()
     {
         return valueLengthIfFixed() != VARIABLE_LENGTH;
+    }
+
+    public boolean isNull(ByteBuffer bb)
+    {
+        return isNull(bb, ByteBufferAccessor.instance);
+    }
+
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
+    {
+        return getSerializer().isNull(buffer, accessor);
     }
 
     // This assumes that no empty values are passed

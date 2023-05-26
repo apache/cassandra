@@ -1483,8 +1483,8 @@ collectionLiteral returns [Term.Raw value]
 
 listLiteral returns [Term.Raw value]
     @init {List<Term.Raw> l = new ArrayList<Term.Raw>();}
-    @after {$value = new Lists.Literal(l);}
-    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new Lists.Literal(l); }
+    @after {$value = new ArrayLiteral(l);}
+    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']'
     ;
 
 usertypeLiteral returns [UserTypes.Literal ut]
@@ -1824,8 +1824,8 @@ tuple_type returns [CQL3Type.Raw t]
     ;
 
 vector_type returns [CQL3Type.Raw vt]
-    : K_FLOAT K_VECTOR  '[' d=INTEGER ']'
-        { $vt = CQL3Type.Raw.vector(Integer.parseInt($d.text)); }
+    : K_VECTOR '<' t1=comparatorType ','  d=INTEGER '>'
+        { $vt = CQL3Type.Raw.vector(t1, Integer.parseInt($d.text)); }
     ;
 
 username
@@ -1894,6 +1894,7 @@ basic_unreserved_keyword returns [String str]
         | K_STATIC
         | K_FROZEN
         | K_TUPLE
+        | K_VECTOR
         | K_FUNCTION
         | K_FUNCTIONS
         | K_AGGREGATE

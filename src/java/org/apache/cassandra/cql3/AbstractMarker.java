@@ -85,10 +85,6 @@ public abstract class AbstractMarker extends Term.NonTerminal
             {
                 return new UserTypes.Marker(bindIndex, receiver);
             }
-            else if (receiver.type.isVector())
-            {
-                return new Vectors.Marker(bindIndex, receiver);
-            }
 
             return new Constants.Marker(bindIndex, receiver);
         }

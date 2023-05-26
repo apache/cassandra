@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
@@ -57,7 +58,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void randomizedTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -102,7 +103,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void multiSSTablesTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         disableCompaction(keyspace());
@@ -138,7 +139,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void partitionRestrictedTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -180,7 +181,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void partitionRestrictedWidePartitionTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, ck int, val float vector[%d], PRIMARY KEY(pk, ck))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, ck int, val vector<float, %d>, PRIMARY KEY(pk, ck))", dimensionCount));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -229,7 +230,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void rangeRestrictedTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -292,7 +293,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void multipleNonAnnSegmentsTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
         disableCompaction(KEYSPACE);
 
         int sstableCount = getRandom().nextIntBetween(3, 6);
@@ -412,12 +413,12 @@ public class VectorLocalTest extends SAITester
     private List<float[]> getVectorsFromResult(UntypedResultSet result)
     {
         List<float[]> vectors = new ArrayList<>();
-        VectorType vectorType = VectorType.getInstance(dimensionCount);
+        VectorType vectorType = VectorType.getInstance(FloatType.instance, dimensionCount);
 
         // verify results are part of inserted vectors
         for (UntypedResultSet.Row row: result)
         {
-            vectors.add(vectorType.compose(row.getBytes("val")));
+            vectors.add(vectorType.composeAsFloat(row.getBytes("val")));
         }
 
         return vectors;

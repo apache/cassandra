@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -33,7 +32,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void endToEndTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -94,7 +93,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testTwoPredicates() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, b boolean, v float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
@@ -118,7 +117,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testThreePredicates() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, b boolean, v float vector[3], str text, PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, str text, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(str) USING 'StorageAttachedIndex'");
@@ -143,7 +142,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testSameVectorMultipleRows() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -165,7 +164,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testQueryEmptyTable() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -176,7 +175,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testQueryTableWithNulls() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -192,7 +191,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testLimitLessThanInsertedRowCount() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -209,7 +208,7 @@ public class VectorTypeTest extends SAITester
     @Test
     public void testQueryMoreRowsThanInserted() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -222,17 +221,17 @@ public class VectorTypeTest extends SAITester
     @Test
     public void cannotInsertWrongNumberOfDimensions()
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
 
         assertThatThrownBy(() -> execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0])"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Invalid number of dimensions 2 in list literal for val of type float vector[3]");
+        .hasMessage("Invalid vector literal for val of type vector<float, 3>; expected 3 elements, but given 2");
     }
 
     @Test
     public void cannotQueryWrongNumberOfDimensions() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -243,13 +242,13 @@ public class VectorTypeTest extends SAITester
 
         assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5] LIMIT 5"))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Invalid number of dimensions 2 in list literal for val of type float vector[3]");
+        .hasMessage("Invalid vector literal for val of type vector<float, 3>; expected 3 elements, but given 2");
     }
 
     @Test
     public void changingOptionsTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = " +
                     "{'maximum_node_connections' : 10, 'construction_beam_width' : 200, 'similarity_function' : 'euclidean' }");
         waitForIndexQueryable();
@@ -284,16 +283,16 @@ public class VectorTypeTest extends SAITester
     @Test
     public void bindVariablesTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", new float[] {1.0f, 2.0f ,3.0f});
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", new float[] {2.0f ,3.0f, 4.0f});
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", new float[] {3.0f, 4.0f, 5.0f});
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", new float[] {4.0f, 5.0f, 6.0f});
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", vector(2.0f ,3.0f, 4.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", vector(4.0f, 5.0f, 6.0f));
 
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of ? LIMIT 3", new float[] {2.5f, 3.5f, 4.5f});
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of ? LIMIT 3", vector(2.5f, 3.5f, 4.5f));
         assertThat(result).hasSize(3);
         System.out.println(makeRowStrings(result));
     }
@@ -303,16 +302,16 @@ public class VectorTypeTest extends SAITester
     {
         // check that we correctly get back the two rows with str_val=B even when those are not
         // the closest rows to the query vector
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", Lists.newArrayList(1.0, 2.0 ,3.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", Lists.newArrayList(2.0 ,3.0, 4.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", Lists.newArrayList(3.0, 4.0, 5.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'B', ?)", Lists.newArrayList(4.0, 5.0, 6.0));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", Lists.newArrayList(5.0, 6.0, 7.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", vector(2.0f ,3.0f, 4.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'B', ?)", vector(4.0f, 5.0f, 6.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5.0f, 6.0f, 7.0f));
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
@@ -327,16 +326,16 @@ public class VectorTypeTest extends SAITester
     @Test
     public void nullVectorTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", Lists.newArrayList(1.0, 2.0 ,3.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
         execute("INSERT INTO %s (pk, str_val) VALUES (1, 'B')");
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", Lists.newArrayList(3.0, 4.0, 5.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
         execute("INSERT INTO %s (pk, str_val) VALUES (3, 'D')");
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", Lists.newArrayList(5.0, 6.0, 7.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5.0f, 6.0f, 7.0f));
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' AND val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(0);

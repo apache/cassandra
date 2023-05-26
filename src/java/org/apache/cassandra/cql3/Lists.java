@@ -22,13 +22,13 @@ import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.FloatType;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
@@ -70,9 +70,6 @@ public abstract class Lists
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        if (type instanceof VectorType) {
-            return FloatType.instance;
-        }
         return ((ListType) unwrap(type)).getElementsType();
     }
 
@@ -186,7 +183,7 @@ public abstract class Lists
 
                 values.add(t);
             }
-            Term.NonTerminal value = receiver.type.isVector() ? new Vectors.DelayedValue(values) : new DelayedValue(values);
+            DelayedValue value = new DelayedValue(values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -194,11 +191,8 @@ public abstract class Lists
         {
             AbstractType<?> type = unwrap(receiver.type);
 
-            if (!(type instanceof ListType || type.isVector()))
+            if (!(type instanceof ListType))
                 throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
-
-            if (type.isVector() && elements.size() != ((VectorType)type).dimensions)
-                throw new InvalidRequestException(String.format("Invalid number of dimensions %s in list literal for %s of type %s", elements.size(), receiver.name, receiver.type.asCQL3Type()));
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
             for (Term.Raw rt : elements)
@@ -256,16 +250,6 @@ public abstract class Lists
         public ByteBuffer get(ProtocolVersion protocolVersion)
         {
             return CollectionSerializer.pack(elements, elements.size(), protocolVersion);
-        }
-
-        public ByteBuffer getVector(ProtocolVersion protocolVersion)
-        {
-            var bb = ByteBuffer.allocate(4 + 4 * elements.size());
-            bb.putInt(elements.size());
-            for (var v : elements)
-                bb.put(v);
-            bb.position(0);
-            return bb;
         }
 
         public boolean equals(ListType lt, Value v)
