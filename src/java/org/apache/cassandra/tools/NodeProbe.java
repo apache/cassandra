@@ -1133,6 +1133,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getCompactionThroughputMbPerSec();
     }
 
+    public double getCompactionRate()
+    {
+        return compactionProxy.getCompactionRate();
+    }
+
     public void setBatchlogReplayThrottle(int value)
     {
         ssProxy.setBatchlogReplayThrottleInKB(value);

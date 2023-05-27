@@ -2233,6 +2233,11 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public double getCompactionRate()
+    {
+        return compactionRateLimiter.getRate();
+    }
+
     /**
      * Try to stop all of the compactions for given ColumnFamilies.
      *

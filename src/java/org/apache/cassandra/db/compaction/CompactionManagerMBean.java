@@ -165,4 +165,9 @@ public interface CompactionManagerMBean
      * when automatic sstable upgrades are enabled
      */
     public void setMaxConcurrentAutoUpgradeTasks(int value);
+
+    /**
+     *  Get the compaction rate
+     */
+    public double getCompactionRate();
 }
