@@ -2211,6 +2211,11 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getDefaultKeyspaceReplicationFactor();
     }
+
+    public boolean isDecommissionFailed()
+    {
+        return ssProxy.isDecommissionFailed();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

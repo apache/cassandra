@@ -1185,4 +1185,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setSkipStreamDiskSpaceCheck(boolean value);
     public boolean getSkipStreamDiskSpaceCheck();
+
+    /** Indicates whether this node's decommission failed. */
+    public boolean isDecommissionFailed();
 }

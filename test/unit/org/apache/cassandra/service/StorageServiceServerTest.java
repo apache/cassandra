@@ -50,6 +50,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
@@ -59,6 +60,7 @@ import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class StorageServiceServerTest
@@ -657,5 +659,27 @@ public class StorageServiceServerTest
             REPLACE_ADDRESS.setString("unresolvable.host.local.");
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
         }
+    }
+
+    @Test
+    public void testIsDecommissionNotFailed()
+    {
+        assertFalse(StorageService.instance.isDecommissionFailed());
+        assertEquals(0, StorageMetrics.errorDecommissiong.getCount());
+    }
+
+    @Test
+    public void testIsDecommissionFailed()
+    {
+        try
+        {
+            StorageService.instance.decommission(false);
+        }
+        catch (Exception e)
+        {
+            StorageService.instance.setOperationMode(StorageService.Mode.LEAVING);
+        }
+        assertTrue(StorageService.instance.isDecommissionFailed());
+        assertEquals(1, StorageMetrics.errorDecommissiong.getCount());
     }
 }

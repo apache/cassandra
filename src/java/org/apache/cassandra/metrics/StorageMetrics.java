@@ -45,6 +45,7 @@ public class StorageMetrics
     public static final Counter totalHintsInProgress  = Metrics.counter(factory.createMetricName("TotalHintsInProgress"));
     public static final Counter totalHints = Metrics.counter(factory.createMetricName("TotalHints"));
     public static final Counter repairExceptions = Metrics.counter(factory.createMetricName("RepairExceptions"));
+    public static final Counter errorDecommissiong = Metrics.counter(factory.createMetricName("ErrorDecommissioning"));
 
     private static Gauge<Long> createSummingGauge(String name, ToLongFunction<KeyspaceMetrics> extractor)
     {
