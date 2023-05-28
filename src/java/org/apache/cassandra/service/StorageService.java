@@ -144,6 +144,7 @@ import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.hints.HintVerbHandler;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.VersionAndType;
@@ -3335,6 +3336,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 status = oneStatus;
         }
         return status.statusCode;
+    }
+
+    public int userDefinedGarbageCollect(String tombstoneOptionString, int jobs, Collection<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);
+        for (Map.Entry<ColumnFamilyStore, Collection<Descriptor>> entry: Descriptor.fromFilenamesGrouped(userDefinedTables).asMap().entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getKey();
+            Collection<Descriptor> sstables = entry.getValue();
+            CompactionManager.AllSSTableOpStatus oneStatus = cfs.partialGarbageCollect(tombstoneOption, jobs, sstables);
+            if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL) {
+              return oneStatus.statusCode;
+            }
+        }
+        return CompactionManager.AllSSTableOpStatus.SUCCESSFUL.statusCode;
     }
 
     /**
