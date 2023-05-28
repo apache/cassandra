@@ -264,4 +264,9 @@ public enum ConsistencyLevel
             throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)",
                                                             this, replicationStrategy.getClass().getName()));
     }
+
+    public static ConsistencyLevel fromStringIgnoreCase(String s)
+    {
+        return valueOf(s.toUpperCase());
+    }
 }

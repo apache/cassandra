@@ -606,7 +606,7 @@ public class DatabaseDescriptorTest
     {
         try
         {
-            DatabaseDescriptor.validateUpperBoundStreamingConfig();
+            DatabaseDescriptor.validateUpperBoundStreamingConfig(DatabaseDescriptor.configSource());
         }
         catch (ConfigurationException ex)
         {

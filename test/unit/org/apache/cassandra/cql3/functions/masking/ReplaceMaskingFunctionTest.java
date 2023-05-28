@@ -59,9 +59,9 @@ public class ReplaceMaskingFunctionTest extends MaskingFunctionTester
         assertRows(execute("SELECT mask_replace(v, ?) FROM %s", 1), row(BigInteger.ONE));
         assertRows(execute("SELECT mask_replace(v, ?) FROM %s", 1L), row(BigInteger.ONE));
         assertRows(execute("SELECT mask_replace(v, ?) FROM %s", BigInteger.ONE), row(BigInteger.ONE));
-        assertInvalidThrowMessage("Type error: 1.2 cannot be passed as argument 1 of function system.mask_replace of type varint",
+        assertInvalidThrowMessage("EventType error: 1.2 cannot be passed as argument 1 of function system.mask_replace of type varint",
                                   InvalidRequestException.class, "SELECT mask_replace(v, 1.2) FROM %s");
-        assertInvalidThrowMessage("Type error: 'secret' cannot be passed as argument 1 of function system.mask_replace of type varint",
+        assertInvalidThrowMessage("EventType error: 'secret' cannot be passed as argument 1 of function system.mask_replace of type varint",
                                   InvalidRequestException.class, "SELECT mask_replace(v, 'secret') FROM %s");
 
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v varchar)");
@@ -70,7 +70,7 @@ public class ReplaceMaskingFunctionTest extends MaskingFunctionTester
         assertRows(execute("SELECT mask_replace(v, (ascii) 'secret') FROM %s"), row("secret"));
         assertRows(execute("SELECT mask_replace(v, (text) 'secret') FROM %s"), row("secret"));
         assertRows(execute("SELECT mask_replace(v, (varchar) 'secret') FROM %s"), row("secret"));
-        assertInvalidThrowMessage("Type error: 1 cannot be passed as argument 1 of function system.mask_replace of type text",
+        assertInvalidThrowMessage("EventType error: 1 cannot be passed as argument 1 of function system.mask_replace of type text",
                                   InvalidRequestException.class, "SELECT mask_replace(v, 1) FROM %s");
     }
 }

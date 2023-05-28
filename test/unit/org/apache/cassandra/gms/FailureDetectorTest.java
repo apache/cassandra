@@ -67,7 +67,7 @@ public class FailureDetectorTest
         List<UUID> hostIds = new ArrayList<>();
 
         // we want to convict if there is any heartbeat data present in the FD
-        DatabaseDescriptor.setPhiConvictThreshold(0);
+        DatabaseDescriptor.getRawConfig().phi_convict_threshold = 0;
 
         // create a ring of 2 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 3);

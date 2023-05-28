@@ -107,9 +107,11 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -984,6 +986,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
+        DatabaseDescriptor.configSource()
+                          .addBeforeUpdateSourceListener((name, source) -> {
+                              if (name.equals(ConfigFields.CONCURRENT_COMPACTORS))
+                                CompactionManager.instance.setConcurrentCompactors(source.getInteger(name));
+                          });
+
         completeInitialization();
     }
 
@@ -1848,10 +1856,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setConcurrentCompactors(int value)
     {
-        if (value <= 0)
-            throw new IllegalArgumentException("Number of concurrent compactors should be greater than 0.");
         DatabaseDescriptor.setConcurrentCompactors(value);
-        CompactionManager.instance.setConcurrentCompactors(value);
     }
 
     public void bypassConcurrentValidatorsLimit()
@@ -5754,6 +5759,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ColumnFamilyStore.shutdownPostFlushExecutor();
+
+            DatabaseConfigurationSource.shutdown();
 
             try
             {
