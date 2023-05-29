@@ -21,25 +21,21 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.RamUsageEstimator;
 
 public class VectorPostings<T>
 {
-    public final int ordinal;
-    public final List<T> postings;
+    private final List<T> postings;
 
     // TODO refactor this so we can add the first posting at construction time instead of having
     // to append it separately (which will require a copy of the list)
-    public VectorPostings(int ordinal)
+    public VectorPostings()
     {
-        this.ordinal = ordinal;
         // we expect that the overwhelmingly most common cardinality will be 1, so optimize for reads
         postings = new CopyOnWriteArrayList<>();
     }
 
-    public void append(T key)
+    public void add(T key)
     {
         postings.add(key);
     }
@@ -65,5 +61,15 @@ public class VectorPostings<T>
         return REF_BYTES
                + 2 * Long.BYTES // hashes in PreHashedDecoratedKey
                + REF_BYTES; // key ByteBuffer, this is used elsewhere so we don't take the deep size
+    }
+
+    public int size()
+    {
+        return postings.size();
+    }
+
+    public List<T> getPostings()
+    {
+        return postings;
     }
 }

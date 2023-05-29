@@ -22,10 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.PriorityQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -111,16 +109,16 @@ public class CassandraOnHeapHnsw<T>
             }
             bytes += VectorPostings.emptyBytesUsed();
             bytesUsed.addAndGet(bytes);
-            return new VectorPostings<>(ordinal);
+            return new VectorPostings<>();
         });
-        postings.append(key);
+        postings.add(key);
 
         return bytesUsed.get();
     }
 
     public Collection<T> keysFromOrdinal(int node)
     {
-        return postingsMap.get(vectorValues.vectorValue(node)).postings;
+        return postingsMap.get(vectorValues.vectorValue(node)).getPostings();
     }
 
     /**
