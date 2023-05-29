@@ -2265,6 +2265,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         final int GOSSIP_SETTLE_MIN_WAIT_MS = CassandraRelevantProperties.GOSSIP_SETTLE_MIN_WAIT_MS.getInt();
         final int GOSSIP_SETTLE_POLL_INTERVAL_MS = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_INTERVAL_MS.getInt();
         final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED.getInt();
+
         logger.info("Waiting for gossip to settle...");
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
         int totalPolls = 0;
@@ -2279,12 +2280,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             totalPolls++;
             if (currentSize == epSize && currentLive == liveSize)
             {
-                logger.debug("Gossip looks settled with {} states and {} live endpoints after {} polls.", currentSize, currentLive, totalPolls);
+                logger.debug("Gossip looks settled.");
                 numOkay++;
             }
             else
             {
-                logger.info("Gossip not settled with {} states and {} live endpoints after {} polls.", currentSize, currentLive, totalPolls);
+                logger.info("Gossip not settled after {} polls.", totalPolls);
                 numOkay = 0;
             }
             epSize = currentSize;
