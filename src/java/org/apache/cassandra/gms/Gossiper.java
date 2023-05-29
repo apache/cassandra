@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
@@ -2261,10 +2262,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             return;
         }
-        final int GOSSIP_SETTLE_MIN_WAIT_MS = Integer.getInteger("cassandra.gossip_settle_min_wait_ms", 5000);
-        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = Integer.getInteger("cassandra.gossip_settle_interval_ms", 1000);
-        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = Integer.getInteger("cassandra.gossip_settle_poll_success_required", 3);
-
+        final int GOSSIP_SETTLE_MIN_WAIT_MS = CassandraRelevantProperties.GOSSIP_SETTLE_MIN_WAIT_MS.getInt();
+        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_INTERVAL_MS.getInt();
+        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = CassandraRelevantProperties.GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED.getInt();
         logger.info("Waiting for gossip to settle...");
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
         int totalPolls = 0;
