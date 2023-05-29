@@ -126,22 +126,20 @@ public class SortedTermsReader
         }
     }
 
+    /**
+     * Returns the last point id (ordinal) of the target term or the next smaller if no exact match found.
+     * If reached the end of the terms file, returns <code>Long.MAX_VALUE</code>.
+     * Complexity of this operation is O(log n).
+     *
+     * @param term target term to lookup
+     */
     public long getLastPointId(@Nonnull ByteComparable term)
     {
         Preconditions.checkNotNull(term, "term null");
 
-        try (TrieRangeIterator reader = new TrieRangeIterator(termsTrie.instantiateRebufferer(),
-                                                              meta.trieFP,
-                                                              term,
-                                                              null,
-                                                              true,
-                                                              true))
+        try (ReversedTrieRangeIterator reader = new ReversedTrieRangeIterator(termsTrie.instantiateRebufferer(), meta.trieFP, term, true))
         {
-            final Iterator<Pair<ByteSource, Long>> iterator = reader.iterator();
-            long pointId = Long.MAX_VALUE;
-            while (iterator.hasNext())
-                pointId = iterator.next().right; // FIXME travese to the end in trie
-            return pointId;
+            return reader.nextId();
         }
     }
 

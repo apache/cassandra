@@ -82,6 +82,12 @@ public class KDTreeIndexBuilder
         }
 
         @Override
+        public long firstRowIdFromPrimaryKey(PrimaryKey key)
+        {
+            return key.token().getLongValue();
+        }
+
+        @Override
         public long lastRowIdFromPrimaryKey(PrimaryKey key)
         {
             return key.token().getLongValue();

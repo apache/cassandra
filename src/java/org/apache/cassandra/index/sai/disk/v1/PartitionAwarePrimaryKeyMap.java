@@ -145,6 +145,12 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
+    public long firstRowIdFromPrimaryKey(PrimaryKey key)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public long lastRowIdFromPrimaryKey(PrimaryKey key)
     {
         throw new UnsupportedOperationException();
