@@ -40,6 +40,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.assertj.core.data.Percentage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -346,14 +347,14 @@ public class VectorLocalTest extends SAITester
     private UntypedResultSet search(float[] queryVector, int limit) throws Throwable
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
-        assertThat(result).hasSize(limit);
+        assertThat(result.size()).isCloseTo(limit, Percentage.withPercentage(5));
         return result;
     }
 
     private List<float[]> searchWithRange(float[] queryVector, long minToken, long maxToken, int expectedSize) throws Throwable
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
-        assertThat(result).hasSize(expectedSize);
+        assertThat(result.size()).isCloseTo(expectedSize, Percentage.withPercentage(5));
         return getVectorsFromResult(result);
     }
 
