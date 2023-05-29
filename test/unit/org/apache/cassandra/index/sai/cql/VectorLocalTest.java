@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.cql;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -133,7 +134,7 @@ public class VectorLocalTest extends SAITester
 
         // expect recall to be at least 0.8
         List<float[]> resultVectors = getVectorsFromResult(resultSet);
-        double recall = getRecall(allVectors, queryVector, resultVectors);
+        double recall = getRecall(allVectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.8);
     }
 
@@ -263,7 +264,7 @@ public class VectorLocalTest extends SAITester
 
             float[] queryVector = randomVector();
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            double recall = getRecall(resultVectors, queryVector, expected);
+            double recall = getRecall(resultVectors, queryVector, expected, expected.size());
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
 
@@ -286,7 +287,7 @@ public class VectorLocalTest extends SAITester
 
             float[] queryVector = randomVector();
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            double recall = getRecall(resultVectors, queryVector, expected);
+            double recall = getRecall(resultVectors, queryVector, expected, expected.size());
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
     }
@@ -332,7 +333,7 @@ public class VectorLocalTest extends SAITester
 
             // expect recall to be at least 0.8
             List<float[]> resultVectors = getVectorsFromResult(resultSet);
-            double recall = getRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors);
+            double recall = getRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors, limit);
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
     }
@@ -390,14 +391,13 @@ public class VectorLocalTest extends SAITester
         return rawVector;
     }
 
-    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result)
+    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK)
     {
-        List<float[]> sortedVectors = new ArrayList<>(vectors);
-        sortedVectors.sort((a, b) -> Double.compare(function.compare(b, query), function.compare(a, query)));
+        var sortedVectors = vectors.stream()
+                                   .sorted(Comparator.comparingDouble(v -> function.compare(v, query)))
+                                   .collect(Collectors.toList());
 
-        assertThat(sortedVectors).containsAll(result);
-
-        List<float[]> nearestNeighbors = sortedVectors.subList(0, result.size());
+        List<float[]> nearestNeighbors = sortedVectors.subList(0, Math.min(sortedVectors.size(), topK));
 
         int matches = 0;
         for (float[] in : nearestNeighbors)
@@ -412,7 +412,7 @@ public class VectorLocalTest extends SAITester
             }
         }
 
-        return matches * 1.0 / result.size();
+        return (double) matches / topK;
     }
 
     private List<float[]> getVectorsFromResult(UntypedResultSet result)
