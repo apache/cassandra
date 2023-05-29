@@ -165,11 +165,18 @@ public abstract class Token implements RingPosition<Token>, Serializable
      */
     abstract public double size(Token next);
     /**
-     * Returns a token that is slightly greater than this. Used to avoid clashes
-     * between nodes in separate datacentres trying to use the same token via
-     * the token allocation algorithm.
+     * Returns the next possible token in the token space, one that compares
+     * greater than this and such that there is no other token that sits
+     * between this token and it in the token order.
+     *
+     * This is not possible for all token types, esp. for comparison-based
+     * tokens such as the LocalPartioner used for classic secondary indexes.
+     *
+     * Used to avoid clashes between nodes in separate datacentres trying to
+     * use the same token via the token allocation algorithm, as well as in
+     * constructing token ranges for sstables.
      */
-    abstract public Token increaseSlightly();
+    abstract public Token nextValidToken();
 
     public Token getToken()
     {

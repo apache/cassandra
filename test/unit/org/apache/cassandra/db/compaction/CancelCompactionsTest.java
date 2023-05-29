@@ -467,7 +467,10 @@ public class CancelCompactionsTest extends CQLTester
 
         for (int i = 0; i < 15; i++)
         {
+            // Do more than one insert to ensure overlap
             execute("insert into %s (id, something) values (?,?)", i, i);
+            execute("insert into %s (id, something) values (?,?)", i + 1, i);
+            execute("insert into %s (id, something) values (?,?)", i + 2, i);
             flush();
         }
         AbstractCompactionTask ct = null;

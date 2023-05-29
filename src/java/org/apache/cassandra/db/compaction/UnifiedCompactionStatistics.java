@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
 {
-    private static final Collection<String> HEADER = ImmutableList.copyOf(Iterables.concat(ImmutableList.of("Bucket", "W", "T", "F", "min size", "max size"),
+    private static final Collection<String> HEADER = ImmutableList.copyOf(Iterables.concat(ImmutableList.of("Level", "W", "Min Density", "Max Density", "Overlap"),
                                                                                            CompactionAggregateStatistics.HEADER));
 
     private static final long serialVersionUID = 3695927592357345266L;
@@ -47,17 +47,14 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
     /** The scaling parameter W */
     private final int scalingParameter;
 
-    /** The number of SSTables T that trigger a compaction */
-    private final int threshold;
+    /** The minimum density for an SSTable that belongs to this bucket */
+    private final double minDensityBytes;
 
-    /** The fanout size F */
-    private final int fanout;
+    /** The maximum density for an SSTable run that belongs to this bucket */
+    private final double maxDensityBytes;
 
-    /** The minimum size for an SSTable that belongs to this bucket */
-    private final long minSizeBytes;
-
-    /** The maximum size for an SSTable run that belongs to this bucket */
-    private final long maxSizeBytes;
+    /** The maximum number of overlapping sstables in the shard */
+    private final int maxOverlap;
 
     /** The name of the shard */
     private final String shard;
@@ -66,10 +63,9 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
                                 int bucketIndex,
                                 double survivalFactor,
                                 int scalingParameter,
-                                int threshold,
-                                int fanout,
-                                long minSizeBytes,
-                                long maxSizeBytes,
+                                double minDensityBytes,
+                                double maxDensityBytes,
+                                int maxOverlap,
                                 String shard)
     {
         super(base);
@@ -77,10 +73,9 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
         this.bucket = bucketIndex;
         this.survivalFactor = survivalFactor;
         this.scalingParameter = scalingParameter;
-        this.threshold = threshold;
-        this.fanout = fanout;
-        this.minSizeBytes = minSizeBytes;
-        this.maxSizeBytes = maxSizeBytes;
+        this.minDensityBytes = minDensityBytes;
+        this.maxDensityBytes = maxDensityBytes;
+        this.maxOverlap = maxOverlap;
         this.shard = shard;
     }
 
@@ -105,32 +100,18 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
         return scalingParameter;
     }
 
-    /** The number of SSTables T that trigger a compaction */
-    @JsonProperty
-    public int threshold()
-    {
-        return threshold;
-    }
-
-    /** The fanout size F */
-    @JsonProperty
-    public int fanout()
-    {
-        return fanout;
-    }
-
     /** The minimum size for an SSTable that belongs to this bucket */
     @JsonProperty
-    public long minSizeBytes()
+    public double minDensityBytes()
     {
-        return minSizeBytes;
+        return minDensityBytes;
     }
 
     /** The maximum size for an SSTable that belongs to this bucket */
     @JsonProperty
-    public long maxSizeBytes()
+    public double maxDensityBytes()
     {
-        return maxSizeBytes;
+        return maxDensityBytes;
     }
 
     /** The name of the shard, empty if the compaction is not sharded (the default). */
@@ -152,11 +133,11 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
     {
         List<String> data = new ArrayList<>(HEADER.size());
         data.add(Integer.toString(bucket()));
-        data.add(Integer.toString(scalingParameter));
-        data.add(Integer.toString(threshold));
-        data.add(Integer.toString(fanout));
-        data.add(FBUtilities.prettyPrintMemory(minSizeBytes));
-        data.add(FBUtilities.prettyPrintMemory(maxSizeBytes));
+        data.add(UnifiedCompactionStrategy.printScalingParameter(scalingParameter));
+        data.add(FBUtilities.prettyPrintBinary(minDensityBytes, "B", " "));
+        data.add(FBUtilities.prettyPrintBinary(maxDensityBytes, "B", " "));
+
+        data.add(Integer.toString(maxOverlap));
 
         data.addAll(super.data());
 

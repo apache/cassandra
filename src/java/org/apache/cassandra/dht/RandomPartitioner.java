@@ -271,9 +271,11 @@ public class RandomPartitioner implements IPartitioner
             return HEAP_SIZE;
         }
 
-        public Token increaseSlightly()
+        public Token nextValidToken()
         {
-            return new BigIntegerToken(token.add(BigInteger.ONE));
+            BigInteger next = token.equals(MAXIMUM) ? ZERO
+                                                    : token.add(BigInteger.ONE);
+            return new BigIntegerToken(next);
         }
 
         public double size(Token next)

@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.SplitterTest;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -97,7 +98,7 @@ public class SortedLocalRangesTest
     SortedLocalRanges makeRanges(long ringVersion, List<Splitter.WeightedRange> ranges)
     {
         when(tmd.getRingVersion()).thenReturn(ringVersion);
-        return new SortedLocalRanges(storageService, cfs, ringVersion, ranges);
+        return new SortedLocalRanges(cfs, ringVersion, ranges);
     }
 
     @Test
@@ -140,7 +141,7 @@ public class SortedLocalRangesTest
                                                                                    partitioner instanceof RandomPartitioner);
             SortedLocalRanges sortedRanges = makeRanges(ringVersion, ranges);
 
-            List<PartitionPosition> boundaries = sortedRanges.split(parts);
+            List<Token> boundaries = sortedRanges.split(parts);
             assertNotNull(boundaries);
             assertEquals(parts, boundaries.size());
         }
@@ -166,7 +167,7 @@ public class SortedLocalRangesTest
 
         SortedLocalRanges sortedRanges = makeRanges(ringVersion, ranges);
 
-        List<PartitionPosition> boundaries = sortedRanges.split(parts);
+        List<Token> boundaries = sortedRanges.split(parts);
         assertNotNull(boundaries);
         assertEquals(ranges.size(), boundaries.size()); // it ignores the parts and just returns the ranges
     }

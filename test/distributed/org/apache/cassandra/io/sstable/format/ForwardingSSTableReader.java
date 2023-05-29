@@ -40,6 +40,7 @@ import org.apache.cassandra.db.lifecycle.AbstractLogTransaction;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -735,9 +736,15 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public AbstractBounds<Token> getBounds()
+    public Bounds<Token> getBounds()
     {
         return delegate.getBounds();
+    }
+
+    @Override
+    public double tokenSpaceCoverage()
+    {
+        return delegate.tokenSpaceCoverage();
     }
 
     @Override

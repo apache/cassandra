@@ -634,6 +634,11 @@ public class Config
 
     public volatile int consecutive_message_errors_threshold = 1;
 
+    /**
+     * Default compaction configuration, used if a table does not specify any.
+     */
+    public ParameterizedClass default_compaction = null;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

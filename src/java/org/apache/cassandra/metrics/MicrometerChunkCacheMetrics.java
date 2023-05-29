@@ -92,6 +92,7 @@ public class MicrometerChunkCacheMetrics extends MicrometerMetrics implements Ch
     @Override
     public void recordEviction(int weight)
     {
+        evictions.increment(weight);
     }
 
     @Override

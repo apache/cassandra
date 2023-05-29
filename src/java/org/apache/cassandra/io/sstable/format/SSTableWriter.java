@@ -278,6 +278,12 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return this;
     }
 
+    public SSTableWriter setTokenSpaceCoverage(double rangeSpanned)
+    {
+        metadataCollector.tokenSpaceCoverage(rangeSpanned);
+        return this;
+    }
+
     public abstract SSTableWriter setOpenResult(boolean openResult);
 
     /**

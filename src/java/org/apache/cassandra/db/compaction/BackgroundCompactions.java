@@ -111,7 +111,7 @@ public class BackgroundCompactions
             if (prev == null)
                 aggregatesMap.put(aggregate.getKey(), aggregate);
             else
-                aggregatesMap.put(aggregate.getKey(), prev.withAdditionalCompactions(aggregate.getActive()));
+                aggregatesMap.put(aggregate.getKey(), prev.mergeWith(aggregate));
         }
 
         // Then add the old aggregates but only if they have ongoing compactions

@@ -29,6 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -82,6 +83,7 @@ public class RangeAwareSSTableWriterTest
                                                                      null,
                                                                      false,
                                                                      SSTableFormat.Type.BIG,
+                                                                     IntervalSet.empty(),
                                                                      0,
                                                                      0,
                                                                      txn,

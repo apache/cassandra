@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -33,7 +34,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -122,6 +122,14 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     public long bytesWritten()
     {
         return bytesWritten + (writer == null ? 0 : writer.getFilePointer());
+    }
+
+    public void forEachWriter(Consumer<SSTableWriter> op)
+    {
+        for (SSTableWriter writer : writers)
+            op.accept(writer);
+        if (writer != null)
+            op.accept(writer);
     }
 
     public boolean append(UnfilteredRowIterator partition)

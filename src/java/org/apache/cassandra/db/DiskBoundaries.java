@@ -27,13 +27,21 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.compaction.CompactionSSTable;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 public class DiskBoundaries
 {
     @Nullable public final List<Directories.DataDirectory> directories;
-    @Nullable private final ImmutableList<PartitionPosition> positions;
+    /**
+     * End-inclusive list of boundaries between directories.
+     * I.e. directories[0] covers [min, positions[0]]
+     *      directories[1] covers (positions[0], positions[1]]
+     *      ...
+     *      directories[last] covers (positions[last-1], positions[last]==max]
+     */
+    @Nullable private final ImmutableList<Token> positions;
     public final SortedLocalRanges localRanges;
     final int directoriesVersion;
     private final ColumnFamilyStore cfs;
@@ -49,7 +57,7 @@ public class DiskBoundaries
 
     public DiskBoundaries(ColumnFamilyStore cfs,
                           @Nullable Directories.DataDirectory[] directories,
-                          @Nullable List<PartitionPosition> positions,
+                          @Nullable List<Token> positions,
                           SortedLocalRanges localRanges,
                           int diskVersion)
     {
@@ -116,9 +124,8 @@ public class DiskBoundaries
             return getBoundariesFromSSTableDirectory(sstable.getDescriptor());
         }
 
-        int pos = Collections.binarySearch(positions, sstable.getFirst());
-        assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
-        return -pos - 1;
+        int pos = Collections.binarySearch(positions, sstable.getFirst().getToken());
+        return pos >= 0 ? pos : -pos - 1;   // disk boundaries are end-inclusive
     }
 
     /**
@@ -152,8 +159,8 @@ public class DiskBoundaries
     public boolean isInCorrectLocation(SSTableReader sstable, Directories.DataDirectory currentLocation)
     {
         int diskIndex = getDiskIndexFromKey(sstable);
-        PartitionPosition diskLast = positions.get(diskIndex);
-        return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
+        Token diskLast = positions.get(diskIndex);
+        return directories.get(diskIndex).equals(currentLocation) && sstable.last.getToken().compareTo(diskLast) <= 0;
     }
 
     /**
@@ -170,9 +177,8 @@ public class DiskBoundaries
 
     private int getDiskIndexFromKey(DecoratedKey key)
     {
-        int pos = Collections.binarySearch(positions, key);
-        assert pos < 0;
-        return -pos - 1;
+        int pos = Collections.binarySearch(positions, key.getToken());
+        return pos >= 0 ? pos : -pos - 1;   // disk boundaries are end-inclusive
     }
 
     /**
@@ -193,7 +199,7 @@ public class DiskBoundaries
      * Extracted as a method (instead of direct access to the final field) to permit mocking in tests.
      */
     @Nullable
-    public List<PartitionPosition> getPositions()
+    public List<Token> getPositions()
     {
         return positions;
     }

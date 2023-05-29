@@ -162,7 +162,9 @@ public class TrieMemtableIndex implements MemtableIndex
     {
         RangeConcatIterator.Builder builder = RangeConcatIterator.builder();
 
-        for (int shard : boundaries.getShardsForRange(keyRange))
+        int startShard = boundaries.getShardForToken(keyRange.left.getToken());
+        int endShard = keyRange.right.isMinimum() ? boundaries.shardCount() - 1 : boundaries.getShardForToken(keyRange.right.getToken());
+        for (int shard  = startShard; shard <= endShard; ++shard)
         {
             assert rangeIndexes[shard] != null;
             builder.add(rangeIndexes[shard].search(expression, keyRange));
@@ -208,7 +210,7 @@ public class TrieMemtableIndex implements MemtableIndex
         private ByteComparable term;
 
         @SuppressWarnings("unchecked")
-        // The size represents the number of range indexes that have been selected for the merger
+            // The size represents the number of range indexes that have been selected for the merger
         PrimaryKeysMergeReducer(int size)
         {
             this.rangeIndexEntriesToMerge = new Pair[size];

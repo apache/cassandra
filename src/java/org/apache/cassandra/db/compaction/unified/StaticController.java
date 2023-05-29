@@ -35,8 +35,9 @@ public class StaticController extends Controller
      * The scaling parameters W, one per bucket index and separated by a comma.
      * Higher indexes will use the value of the last index with a W specified.
      */
-    final static String STATIC_SCALING_PARAMETERS_OPTION = "static_scaling_parameters";
-    private final static String DEFAULT_STATIC_SCALING_PARAMETERS = System.getProperty(PREFIX + STATIC_SCALING_PARAMETERS_OPTION, "2");
+    static final String STATIC_SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    static final String STATIC_SCALING_FACTORS_OPTION = "static_scaling_factors";
+    private final static String DEFAULT_STATIC_SCALING_PARAMETERS = System.getProperty(PREFIX + STATIC_SCALING_PARAMETERS_OPTION, "T4");
 
     private final int[] scalingParameters;
 
@@ -52,7 +53,10 @@ public class StaticController extends Controller
                             int maxSSTablesToCompact,
                             long expiredSSTableCheckFrequency,
                             boolean ignoreOverlapsInExpirationCheck,
-                            boolean l0ShardsEnabled)
+                            boolean l0ShardsEnabled,
+                            int baseShardCount,
+                            double targetSStableSize,
+                            OverlapInclusionMethod overlapInclusionMethod)
     {
         super(MonotonicClock.preciseTime,
               env,
@@ -65,7 +69,10 @@ public class StaticController extends Controller
               maxSSTablesToCompact,
               expiredSSTableCheckFrequency,
               ignoreOverlapsInExpirationCheck,
-              l0ShardsEnabled);
+              l0ShardsEnabled,
+              baseShardCount,
+              targetSStableSize,
+              overlapInclusionMethod);
         this.scalingParameters = scalingParameters;
     }
 
@@ -80,11 +87,18 @@ public class StaticController extends Controller
                                   long expiredSSTableCheckFrequency,
                                   boolean ignoreOverlapsInExpirationCheck,
                                   boolean l0ShardsEnabled,
+                                  int baseShardCount,
+                                  double targetSStableSize,
+                                  OverlapInclusionMethod overlapInclusionMethod,
                                   Map<String, String> options)
     {
-        int[] Ws = parseScalingParameters(options.getOrDefault(STATIC_SCALING_PARAMETERS_OPTION, DEFAULT_STATIC_SCALING_PARAMETERS));
+        int[] scalingParameters;
+        if (options.containsKey(STATIC_SCALING_FACTORS_OPTION))
+            scalingParameters = parseScalingParameters(options.get(STATIC_SCALING_FACTORS_OPTION));
+        else
+            scalingParameters = parseScalingParameters(options.getOrDefault(STATIC_SCALING_PARAMETERS_OPTION, DEFAULT_STATIC_SCALING_PARAMETERS));
         return new StaticController(env,
-                                    Ws,
+                                    scalingParameters,
                                     survivalFactors,
                                     dataSetSizeMB,
                                     numShards,
@@ -94,25 +108,22 @@ public class StaticController extends Controller
                                     maxSSTablesToCompact,
                                     expiredSSTableCheckFrequency,
                                     ignoreOverlapsInExpirationCheck,
-                                    l0ShardsEnabled);
-    }
-
-    @VisibleForTesting
-    static int[] parseScalingParameters(String str)
-    {
-        String[] vals = str.split(",");
-        int[] ret = new int[vals.length];
-        for (int i = 0; i < vals.length; i++)
-            ret[i] = Integer.parseInt(vals[i].trim());
-
-        return ret;
+                                    l0ShardsEnabled,
+                                    baseShardCount,
+                                    targetSStableSize,
+                                    overlapInclusionMethod);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
-        String s = options.remove(STATIC_SCALING_PARAMETERS_OPTION);
-        if (s != null)
-            parseScalingParameters(s);
+        String parameters = options.remove(STATIC_SCALING_PARAMETERS_OPTION);
+        if (parameters != null)
+            parseScalingParameters(parameters);
+        String factors = options.remove(STATIC_SCALING_FACTORS_OPTION);
+        if (factors != null)
+            parseScalingParameters(factors);
+        if (parameters != null && factors != null)
+            throw new ConfigurationException(String.format("Either '%s' or '%s' should be used, not both", STATIC_SCALING_PARAMETERS_OPTION, STATIC_SCALING_FACTORS_OPTION));
         return options;
     }
 
@@ -141,6 +152,6 @@ public class StaticController extends Controller
     @Override
     public String toString()
     {
-        return String.format("Static controller, m: %d, o: %s, Ws: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
+        return String.format("Static controller, m: %d, o: %s, scalingParameters: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), printScalingParameters(scalingParameters), calculator);
     }
 }

@@ -25,10 +25,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -67,7 +67,7 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
 
     @SuppressWarnings("resource")
     @Override
-    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, PartitionPosition diskBoundary)
+    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, Token diskBoundary)
     {
         return SSTableWriter.create(realm.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
                                     estimatedTotalKeys,

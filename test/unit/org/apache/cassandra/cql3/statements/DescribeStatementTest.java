@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -36,9 +37,11 @@ import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
@@ -870,7 +873,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.UnifiedCompactionStrategy'}\n" +
+               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = {}\n" +
                "    AND crc_check_chance = 1.0\n" +
@@ -884,6 +887,11 @@ public class DescribeStatementTest extends CQLTester
                "    AND speculative_retry = '99p';";
     }
 
+    private static String cqlQuoted(Map<String, String> map)
+    {
+        return new CqlBuilder().append(map).toString();
+    }
+
     private static String mvParametersCql()
     {
         return "additional_write_policy = '99p'\n" +
@@ -891,7 +899,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.UnifiedCompactionStrategy'}\n" +
+               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = {}\n" +
                "    AND crc_check_chance = 1.0\n" +

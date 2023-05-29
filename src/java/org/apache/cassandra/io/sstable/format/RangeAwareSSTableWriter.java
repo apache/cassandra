@@ -27,10 +27,12 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.schema.TableId;
@@ -38,9 +40,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeAwareSSTableWriter implements SSTableMultiWriter
 {
-    private final List<PartitionPosition> boundaries;
+    private final List<Token> boundaries;
     private final List<Directories.DataDirectory> directories;
     private final int sstableLevel;
+    private final IntervalSet<CommitLogPosition> commitLogIntervals;
     private final long estimatedKeys;
     private final long repairedAt;
     private final UUID pendingRepair;
@@ -54,7 +57,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final List<SSTableReader> finishedReaders = new ArrayList<>();
     private SSTableMultiWriter currentWriter = null;
 
-    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, UUID pendingRepair, boolean isTransient, SSTableFormat.Type format, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
+    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, UUID pendingRepair, boolean isTransient, SSTableFormat.Type format, IntervalSet<CommitLogPosition> commitLogIntervals, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
     {
         DiskBoundaries db = cfs.getDiskBoundaries();
         directories = db.directories;
@@ -67,6 +70,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         this.format = format;
         this.lifecycleNewTracker = lifecycleNewTracker;
         this.header = header;
+        this.commitLogIntervals = commitLogIntervals;
         boundaries = db.getPositions();
         if (boundaries == null)
         {
@@ -75,7 +79,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 throw new IOException(String.format("Insufficient disk space to store %s",
                                                     FBUtilities.prettyPrintMemory(totalSize)));
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(localDir), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, null, sstableLevel, header, lifecycleNewTracker);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, commitLogIntervals, sstableLevel, header, lifecycleNewTracker);
         }
     }
 
@@ -85,7 +89,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
             return;
 
         boolean switched = false;
-        while (currentIndex < 0 || key.compareTo(boundaries.get(currentIndex)) > 0)
+        while (currentIndex < 0 || key.getToken().compareTo(boundaries.get(currentIndex)) > 0)
         {
             switched = true;
             currentIndex++;
@@ -97,14 +101,14 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 finishedWriters.add(currentWriter);
 
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, null, sstableLevel, header, lifecycleNewTracker);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, commitLogIntervals, sstableLevel, header, lifecycleNewTracker);
         }
     }
 
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         maybeSwitchWriter(partition.partitionKey());
-        return currentWriter.append(partition);
+        currentWriter.append(partition);
     }
 
     @Override

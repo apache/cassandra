@@ -116,7 +116,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             {
                 InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) });
                 replicas.add(ReplicaUtils.full(endpoint));
-                StorageService.instance.getTokenMetadata().updateNormalToken(token = token.increaseSlightly(), endpoint);
+                StorageService.instance.getTokenMetadata().updateNormalToken(token = token.nextValidToken(), endpoint);
                 Gossiper.instance.initializeNodeUnsafe(endpoint, UUID.randomUUID(), 1);
             }
             catch (UnknownHostException e)

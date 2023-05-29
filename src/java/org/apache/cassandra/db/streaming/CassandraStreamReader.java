@@ -28,6 +28,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
@@ -158,7 +159,18 @@ public class CassandraStreamReader implements IStreamReader
         Preconditions.checkState(streamReceiver instanceof CassandraStreamReceiver);
         LifecycleNewTracker lifecycleNewTracker = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).createLifecycleNewTracker();
 
-        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, pendingRepair, false, format, sstableLevel, totalSize, lifecycleNewTracker, getHeader(cfs.metadata()));
+        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs,
+                                                                     estimatedKeys,
+                                                                     repairedAt,
+                                                                     pendingRepair,
+                                                                     false,
+                                                                     format,
+                                                                     // Commit log intervals for other nodes are not relevant and should not be copied
+                                                                     IntervalSet.empty(),
+                                                                     sstableLevel,
+                                                                     totalSize,
+                                                                     lifecycleNewTracker,
+                                                                     getHeader(cfs.metadata()));
         return writer;
     }
 

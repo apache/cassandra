@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
@@ -51,7 +50,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -99,6 +98,8 @@ public class CompactionLogAnalyzer
         int bucket;
         // number of sstables
         int sstables;
+        // max number of overlapping sstables in bucket
+        int overlap;
         // total size of the sstables
         long size;
         // number of running compactions
@@ -113,10 +114,6 @@ public class CompactionLogAnalyzer
         long totalBytes;
         // remaining bytes to compact
         long remainingReadBytes;
-        // number of buckets above T sstables (excl compacting)
-        int bucketsAboveT;
-        // number of buckets above T*T sstables (excl compacting)
-        int bucketsAboveT2;
         // value of scaling parameter W
         int scalingParameter;
 
@@ -136,16 +133,13 @@ public class CompactionLogAnalyzer
             writeBytesPerSecond += toAdd.writeBytesPerSecond - toRemove.writeBytesPerSecond;
             totalBytes += toAdd.totalBytes - toRemove.totalBytes;
             remainingReadBytes += toAdd.remainingReadBytes - toRemove.remainingReadBytes;
-            bucketsAboveT += toAdd.bucketsAboveT - toRemove.bucketsAboveT;
-            bucketsAboveT2 += toAdd.bucketsAboveT2 - toRemove.bucketsAboveT2;
             scalingParameter = toAdd.scalingParameter;
+            overlap = toAdd.overlap;
         }
     }
 
 
-    final static Pattern CSVNamePattern = Pattern.compile("compaction-(\\w+)-(.*?)-(.*?)-(.*)\\.csv");
-    final static Pattern HumanReadablePattern = Pattern.compile("(\\d+(\\.\\d+)?)([ KMGTP])iB(/s)?");
-    final static String HumanReadablePowers = " KMGTP";
+    static final Pattern CSVNamePattern = Pattern.compile("compaction-(\\w+)-([^-]*)-([^-]*)(-([^.]*))?\\.csv");
     private static final String fullDateFormatter = "yyyy-MM-dd' 'HH:mm:ss.SSS";
 
     static int reportResolutionInMs;
@@ -155,13 +149,13 @@ public class CompactionLogAnalyzer
     static int eventIndex;
     static int bucketIndex;
     static int sstablesIndex;
+    static int overlapIndex;
     static int compactingSstablesIndex;
     static int sizeIndex;
     static int compactionsIndex;
     static int readPerSecIndex;
     static int writePerSecIndex;
     static int sizesIndex;
-    static int Tindex;
     static int Windex;
 
     private static void initializeIndexes(String header)
@@ -177,8 +171,9 @@ public class CompactionLogAnalyzer
 
                     timestampIndex = indexMap.get("Timestamp");
                     eventIndex = indexMap.get("Event");
-                    bucketIndex = indexMap.get("Bucket");
+                    bucketIndex = indexMap.getOrDefault("Level", indexMap.get("Bucket"));
                     sstablesIndex = indexMap.get("Tot. SSTables");
+                    overlapIndex = indexMap.get("Overlap");
                     compactingSstablesIndex = indexMap.get("Comp. SSTables");
                     sizeIndex = indexMap.getOrDefault("Size (bytes)", -1);
                     sizeIndex = indexMap.get("Tot. size (bytes)");
@@ -187,7 +182,6 @@ public class CompactionLogAnalyzer
                     writePerSecIndex = indexMap.get("Write (bytes/sec)");
                     sizesIndex = indexMap.getOrDefault("Tot/Read/Written", -1);
                     sizesIndex = indexMap.get("Tot. comp. size/Read/Written (bytes)");
-                    Tindex = indexMap.get("T");
                     Windex = indexMap.get("W");
                 }
             }
@@ -202,21 +196,29 @@ public class CompactionLogAnalyzer
         dp.timestamp = getTimestamp(data[timestampIndex]);
         dp.bucket = Integer.parseInt(data[bucketIndex]);
         dp.sstables = Integer.parseInt(data[sstablesIndex]);
-        dp.size = parseHumanReadable(data[sizeIndex]);
+        dp.size = parseHumanReadableSize(data[sizeIndex]);
         final String[] compactions = data[compactionsIndex].split("/");
         dp.compactionsInProgress = Integer.parseInt(compactions[1]);
         dp.compactionsPending = Integer.parseInt(compactions[0]);
-        dp.readBytesPerSecond = parseHumanReadable(data[readPerSecIndex]);
-        dp.writeBytesPerSecond = parseHumanReadable(data[writePerSecIndex]);
+        dp.readBytesPerSecond = parseHumanReadableRate(data[readPerSecIndex]);
+        dp.writeBytesPerSecond = parseHumanReadableRate(data[writePerSecIndex]);
         String[] sizes = data[sizesIndex].split("/");
-        dp.totalBytes = parseHumanReadable(sizes[0]);
-        dp.remainingReadBytes = dp.totalBytes - parseHumanReadable(sizes[1]);
-        int T = Integer.parseInt(data[Tindex]);
-        dp.scalingParameter = Integer.parseInt(data[Windex]);
-        int compactingSSTables = Integer.parseInt(data[compactingSstablesIndex].split("/")[1]);
-        int nonCompacting = dp.sstables - compactingSSTables;
-        dp.bucketsAboveT = nonCompacting > T ? 1 : 0;
-        dp.bucketsAboveT2 = nonCompacting > T*T ? 1 : 0;
+        dp.totalBytes = parseHumanReadableSize(sizes[0]);
+        dp.remainingReadBytes = dp.totalBytes - parseHumanReadableSize(sizes[1]);
+        dp.scalingParameter = UnifiedCompactionStrategy.parseScalingParameter(data[Windex]);
+        if (overlapIndex >= 0)
+        {
+            dp.overlap = Integer.parseInt(data[overlapIndex]);
+            // Note: This overlap does not include the sstables that are currently compacting. Having such a measure
+            // could be valuable, but it needs processing that the strategy does not do (to improve efficiency the
+            // overlap sets construction only uses non-compacting sstables).
+        }
+        else
+        {
+            // The number of non-compacting sstables in a bucket is the proxy the strategy used for overlapping sstables.
+            int compactingSSTables = Integer.parseInt(data[compactingSstablesIndex].split("/")[1]);
+            dp.overlap = dp.sstables - compactingSSTables;
+        }
         return dp;
     }
 
@@ -226,15 +228,14 @@ public class CompactionLogAnalyzer
         return date.getTime();
     }
 
-    private static long parseHumanReadable(String datum)
+    private static long parseHumanReadableSize(String datum)
     {
-        Matcher m = HumanReadablePattern.matcher(datum);
-        if (!m.matches())
-            throw new AssertionError();
-        double v = Double.parseDouble(m.group(1));
-        int power = HumanReadablePowers.indexOf(m.group(3).charAt(0));
+        return (long) FBUtilities.parseHumanReadable(datum, null, "B");
+    }
 
-        return (long) Math.scalb(v, 10 * power);
+    private static long parseHumanReadableRate(String datum)
+    {
+        return (long) FBUtilities.parseHumanReadable(datum, null, "B/s");
     }
 
     public static void generateGraph(File htmlFile, JSONObject stats)
@@ -349,7 +350,9 @@ public class CompactionLogAnalyzer
         if (!m.matches())
             throw new AssertionError();
 
-        String shardId = m.group(4);
+        String shardId = m.group(5);
+        if (shardId == null)
+            shardId = "none";
         try (BufferedReader rdr = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8))
         {
             String header = rdr.readLine();
@@ -457,20 +460,17 @@ public class CompactionLogAnalyzer
     {
         // Collect a histogram of the number of sstables per bucket.
         int levels = perLevel.length - 1;
-        EstimatedHistogram[] histPerLevel = new EstimatedHistogram[levels + 1];
-        for (int i = 0; i <= levels; ++i)
-            histPerLevel[i] = new EstimatedHistogram();
 
-        EstimatedHistogram histTotal = histPerLevel[levels];
+        int maxOverlap = -1;
         for (DataPoint bucket : progressMap.values())
         {
-            histTotal.add(bucket.sstables);
-            histPerLevel[bucket.bucket].add(bucket.sstables);
+            maxOverlap = Math.max(maxOverlap, bucket.overlap);
         }
+        perLevel[levels].overlap = maxOverlap;
 
         print(perLevel[levels]);    // print out the totals on the console
         for (int i = 0; i <= levels; ++i)
-            addMetrics(perLevel[i], intervalsPerLevel[i], startTimestamp, histPerLevel[i]);
+            addMetrics(perLevel[i], intervalsPerLevel[i], startTimestamp);
     }
 
     private static JSONArray makeMetricsHeader()
@@ -486,18 +486,14 @@ public class CompactionLogAnalyzer
         metrics.add("Write throughput per thread MB/s");
         metrics.add("Total GB to compact");
         metrics.add("Remaining GB to compact");
-        metrics.add("Number of buckets above T sstables");
-        metrics.add("Number of buckets above T^2 sstables");
-        metrics.add("Max SSTables in bucket");
-        metrics.add("90th percentile SSTables in bucket");
-        metrics.add("50th percentile SSTables in bucket");
+        metrics.add("Max overlapping SSTables");
         metrics.add("Scaling parameter W");
 
         metrics.add("time");
         return metrics;
     }
 
-    private static void addMetrics(DataPoint totals, JSONArray intervals, long startTimestamp, EstimatedHistogram hist)
+    private static void addMetrics(DataPoint totals, JSONArray intervals, long startTimestamp)
     {
         if (totals.timestamp < startTimestamp)
             return; // nothing to add yet
@@ -524,12 +520,7 @@ public class CompactionLogAnalyzer
         metrics.add(Math.scalb(totals.totalBytes, -30));
         metrics.add(Math.scalb(totals.remainingReadBytes, -30));
 
-        metrics.add(totals.bucketsAboveT);
-        metrics.add(totals.bucketsAboveT2);
-
-        metrics.add(hist.max());
-        metrics.add(hist.percentile(0.90));
-        metrics.add(hist.percentile(0.50));
+        metrics.add(totals.overlap);
 
         metrics.add(totals.scalingParameter);
 
