@@ -20,10 +20,13 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 
+import org.apache.cassandra.cql3.Ordering;
+import org.apache.cassandra.cql3.restrictions.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,8 +34,6 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.restrictions.ExternalRestriction;
-import org.apache.cassandra.cql3.restrictions.Restrictions;
 import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -41,7 +42,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selectable;
@@ -121,7 +121,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private final Comparator<List<ByteBuffer>> orderingComparator;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.emptyMap(),
+    private static final Parameters defaultParameters = new Parameters(Collections.emptyList(),
                                                                        Collections.emptyList(),
                                                                        false,
                                                                        false,
@@ -1049,11 +1049,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             List<Selectable> selectables = RawSelector.toSelectables(selectClause, table);
             boolean containsOnlyStaticColumns = selectOnlyStaticColumns(table, selectables);
 
-            StatementRestrictions restrictions = prepareRestrictions(table, bindVariables, containsOnlyStaticColumns, forView);
+            List<Ordering> orderings = getOrderings(table);
+            StatementRestrictions restrictions = prepareRestrictions(
+                    table, bindVariables, orderings, containsOnlyStaticColumns, forView);
 
             // If we order post-query, the sorted column needs to be in the ResultSet for sorting,
             // even if we don't ultimately ship them to the client (CASSANDRA-4911).
-            Map<ColumnMetadata, Boolean> orderingColumns = getOrderingColumns(table);
+            Map<ColumnMetadata, Boolean> orderingColumns = getOrderingColumns(orderings);
             Set<ColumnMetadata> resultSetOrderingColumns = restrictions.keyIsInRelation() ? orderingColumns.keySet()
                                                                                           : Collections.emptySet();
 
@@ -1155,17 +1157,29 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
          * Returns the columns used to order the data.
          * @return the columns used to order the data.
          */
-        private Map<ColumnMetadata, Boolean> getOrderingColumns(TableMetadata table)
+        private Map<ColumnMetadata, Boolean> getOrderingColumns(List<Ordering> orderings)
         {
-            if (parameters.orderings.isEmpty())
+            if (orderings.isEmpty())
                 return Collections.emptyMap();
 
             Map<ColumnMetadata, Boolean> orderingColumns = new LinkedHashMap<>();
-            for (Map.Entry<ColumnIdentifier, Boolean> entry : parameters.orderings.entrySet())
+            for (Ordering ordering : orderings)
             {
-                orderingColumns.put(table.getExistingColumn(entry.getKey()), entry.getValue());
+                if (ordering.expression instanceof Ordering.SingleColumn)
+                {
+                    ColumnMetadata column = ((Ordering.SingleColumn) ordering.expression).column;
+                    boolean reversed = (ordering.direction == Ordering.Direction.DESC);
+                    orderingColumns.put(column, reversed);
+                }
             }
             return orderingColumns;
+        }
+
+        private List<Ordering> getOrderings(TableMetadata table)
+        {
+            return parameters.orderings.stream()
+                    .map(o -> o.bind(table, bindVariables))
+                    .collect(Collectors.toList());
         }
 
         /**
@@ -1179,6 +1193,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
          */
         private StatementRestrictions prepareRestrictions(TableMetadata metadata,
                                                           VariableSpecifications boundNames,
+                                                          List<Ordering> orderings,
                                                           boolean selectsOnlyStaticColumns,
                                                           boolean forView) throws InvalidRequestException
         {
@@ -1186,6 +1201,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                                 metadata,
                                                 whereClause,
                                                 boundNames,
+                                                orderings,
                                                 selectsOnlyStaticColumns,
                                                 parameters.allowFiltering,
                                                 forView);
@@ -1402,13 +1418,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public static class Parameters
     {
         // Public because CASSANDRA-9858
-        public final Map<ColumnIdentifier, Boolean> orderings;
+        public final List<Ordering.Raw> orderings;
         public final List<ColumnIdentifier> groups;
         public final boolean isDistinct;
         public final boolean allowFiltering;
         public final boolean isJson;
 
-        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+        public Parameters(List<Ordering.Raw> orderings,
                           List<ColumnIdentifier> groups,
                           boolean isDistinct,
                           boolean allowFiltering,

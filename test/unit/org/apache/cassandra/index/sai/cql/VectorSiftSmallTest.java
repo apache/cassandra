@@ -129,7 +129,7 @@ public class VectorSiftSmallTest extends SAITester
             String queryVectorAsString = Arrays.toString(queryVector);
 
             try {
-                UntypedResultSet result = execute("SELECT pk FROM %s WHERE val ANN OF " + queryVectorAsString + " LIMIT " + topK);
+                UntypedResultSet result = execute("SELECT pk FROM %s ORDER BY val ANN OF " + queryVectorAsString + " LIMIT " + topK);
                 var gt = groundTruth.get(i);
 
                 int n = (int)result.stream().filter(row -> gt.contains(row.getInt("pk"))).count();

@@ -37,7 +37,7 @@ public class VectorSegmentationTest extends SAITester
         for (int row = 0; row < 10000; row++)
             execute("INSERT INTO %s (pk, val) VALUES (?, ?)", row, nextVector());
 
-        UntypedResultSet resultSet = execute("SELECT * FROM %s WHERE val ANN OF ? LIMIT 10", nextVector());
+        UntypedResultSet resultSet = execute("SELECT * FROM %s ORDER BY val ANN OF ? LIMIT 10", nextVector());
 
         System.out.println(makeRowStrings(resultSet));
     }

@@ -255,7 +255,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         Term.Raw limit = null;
         Term.Raw perPartitionLimit = null;
-        Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<>();
+        List<Ordering.Raw> orderings = new ArrayList<>();
         List<ColumnIdentifier> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
@@ -455,11 +455,17 @@ customIndexExpression [WhereClause.Builder clause]
     : 'expr(' idxName[name] ',' t=term ')' { clause.add(new CustomIndexExpression(name, t));}
     ;
 
-orderByClause[Map<ColumnIdentifier, Boolean> orderings]
+orderByClause[List<Ordering.Raw> orderings]
     @init{
-        boolean reversed = false;
+        Ordering.Direction direction = Ordering.Direction.ASC;
     }
-    : c=cident (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
+    : c=cident (K_ANN_OF t=term)? (K_ASC | K_DESC { direction = Ordering.Direction.DESC; })?
+    {
+        Ordering.Raw.Expression expr = (t == null)
+            ? new Ordering.Raw.SingleColumn(c)
+            : new Ordering.Raw.Ann(c, t);
+        orderings.add(new Ordering.Raw(expr, direction));
+    }
     ;
 
 groupByClause[List<ColumnIdentifier> groups]
@@ -1683,7 +1689,6 @@ relationType returns [Operator op]
 relation[WhereClause.Builder clauses]
     : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
     | name=cident K_LIKE t=term { $clauses.add(new SingleColumnRelation(name, Operator.LIKE, t)); }
-    | name=cident K_ANN_OF t=term { $clauses.add(new SingleColumnRelation(name, Operator.ANN, t)); }
     | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
         { $clauses.add(new TokenRelation(l, type, t)); }

@@ -61,7 +61,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
     private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val vector<float, %d>)";
-    private static final String CREATE_TABLE_TWO_VECTORS = "CREATE TABLE %%s (pk int primary key, val1 vector<float, %d>, val2 float vector[%d])";
+    private static final String CREATE_TABLE_TWO_VECTORS = "CREATE TABLE %%s (pk int primary key, val1 vector<float, %d>, val2 vector<float, %d>)";
     private static final String CREATE_INDEX = "CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'";
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
@@ -194,33 +194,6 @@ public class VectorDistributedTest extends TestBaseImpl
         assertThat(recall).isGreaterThanOrEqualTo(MIN_RECALL);
     }
 
-    // TODO currently only allow 1 ann index
-    @Ignore
-    @Test
-    public void testMultiVectorIndexesSearch()
-    {
-        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE_TWO_VECTORS, dimensionCount, dimensionCount)));
-        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val1")));
-        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val2")));
-        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
-
-        int vectorCount = getRandom().nextIntBetween(500, 1000);
-        List<float[]> vectorsColumn1 = generateVectors(vectorCount);
-        List<float[]> vectorsColumn2 = generateVectors(vectorCount);
-
-        int pk = 0;
-        for (int i = 0; i < vectorCount; i++)
-            execute("INSERT INTO %s (pk, val1, val2) VALUES (" + (pk++) + ", " + vectorString(vectorsColumn1.get(i)) + ", " + vectorString(vectorsColumn2.get(i)) + " )");
-
-        // use large limit to make sure there are intersections between top-k per indexes.
-        int limit = vectorCount;
-        Object[][] result = execute("SELECT val1, val2 FROM %s WHERE val1 ann of " + randomVectorString()
-                                    + " AND val2 ann of " + randomVectorString()
-                                    + " LIMIT " + limit + " ALLOW FILTERING");
-
-        assertThat(result.length).isGreaterThan(0);
-    }
-
     @Test
     public void testPartitionRestrictedVectorSearch()
     {
@@ -319,21 +292,21 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private List<float[]> searchWithRange(float[] queryVector, long minToken, long maxToken, int expectedSize) throws Throwable
     {
-        Object[][] result = execute("SELECT val FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
+        Object[][] result = execute("SELECT val FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
         assertThat(result).hasSize(expectedSize);
         return getVectors(result);
     }
 
     private Object[][] searchWithLimit(float[] queryVector, int limit)
     {
-        Object[][] result = execute("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        Object[][] result = execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
         assertThat(result).hasSize(limit);
         return result;
     }
 
     private Object[][] searchWithoutLimit(float[] queryVector, int results)
     {
-        Object[][] result = execute("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector));
+        Object[][] result = execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector));
         assertThat(result).hasSize(results);
         return result;
     }
@@ -341,13 +314,13 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private Object[][] searchWithPageWithoutLimit(float[] queryVector, int pageSize)
     {
-        return executeWithPaging("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector), pageSize);
+        return executeWithPaging("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector), pageSize);
     }
 
     private Object[][] searchWithPageAndLimit(float[] queryVector, int pageSize, int limit)
     {
         // we don't know how many will be returned in case of paging, because coordinator resumes from last-returned-row's partiton
-        return executeWithPaging("SELECT val FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, pageSize);
+        return executeWithPaging("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, pageSize);
     }
 
     private void searchByKeyWithoutLimit(int key, float[] queryVector, List<float[]> vectors)
@@ -360,7 +333,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private void searchByKeyWithLimit(int key, float[] queryVector, int limit, List<float[]> vectors)
     {
-        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
         assertThat(result).hasSize(1);
         float[] output = getVectors(result).get(0);
         assertThat(output).isEqualTo(vectors.get(key));

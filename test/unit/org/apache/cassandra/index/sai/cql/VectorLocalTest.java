@@ -340,21 +340,21 @@ public class VectorLocalTest extends SAITester
 
     private UntypedResultSet search(String stringValue, float[] queryVector, int limit) throws Throwable
     {
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = '" + stringValue + "' AND val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = '" + stringValue + "' ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
         assertThat(result).hasSize(limit);
         return result;
     }
 
     private UntypedResultSet search(float[] queryVector, int limit) throws Throwable
     {
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
         assertThat(result.size()).isCloseTo(limit, Percentage.withPercentage(5));
         return result;
     }
 
     private List<float[]> searchWithRange(float[] queryVector, long minToken, long maxToken, int expectedSize) throws Throwable
     {
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
         assertThat(result.size()).isCloseTo(expectedSize, Percentage.withPercentage(5));
         return getVectorsFromResult(result);
     }
@@ -366,7 +366,7 @@ public class VectorLocalTest extends SAITester
 
     private void searchWithKey(float[] queryVector, int key, int expectedSize) throws Throwable
     {
-        UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = " + key + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = " + key + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
 
         // TODO maybe we should have different methods for these cases
         if (expectedSize < 10)

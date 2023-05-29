@@ -225,6 +225,7 @@ public class StatementRestrictions
                                                TableMetadata table,
                                                WhereClause whereClause,
                                                VariableSpecifications boundNames,
+                                               List<Ordering> orderings,
                                                boolean selectsOnlyStaticColumns,
                                                boolean allowFiltering,
                                                boolean forView)
@@ -233,6 +234,7 @@ public class StatementRestrictions
                            table,
                            whereClause,
                            boundNames,
+                           orderings,
                            selectsOnlyStaticColumns,
                            type.allowUseOfSecondaryIndices(),
                            allowFiltering,
@@ -243,6 +245,7 @@ public class StatementRestrictions
                                                TableMetadata table,
                                                WhereClause whereClause,
                                                VariableSpecifications boundNames,
+                                               List<Ordering> orderings,
                                                boolean selectsOnlyStaticColumns,
                                                boolean allowUseOfSecondaryIndices,
                                                boolean allowFiltering,
@@ -252,6 +255,7 @@ public class StatementRestrictions
                            table,
                            whereClause,
                            boundNames,
+                           orderings,
                            selectsOnlyStaticColumns,
                            allowUseOfSecondaryIndices,
                            allowFiltering,
@@ -272,6 +276,8 @@ public class StatementRestrictions
         private final TableMetadata table;
         private final WhereClause whereClause;
         private final VariableSpecifications boundNames;
+
+        private final List<Ordering> orderings;
         private final boolean selectsOnlyStaticColumns;
         private final boolean allowUseOfSecondaryIndices;
         private final boolean allowFiltering;
@@ -281,6 +287,7 @@ public class StatementRestrictions
                        TableMetadata table,
                        WhereClause whereClause,
                        VariableSpecifications boundNames,
+                       List<Ordering> orderings,
                        boolean selectsOnlyStaticColumns,
                        boolean allowUseOfSecondaryIndices,
                        boolean allowFiltering,
@@ -290,6 +297,7 @@ public class StatementRestrictions
             this.table = table;
             this.whereClause = whereClause;
             this.boundNames = boundNames;
+            this.orderings = orderings;
             this.selectsOnlyStaticColumns = selectsOnlyStaticColumns;
             this.allowUseOfSecondaryIndices = allowUseOfSecondaryIndices;
             this.allowFiltering = allowFiltering;
@@ -395,6 +403,10 @@ public class StatementRestrictions
                     }
                 }
             }
+
+            // ORDER BY clause.
+            // Some indexes can be used for ordering.
+            addOrderingRestrictions(orderings, nonPrimaryKeyRestrictionSet);
 
             PartitionKeyRestrictions partitionKeyRestrictions = partitionKeyRestrictionSet.build();
             ClusteringColumnRestrictions clusteringColumnsRestrictions = clusteringColumnsRestrictionSet.build();
@@ -582,6 +594,34 @@ public class StatementRestrictions
                                              hasRegularColumnsRestrictions,
                                              filterRestrictionsBuilder.build(),
                                              children.build());
+        }
+
+        /**
+         * This is a hack to push ordering down to indexes.
+         * Indexes are selected based on RowFilter only, so we need to turn orderings into restrictions
+         * so they end up in the row filter.
+         *
+         * @param orderings orderings from the select statement
+         * @param receiver target restriction builder to receive the additional restrictions
+         */
+        private void addOrderingRestrictions(List<Ordering> orderings, RestrictionSet.Builder receiver)
+        {
+            boolean hasAnnOrdering = false;
+
+            for (Ordering o: orderings)
+            {
+                if (o.expression instanceof Ordering.Ann)
+                {
+                    if (hasAnnOrdering)
+                        throw new InvalidRequestException("Cannot specify more than one ANN ordering");
+                    if (o.direction != Ordering.Direction.ASC)
+                        throw new InvalidRequestException("Descending ANN ordering is not supported");
+
+                    hasAnnOrdering = true;
+                    SingleRestriction restriction = ((Ordering.Ann) o.expression).toRestriction();
+                    receiver.addRestriction(restriction, false);
+                }
+            }
         }
 
         private Set<ColumnMetadata> getColumnsWithUnsupportedIndexRestrictions(TableMetadata table,
