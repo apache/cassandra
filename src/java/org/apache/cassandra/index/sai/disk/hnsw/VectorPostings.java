@@ -35,9 +35,13 @@ public class VectorPostings<T>
         postings = new CopyOnWriteArrayList<>();
     }
 
-    public void add(T key)
+    public boolean add(T key)
     {
+        for (T existing : postings)
+            if (existing.equals(key))
+                return false;
         postings.add(key);
+        return true;
     }
 
     public long ramBytesUsed()

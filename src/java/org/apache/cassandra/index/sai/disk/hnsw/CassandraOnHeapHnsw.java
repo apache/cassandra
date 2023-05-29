@@ -94,7 +94,7 @@ public class CassandraOnHeapHnsw<T>
         assert term != null && term.remaining() != 0;
 
         var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
-        var bytesUsed = new AtomicLong(VectorPostings.bytesPerPosting()); // the new posting
+        var bytesUsed = new AtomicLong();
         var postings = postingsMap.computeIfAbsent(vector, v -> {
             var bytes = RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
             var ordinal = nextOrdinal.getAndIncrement();
@@ -111,7 +111,8 @@ public class CassandraOnHeapHnsw<T>
             bytesUsed.addAndGet(bytes);
             return new VectorPostings<>();
         });
-        postings.add(key);
+        if (postings.add(key))
+            bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
 
         return bytesUsed.get();
     }
