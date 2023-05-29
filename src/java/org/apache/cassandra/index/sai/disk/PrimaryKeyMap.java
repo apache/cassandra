@@ -65,7 +65,20 @@ public interface PrimaryKeyMap extends Closeable
      */
     long rowIdFromPrimaryKey(PrimaryKey key);
 
+    /**
+     * Returns the first row Id for a given {@link PrimaryKey}
+     *
+     * @param key the {@link PrimaryKey} to lookup
+     * @return the first row Id associated with the {@link PrimaryKey}
+     */
+    long firstRowIdFromPrimaryKey(PrimaryKey key);
 
+    /**
+     * Returns the last row Id for a given {@link PrimaryKey}
+     *
+     * @param key the {@link PrimaryKey} to lookup
+     * @return the last row Id associated with the {@link PrimaryKey}
+     */
     long lastRowIdFromPrimaryKey(PrimaryKey key);
 
     @Override

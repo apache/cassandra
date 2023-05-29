@@ -186,7 +186,7 @@ public class VectorLocalTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        int partitions = 10;
+        int partitions = getRandom().nextIntBetween(20, 40);
         int vectorCountPerPartition = getRandom().nextIntBetween(50, 100);
         int vectorCount = partitions * vectorCountPerPartition;
         List<float[]> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());

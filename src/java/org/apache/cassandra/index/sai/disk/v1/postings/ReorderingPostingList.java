@@ -31,7 +31,7 @@ public class ReorderingPostingList implements PostingList
 
     public ReorderingPostingList(PrimitiveIterator.OfInt source, int estimatedSize) throws IOException
     {
-        segmentRowIds = new LongHeap(estimatedSize);
+        segmentRowIds = new LongHeap(Math.max(estimatedSize, 1));
         int n = 0;
         while (source.hasNext())
         {

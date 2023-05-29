@@ -108,7 +108,7 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
 
     RangeIterator<PrimaryKey> toPrimaryKeyIterator(PostingList postingList, SSTableQueryContext queryContext) throws IOException
     {
-        if (postingList == null)
+        if (postingList == null || postingList.size() == 0)
             return RangeIterator.emptyKeys();
 
         IndexSearcherContext searcherContext = new IndexSearcherContext(metadata.minKey,
@@ -124,7 +124,7 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
 
     RangeIterator<Long> toSSTableRowIdsIterator(PostingList postingList, SSTableQueryContext queryContext) throws IOException
     {
-        if (postingList == null)
+        if (postingList == null || postingList.size() == 0)
             return RangeIterator.emptyLongs();
 
         SSTableRowIdPostingList sstablePosting = new SSTableRowIdPostingList(postingList, metadata.segmentRowIdOffset);

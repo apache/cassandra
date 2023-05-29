@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.PrimitiveIterator;
 
 import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
@@ -31,6 +30,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -42,8 +42,6 @@ import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.lucene.util.SparseFixedBitSet;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
@@ -114,7 +112,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
 
         // it will return the next row id if given key is not found.
-        long minSSTableRowId = primaryKeyMap.rowIdFromPrimaryKey(firstPrimaryKey);
+        long minSSTableRowId = primaryKeyMap.firstRowIdFromPrimaryKey(firstPrimaryKey);
         long maxSSTableRowId = primaryKeyMap.lastRowIdFromPrimaryKey(lastPrimaryKey);
 
         // if it covers entire segment, skip bit set
@@ -182,28 +180,6 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
         return toPrimaryKeyIterator(results, context);
-    }
-
-    private static PrimitiveIterator.OfInt sparsedBitSetIterator(SparseFixedBitSet source)
-    {
-        return new PrimitiveIterator.OfInt()
-        {
-            int next = source.nextSetBit(0);
-
-            @Override
-            public boolean hasNext()
-            {
-                return next != NO_MORE_DOCS;
-            }
-
-            @Override
-            public int nextInt()
-            {
-                int current = next;
-                next = source.nextSetBit(next + 1);
-                return current;
-            }
-        };
     }
 
     @Override
