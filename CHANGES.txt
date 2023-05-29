@@ -1,3 +1,7 @@
+4.0.11
+Merged from 3.11:
+Merged from 3.0:
+
 4.0.10
  * Improve nodetool enable{audit,fullquery}log (CASSANDRA-18550)
  * Report network cache info in nodetool (CASSANDRa-18400)
