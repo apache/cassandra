@@ -44,6 +44,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
+import org.apache.mina.util.ConcurrentHashSet;
 
 public class CassandraOnHeapHnsw<T>
 {
@@ -53,6 +54,7 @@ public class CassandraOnHeapHnsw<T>
     private final VectorSimilarityFunction similarityFunction;
     final Map<float[], VectorPostings<T>> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
+    private final ConcurrentHashSet<Integer> deletedOrdinals = new ConcurrentHashSet<>();
 
     public CassandraOnHeapHnsw(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
@@ -109,10 +111,13 @@ public class CassandraOnHeapHnsw<T>
             }
             bytes += VectorPostings.emptyBytesUsed();
             bytesUsed.addAndGet(bytes);
-            return new VectorPostings<>();
+            return new VectorPostings<>(ordinal);
         });
         if (postings.add(key))
+        {
             bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
+            deletedOrdinals.remove(postings.getOrdinal());
+        }
 
         return bytesUsed.get();
     }
@@ -120,6 +125,23 @@ public class CassandraOnHeapHnsw<T>
     public Collection<T> keysFromOrdinal(int node)
     {
         return postingsMap.get(vectorValues.vectorValue(node)).getPostings();
+    }
+
+    public void remove(ByteBuffer term, T key)
+    {
+        var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
+        var postings = postingsMap.get(vector);
+        if (postings == null)
+        {
+            // it's possible for this to be called against a different memtable than the one
+            // the value was originally added to, in which case we do not expect to find
+            // the key among the postings for this vector
+            return;
+        }
+
+        postings.remove(key);
+        if (postings.isEmpty())
+            deletedOrdinals.add(postings.getOrdinal());
     }
 
     /**
@@ -140,7 +162,7 @@ public class CassandraOnHeapHnsw<T>
                                              VectorEncoding.FLOAT32,
                                              similarityFunction,
                                              builder.getGraph().getView(),
-                                             toAccept,
+                                             bitsForQuery(toAccept),
                                              visitedLimit);
         }
         catch (IOException e)
@@ -179,5 +201,59 @@ public class CassandraOnHeapHnsw<T>
     private long exactRamBytesUsed()
     {
         return ObjectSizes.measureDeep(this);
+    }
+
+    private Bits bitsForQuery(Bits toAccept)
+    {
+        return deletedOrdinals.isEmpty()
+               ? toAccept
+               : toAccept == null ? new NoDeletedBits() : new NoDeletedIntersectingBits(toAccept);
+    }
+
+    private class NoDeletedBits implements Bits
+    {
+        private final int length;
+
+        private NoDeletedBits()
+        {
+            this.length = deletedOrdinals.stream().mapToInt(i -> i).max().orElse(0);
+        }
+
+        @Override
+        public boolean get(int i)
+        {
+            return !deletedOrdinals.contains(i);
+        }
+
+        @Override
+        public int length()
+        {
+            return length;
+        }
+    }
+
+    private class NoDeletedIntersectingBits implements Bits
+    {
+        private final Bits toAccept;
+        private final int length;
+
+        private NoDeletedIntersectingBits(Bits toAccept)
+        {
+            this.toAccept = toAccept;
+            this.length = Math.max(toAccept.length(),
+                                   deletedOrdinals.stream().mapToInt(i -> i).max().orElse(0));
+        }
+
+        @Override
+        public boolean get(int i)
+        {
+            return !deletedOrdinals.contains(i) && toAccept.get(i);
+        }
+
+        @Override
+        public int length()
+        {
+            return length;
+        }
     }
 }

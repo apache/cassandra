@@ -26,11 +26,13 @@ import org.apache.lucene.util.RamUsageEstimator;
 public class VectorPostings<T>
 {
     private final List<T> postings;
+    private final int ordinal;
 
     // TODO refactor this so we can add the first posting at construction time instead of having
     // to append it separately (which will require a copy of the list)
-    public VectorPostings()
+    public VectorPostings(int ordinal)
     {
+        this.ordinal = ordinal;
         // we expect that the overwhelmingly most common cardinality will be 1, so optimize for reads
         postings = new CopyOnWriteArrayList<>();
     }
@@ -42,6 +44,11 @@ public class VectorPostings<T>
                 return false;
         postings.add(key);
         return true;
+    }
+
+    public void remove(T key)
+    {
+        postings.remove(key);
     }
 
     public long ramBytesUsed()
@@ -75,5 +82,15 @@ public class VectorPostings<T>
     public List<T> getPostings()
     {
         return postings;
+    }
+
+    public boolean isEmpty()
+    {
+        return postings.isEmpty();
+    }
+
+    public int getOrdinal()
+    {
+        return ordinal;
     }
 }

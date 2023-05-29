@@ -97,6 +97,19 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
+    public void unindex(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    {
+        if (value == null || value.remaining() == 0)
+        {
+            // don't need to un-index if the old value was null (since we don't insert those into the hnsw graph)
+            return;
+        }
+
+        var primaryKey = indexContext.keyFactory().create(key, clustering);
+        graph.remove(value, primaryKey);
+    }
+
+    @Override
     public RangeIterator<PrimaryKey> search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();

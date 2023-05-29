@@ -67,6 +67,11 @@ public interface MemtableIndex extends MemtableOrdering
 
     void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup);
 
+    default void unindex(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);
 
     Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
