@@ -20,10 +20,13 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -58,7 +61,11 @@ public class CassandraOnHeapHnsw<T>
         serializer = (VectorType.VectorSerializer)termComparator.getSerializer();
         vectorValues = new ConcurrentVectorValues(((VectorType)termComparator).dimension);
         similarityFunction = indexWriterConfig.getSimilarityFunction();
-        postingsMap = new ConcurrentHashMap<>();
+        // We need to be able to inexpensively distinguish different vectors, with a slower path
+        // that identifies vectors that are equal but not the same reference.  A comparison-
+        // based Map (which only needs to look at vector elements until a difference is found)
+        // is thus a better option than hash-based (which has to look at all elements to compute the hash).
+        postingsMap = new ConcurrentSkipListMap<>(Arrays::compare);
 
         try
         {
