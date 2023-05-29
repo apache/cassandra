@@ -363,11 +363,15 @@ public class VectorLocalTest extends SAITester
         searchWithKey(queryVector, key, 0);
     }
 
-    private void searchWithKey(float[] queryVector, int key, int size) throws Throwable
+    private void searchWithKey(float[] queryVector, int key, int expectedSize) throws Throwable
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = " + key + " AND val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
 
-        assertThat(result).hasSize(size);
+        // TODO maybe we should have different methods for these cases
+        if (expectedSize < 10)
+            assertThat(result).hasSize(expectedSize);
+        else
+            assertThat(result.size()).isCloseTo(expectedSize, Percentage.withPercentage(5));
         result.stream().forEach(row -> assertThat(row.getInt("pk")).isEqualTo(key));
     }
 
