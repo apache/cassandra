@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static java.util.function.Function.identity;
 
-public class MemtableIndex
+public class TrieMemtableIndex
 {
     private final ShardBoundaries boundaries;
     private final MemoryIndex[] rangeIndexes;
@@ -62,7 +62,7 @@ public class MemtableIndex
     private final LongAdder estimatedOnHeapMemoryUsed = new LongAdder();
     private final LongAdder estimatedOffHeapMemoryUsed = new LongAdder();
 
-    public MemtableIndex(IndexContext indexContext)
+    public TrieMemtableIndex(IndexContext indexContext)
     {
         this.boundaries = indexContext.owner().localRangeSplits(TrieMemtable.SHARD_COUNT);
         this.rangeIndexes = new MemoryIndex[boundaries.shardCount()];

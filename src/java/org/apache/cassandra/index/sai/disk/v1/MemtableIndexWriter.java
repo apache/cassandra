@@ -39,7 +39,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
-import org.apache.cassandra.index.sai.memory.MemtableIndex;
+import org.apache.cassandra.index.sai.memory.TrieMemtableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -56,10 +56,10 @@ public class MemtableIndexWriter implements PerIndexWriter
 
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
-    private final MemtableIndex memtable;
+    private final TrieMemtableIndex memtable;
     private final RowMapping rowMapping;
 
-    public MemtableIndexWriter(MemtableIndex memtable,
+    public MemtableIndexWriter(TrieMemtableIndex memtable,
                                IndexDescriptor indexDescriptor,
                                IndexContext indexContext,
                                RowMapping rowMapping)

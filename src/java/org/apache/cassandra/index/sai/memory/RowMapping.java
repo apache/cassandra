@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
  * In memory representation of {@link PrimaryKey} to row ID mappings which only contains
  * {@link Row} regardless it's live or deleted. ({@link RangeTombstoneMarker} is not included.)
  *
- * For JBOD, we can make use of sstable min/max partition key to filter irrelevant {@link MemtableIndex} subranges.
+ * For JBOD, we can make use of sstable min/max partition key to filter irrelevant {@link TrieMemtableIndex} subranges.
  * For Tiered Storage, in most cases, it flushes to tiered 0.
  */
 public class RowMapping
@@ -44,7 +44,7 @@ public class RowMapping
     public static final RowMapping DUMMY = new RowMapping()
     {
         @Override
-        public Iterator<Pair<ByteComparable, LongArrayList>> merge(MemtableIndex index) { return Collections.emptyIterator(); }
+        public Iterator<Pair<ByteComparable, LongArrayList>> merge(TrieMemtableIndex index) { return Collections.emptyIterator(); }
 
         @Override
         public void complete() {}
@@ -83,7 +83,7 @@ public class RowMapping
      *
      * @return iterator of index term to postings mapping exists in the sstable
      */
-    public Iterator<Pair<ByteComparable, LongArrayList>> merge(MemtableIndex index)
+    public Iterator<Pair<ByteComparable, LongArrayList>> merge(TrieMemtableIndex index)
     {
         assert complete : "RowMapping is not built.";
 

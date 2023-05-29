@@ -57,7 +57,7 @@ import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
-import org.apache.cassandra.index.sai.memory.MemtableIndex;
+import org.apache.cassandra.index.sai.memory.TrieMemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -99,7 +99,7 @@ public class IndexContext
     // Config can be null if the column context is "fake" (i.e. created for a filtering expression).
     private final IndexMetadata config;
 
-    private final ConcurrentMap<Memtable, MemtableIndex> liveMemtables = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Memtable, TrieMemtableIndex> liveMemtables = new ConcurrentHashMap<>();
 
     private final IndexViewManager viewManager;
     private final IndexMetrics indexMetrics;
@@ -200,13 +200,13 @@ public class IndexContext
 
     public void index(DecoratedKey key, Row row, Memtable memtable, OpOrder.Group opGroup)
     {
-        MemtableIndex current = liveMemtables.get(memtable);
+        TrieMemtableIndex current = liveMemtables.get(memtable);
 
         // We expect the relevant IndexMemtable to be present most of the time, so only make the
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
-        MemtableIndex target = (current != null)
+        TrieMemtableIndex target = (current != null)
                                ? current
-                               : liveMemtables.computeIfAbsent(memtable, mt -> new MemtableIndex(this));
+                               : liveMemtables.computeIfAbsent(memtable, mt -> new TrieMemtableIndex(this));
 
         long start = System.nanoTime();
 
@@ -247,7 +247,7 @@ public class IndexContext
         liveMemtables.remove(discarded);
     }
 
-    public MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker)
+    public TrieMemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker)
     {
         return liveMemtables.keySet().stream()
                             .filter(m -> tracker.equals(m.getFlushTransaction()))
@@ -258,7 +258,7 @@ public class IndexContext
 
     public RangeIterator searchMemtable(Expression e, AbstractBounds<PartitionPosition> keyRange)
     {
-        Collection<MemtableIndex> memtables = liveMemtables.values();
+        Collection<TrieMemtableIndex> memtables = liveMemtables.values();
 
         if (memtables.isEmpty())
         {
@@ -267,7 +267,7 @@ public class IndexContext
 
         RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
 
-        for (MemtableIndex index : memtables)
+        for (TrieMemtableIndex index : memtables)
         {
             builder.add(index.search(e, keyRange));
         }
@@ -277,17 +277,17 @@ public class IndexContext
 
     public long liveMemtableWriteCount()
     {
-        return liveMemtables.values().stream().mapToLong(MemtableIndex::writeCount).sum();
+        return liveMemtables.values().stream().mapToLong(TrieMemtableIndex::writeCount).sum();
     }
 
     public long estimatedOnHeapMemIndexMemoryUsed()
     {
-        return liveMemtables.values().stream().mapToLong(MemtableIndex::estimatedOnHeapMemoryUsed).sum();
+        return liveMemtables.values().stream().mapToLong(TrieMemtableIndex::estimatedOnHeapMemoryUsed).sum();
     }
 
     public long estimatedOffHeapMemIndexMemoryUsed()
     {
-        return liveMemtables.values().stream().mapToLong(MemtableIndex::estimatedOffHeapMemoryUsed).sum();
+        return liveMemtables.values().stream().mapToLong(TrieMemtableIndex::estimatedOffHeapMemoryUsed).sum();
     }
 
     /**
@@ -387,7 +387,7 @@ public class IndexContext
     }
 
     @VisibleForTesting
-    public ConcurrentMap<Memtable, MemtableIndex> getLiveMemtables()
+    public ConcurrentMap<Memtable, TrieMemtableIndex> getLiveMemtables()
     {
         return liveMemtables;
     }
