@@ -143,6 +143,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     @VisibleForTesting
     final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
 
+    /* Inflight echo requests. */
+    private final Set<InetAddressAndPort> inflightEcho = new ConcurrentSkipListSet<>();
+
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
 
@@ -177,9 +180,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * This property and anything that checks it should be removed in 5.0
      */
     private volatile boolean upgradeInProgressPossible = true;
-
-    // Inflight echo requests.
-    private final Set<InetAddressAndPort> inflightEcho = new ConcurrentSkipListSet<>();
 
     public void clearUnsafe()
     {
