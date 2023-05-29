@@ -1321,8 +1321,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
                 runInGossipStageBlocking(() -> {
-                    realMarkAlive(addr, localState);
-                    inflightEcho.remove(addr);
+                    try
+                    {
+                        realMarkAlive(addr, localState);
+                    }
+                    finally
+                    {
+                        inflightEcho.remove(addr);
+                    }
                 });
             }
 
