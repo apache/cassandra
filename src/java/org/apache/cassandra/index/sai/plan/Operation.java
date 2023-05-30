@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -195,9 +196,9 @@ public class Operation
         }
     }
 
-    static RangeIterator<PrimaryKey> buildIterator(QueryController controller)
+    static RangeIterator<PrimaryKey> buildIterator(QueryController controller, Set<PrimaryKey> tombstonesToSkip)
     {
-        return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller, tombstonesToSkip);
     }
 
     static FilterTree buildFilter(QueryController controller)
@@ -233,7 +234,7 @@ public class Operation
 
         abstract FilterTree filterTree();
 
-        abstract RangeIterator<PrimaryKey> rangeIterator(QueryController controller);
+        abstract RangeIterator<PrimaryKey> rangeIterator(QueryController controller, Set<PrimaryKey> tombstonesToSkip);
 
         static Node buildTree(RowFilter.FilterElement filterOperation)
         {
@@ -333,14 +334,14 @@ public class Operation
         }
 
         @Override
-        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
+        RangeIterator<PrimaryKey> rangeIterator(QueryController controller, Set<PrimaryKey> tombstonesToSkip)
         {
             var builder = RangeIntersectionIterator.<PrimaryKey>sizedBuilder(1 + children.size());
             if (!expressionMap.isEmpty())
-                builder.add(controller.getIndexes(OperationType.AND, expressionMap.values()));
+                builder.add(controller.getIndexes(OperationType.AND, expressionMap.values(), tombstonesToSkip));
             for (Node child : children)
                 if (child.canFilter())
-                    builder.add(child.rangeIterator(controller));
+                    builder.add(child.rangeIterator(controller, tombstonesToSkip));
             return builder.build();
         }
     }
@@ -360,14 +361,14 @@ public class Operation
         }
 
         @Override
-        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
+        RangeIterator<PrimaryKey> rangeIterator(QueryController controller, Set<PrimaryKey> tombstonesToSkip)
         {
             var builder = RangeUnionIterator.<PrimaryKey>builder(1 + children.size());
             if (!expressionMap.isEmpty())
-                builder.add(controller.getIndexes(OperationType.OR, expressionMap.values()));
+                builder.add(controller.getIndexes(OperationType.OR, expressionMap.values(), tombstonesToSkip));
             for (Node child : children)
                 if (child.canFilter())
-                    builder.add(child.rangeIterator(controller));
+                    builder.add(child.rangeIterator(controller, tombstonesToSkip));
             return builder.build();
         }
     }
@@ -400,10 +401,10 @@ public class Operation
         }
 
         @Override
-        RangeIterator rangeIterator(QueryController controller)
+        RangeIterator rangeIterator(QueryController controller, Set<PrimaryKey> tombstonesToSkip)
         {
             assert canFilter() : "Cannot process query with no expressions";
-            return controller.getIndexes(OperationType.AND, expressionMap.values());
+            return controller.getIndexes(OperationType.AND, expressionMap.values(), tombstonesToSkip);
         }
     }
 }

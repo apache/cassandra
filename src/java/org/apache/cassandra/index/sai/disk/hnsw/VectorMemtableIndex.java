@@ -146,12 +146,14 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
+    public RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<PrimaryKey> iterator, Set<PrimaryKey> tombstonesToSkip, Expression exp, int limit)
     {
         Set<PrimaryKey> results = new HashSet<>();
         while (iterator.hasNext())
         {
             var key = iterator.next();
+            if (tombstonesToSkip != null && tombstonesToSkip.contains(key))
+                continue;
             results.add(key);
         }
 

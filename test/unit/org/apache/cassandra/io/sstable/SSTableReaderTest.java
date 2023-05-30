@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -875,7 +874,7 @@ public class SSTableReaderTest
         assertNotNull(searcher);
         try (ReadExecutionController executionController = rc.executionController())
         {
-            assertEquals(1, Util.size(UnfilteredPartitionIterators.filter(searcher.search(executionController), rc.nowInSec())));
+            assertEquals(1, Util.size(UnfilteredPartitionIterators.filter(searcher.search(executionController, null), rc.nowInSec())));
         }
     }
 

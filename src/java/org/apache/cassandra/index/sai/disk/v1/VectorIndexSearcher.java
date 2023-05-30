@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Set;
 
 import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
@@ -30,7 +31,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -141,7 +141,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     }
 
     @Override
-    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, Set<PrimaryKey> tombstonesToSkip, int limit) throws IOException
     {
         // materialize the underlying iterator as a bitset, then ask hnsw to search.
         // the iterator represents keys from the same sstable segment as us,
@@ -166,7 +166,10 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
             int ordinal = graph.getOrdinal(segmentRowId);
             if (ordinal >= 0)
-                bits.set(ordinal);
+            {
+                if (tombstonesToSkip == null || tombstonesToSkip.isEmpty() || !tombstonesToSkip.contains(primaryKeyMap.primaryKeyFromRowId(segmentRowId)))
+                    bits.set(ordinal);
+            }
         }
 
         // if we have a small number of results then let TopK processor do exact NN computation

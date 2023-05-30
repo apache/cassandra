@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -266,19 +268,19 @@ public class MultiRangeReadCommand extends ReadCommand
     }
 
     @Override
-    public UnfilteredPartitionIterator searchStorage(Index.Searcher searcher, ReadExecutionController controller)
+    public UnfilteredPartitionIterator searchStorage(Index.Searcher searcher, ReadExecutionController controller, Set<PrimaryKey> tombstonesToSkip)
     {
         if (indexQueryPlan.supportsMultiRangeReadCommand())
         {
             // SAI supports fetching multiple ranges at once
-            return super.searchStorage(searcher, controller);
+            return super.searchStorage(searcher, controller, tombstonesToSkip);
         }
         else
         {
             // search each subrange separately as they don't support MultiRangeReadCommand
             return UnfilteredPartitionIterators.concat(dataRanges.stream()
                                                                  .map(this::toPartitionRangeReadCommand)
-                                                                 .map(command -> command.searchStorage(searcher, controller))
+                                                                 .map(command -> command.searchStorage(searcher, controller, tombstonesToSkip))
                                                                  .collect(Collectors.toList()));
         }
     }

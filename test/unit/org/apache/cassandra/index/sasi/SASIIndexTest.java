@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -1472,7 +1471,7 @@ public class SASIIndexTest
                                              DataRange.allData(store.metadata().partitioner));
         try
         {
-            new SASIIndexSearcher(store, command, 0).search(ReadExecutionController.empty());
+            new SASIIndexSearcher(store, command, 0).search(ReadExecutionController.empty(), null);
             Assert.fail();
         }
         catch (TimeQuotaExceededException e)
@@ -1489,7 +1488,7 @@ public class SASIIndexTest
 
         try (ReadExecutionController controller = command.executionController())
         {
-            Set<String> rows = getKeys(new SASIIndexSearcher(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).search(controller));
+            Set<String> rows = getKeys(new SASIIndexSearcher(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).search(controller, null));
             assertRows(rows, "key1", "key2", "key3", "key4");
         }
     }

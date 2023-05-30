@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 
@@ -201,11 +202,11 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, Set<PrimaryKey> tombstonesToSkip, int limit) throws IOException
     {
         RangeUnionIterator.Builder<PrimaryKey> unionIteratorBuilder = new RangeUnionIterator.Builder<>(segments.size());
         for (Segment segment : segments)
-            unionIteratorBuilder.add(segment.limitToTopResults(context, iterator, exp, limit));
+            unionIteratorBuilder.add(segment.limitToTopResults(context, iterator, exp, tombstonesToSkip, limit));
 
         return unionIteratorBuilder.build();
     }

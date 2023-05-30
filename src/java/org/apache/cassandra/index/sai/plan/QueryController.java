@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
@@ -200,12 +201,12 @@ public class QueryController
      * Build a {@link RangeIterator.Builder} from the given list of expressions by applying given operation (OR/AND).
      * Building of such builder involves index search, results of which are persisted in the internal resources list
      *
-     * @param op The operation type to coalesce expressions with.
-     * @param expressions The expressions to build range iterator from (expressions with not results are ignored).
-     *
+     * @param op               The operation type to coalesce expressions with.
+     * @param expressions      The expressions to build range iterator from (expressions with not results are ignored).
+     * @param tombstonesToSkip
      * @return range iterator builder based on given expressions and operation type.
      */
-    public RangeIterator<PrimaryKey> getIndexes(Operation.OperationType op, Collection<Expression> expressions)
+    public RangeIterator<PrimaryKey> getIndexes(Operation.OperationType op, Collection<Expression> expressions, Set<PrimaryKey> tombstonesToSkip)
     {
         assert !expressions.isEmpty() : "expressions should not be empty for " + op + " in " + filterOperation;
 
@@ -232,7 +233,7 @@ public class QueryController
                                                                                  .map(e -> {
                                                                                      RangeIterator<Long> it = createRowIdIterator(op, e.getValue(), defer, annExpressionInHybridSearch != null);
                                                                                      if (annExpressionInHybridSearch != null)
-                                                                                         return reorderAndLimitBySSTableRowIds(it, e.getKey(), annExpressionInHybridSearch);
+                                                                                         return reorderAndLimitBySSTableRowIds(it, e.getKey(), tombstonesToSkip, annExpressionInHybridSearch);
                                                                                      return convertToPrimaryKeyIterator(e.getKey(), it);
                                                                                  })
                                                                                  .collect(Collectors.toList());
@@ -243,7 +244,7 @@ public class QueryController
                                                                                            // we need to do all the intersections at the index level, or ordering won't work
                                                                                            RangeIterator<PrimaryKey> it = buildIterator(op, e.getValue(), annExpressionInHybridSearch != null);
                                                                                            if (annExpressionInHybridSearch != null)
-                                                                                               it = reorderAndLimitBy(it, e.getKey(), annExpressionInHybridSearch);
+                                                                                               it = reorderAndLimitBy(it, e.getKey(), tombstonesToSkip, annExpressionInHybridSearch);
                                                                                            return it;
                                                                                        })
                                                                                        .collect(Collectors.toList());
@@ -283,24 +284,37 @@ public class QueryController
         }
     }
 
-    private RangeIterator<PrimaryKey> reorderAndLimitBy(RangeIterator<PrimaryKey> original, Memtable memtable, Expression expression)
+    private RangeIterator<PrimaryKey> reorderAndLimitBy(RangeIterator<PrimaryKey> original, Memtable memtable, Set<PrimaryKey> tombstonesToSkip, Expression expression)
     {
-        return expression.context.reorderMemtable(memtable, queryContext, original, expression, getLimit());
+        return expression.context.reorderMemtable(memtable, queryContext, original, tombstonesToSkip, expression, getLimit());
     }
 
-    private RangeIterator<PrimaryKey> reorderAndLimitBySSTableRowIds(RangeIterator<Long> original, SSTableReader sstable, Expression expression)
+    private RangeIterator<PrimaryKey> reorderAndLimitBySSTableRowIds(RangeIterator<Long> original, SSTableReader sstable, Set<PrimaryKey> tombstonesToSkip, Expression expression)
     {
         var index = expression.context.getView().getIndexes()
                                       .stream().filter(i -> i.getSSTable() == sstable).findFirst().orElseThrow();
         var sstContext = queryContext.getSSTableQueryContext(index.getSSTable());
         try
         {
-            return index.limitToTopResults(sstContext, original, expression, getLimit());
+            return index.limitToTopResults(sstContext, original, expression, tombstonesToSkip, getLimit());
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * @return ann expression if expressions have one ANN index and at least one non-ANN index
+     */
+    public Expression getOrderBy(Collection<Expression> expressions)
+    {
+        var L = expressions.stream().filter(e -> e.operation == Expression.Op.ANN).collect(Collectors.toList());
+        if (L.size() > 1) {
+            // FIXME move this to the parser
+            throw new IllegalArgumentException("Only one ANN expression is allowed");
+        }
+        return L.size() == 1 ? L.get(0) : null;
     }
 
     /**
@@ -313,12 +327,7 @@ public class QueryController
             // if there is a single expression, just run search against it even if it's ANN
             return null;
         }
-        var L = expressions.stream().filter(e -> e.operation == Expression.Op.ANN).collect(Collectors.toList());
-        if (L.size() > 1) {
-            // FIXME move this to the parser
-            throw new IllegalArgumentException("Only one ANN expression is allowed");
-        }
-        return L.size() == 1 ? L.get(0) : null;
+        return getOrderBy(expressions);
     }
 
     private RangeIterator<Long> createRowIdIterator(Operation.OperationType op, List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer, boolean hasAnn)

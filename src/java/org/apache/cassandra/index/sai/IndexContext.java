@@ -282,10 +282,10 @@ public class IndexContext
                                    .map(e -> Pair.create(e.getKey(), e.getValue().search(expression, keyRange, limit))).collect(Collectors.toList());
     }
 
-    public RangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
+    public RangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, RangeIterator<PrimaryKey> iterator, Set<PrimaryKey> tombstonesToSkip, Expression exp, int limit)
     {
         var index = liveMemtables.get(memtable);
-        return index.limitToTopResults(context, iterator, exp, limit);
+        return index.limitToTopResults(context, iterator, tombstonesToSkip, exp, limit);
     }
 
     public long liveMemtableWriteCount()

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -105,9 +106,17 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     }
 
     @Override
-    public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
+    public Expression getOrderBy()
     {
-        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
+        // FIXME this should get cleaner once we have a proper ORDER BY instead of jamming it into filter Expressions
+        var node = Operation.Node.buildTree(controller.filterOperation()).analyzeTree(controller);
+        return controller.getOrderBy(node.expressionMap.values());
+    }
+
+    @Override
+    public ResultRetriever search(ReadExecutionController executionController, Set<PrimaryKey> tombstonesToSkip) throws RequestTimeoutException
+    {
+        return new ResultRetriever(analyze(tombstonesToSkip), analyzeFilter(), controller, executionController, queryContext);
     }
 
     /**
@@ -115,9 +124,9 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      *
      * @return operation
      */
-    private RangeIterator<PrimaryKey> analyze()
+    private RangeIterator<PrimaryKey> analyze(Set<PrimaryKey> tombstonesToSkip)
     {
-        return Operation.buildIterator(controller);
+        return Operation.buildIterator(controller, tombstonesToSkip);
     }
 
     /**

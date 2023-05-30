@@ -36,9 +36,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.guardrails.DefaultGuardrail;
-import org.apache.cassandra.guardrails.Guardrail;
 import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.guardrails.Threshold;
+import org.apache.cassandra.index.sai.plan.OrderByProcessor;
+import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryPlan;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -394,8 +396,26 @@ public abstract class ReadCommand extends AbstractReadQuery
             Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
         }
 
+        var orderExpr = searcher == null ? null : searcher.getOrderBy();
+        if (orderExpr == null)
+            return executeOnceLocally(executionController, startTimeNanos, cfs, searcher, null);
+
+        var obp = new OrderByProcessor(this, (StorageAttachedIndexQueryPlan) indexQueryPlan, orderExpr.context);
+        while (true)
+        {
+            var tombstonesToSkip = obp.getTombstoneTracker();
+            int lastTombstoneCount = tombstonesToSkip.size();
+            var results = executeOnceLocally(executionController, startTimeNanos, cfs, searcher, obp.getTombstoneTracker());
+            var filtered = obp.filter(results);
+            if (tombstonesToSkip.size() == lastTombstoneCount)
+                return (UnfilteredPartitionIterator) filtered;
+        }
+    }
+
+    private UnfilteredPartitionIterator executeOnceLocally(ReadExecutionController executionController, long startTimeNanos, ColumnFamilyStore cfs, Index.Searcher searcher, Set<PrimaryKey> tombstonesToSkip)
+    {
         UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController)
-                                                                  : searchStorage(searcher, executionController);
+                                                                  : searchStorage(searcher, executionController, tombstonesToSkip);
         iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
         try
@@ -415,11 +435,6 @@ public abstract class ReadCommand extends AbstractReadQuery
              * processing we do on it).
              */
             iterator = filter.filter(iterator, nowInSec());
-
-            /*
-             * Allow to post-process the result of the local index query before it is passed to coordinator.
-             */
-            iterator = (null == searcher) ? iterator : indexQueryPlan.postIndexQueryProcessor(this).apply(iterator);
 
             // apply the limits/row counter; this transformation is stopping and would close the iterator as soon
             // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
@@ -450,9 +465,9 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
     }
 
-    public UnfilteredPartitionIterator searchStorage(Index.Searcher searcher, ReadExecutionController executionController)
+    public UnfilteredPartitionIterator searchStorage(Index.Searcher searcher, ReadExecutionController executionController, Set<PrimaryKey> tombstonesToSkip)
     {
-        return searcher.search(executionController);
+        return searcher.search(executionController, tombstonesToSkip);
     }
 
     protected abstract void recordReadRequest(TableMetrics metric);

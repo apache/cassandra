@@ -130,7 +130,7 @@ public class SecondaryIndexTest
 
         Index.Searcher searcher = rc.getIndex(cfs).searcherFor(rc);
         try (ReadExecutionController executionController = rc.executionController();
-             UnfilteredPartitionIterator pi = searcher.search(executionController))
+             UnfilteredPartitionIterator pi = searcher.search(executionController, null))
         {
             assertTrue(pi.hasNext());
             pi.next().close();
@@ -573,7 +573,7 @@ public class SecondaryIndexTest
             assertNotNull(searcher);
 
         try (ReadExecutionController executionController = rc.executionController();
-             PartitionIterator iter = UnfilteredPartitionIterators.filter(searcher.search(executionController),
+             PartitionIterator iter = UnfilteredPartitionIterators.filter(searcher.search(executionController, null),
                                                                           FBUtilities.nowInSeconds()))
         {
             assertEquals(count, Util.size(iter));
