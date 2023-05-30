@@ -172,7 +172,7 @@ public final class SchemaEvent extends DiagnosticEvent
         if (ksm.params != null) ret.put("params", ksm.params.toString());
         if (ksm.tables != null) ret.put("tables", ksm.tables.toString());
         if (ksm.views != null) ret.put("views", ksm.views.toString());
-        if (ksm.functions != null) ret.put("functions", ksm.functions.toString());
+        if (ksm.userFunctions != null) ret.put("functions", ksm.userFunctions.toString());
         if (ksm.types != null) ret.put("types", ksm.types.toString());
         return ret;
     }

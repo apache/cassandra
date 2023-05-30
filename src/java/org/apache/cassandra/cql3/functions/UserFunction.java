@@ -15,27 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.cql3.functions;
 
-import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.List;
 
-import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.serializers.UUIDSerializer;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.db.marshal.AbstractType;
 
-public abstract class UuidFcts
+/**
+ * A non-native, user-defined function, like UDFs and UDAs.
+ */
+public abstract class UserFunction extends AbstractFunction implements SchemaElement
 {
-    public static void addFunctionsTo(NativeFunctions functions)
+    public UserFunction(FunctionName name, List<AbstractType<?>> argTypes, AbstractType<?> returnType)
     {
-        functions.add(uuidFct);
+        super(name, argTypes, returnType);
     }
 
-    public static final NativeFunction uuidFct = new NativeScalarFunction("uuid", UUIDType.instance)
+    @Override
+    public final boolean isNative()
     {
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-        {
-            return UUIDSerializer.instance.serialize(UUID.randomUUID());
-        }
-    };
+        return false;
+    }
 }

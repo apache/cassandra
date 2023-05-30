@@ -31,7 +31,8 @@ public abstract class NativeFunction extends AbstractFunction
         super(FunctionName.nativeFunction(name), Arrays.asList(argTypes), returnType);
     }
 
-    public boolean isNative()
+    @Override
+    public final boolean isNative()
     {
         return true;
     }

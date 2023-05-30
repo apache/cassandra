@@ -45,7 +45,7 @@ import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
 {
-    // This method will be ran instead of the CQLTester#setUpClass
+    // This method will be run instead of the CQLTester#setUpClass
     @BeforeClass
     public static void setUpClass()
     {
@@ -246,7 +246,7 @@ public class JsonTest extends CQLTester
                 "durationval duration)");
 
         // fromJson() can only be used when the receiver type is known
-        assertInvalidMessage("fromJson() cannot be used in the selection clause", "SELECT fromJson(asciival) FROM %s", 0, 0);
+        assertInvalidMessage("fromJson() cannot be used in the selection clause", "SELECT fromJson(textval) FROM %s", 0, 0);
 
         String func1 = createFunction(KEYSPACE, "int", "CREATE FUNCTION %s (a int) CALLED ON NULL INPUT RETURNS text LANGUAGE java AS $$ return a.toString(); $$");
         createFunctionOverload(func1, "int", "CREATE FUNCTION %s (a text) CALLED ON NULL INPUT RETURNS text LANGUAGE java AS $$ return new String(a); $$");
@@ -744,13 +744,25 @@ public class JsonTest extends CQLTester
                 "udtval frozen<" + typeName + ">," +
                 "durationval duration)");
 
-        // toJson() can only be used in selections
-        assertInvalidMessage("toJson() may only be used within the selection clause",
-                "INSERT INTO %s (k, asciival) VALUES (?, toJson(?))", 0, 0);
-        assertInvalidMessage("toJson() may only be used within the selection clause",
-                "UPDATE %s SET asciival = toJson(?) WHERE k = ?", 0, 0);
-        assertInvalidMessage("toJson() may only be used within the selection clause",
-                "DELETE FROM %s WHERE k = fromJson(toJson(?))", 0);
+        // toJson() can be used out of the selection clause (with literals)
+        execute("INSERT INTO %s (k, textval) VALUES (?, toJson(1234))", 0);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("1234"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = toJson(1234) ALLOW FILTERING"), row("1234"));
+        execute("UPDATE %s SET textval = toJson(-1234) WHERE k = ?", 0);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("-1234"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = toJson(-1234) ALLOW FILTERING"), row("-1234"));
+        execute("DELETE FROM %s WHERE k = fromJson(toJson(0))");
+        assertEmpty(execute("SELECT textval FROM %s WHERE k = ?", 0));
+
+        // toJson() can be used out of the selection clause (with markers)
+        execute("INSERT INTO %s (k, textval) VALUES (?, toJson((int) ?))", 0, 123123);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("123123"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = toJson((int) ?) ALLOW FILTERING", 123123), row("123123"));
+        execute("UPDATE %s SET textval = toJson((int) ?) WHERE k = ?", -123123, 0);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("-123123"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = toJson((int) ?) ALLOW FILTERING", -123123), row("-123123"));
+        execute("DELETE FROM %s WHERE k = fromJson(toJson((int) ?))", 0);
+        assertEmpty(execute("SELECT textval FROM %s WHERE k = ?", 0));
 
         // ================ ascii ================
         execute("INSERT INTO %s (k, asciival) VALUES (?, ?)", 0, "ascii text");

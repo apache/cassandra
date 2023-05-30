@@ -240,6 +240,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return new CQL3Type.Custom(this);
     }
 
+    public AbstractType<?> udfType()
+    {
+        return this;
+    }
+
     /**
      * Same as compare except that this ignore ReversedType. This is to be use when
      * comparing 2 values to decide for a CQL condition (see Operator.isSatisfiedBy) as
@@ -711,5 +716,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
         return testAssignment(receiver.type);
+    }
+
+    @Override
+    public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+    {
+        return this;
     }
 }

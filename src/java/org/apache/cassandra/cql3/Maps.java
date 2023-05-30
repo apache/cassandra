@@ -128,8 +128,8 @@ public abstract class Maps
      * @param mapper the mapper used to retrieve the key and value types from the entries
      * @return the exact MapType from the entries if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactMapTypeIfKnown(List<Pair<T, T>> entries,
-                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> MapType<?, ?> getExactMapTypeIfKnown(List<Pair<T, T>> entries,
+                                                           java.util.function.Function<T, AbstractType<?>> mapper)
     {
         AbstractType<?> keyType = null;
         AbstractType<?> valueType = null;
@@ -143,6 +143,22 @@ public abstract class Maps
             return MapType.getInstance(keyType, valueType, false);
 
         return null;
+    }
+
+    public static <T> MapType<?, ?> getPreferredCompatibleType(List<Pair<T, T>> entries,
+                                                               java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        Set<AbstractType<?>> keyTypes = entries.stream().map(Pair::left).map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> keyType = AssignmentTestable.getCompatibleTypeIfKnown(keyTypes);
+        if (keyType == null)
+            return null;
+
+        Set<AbstractType<?>> valueTypes = entries.stream().map(Pair::right).map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> valueType = AssignmentTestable.getCompatibleTypeIfKnown(valueTypes);
+        if (valueType == null)
+            return null;
+
+        return  MapType.getInstance(keyType, valueType, false);
     }
 
     private static <T> AbstractType<?> selectType(AbstractType<?> type, AbstractType<?> otherType)
@@ -221,6 +237,12 @@ public abstract class Maps
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             return getExactMapTypeIfKnown(entries, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Maps.getPreferredCompatibleType(entries, p -> p.getCompatibleTypeIfKnown(keyspace));
         }
 
         public String getText()

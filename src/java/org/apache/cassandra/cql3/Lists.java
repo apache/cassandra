@@ -17,34 +17,38 @@
  */
 package org.apache.cassandra.cql3;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.guardrails.Guardrails;
-import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.guardrails.Guardrails;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for lists.
@@ -126,8 +130,8 @@ public abstract class Lists
      * @param mapper the mapper used to retrieve the element types from the items
      * @return the exact ListType from the items if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactListTypeIfKnown(List<T> items,
-                                                              java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> ListType<?> getExactListTypeIfKnown(List<T> items,
+                                                          java.util.function.Function<T, AbstractType<?>> mapper)
     {
         AbstractType<?> type = getElementType(items, mapper);
         return type != null ? ListType.getInstance(type, false) : null;
@@ -153,6 +157,14 @@ public abstract class Lists
             type = itemType;
         }
         return type;
+    }
+
+    public static <T> ListType<?> getPreferredCompatibleType(List<T> items,
+                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
+        return type == null ? null : ListType.getInstance(type, false);
     }
 
     public static class Literal extends Term.Raw
@@ -211,6 +223,12 @@ public abstract class Lists
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             return getExactListTypeIfKnown(elements, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Lists.getPreferredCompatibleType(elements, p -> p.getCompatibleTypeIfKnown(keyspace));
         }
 
         public String getText()

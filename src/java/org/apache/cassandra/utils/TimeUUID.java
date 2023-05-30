@@ -38,6 +38,11 @@ public class TimeUUID implements Comparable<TimeUUID>
         this.lsb = lsb;
     }
 
+    public static TimeUUID fromString(String uuidString)
+    {
+        return fromUuid(UUID.fromString(uuidString));
+    }
+
     public static TimeUUID fromUuid(UUID uuid)
     {
         return fromBytes(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
