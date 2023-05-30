@@ -137,6 +137,14 @@ public interface Transformation
         {
             return this;
         }
+
+        public String toString()
+        {
+            return "Rejected{" +
+                   "code=" + code +
+                   ", reason='" + reason + '\'' +
+                   '}';
+        }
     }
 
     enum Kind

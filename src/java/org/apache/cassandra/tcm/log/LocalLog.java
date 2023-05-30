@@ -369,6 +369,10 @@ public abstract class LocalLog implements Closeable
                     for (ChangeListener listener : cmListeners)
                         listener.notifyPostCommit(prev, next, isSnapshot);
                 }
+                catch (StopProcessingException t)
+                {
+                    throw t;
+                }
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
@@ -392,7 +396,6 @@ public abstract class LocalLog implements Closeable
                 if (tmp.epoch.is(pendingEntry.epoch))
                 {
                     logger.debug("Smallest entry is non-consecutive {} to {}", pendingEntry.epoch, prev.epoch);
-
                     // if this one was not consecutive, subsequent won't be either
                     return;
                 }
@@ -563,6 +566,11 @@ public abstract class LocalLog implements Closeable
                         if (subscriber.get() == null)
                             signal.await();
                     }
+                }
+                catch (StopProcessingException t)
+                {
+                    logger.warn("Stopping log processing on the node... All subsequent epochs will be ignored.", t);
+                    executor.shutdown();
                 }
                 catch (InterruptedException t)
                 {

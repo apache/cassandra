@@ -247,6 +247,24 @@ public class Directory implements MetadataValue<Directory>
     {
         InetAddressAndPort endpoint = peers.get(id);
         Location location = locations.get(id);
+        // Last node in dc
+        if (!racksByDC.containsKey(location.datacenter))
+        {
+            assert !endpointsByDC.containsKey(location.datacenter);
+
+            return new Directory(nextId,
+                                 lastModified,
+                                 peers.without(id),
+                                 locations.without(id),
+                                 states.without(id),
+                                 versions.without(id),
+                                 hostIds.without(id),
+                                 addresses.without(id),
+                                 endpointsByDC,
+                                 racksByDC);
+
+        }
+
         BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
         rackEP = rackEP.without(location.rack, endpoint);
 

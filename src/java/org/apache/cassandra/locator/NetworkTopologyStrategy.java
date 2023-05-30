@@ -357,7 +357,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
         if (keyspaceName.equalsIgnoreCase(SchemaConstants.AUTH_KEYSPACE_NAME))
         {
-            Set<String> differenceSet = Sets.difference((Set<String>) recognizedOptions(metadata), configOptions.keySet());
+            Set<String> differenceSet = Sets.difference(metadata.directory.knownDatacenters(), configOptions.keySet());
             if (!differenceSet.isEmpty())
             {
                 throw new ConfigurationException("Following datacenters have active nodes and must be present in replication options for keyspace " + SchemaConstants.AUTH_KEYSPACE_NAME + ": " + differenceSet.toString());

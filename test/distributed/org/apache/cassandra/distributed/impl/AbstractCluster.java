@@ -929,7 +929,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             signal();
             try
             {
-                if (!completed.await(timeOut, timeoutUnit))
+                // Looks like very seldom we may start listening on `completed` after we have already signalled.
+                if (!completed.await(timeOut, timeoutUnit) && !isCompleted())
                     throw new IllegalStateException(getMonitorTimeoutMessage());
             }
             catch (InterruptedException e)

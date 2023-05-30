@@ -5330,11 +5330,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort()
     {
         throw new RuntimeException("Deprecated");
-        //TODO
-//        if (Schema.instance instanceof Schema)
-//        {
-//            SchemaUpdateHandler updateHandler = ((Schema) Schema.instance).updateHandler;
-//        }
     }
 
     public boolean autoOptimiseIncRepairStreams()

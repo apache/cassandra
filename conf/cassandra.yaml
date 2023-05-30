@@ -1184,7 +1184,7 @@ range_request_timeout: 10000ms
 # How long the coordinator should wait for writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-write_request_timeout: 2000ms
+write_request_timeout: 10000ms
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
@@ -1193,7 +1193,7 @@ counter_write_request_timeout: 1000ms
 # that contends with other proposals for the same row.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-cas_contention_timeout: 1000ms
+cas_contention_timeout: 5000ms
 # How long the coordinator should wait for truncates to complete
 # (This can be much longer, because unless auto_snapshot is disabled
 # we need to flush first so we can snapshot before removing the data.)
