@@ -235,9 +235,9 @@ public class SSTableIndex implements SegmentOrdering
     }
 
     @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
-        return searchableIndex.reorderOneComponent(context, iterator, exp, limit);
+        return searchableIndex.limitToTopResults(context, iterator, exp, limit);
     }
 
     public String toString()

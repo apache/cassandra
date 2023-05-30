@@ -37,9 +37,9 @@ import org.apache.cassandra.index.sai.plan.Expression;
 public interface SegmentOrdering
 {
     /**
-     * Reorder the results from a single component;
+     * Reorder, limit, and put back into original order the results from a single sstable
      */
-    default RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    default RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         throw new UnsupportedOperationException();
     }

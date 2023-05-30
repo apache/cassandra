@@ -171,9 +171,9 @@ public class Segment implements Closeable, SegmentOrdering
     }
 
     @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
-        return index.reorderOneComponent(context, iterator, exp, limit);
+        return index.limitToTopResults(context, iterator, exp, limit);
     }
 
     @Override

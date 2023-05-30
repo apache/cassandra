@@ -201,11 +201,11 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         RangeUnionIterator.Builder<PrimaryKey> unionIteratorBuilder = new RangeUnionIterator.Builder<>(segments.size());
         for (Segment segment : segments)
-            unionIteratorBuilder.add(segment.reorderOneComponent(context, iterator, exp, limit));
+            unionIteratorBuilder.add(segment.limitToTopResults(context, iterator, exp, limit));
 
         return unionIteratorBuilder.build();
     }

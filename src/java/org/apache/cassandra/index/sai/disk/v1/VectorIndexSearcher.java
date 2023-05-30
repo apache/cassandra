@@ -141,7 +141,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     }
 
     @Override
-    public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         // materialize the underlying iterator as a bitset, then ask hnsw to search.
         // the iterator represents keys from the same sstable segment as us,

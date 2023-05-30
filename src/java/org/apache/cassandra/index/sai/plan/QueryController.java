@@ -295,7 +295,7 @@ public class QueryController
         var sstContext = queryContext.getSSTableQueryContext(index.getSSTable());
         try
         {
-            return index.reorderOneComponent(sstContext, original, expression, getLimit());
+            return index.limitToTopResults(sstContext, original, expression, getLimit());
         }
         catch (IOException e)
         {

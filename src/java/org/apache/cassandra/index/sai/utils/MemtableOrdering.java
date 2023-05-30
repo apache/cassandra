@@ -21,16 +21,8 @@ package org.apache.cassandra.index.sai.utils;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 
-/**
- * There are two steps in ordering:
- *
- * 1. Limit a single sstable's results to the correct keys. At this stage
- *    we put them back in primary key order to play nice with the rest of
- *    the query pipeline.
- * 2. Merge the results from multiple sstables. Now we leave them in the
- *    final, correct order.
- *
- * SegmentOrdering handles the first step.
+/***
+ * Analogue of SegmentOrdering, but for memtables.
  */
 public interface MemtableOrdering
 {
