@@ -72,9 +72,16 @@ public interface ShardManager
     double rangeSpanned(Range<Token> tableRange);
 
     /**
-     * The total fraction of the local space covered by the local ranges.
+     * The total fraction of the token space covered by the local ranges.
      */
     double localSpaceCoverage();
+
+    /**
+     * The fraction of the token space covered by a shard set, i.e. the space that is split in the requested number of
+     * shards.
+     * If no disks are defined, this is the same as localSpaceCoverage(). Otherwise, it is the token coverage of a disk.
+     */
+    double shardSetCoverage();
 
     /**
      * Construct a boundary/shard iterator for the given number of shards.

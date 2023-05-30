@@ -107,17 +107,29 @@ public class CQLUnifiedCompactionTest extends CQLTester
         testStaticOptions(2048, 10, 250, 2);
     }
 
-    private void testStaticOptions(int dataSetSizeGB, int numShards, int minSstableSizeMB, int ... Ws)
+    private void testStaticOptions(int dataSetSizeGB, int numShards, int minSSTableSize, int ... Ws)
+    {
+        testStaticOptions(false, dataSetSizeGB, numShards, minSSTableSize, Ws);
+        testStaticOptions(true, dataSetSizeGB, numShards, minSSTableSize, Ws);
+    }
+
+    private void testStaticOptions(boolean useSiUnits, long dataSetSizeGB, int numShards, long sstableSizeMB, int ... Ws)
     {
         String scalingParametersStr = String.join(",", Arrays.stream(Ws)
                                                           .mapToObj(i -> Integer.toString(i))
                                                           .collect(Collectors.toList()));
 
+        long minSizeMB = sstableSizeMB * 10 / 15;
         createTable("create table %s (id int primary key, val text) with compaction = " +
                     "{'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
-                    String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB) +
+                    (useSiUnits
+                     ? String.format("'dataset_size' : '%s', ", FBUtilities.prettyPrintMemory(dataSetSizeGB << 30))
+                     : String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB)) +
                     String.format("'base_shard_count' : '%d', ", numShards) +
-                    String.format("'min_sstable_size_in_mb' : '%d', ", minSstableSizeMB) +
+                    (useSiUnits
+                     ? String.format("'min_sstable_size' : '%s', ", FBUtilities.prettyPrintMemory(minSizeMB << 20))
+                     : String.format("'min_sstable_size_in_mb' : '%d', ", minSizeMB)) +
+                    String.format("'target_sstable_size' : '%s', ", FBUtilities.prettyPrintMemory(sstableSizeMB << 20)) +
                     String.format("'scaling_parameters' : '%s'}", scalingParametersStr));
 
         CompactionStrategy strategy = getCurrentCompactionStrategy();
@@ -125,9 +137,10 @@ public class CQLUnifiedCompactionTest extends CQLTester
 
         UnifiedCompactionStrategy unifiedCompactionStrategy = (UnifiedCompactionStrategy) strategy;
         Controller controller = unifiedCompactionStrategy.getController();
-        assertEquals((long) dataSetSizeGB << 30, controller.getDataSetSizeBytes());
-        assertEquals(numShards, controller.getNumShards(1));
-        assertEquals((long) minSstableSizeMB << 20, controller.getMinSstableSizeBytes());
+        assertEquals(dataSetSizeGB << 30, controller.getDataSetSizeBytes());
+        assertEquals(numShards, controller.getNumShards(numShards * sstableSizeMB << 20));
+        assertEquals(minSizeMB << 20, controller.getMinSstableSizeBytes());
+        assertEquals(sstableSizeMB << 20, controller.getTargetSSTableSize());
 
         assertTrue(unifiedCompactionStrategy.getController() instanceof StaticController);
         for (int i = 0; i < Ws.length; i++)
@@ -144,11 +157,23 @@ public class CQLUnifiedCompactionTest extends CQLTester
 
     private void testAdaptiveOptions(int dataSetSizeGB, int numShards, int sstableSizeMB, int w)
     {
+        testAdaptiveOptions(false, dataSetSizeGB, numShards, sstableSizeMB, w);
+        testAdaptiveOptions(true, dataSetSizeGB, numShards, sstableSizeMB, w);
+    }
+
+    private void testAdaptiveOptions(boolean useSiUnits, long dataSetSizeGB, int numShards, long sstableSizeMB, int w)
+    {
+        long minSizeMB = sstableSizeMB * 10 / 15;
         createTable("create table %s (id int primary key, val text) with compaction = " +
                     "{'class':'UnifiedCompactionStrategy', 'adaptive' : 'true', " +
-                    String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB) +
+                    (useSiUnits
+                        ? String.format("'dataset_size' : '%s', ", FBUtilities.prettyPrintMemory(dataSetSizeGB << 30))
+                        : String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB)) +
                     String.format("'base_shard_count' : '%d', ", numShards) +
-                    String.format("'min_sstable_size_in_mb' : '%d', ", sstableSizeMB) +
+                    (useSiUnits
+                        ? String.format("'min_sstable_size' : '%s', ", FBUtilities.prettyPrintMemory(minSizeMB << 20))
+                        : String.format("'min_sstable_size_in_mb' : '%d', ", minSizeMB)) +
+                    String.format("'target_sstable_size' : '%s', ", FBUtilities.prettyPrintMemory(sstableSizeMB << 20)) +
                     String.format("'scaling_parameters' : '%s', ", w) +
                     String.format("'adaptive_min_scaling_parameter' : '%s', ", -6) +
                     String.format("'adaptive_max_scaling_parameter' : '%s', ", 16) +
@@ -161,22 +186,22 @@ public class CQLUnifiedCompactionTest extends CQLTester
         assertTrue(strategy instanceof UnifiedCompactionStrategy);
 
         UnifiedCompactionStrategy unifiedCompactionStrategy = (UnifiedCompactionStrategy) strategy;
-        assertEquals(sstableSizeMB << 20, unifiedCompactionStrategy.getController().getMinSstableSizeBytes());
 
         assertTrue(unifiedCompactionStrategy.getController() instanceof AdaptiveController);
         for (int i = 0; i < 10; i++)
             assertEquals(w, unifiedCompactionStrategy.getW(i));
 
         AdaptiveController controller = (AdaptiveController) unifiedCompactionStrategy.getController();
-        assertEquals((long) dataSetSizeGB << 30, controller.getDataSetSizeBytes());
-        assertEquals(numShards, controller.getNumShards(1));
-        assertEquals((long) sstableSizeMB << 20, controller.getMinSstableSizeBytes());
+        assertEquals(dataSetSizeGB << 30, controller.getDataSetSizeBytes());
+        assertEquals(numShards, controller.getNumShards(numShards * sstableSizeMB << 20));
+        assertEquals(minSizeMB << 20, controller.getMinSstableSizeBytes());
+        assertEquals(sstableSizeMB << 20, controller.getTargetSSTableSize());
         assertEquals(-6, controller.getMinScalingParameter());
         assertEquals(16, controller.getMaxScalingParameter());
         assertEquals(300, controller.getInterval());
         assertEquals(0.25, controller.getThreshold(), 0.000001);
         assertEquals(1, controller.getMinCost());
-        assertEquals(5, controller.getMaxAdaptiveCompactions());
+        assertEquals(5, controller.getMaxRecentAdaptiveCompactions());
     }
 
     @Test

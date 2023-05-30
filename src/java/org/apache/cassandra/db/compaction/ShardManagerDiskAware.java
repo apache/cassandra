@@ -76,6 +76,17 @@ public class ShardManagerDiskAware extends ShardManagerNoDisks
         assert diskIndex + 1 == diskBoundaryPositions.length : "Disk boundaries are not within local ranges";
     }
 
+    @Override
+    public double shardSetCoverage()
+    {
+        return localSpaceCoverage() / diskBoundaryPositions.length;
+        // The above is an approximation that works correctly for the normal allocation of disks.
+        // This can be properly calculated if a contained token is supplied as argument and the diskBoundaryPosition
+        // difference is retrieved for the disk containing that token.
+        // Unfortunately we don't currently have a way to get a representative position when an sstable writer is
+        // constructed for flushing.
+    }
+
     /**
      * Construct a boundary/shard iterator for the given number of shards.
      */

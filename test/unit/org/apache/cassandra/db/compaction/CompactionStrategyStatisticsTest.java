@@ -99,7 +99,6 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSstableSizeBytes);
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
@@ -109,9 +108,9 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
         // all will be allowed to run. The calculation below assumes (1) that compactions are considered "oversized"
         // if they are more than 1/2 of the max shard size; (2) that mockSSTables uses 15% less than the max SSTable
         // size for that bucket.
-        long topBucketMaxSstableSize = (long) (minSstableSizeBytes * Math.pow(F, numBuckets));
-        long minShardSizeWithoutOversizedCompactions = T * topBucketMaxSstableSize * 2;
-        when(controller.getShardSizeBytes()).thenReturn(minShardSizeWithoutOversizedCompactions);
+//        long topBucketMaxSstableSize = (long) (minSstableSizeBytes * Math.pow(F, numBuckets));
+//        long minShardSizeWithoutOversizedCompactions = T * topBucketMaxSstableSize * 2;
+//        when(controller.getShardSizeBytes()).thenReturn(minShardSizeWithoutOversizedCompactions);
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
         List<Collection<SSTableReader>> testBuckets = new ArrayList<>(numBuckets * 2);
@@ -162,7 +161,6 @@ public class CompactionStrategyStatisticsTest extends BaseCompactionStrategyTest
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSize);
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);

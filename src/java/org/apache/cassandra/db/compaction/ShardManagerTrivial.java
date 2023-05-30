@@ -62,6 +62,12 @@ public class ShardManagerTrivial implements ShardManager
         return 1;
     }
 
+    @Override
+    public double shardSetCoverage()
+    {
+        return 1;
+    }
+
     ShardTracker iterator = new ShardTracker()
     {
         @Override

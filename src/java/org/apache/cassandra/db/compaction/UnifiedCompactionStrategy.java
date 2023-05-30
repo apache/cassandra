@@ -20,18 +20,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,6 +54,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Overlaps;
 
 import static org.apache.cassandra.utils.Throwables.perform;
 
@@ -219,10 +216,10 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private static List<Set<CompactionSSTable>> splitInNonOverlappingSets(List<CompactionSSTable> sstables)
     {
-        List<Set<CompactionSSTable>> overlapSets = constructOverlapSets(sstables,
-                                                                        UnifiedCompactionStrategy::startsAfter,
-                                                                        CompactionSSTable.firstKeyComparator,
-                                                                        CompactionSSTable.lastKeyComparator);
+        List<Set<CompactionSSTable>> overlapSets = Overlaps.constructOverlapSets(sstables,
+                                                                                 UnifiedCompactionStrategy::startsAfter,
+                                                                                 CompactionSSTable.firstKeyComparator,
+                                                                                 CompactionSSTable.lastKeyComparator);
         Set<CompactionSSTable> group = overlapSets.get(0);
         List<Set<CompactionSSTable>> groups = new ArrayList<>();
         for (int i = 1; i < overlapSets.size(); ++i)
@@ -330,7 +327,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         ShardManager currentShardManager = getShardManager();
-        double flushDensity = realm.metrics().flushSizeOnDisk().get() / currentShardManager.localSpaceCoverage();
+        double flushDensity = realm.metrics().flushSizeOnDisk().get() * shardManager.shardSetCoverage() / currentShardManager.localSpaceCoverage();
         ShardTracker boundaries = currentShardManager.boundaries(controller.getNumShards(flushDensity));
         return new ShardedMultiWriter(realm,
                                       descriptor,
@@ -450,8 +447,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         int levelCount = 1; // Start at 1 to avoid division by zero if the aggregates list is empty.
         int runningCompactions = 0;
         long spaceAvailable = spaceOverheadLimit;
-        int runningAdaptiveCompactions = 0;
-        int maxAdaptiveCompactions = controller.getMaxAdaptiveCompactions(); //limit for number of compactions triggered by new W value
+        int remainingAdaptiveCompactions = controller.getMaxRecentAdaptiveCompactions(); //limit for number of compactions triggered by new W value
+        if (remainingAdaptiveCompactions == -1)
+            remainingAdaptiveCompactions = Integer.MAX_VALUE;
         for (CompactionPick compaction : backgroundCompactions.getCompactionsInProgress())
         {
             final int level = levelOf(compaction);
@@ -461,19 +459,18 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             ++runningCompactions;
             levelCount = Math.max(levelCount, level + 1);
             spaceAvailable -= controller.getOverheadSizeInBytes(compaction);
-            if (compaction.isAdaptive(controller.getThreshold(level), controller.getPreviousThreshold(level)))
-                runningAdaptiveCompactions++;
+            if (controller.isRecentAdaptive(compaction))
+                --remainingAdaptiveCompactions;
         }
 
-        CompactionLimits limits = new CompactionLimits(runningCompactions, 
+        CompactionLimits limits = new CompactionLimits(runningCompactions,
                                                        maxCompactions,
                                                        maxConcurrentCompactions,
                                                        perLevel,
                                                        levelCount,
                                                        spaceAvailable,
                                                        rateLimitLog,
-                                                       runningAdaptiveCompactions,
-                                                       maxAdaptiveCompactions);
+                                                       remainingAdaptiveCompactions);
         logger.debug("Selecting up to {} new compactions of up to {}, concurrency limit {}{}",
                      Math.max(0, limits.maxCompactions - limits.runningCompactions),
                      FBUtilities.prettyPrintMemory(limits.spaceAvailable),
@@ -496,19 +493,18 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         }
 
         final List<CompactionAggregate> selection = getSelection(pending,
+                                                                 controller,
                                                                  limits.maxCompactions,
                                                                  limits.levelCount,
                                                                  limits.perLevel,
                                                                  limits.spaceAvailable,
-                                                                 limits.runningAdaptiveCompactions,
-                                                                 limits.maxAdaptiveCompactions);
-        logger.debug("Starting {} compactions (out of {})", selection.size(), pending.stream().filter(agg -> !agg.getSelected().isEmpty()).count());
+                                                                 limits.remainingAdaptiveCompactions);
         return selection;
     }
 
     /**
      * Selects compactions to run next.
-     * 
+     *
      * @param gcBefore
      * @return a subset of compaction aggregates to run next
      */
@@ -534,7 +530,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
         return updateLevelCountWithParentAndGetSelection(limits, pending);
     }
-    
+
     /**
      * Selects compactions to run next from the passed aggregates.
      *
@@ -545,7 +541,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * @param maxConcurrentCompactions the maximum number of concurrent compactions
      * @return a subset of compaction aggregates to run next
      */
-    public Collection<CompactionAggregate> getNextCompactionAggregates(Collection<CompactionAggregate.UnifiedAggregate> aggregates, 
+    public Collection<CompactionAggregate> getNextCompactionAggregates(Collection<CompactionAggregate.UnifiedAggregate> aggregates,
                                                                        int maxConcurrentCompactions)
     {
         final CompactionLimits limits = getCurrentLimits(maxConcurrentCompactions);
@@ -571,7 +567,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * that the compaction statistics will be accurate.
      * <p/>
      * This is called by {@link UnifiedCompactionStrategy#getNextCompactionAggregates(int)}
-     * and externally after calling {@link UnifiedCompactionStrategy#getPendingCompactionAggregates(int)} 
+     * and externally after calling {@link UnifiedCompactionStrategy#getPendingCompactionAggregates(int)}
      * or before submitting tasks.
      *
      * Also, note that skipping the call to {@link BackgroundCompactions#setPending(CompactionStrategy, Collection)}
@@ -665,18 +661,30 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * @param levelCount number of levels in use
      * @param perLevel int array with the number of in-progress compactions per level
      * @param spaceAvailable amount of space in bytes available for the new compactions
+     * @param remainingAdaptiveCompactions number of adaptive compactions (i.e. ones triggered by scaling parameter
+     *                                     change by the adaptive controller) that can still be scheduled
+     *
      */
-    List<CompactionAggregate> getSelection(List<CompactionAggregate.UnifiedAggregate> pending,
-                                           int totalCount,
-                                           int levelCount,
-                                           int[] perLevel,
-                                           long spaceAvailable,
-                                           int runningAdaptiveCompactions,
-                                           int maxAdaptiveCompactions)
+    static List<CompactionAggregate> getSelection(List<CompactionAggregate.UnifiedAggregate> pending,
+                                                  Controller controller,
+                                                  int totalCount,
+                                                  int levelCount,
+                                                  int[] perLevel,
+                                                  long spaceAvailable,
+                                                  int remainingAdaptiveCompactions)
     {
         // Prepare parameters for the selection.
-        int perLevelCount = totalCount / levelCount;   // each level has this number of tasks reserved for it
-        int remainder = totalCount % levelCount;       // and the remainder is distributed randomly, up to 1 per level
+        int reservedThreadsTarget = controller.getReservedThreadsPerLevel();
+        // Each level has this number of tasks reserved for it.
+        int perLevelCount = Math.min(totalCount / levelCount, reservedThreadsTarget);
+        // The remainder is distributed according to the prioritization.
+        int remainder = totalCount - perLevelCount * levelCount;
+        // If the user requested more than we can give, do not allow more than one extra per level.
+        boolean oneRemainderPerLevel = perLevelCount < reservedThreadsTarget;
+        // If the inclusion method is not transitive, we may have multiple buckets/selections for the same sstable.
+        boolean shouldCheckSSTableSelected = controller.overlapInclusionMethod() != Overlaps.InclusionMethod.TRANSITIVE;
+        // If so, make sure we only select one such compaction.
+        Set<CompactionSSTable> selectedSSTables = shouldCheckSSTableSelected ? new HashSet<>() : null;
 
         // Calculate how many new ones we can add in each level, and how many we can assign randomly.
         int remaining = totalCount;
@@ -689,11 +697,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         // Note: if we are in the middle of changes in the parameters or level count, remainder might become negative.
         // This is okay, some buckets will temporarily not get their rightful share until these tasks complete.
 
-        if (maxAdaptiveCompactions == -1)
-            maxAdaptiveCompactions = Integer.MAX_VALUE;
-
         // Let the controller prioritize the compactions.
         pending = controller.prioritize(pending);
+        int proposed = 0;
 
         // Select the first ones, permitting only the specified number per level.
         List<CompactionAggregate> selected = new ArrayList<>(pending.size());
@@ -707,35 +713,46 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 selected.add(aggregate);    // always add expired-only compactions, they are not subject to any limits
                 continue;
             }
-            if (controller.getOverheadSizeInBytes(pick) > spaceAvailable)
+            ++proposed;
+            long overheadSizeInBytes = controller.getOverheadSizeInBytes(pick);
+            if (overheadSizeInBytes > spaceAvailable)
                 continue; // compaction is too large for current cycle
 
             int currentLevel = levelOf(pick);
             assert currentLevel >= 0 : "Invalid level in " + pick + ": level -1 is only allowed for expired-only compactions";
-            if (perLevel[currentLevel] > perLevelCount)
-                continue;  // this level is already using up all its share + one, we can ignore candidate altogether
-            else if (perLevel[currentLevel] == perLevelCount)
+
+            boolean isAdaptive = controller.isRecentAdaptive(pick);
+            if (isAdaptive && remainingAdaptiveCompactions <= 0)
+                continue; // do not allow more than remainingAdaptiveCompactions to limit latency spikes upon changing W
+
+            if (shouldCheckSSTableSelected && !Collections.disjoint(selectedSSTables, pick.sstables()))
+                continue; // do not allow multiple selections on the same sstable
+
+            if (perLevel[currentLevel] >= perLevelCount)
             {
                 if (remainder <= 0)
-                    continue;   // share used up, no remainder to distribute
+                    continue;  // share used up and no remainder to distribute
+                if (oneRemainderPerLevel && perLevel[currentLevel] > perLevelCount)
+                    continue;  // this level is already using up all its share + one, we can ignore candidate altogether
                 --remainder;
             }
+            // Note: if any additional checks are added, make sure remainder is not decreased if they fail.
 
-            if (pick.isAdaptive(controller.getThreshold(currentLevel), controller.getPreviousThreshold(currentLevel)))
-            {
-                if (runningAdaptiveCompactions >= maxAdaptiveCompactions)
-                    continue; // do not allow more than maxAdaptiveCompactions to limit latency spikes upon changing W
-                runningAdaptiveCompactions++;
-            }
-
+            if (isAdaptive)
+                remainingAdaptiveCompactions--;
             --remaining;
             ++perLevel[currentLevel];
-            spaceAvailable -= controller.getOverheadSizeInBytes(aggregate.selected);
+            spaceAvailable -= overheadSizeInBytes;
             selected.add(aggregate);
+            if (shouldCheckSSTableSelected)
+                selectedSSTables.addAll(pick.sstables());
 
             if (remaining == 0)
                 break;
         }
+
+        logger.debug("Selected {} compactions (out of {} pending). Compactions per level {} (reservations {}{}) remaining reserved {} non-reserved {}.",
+                     selected.size(), proposed, perLevel, perLevelCount, oneRemainderPerLevel ? "+1" : "", remaining - remainder, remainder);
 
         return selected;
     }
@@ -923,154 +940,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     /**
-     * Construct a minimal list of overlap sets, i.e. the sections of the range span when we have overlapping items,
-     * where we ensure:
-     * - non-overlapping items are never put in the same set
-     * - no item is present in non-consecutive sets
-     * - for any point where items overlap, the result includes a set listing all overlapping items
-     *
-     * For example, for inputs A[0, 4), B[2, 8), C[6, 10), D[1, 9) the result would be the sets ABD and BCD. We are not
-     * interested in the spans where A, B, or C are present on their own or in combination with D, only that there
-     * exists a set in the list that is a superset of any such combination, and that the non-overlapping A and C are
-     * never together in a set.
-     *
-     * Note that the full list of overlap sets A, AD, ABD, BD, BCD, CD, C is also an answer that satisfies the three
-     * conditions above, but it contains redundant sets (e.g. AD is already contained in ABD).
-     *
-     * @param items A list of items to distribute in overlap sets. This is assumed to be a transient list and the method
-     *              may modify or consume it. It is assumed that the start and end positions of an item are ordered,
-     *              and the items are non-empty.
-     * @param startsAfter Predicate determining if its left argument's start if fully after the right argument's end.
-     *                    This will only be used with arguments where left's start is known to be after right's start.
-     *                    It is up to the caller if this is a strict comparison -- strict (>) for end-inclusive spans
-     *                    and non-strict (>=) for end-exclusive.
-     * @param startsComparator Comparator of items' starting positions.
-     * @param endsComparator Comparator of items' ending positions.
-     * @return List of overlap sets.
-     */
-    @VisibleForTesting
-    static <E> List<Set<E>> constructOverlapSets(List<E> items,
-                                                 BiPredicate<E, E> startsAfter,
-                                                 Comparator<E> startsComparator,
-                                                 Comparator<E> endsComparator)
-    {
-        List<Set<E>> overlaps = new ArrayList<>();
-        if (items.isEmpty())
-            return overlaps;
-
-        PriorityQueue<E> active = new PriorityQueue<>(endsComparator);
-        items.sort(startsComparator);
-        for (E item : items)
-        {
-            if (!active.isEmpty() && startsAfter.test(item, active.peek()))
-            {
-                // New item starts after some active ends. It does not overlap with it, so:
-                // -- output the previous active set
-                overlaps.add(new HashSet<>(active));
-                // -- remove all items that also end before the current start
-                do
-                {
-                    active.poll();
-                }
-                while (!active.isEmpty() && startsAfter.test(item, active.peek()));
-            }
-
-            // Add the new item to the active state. We don't care if it starts later than others in the active set,
-            // the important point is that it overlaps with all of them.
-            active.add(item);
-        }
-
-        assert !active.isEmpty();
-        overlaps.add(new HashSet<>(active));
-
-        return overlaps;
-    }
-
-    interface BucketMaker<E, B>
-    {
-        B makeBucket(List<Set<E>> sets, int startIndexInclusive, int endIndexExclusive);
-    }
-
-    /**
-     * Assign overlap sections into buckets. Identify sections that have at least threshold-many overlapping
-     * items and apply the overlap inclusion method to combine with any neighbouring sections that contain
-     * selected sstables to make sure we make full use of any sstables selected for compaction (i.e. avoid
-     * recompacting, see {@link Controller#overlapInclusionMethod()}).
-     *
-     * @param threshold Threshold for selecting a bucket. Sets below this size will be ignored, unless they need to
-     *                  be grouped with a neighboring set due to overlap.
-     * @param overlapInclusionMethod NONE to only form buckets of the overlapping sets, SINGLE to include all
-     *                               sets that share an sstable with a selected bucket, or TRANSITIVE to include
-     *                               all sets that have an overlap chain to a selected bucket.
-     * @param overlaps An ordered list of overlap sets as returned by {@link #constructOverlapSets}.
-     * @param bucketer Method used to create a bucket out of the supplied set indexes.
-     * @param unselectedHandler Action to take on sets that are below the threshold and not included in any bucket.
-     */
-    @VisibleForTesting
-    static <E, B> List<B> assignOverlapsIntoBuckets(int threshold,
-                                                    Controller.OverlapInclusionMethod overlapInclusionMethod,
-                                                    List<Set<E>> overlaps,
-                                                    BucketMaker<E, B> bucketer,
-                                                    Consumer<Set<E>> unselectedHandler)
-    {
-        List<B> buckets = new ArrayList<>();
-        int regionCount = overlaps.size();
-        int lastEnd = 0;
-        for (int i = 0; i < regionCount; ++i)
-        {
-            Set<E> bucket = overlaps.get(i);
-            int maxOverlap = bucket.size();
-            if (maxOverlap < threshold)
-                continue;
-            int startIndex = i;
-            int endIndex = i + 1;
-
-            if (overlapInclusionMethod != Controller.OverlapInclusionMethod.NONE)
-            {
-                Set<E> allOverlapping = new HashSet<>(bucket);
-                Set<E> overlapTarget = overlapInclusionMethod == Controller.OverlapInclusionMethod.TRANSITIVE
-                                       ? allOverlapping
-                                       : bucket;
-                int j;
-                for (j = i - 1; j >= lastEnd; --j)
-                {
-                    Set<E> next = overlaps.get(j);
-                    if (!setsIntersect(next, overlapTarget))
-                        break;
-                    allOverlapping.addAll(next);
-                }
-                startIndex = j + 1;
-                for (j = i + 1; j < regionCount; ++j)
-                {
-                    Set<E> next = overlaps.get(j);
-                    if (!setsIntersect(next, overlapTarget))
-                        break;
-                    allOverlapping.addAll(next);
-                }
-                i = j - 1;
-                endIndex = j;
-            }
-            buckets.add(bucketer.makeBucket(overlaps, startIndex, endIndex));
-            for (int k = lastEnd; k < startIndex; ++k)
-                unselectedHandler.accept(overlaps.get(k));
-            lastEnd = endIndex;
-        }
-        for (int k = lastEnd; k < regionCount; ++k)
-            unselectedHandler.accept(overlaps.get(k));
-        return buckets;
-    }
-
-    private static <E> boolean setsIntersect(Set<E> s1, Set<E> s2)
-    {
-        // Note: optimized for small sets and O(1) lookup.
-        for (E s : s1)
-            if (s2.contains(s))
-                return true;
-
-        return false;
-    }
-
-    /**
      * A compaction arena contains the list of sstables that belong to this arena as well as the arena
      * selector used for comparison.
      */
@@ -1213,19 +1082,19 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 logger.trace("Creating compaction aggregate with sstable set {}", sstables);
 
 
-            List<Set<CompactionSSTable>> overlaps = constructOverlapSets(sstables,
-                                                                         UnifiedCompactionStrategy::startsAfter,
-                                                                         CompactionSSTable.firstKeyComparator,
-                                                                         CompactionSSTable.lastKeyComparator);
+            List<Set<CompactionSSTable>> overlaps = Overlaps.constructOverlapSets(sstables,
+                                                                                  UnifiedCompactionStrategy::startsAfter,
+                                                                                  CompactionSSTable.firstKeyComparator,
+                                                                                  CompactionSSTable.lastKeyComparator);
             for (Set<CompactionSSTable> overlap : overlaps)
                 maxOverlap = Math.max(maxOverlap, overlap.size());
             List<CompactionSSTable> unbucketed = new ArrayList<>();
 
-            List<Bucket> buckets = assignOverlapsIntoBuckets(threshold,
-                                                             controller.overlapInclusionMethod(),
-                                                             overlaps,
-                                                             this::makeBucket,
-                                                             unbucketed::addAll);
+            List<Bucket> buckets = Overlaps.assignOverlapsIntoBuckets(threshold,
+                                                                      controller.overlapInclusionMethod(),
+                                                                      overlaps,
+                                                                      this::makeBucket,
+                                                                      unbucketed::addAll);
 
             List<CompactionAggregate.UnifiedAggregate> aggregates = new ArrayList<>();
             for (Bucket bucket : buckets)
@@ -1528,31 +1397,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
         Collection<CompactionSSTable> pullOldestSSTables(int overlapLimit)
         {
-            return pullLastWithOverlapLimit(allSSTablesSorted, overlapSets, overlapLimit);
-        }
-
-        static <T> Collection<T> pullLastWithOverlapLimit(List<T> allObjectsSorted, List<Set<T>> overlapSets, int limit)
-        {
-            // We want to select up to `limit` sstables in overlapping sets (more than `limit` in total). To achieve
-            // this, keep selecting the oldest sstable until the next one we would add would bring the number selected
-            // in some overlap section over `limit`.
-            int setsCount = overlapSets.size();
-            int[] selectedInBucket = new int[setsCount];
-            int allCount = allObjectsSorted.size();
-            for (int selectedCount = 0; selectedCount < allCount; ++selectedCount)
-            {
-                T candidate = allObjectsSorted.get(allCount - 1 - selectedCount);
-                for (int i = 0; i < setsCount; ++i)
-                {
-                    if (overlapSets.get(i).contains(candidate))
-                    {
-                        ++selectedInBucket[i];
-                        if (selectedInBucket[i] > limit)
-                            return pullLast(allObjectsSorted, selectedCount);
-                    }
-                }
-            }
-            return allObjectsSorted;
+            return Overlaps.pullLastWithOverlapLimit(allSSTablesSorted, overlapSets, overlapLimit);
         }
     }
 
@@ -1565,8 +1410,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         int levelCount;
         final long spaceAvailable;
         final String rateLimitLog;
-        final int runningAdaptiveCompactions;
-        final int maxAdaptiveCompactions;
+        final int remainingAdaptiveCompactions;
 
         public CompactionLimits(int runningCompactions,
                                 int maxCompactions,
@@ -1575,8 +1419,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                 int levelCount,
                                 long spaceAvailable,
                                 String rateLimitLog,
-                                int runningAdaptiveCompactions,
-                                int maxAdaptiveCompactions)
+                                int remainingAdaptiveCompactions)
         {
             this.runningCompactions = runningCompactions;
             this.maxCompactions = maxCompactions;
@@ -1585,16 +1428,15 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             this.levelCount = levelCount;
             this.spaceAvailable = spaceAvailable;
             this.rateLimitLog = rateLimitLog;
-            this.runningAdaptiveCompactions = runningAdaptiveCompactions;
-            this.maxAdaptiveCompactions = maxAdaptiveCompactions;
+            this.remainingAdaptiveCompactions = remainingAdaptiveCompactions;
         }
 
         @Override
         public String toString()
         {
-            return String.format("Current limits: running=%d, max=%d, maxConcurrent=%d, perLevel=%s, levelCount=%d, spaceAvailable=%s, rateLimitLog=%s, runningAdaptiveCompactions=%d, maxAdaptiveCompactions=%d",
+            return String.format("Current limits: running=%d, max=%d, maxConcurrent=%d, perLevel=%s, levelCount=%d, spaceAvailable=%s, rateLimitLog=%s, remainingAdaptiveCompactions=%d",
                                  runningCompactions, maxCompactions, maxConcurrentCompactions, Arrays.toString(perLevel), levelCount,
-                                 FBUtilities.prettyPrintMemory(spaceAvailable), rateLimitLog, runningAdaptiveCompactions, maxAdaptiveCompactions);
+                                 FBUtilities.prettyPrintMemory(spaceAvailable), rateLimitLog, remainingAdaptiveCompactions);
         }
     }
 }

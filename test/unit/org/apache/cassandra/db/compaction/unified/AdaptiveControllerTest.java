@@ -60,28 +60,28 @@ public class AdaptiveControllerTest extends ControllerTest
 
     private AdaptiveController makeController()
     {
-        return makeController(dataSizeGB, numShards, sstableSizeMB);
+        return makeController(dataSizeGB, numShards, sstableSizeMB, 0);
     }
 
-    private AdaptiveController makeController(int dataSizeGB, int numShards, int sstableSizeMB)
+    private AdaptiveController makeController(long dataSizeGB, int numShards, long sstableSizeMB, long minSSTableSizeMB)
     {
         return new AdaptiveController(clock,
                                       env,
                                       Ws,
                                       previousWs,
                                       Controller.DEFAULT_SURVIVAL_FACTORS,
-                                      dataSizeGB << 10,
-                                      numShards,
-                                      sstableSizeMB,
+                                      dataSizeGB << 30,
+                                      minSSTableSizeMB << 20,
                                       0,
                                       0,
                                       Controller.DEFAULT_MAX_SPACE_OVERHEAD,
                                       0,
                                       Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS,
                                       Controller.DEFAULT_ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION,
-                                      Controller.DEFAULT_L0_SHARDS_ENABLED,
-                                      Controller.DEFAULT_BASE_SHARD_COUNT,
-                                      Controller.DEFAULT_TARGET_SSTABLE_SIZE,
+                                      numShards,
+                                      sstableSizeMB << 20,
+                                      Controller.DEFAULT_SSTABLE_GROWTH,
+                                      Controller.DEFAULT_RESERVED_THREADS,
                                       Controller.DEFAULT_OVERLAP_INCLUSION_METHOD,
                                       interval,
                                       minW,
@@ -254,7 +254,7 @@ public class AdaptiveControllerTest extends ControllerTest
     private void testMinSSTableSizeDynamic(long flushSizeBytes1, int minSSTableSizeMB1, long flushSizeBytes2, int minSSTableSizeMB2)
     {
         // create a controller with minSSTableSizeMB set to zero so that it will calculate the min sstable size from the flush size
-        AdaptiveController controller = makeController(dataSizeGB, numShards, 0);
+        AdaptiveController controller = makeController(dataSizeGB, numShards, Integer.MAX_VALUE, -1);
 
         when(env.flushSize()).thenReturn(flushSizeBytes1 * 1.0);
         assertEquals(minSSTableSizeMB1 << 20, controller.getMinSstableSizeBytes());
@@ -357,7 +357,7 @@ public class AdaptiveControllerTest extends ControllerTest
     private void testUpdateWithSize(long totSize, double[] readCosts, double[] writeCosts, int[] expectedWs) throws InterruptedException
     {
         int shardSizeGB = (int) (totSize >> 30);
-        AdaptiveController controller = makeController(shardSizeGB, 1, sstableSizeMB); // one unique shard
+        AdaptiveController controller = makeController(shardSizeGB, 1, sstableSizeMB, 0); // one unique shard
         controller.startup(strategy, calculator);
 
         assertEquals(readCosts.length, writeCosts.length);
