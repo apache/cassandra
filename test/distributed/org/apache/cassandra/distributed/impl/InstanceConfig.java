@@ -46,6 +46,8 @@ public class InstanceConfig implements IInstanceConfig
     private static final Logger logger = LoggerFactory.getLogger(InstanceConfig.class);
 
     public final int num;
+    private final int jmxPort;
+
     public int num() { return num; }
 
     private final NetworkTopology networkTopology;
@@ -72,7 +74,8 @@ public class InstanceConfig implements IInstanceConfig
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           String initial_token)
+                           String initial_token,
+                           int jmx_port)
     {
         this.num = num;
         this.networkTopology = networkTopology;
@@ -110,6 +113,7 @@ public class InstanceConfig implements IInstanceConfig
                 // legacy parameters
                 .forceSet("commitlog_sync_batch_window_in_ms", 1.0);
         this.featureFlags = EnumSet.noneOf(Feature.class);
+        this.jmxPort = jmx_port;
     }
 
     private InstanceConfig(InstanceConfig copy)
@@ -121,6 +125,7 @@ public class InstanceConfig implements IInstanceConfig
         this.hostId = copy.hostId;
         this.featureFlags = copy.featureFlags;
         this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
+        this.jmxPort = copy.jmxPort;
     }
 
 
@@ -159,6 +164,12 @@ public class InstanceConfig implements IInstanceConfig
     public String localDatacenter()
     {
         return networkTopology().localDC(broadcastAddress());
+    }
+
+    @Override
+    public int jmxPort()
+    {
+        return this.jmxPort;
     }
 
     public InstanceConfig with(Feature featureFlag)
@@ -251,7 +262,8 @@ public class InstanceConfig implements IInstanceConfig
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  token);
+                                  token,
+                                  7199);
     }
 
     private static String[] datadirs(int datadirCount, File root, int nodeNum)
