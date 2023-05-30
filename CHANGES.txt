@@ -144,6 +144,13 @@ Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
 
 
+4.1.3
+Merged from 4.0: 
+ * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
+Merged from 3.11:
+Merged from 3.0:
+
+
 4.1.2
  * NPE when deserializing malformed collections from client (CASSANDRA-18505)
  * Allow keystore and trustrore passwords to be nullable (CASSANDRA-18124)
