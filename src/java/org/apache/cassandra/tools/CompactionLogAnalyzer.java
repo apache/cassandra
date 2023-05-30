@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +47,6 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -187,7 +187,7 @@ public class CompactionLogAnalyzer
             }
     }
 
-    static DataPoint parse(String shardId, String dataLine) throws java.text.ParseException
+    static DataPoint parse(String shardId, String dataLine) throws ParseException
     {
         String[] data = dataLine.split(",");
 
@@ -222,7 +222,7 @@ public class CompactionLogAnalyzer
         return dp;
     }
 
-    private static long getTimestamp(String datum) throws java.text.ParseException
+    private static long getTimestamp(String datum) throws ParseException
     {
         Date date = new SimpleDateFormat(fullDateFormatter).parse(datum);
         return date.getTime();
@@ -271,7 +271,7 @@ public class CompactionLogAnalyzer
         {
             cmd = parser.parse(options, args);
         }
-        catch (ParseException e1)
+        catch (org.apache.commons.cli.ParseException e1)
         {
             System.err.println(e1.getMessage());
             printUsage();
@@ -308,7 +308,7 @@ public class CompactionLogAnalyzer
     }
 
     @VisibleForTesting
-    static List<DataPoint> readDataPoints(File[] files, @Nullable Integer lineCountLimit) throws IOException, java.text.ParseException
+    static List<DataPoint> readDataPoints(File[] files, @Nullable Integer lineCountLimit) throws IOException, ParseException
     {
         List<DataPoint> dataPoints;
 
@@ -344,7 +344,7 @@ public class CompactionLogAnalyzer
         return dataPoints;
     }
 
-    private static long readDataPoints(List<DataPoint> dataPoints, int lineCountLimit, long timestampLimit, File file) throws IOException, java.text.ParseException
+    private static long readDataPoints(List<DataPoint> dataPoints, int lineCountLimit, long timestampLimit, File file) throws IOException, ParseException
     {
         Matcher m = CSVNamePattern.matcher(file.getName());
         if (!m.matches())
@@ -373,7 +373,15 @@ public class CompactionLogAnalyzer
                 if (line.isEmpty())
                     continue;
 
-                curr = parse(shardId, line);
+                try
+                {
+                    curr = parse(shardId, line);
+                }
+                catch (NumberFormatException | ParseException | ArrayIndexOutOfBoundsException e)
+                {
+                    System.out.format("%s parsing line %s, skipping.\n", e.getMessage(), line);
+                    continue;
+                }
                 if (curr.timestamp > timestampLimit)
                     break;
                 dataPoints.add(curr);

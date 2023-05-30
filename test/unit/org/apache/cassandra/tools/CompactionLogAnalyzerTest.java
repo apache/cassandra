@@ -56,9 +56,10 @@ public class CompactionLogAnalyzerTest
     {
         List<CompactionLogAnalyzer.DataPoint> dataPoints = CompactionLogAnalyzer.readDataPoints(logFiles, null);
 
-        long lineCount0 = Files.lines(logFiles[0].toPath()).count();
-        long lineCount1 = Files.lines(logFiles[1].toPath()).count();
-        Assert.assertEquals(lineCount0 + lineCount1 - 2, dataPoints.size()); // without headers
+        // We subtract 1 for the header line, and 2 for the two corrupted lines in the first test file.
+        long lineCount0 = Files.lines(logFiles[0].toPath()).count() - 1 - 2;
+        long lineCount1 = Files.lines(logFiles[1].toPath()).count() - 1;
+        Assert.assertEquals(lineCount0 + lineCount1, dataPoints.size());
 
         int shard0Cnt = 0;
         int shard1Cnt = 0;
@@ -77,8 +78,8 @@ public class CompactionLogAnalyzerTest
                 throw new AssertionError("Unexpected shard id");
             }
         }
-        Assert.assertEquals(lineCount0 - 1, shard0Cnt);
-        Assert.assertEquals(lineCount1 - 1, shard1Cnt);
+        Assert.assertEquals(lineCount0, shard0Cnt);
+        Assert.assertEquals(lineCount1, shard1Cnt);
     }
 
     @Test
