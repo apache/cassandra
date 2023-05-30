@@ -44,6 +44,9 @@ import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
@@ -123,13 +126,16 @@ import org.apache.cassandra.utils.memory.BufferPool;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
+    private Logger inInstancelogger; // Defer creation until running in the instance context
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
+    private IsolatedJmx isolatedJmx;
 
     // should never be invoked directly, so that it is instantiated on other class loader;
     // only visible for inheritance
@@ -503,6 +509,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public void startup(ICluster cluster)
     {
         sync(() -> {
+            inInstancelogger = LoggerFactory.getLogger(Instance.class);
             try
             {
                 if (config.has(GOSSIP))
@@ -517,6 +524,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 assert config.networkTopology().contains(config.broadcastAddress());
                 DistributedTestSnitch.assign(config.networkTopology());
+
+                if (config.has(JMX))
+                    startJmx();
 
                 DatabaseDescriptor.daemonInitialization();
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
@@ -602,6 +612,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
 
         initialized = true;
+    }
+
+    private void startJmx()
+    {
+        isolatedJmx = new IsolatedJmx(this, inInstancelogger);
+        isolatedJmx.startJmx();
+    }
+
+    private void stopJmx() throws IllegalAccessException, NoSuchFieldException, InterruptedException
+    {
+        if (config.has(JMX))
+        {
+            isolatedJmx.stopJmx();
+        }
     }
 
     private void mkdirs()
@@ -757,6 +781,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor,
                                 CommitLog.instance::shutdownBlocking
             );
+
+            error = parallelRun(error, executor, this::stopJmx);
 
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);
