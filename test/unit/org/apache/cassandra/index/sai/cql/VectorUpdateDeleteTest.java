@@ -82,6 +82,29 @@ public class VectorUpdateDeleteTest extends SAITester
     }
 
     @Test
+    public void deletedInOtherSSTablesTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', [3.0, 4.0, 5.0])");
+
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of [0.5, 1.5, 2.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+        flush();
+
+        execute("DELETE from %s WHERE pk = 0");
+        execute("DELETE from %s WHERE pk = 1");
+        result = execute("SELECT * FROM %s WHERE val ann of [0.5, 1.5, 2.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 2);
+    }
+
+    @Test
     public void upsertTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
