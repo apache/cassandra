@@ -35,6 +35,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -100,6 +101,14 @@ public final class VectorType<T> extends AbstractType<List<T>>
     public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimension)
     {
         Key key = new Key(elements, dimension);
+        return instances.computeIfAbsent(key, Key::create);
+    }
+
+    public static <T> VectorType<T> getInstance(TypeParser parser)
+    {
+        Pair<AbstractType<?>, Integer> v = parser.getVectorParameters();
+
+        Key key = new Key(v.left, v.right);
         return instances.computeIfAbsent(key, Key::create);
     }
 
