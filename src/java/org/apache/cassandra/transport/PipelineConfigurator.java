@@ -121,7 +121,7 @@ public class PipelineConfigurator
         bootstrap.childHandler(initializer);
 
         // Bind and start to accept incoming connections.
-        logger.info("Using Netty Version: {}", Version.identify().entrySet());
+        logger.debug("Using Netty Version: {}", Version.identify().entrySet());
         logger.info("Starting listening for CQL clients on {} ({})...", socket, tlsEncryptionPolicy.description());
         return bootstrap.bind(socket);
     }

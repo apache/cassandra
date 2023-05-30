@@ -41,7 +41,7 @@ public class SigarLibrary
 
     private SigarLibrary()
     {
-        logger.info("Initializing SIGAR library");
+        logger.debug("Initializing SIGAR library");
         try
         {
             sigar = new Sigar();

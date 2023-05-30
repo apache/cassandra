@@ -943,7 +943,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     public void executePreJoinTasksBlocking(boolean hadBootstrap)
     {
-        logger.info("Executing pre-join{} tasks for: {}", hadBootstrap ? " post-bootstrap" : "", this.baseCfs);
+        logger.debug("Executing pre-join{} tasks for: {}", hadBootstrap ? " post-bootstrap" : "", this.baseCfs);
         executeAllBlocking(indexes.values().stream(), (index) ->
         {
             return index.getPreJoinTask(hadBootstrap);
