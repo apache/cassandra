@@ -84,17 +84,17 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     private static final String CF = "describe";
 
     /**
-     * The columns returned by the describe queries that only list elements names (e.g. DESCRIBE KEYSPACES, DESCRIBE TABLES...) 
+     * The columns returned by the describe queries that only list elements names (e.g. DESCRIBE KEYSPACES, DESCRIBE TABLES...)
      */
-    private static final List<ColumnSpecification> LIST_METADATA = 
+    private static final List<ColumnSpecification> LIST_METADATA =
             ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("keyspace_name", true), UTF8Type.instance),
                              new ColumnSpecification(KS, CF, new ColumnIdentifier("type", true), UTF8Type.instance),
                              new ColumnSpecification(KS, CF, new ColumnIdentifier("name", true), UTF8Type.instance));
 
     /**
-     * The columns returned by the describe queries that returns the CREATE STATEMENT for the different elements (e.g. DESCRIBE KEYSPACE, DESCRIBE TABLE ...) 
+     * The columns returned by the describe queries that returns the CREATE STATEMENT for the different elements (e.g. DESCRIBE KEYSPACE, DESCRIBE TABLE ...)
      */
-    private static final List<ColumnSpecification> ELEMENT_METADATA = 
+    private static final List<ColumnSpecification> ELEMENT_METADATA =
             ImmutableList.<ColumnSpecification>builder().addAll(LIST_METADATA)
                                                         .add(new ColumnSpecification(KS, CF, new ColumnIdentifier("create_statement", true), UTF8Type.instance))
                                                         .build();
@@ -328,7 +328,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> functions()
     {
-        return new Listing(ks -> ks.functions.udfs());
+        return new Listing(ks -> ks.userFunctions.udfs());
     }
 
     /**
@@ -336,7 +336,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
      */
     public static DescribeStatement<SchemaElement> aggregates()
     {
-        return new Listing(ks -> ks.functions.udas());
+        return new Listing(ks -> ks.userFunctions.udas());
     }
 
     /**
@@ -407,7 +407,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     public static class Element extends DescribeStatement<SchemaElement>
     {
         /**
-         * The keyspace name 
+         * The keyspace name
          */
         private final String keyspace;
 
@@ -465,8 +465,8 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         if (!onlyKeyspace)
         {
             s = Stream.concat(s, ks.types.sortedStream());
-            s = Stream.concat(s, ks.functions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
-            s = Stream.concat(s, ks.functions.udas().sorted(SchemaElement.NAME_COMPARATOR));
+            s = Stream.concat(s, ks.userFunctions.udfs().sorted(SchemaElement.NAME_COMPARATOR));
+            s = Stream.concat(s, ks.userFunctions.udas().sorted(SchemaElement.NAME_COMPARATOR));
             s = Stream.concat(s, ks.tables.stream().sorted(SchemaElement.NAME_COMPARATOR)
                                                    .flatMap(tm -> getTableElements(ks, tm)));
         }
@@ -554,7 +554,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     {
         return new Element(keyspace, name, (ks, n) -> {
 
-            return checkNotEmpty(ks.functions.getUdfs(new FunctionName(ks.name, n)),
+            return checkNotEmpty(ks.userFunctions.getUdfs(new FunctionName(ks.name, n)),
                                  "User defined function '%s' not found in '%s'", n, ks.name).stream()
                                                                                              .sorted(SchemaElement.NAME_COMPARATOR);
         });
@@ -567,7 +567,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     {
         return new Element(keyspace, name, (ks, n) -> {
 
-            return checkNotEmpty(ks.functions.getUdas(new FunctionName(ks.name, n)),
+            return checkNotEmpty(ks.userFunctions.getUdas(new FunctionName(ks.name, n)),
                                  "User defined aggregate '%s' not found in '%s'", n, ks.name).stream()
                                                                                               .sorted(SchemaElement.NAME_COMPARATOR);
         });
@@ -701,7 +701,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
                 list.add(trimIfPresent(DatabaseDescriptor.getPartitionerName(), "org.apache.cassandra.dht."));
                 list.add(trimIfPresent(DatabaseDescriptor.getEndpointSnitch().getClass().getName(),
                                             "org.apache.cassandra.locator."));
- 
+
                 String useKs = state.getRawKeyspace();
                 if (mustReturnsRangeOwnerships(useKs))
                 {
@@ -741,7 +741,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             @Override
             protected List<ByteBuffer> toRow(List<Object> elements, boolean withInternals)
             {
-                ImmutableList.Builder<ByteBuffer> builder = ImmutableList.builder(); 
+                ImmutableList.Builder<ByteBuffer> builder = ImmutableList.builder();
 
                 builder.add(UTF8Type.instance.decompose((String) elements.get(CLUSTER_NAME_INDEX)),
                             UTF8Type.instance.decompose((String) elements.get(PARTITIONER_NAME_INDEX)),

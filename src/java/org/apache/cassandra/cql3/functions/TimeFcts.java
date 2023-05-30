@@ -18,43 +18,45 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 
-import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.assertj.core.internal.bytebuddy.pool.TypePool.CacheProvider.UNRESOLVED;
+
 public abstract class TimeFcts
 {
     public static Logger logger = LoggerFactory.getLogger(TimeFcts.class);
 
-    public static Collection<Function> all()
+    public static void addFunctionsTo(NativeFunctions functions)
     {
-        return ImmutableList.of(now("now", TimeUUIDType.instance),
-                                now("currenttimeuuid", TimeUUIDType.instance),
-                                now("currenttimestamp", TimestampType.instance),
-                                now("currentdate", SimpleDateType.instance),
-                                now("currenttime", TimeType.instance),
-                                minTimeuuidFct,
-                                maxTimeuuidFct,
-                                dateOfFct,
-                                unixTimestampOfFct,
-                                toDate(TimeUUIDType.instance),
-                                toTimestamp(TimeUUIDType.instance),
-                                toUnixTimestamp(TimeUUIDType.instance),
-                                toUnixTimestamp(TimestampType.instance),
-                                toDate(TimestampType.instance),
-                                toUnixTimestamp(SimpleDateType.instance),
-                                toTimestamp(SimpleDateType.instance));
+        functions.addAll(now("now", TimeUUIDType.instance),
+                         now("currenttimeuuid", TimeUUIDType.instance),
+                         now("currenttimestamp", TimestampType.instance),
+                         now("currentdate", SimpleDateType.instance),
+                         now("currenttime", TimeType.instance),
+                         minTimeuuidFct,
+                         maxTimeuuidFct,
+                         dateOfFct,
+                         unixTimestampOfFct,
+                         toDate(TimeUUIDType.instance),
+                         toTimestamp(TimeUUIDType.instance),
+                         toUnixTimestamp(TimeUUIDType.instance),
+                         toUnixTimestamp(TimestampType.instance),
+                         toDate(TimestampType.instance),
+                         toUnixTimestamp(SimpleDateType.instance),
+                         toTimestamp(SimpleDateType.instance));
     }
 
-    public static final Function now(final String name, final TemporalType<?> type)
+    public static final NativeFunction now(final String name, final TemporalType<?> type)
     {
         return new NativeScalarFunction(name, type)
         {
@@ -66,7 +68,7 @@ public abstract class TimeFcts
         };
     };
 
-    public static final Function minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
+    public static final NativeFunction minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
@@ -78,7 +80,7 @@ public abstract class TimeFcts
         }
     };
 
-    public static final Function maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
+    public static final NativeFunction maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
@@ -202,5 +204,4 @@ public abstract class TimeFcts
             }
         };
     }
-}
-
+ }

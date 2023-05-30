@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -33,10 +34,8 @@ import org.apache.cassandra.serializers.MarshalException;
 
 public abstract class BytesConversionFcts
 {
-    public static Collection<Function> all()
+    public static void addFunctionsTo(NativeFunctions functions)
     {
-        Collection<Function> functions = new ArrayList<>();
-
         // because text and varchar ends up being synonymous, our automatic makeToBlobFunction doesn't work
         // for varchar, so we special case it below. We also skip blob for obvious reasons.
         for (CQL3Type type : CQL3Type.Native.values())
@@ -50,13 +49,11 @@ public abstract class BytesConversionFcts
 
         functions.add(VarcharAsBlobFct);
         functions.add(BlobAsVarcharFct);
-
-        return functions;
     }
 
     // Most of the XAsBlob and blobAsX functions are basically no-op since everything is
     // bytes internally. They only "trick" the type system.
-    public static Function makeToBlobFunction(AbstractType<?> fromType)
+    public static NativeFunction makeToBlobFunction(AbstractType<?> fromType)
     {
         String name = fromType.asCQL3Type() + "asblob";
         return new NativeScalarFunction(name, BytesType.instance, fromType)
@@ -68,7 +65,7 @@ public abstract class BytesConversionFcts
         };
     }
 
-    public static Function makeFromBlobFunction(final AbstractType<?> toType)
+    public static NativeFunction makeFromBlobFunction(final AbstractType<?> toType)
     {
         final String name = "blobas" + toType.asCQL3Type();
         return new NativeScalarFunction(name, toType, BytesType.instance)
@@ -91,7 +88,7 @@ public abstract class BytesConversionFcts
         };
     }
 
-    public static final Function VarcharAsBlobFct = new NativeScalarFunction("varcharasblob", BytesType.instance, UTF8Type.instance)
+    public static final NativeFunction VarcharAsBlobFct = new NativeScalarFunction("varcharasblob", BytesType.instance, UTF8Type.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
@@ -99,7 +96,7 @@ public abstract class BytesConversionFcts
         }
     };
 
-    public static final Function BlobAsVarcharFct = new NativeScalarFunction("blobasvarchar", UTF8Type.instance, BytesType.instance)
+    public static final NativeFunction BlobAsVarcharFct = new NativeScalarFunction("blobasvarchar", UTF8Type.instance, BytesType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {

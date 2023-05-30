@@ -34,16 +34,15 @@ import static java.util.stream.Collectors.toList;
 import static com.google.common.collect.Iterables.any;
 
 /**
- * An immutable container for a keyspace's UDAs and UDFs (and, in case of {@link org.apache.cassandra.db.SystemKeyspace},
- * native functions and aggregates).
+ * An immutable container for a keyspace's UDAs and UDFs.
  */
-public final class Functions implements Iterable<Function>
+public final class UserFunctions implements Iterable<UserFunction>
 {
-    public enum Filter implements Predicate<Function>
+    public enum Filter implements Predicate<UserFunction>
     {
         ALL, UDF, UDA;
 
-        public boolean test(Function function)
+        public boolean test(UserFunction function)
         {
             switch (this)
             {
@@ -54,9 +53,9 @@ public final class Functions implements Iterable<Function>
         }
     }
 
-    private final ImmutableMultimap<FunctionName, Function> functions;
+    private final ImmutableMultimap<FunctionName, UserFunction> functions;
 
-    private Functions(Builder builder)
+    private UserFunctions(Builder builder)
     {
         functions = builder.functions.build();
     }
@@ -66,22 +65,17 @@ public final class Functions implements Iterable<Function>
         return new Builder();
     }
 
-    public static Functions none()
+    public static UserFunctions none()
     {
         return builder().build();
     }
 
-    public static Functions of(Function... funs)
-    {
-        return builder().add(funs).build();
-    }
-
-    public Iterator<Function> iterator()
+    public Iterator<UserFunction> iterator()
     {
         return functions.values().iterator();
     }
 
-    public Stream<Function> stream()
+    public Stream<UserFunction> stream()
     {
         return functions.values().stream();
     }
@@ -107,12 +101,12 @@ public final class Functions implements Iterable<Function>
         return stream().filter(Filter.UDA).map(f -> (UDAggregate) f);
     }
 
-    public Iterable<Function> referencingUserType(ByteBuffer name)
+    public Iterable<UserFunction> referencingUserType(ByteBuffer name)
     {
         return Iterables.filter(this, f -> f.referencesUserType(name));
     }
 
-    public Functions withUpdatedUserType(UserType udt)
+    public UserFunctions withUpdatedUserType(UserType udt)
     {
         if (!any(this, f -> f.referencesUserType(udt.name)))
             return this;
@@ -123,7 +117,7 @@ public final class Functions implements Iterable<Function>
         return builder().add(udfs).add(udas).build();
     }
 
-    public Functions withNewKeyspace(String newKeyspace, Types udts)
+    public UserFunctions withNewKeyspace(String newKeyspace, Types udts)
     {
         Collection<UDFunction> udfs = udfs().map(f -> f.withNewKeyspace(newKeyspace, udts)).collect(toList());
         Collection<UDAggregate> udas = udas().map(f -> f.withNewKeyspace(newKeyspace, udfs, udts)).collect(toList());
@@ -146,7 +140,7 @@ public final class Functions implements Iterable<Function>
      * @param name fully qualified function name
      * @return an empty list if the function name is not found; a non-empty collection of {@link Function} otherwise
      */
-    public Collection<Function> get(FunctionName name)
+    public Collection<UserFunction> get(FunctionName name)
     {
         return functions.get(name);
     }
@@ -181,7 +175,7 @@ public final class Functions implements Iterable<Function>
                         .collect(Collectors.toList());
     }
 
-    public Optional<Function> find(FunctionName name, List<AbstractType<?>> argTypes)
+    public Optional<UserFunction> find(FunctionName name, List<AbstractType<?>> argTypes)
     {
         return find(name, argTypes, Filter.ALL);
     }
@@ -193,46 +187,16 @@ public final class Functions implements Iterable<Function>
      * @param argTypes function argument types
      * @return an empty {@link Optional} if the function name is not found; a non-empty optional of {@link Function} otherwise
      */
-    public Optional<Function> find(FunctionName name, List<AbstractType<?>> argTypes, Filter filter)
+    public Optional<UserFunction> find(FunctionName name, List<AbstractType<?>> argTypes, Filter filter)
     {
         return get(name).stream()
-                        .filter(filter.and(fun -> typesMatch(fun.argTypes(), argTypes)))
+                        .filter(filter.and(fun -> fun.typesMatch(argTypes)))
                         .findAny();
     }
 
     public boolean isEmpty()
     {
         return functions.isEmpty();
-    }
-
-    /*
-     * We need to compare the CQL3 representation of the type because comparing
-     * the AbstractType will fail for example if a UDT has been changed.
-     * Reason is that UserType.equals() takes the field names and types into account.
-     * Example CQL sequence that would fail when comparing AbstractType:
-     *    CREATE TYPE foo ...
-     *    CREATE FUNCTION bar ( par foo ) RETURNS foo ...
-     *    ALTER TYPE foo ADD ...
-     * or
-     *    ALTER TYPE foo ALTER ...
-     * or
-     *    ALTER TYPE foo RENAME ...
-     */
-    private static boolean typesMatch(AbstractType<?> t1, AbstractType<?> t2)
-    {
-        return t1.freeze().asCQL3Type().toString().equals(t2.freeze().asCQL3Type().toString());
-    }
-
-    public static boolean typesMatch(List<AbstractType<?>> t1, List<AbstractType<?>> t2)
-    {
-        if (t1.size() != t2.size())
-            return false;
-
-        for (int i = 0; i < t1.size(); i++)
-            if (!typesMatch(t1.get(i), t2.get(i)))
-                return false;
-
-        return true;
     }
 
     public static int typeHashCode(AbstractType<?> t)
@@ -248,7 +212,7 @@ public final class Functions implements Iterable<Function>
         return h;
     }
 
-    public Functions filter(Predicate<Function> predicate)
+    public UserFunctions filter(Predicate<UserFunction> predicate)
     {
         Builder builder = builder();
         stream().filter(predicate).forEach(builder::add);
@@ -258,7 +222,7 @@ public final class Functions implements Iterable<Function>
     /**
      * Create a Functions instance with the provided function added
      */
-    public Functions with(Function fun)
+    public UserFunctions with(UserFunction fun)
     {
         if (find(fun.name(), fun.argTypes()).isPresent())
             throw new IllegalStateException(String.format("Function %s already exists", fun.name()));
@@ -269,7 +233,7 @@ public final class Functions implements Iterable<Function>
     /**
      * Creates a Functions instance with the function with the provided name and argument types removed
      */
-    public Functions without(FunctionName name, List<AbstractType<?>> argTypes)
+    public UserFunctions without(FunctionName name, List<AbstractType<?>> argTypes)
     {
         Function fun =
             find(name, argTypes).orElseThrow(() -> new IllegalStateException(String.format("Function %s doesn't exists", name)));
@@ -277,14 +241,14 @@ public final class Functions implements Iterable<Function>
         return without(fun);
     }
 
-    public Functions without(Function function)
+    public UserFunctions without(Function function)
     {
         return builder().add(Iterables.filter(this, f -> f != function)).build();
     }
 
-    public Functions withAddedOrUpdated(Function function)
+    public UserFunctions withAddedOrUpdated(UserFunction function)
     {
-        return builder().add(Iterables.filter(this, f -> !(f.name().equals(function.name()) && Functions.typesMatch(f.argTypes(), function.argTypes()))))
+        return builder().add(Iterables.filter(this, f -> !(f.name().equals(function.name()) && f.typesMatch(function.argTypes()))))
                         .add(function)
                         .build();
     }
@@ -292,7 +256,7 @@ public final class Functions implements Iterable<Function>
     @Override
     public boolean equals(Object o)
     {
-        return this == o || (o instanceof Functions && functions.equals(((Functions) o).functions));
+        return this == o || (o instanceof UserFunctions && functions.equals(((UserFunctions) o).functions));
     }
 
     @Override
@@ -309,7 +273,7 @@ public final class Functions implements Iterable<Function>
 
     public static final class Builder
     {
-        final ImmutableMultimap.Builder<FunctionName, Function> functions = new ImmutableMultimap.Builder<>();
+        final ImmutableMultimap.Builder<FunctionName, UserFunction> functions = new ImmutableMultimap.Builder<>();
 
         private Builder()
         {
@@ -317,25 +281,25 @@ public final class Functions implements Iterable<Function>
             functions.orderValuesBy(Comparator.comparingInt(Object::hashCode));
         }
 
-        public Functions build()
+        public UserFunctions build()
         {
-            return new Functions(this);
+            return new UserFunctions(this);
         }
 
-        public Builder add(Function fun)
+        public Builder add(UserFunction fun)
         {
             functions.put(fun.name(), fun);
             return this;
         }
 
-        public Builder add(Function... funs)
+        public Builder add(UserFunction... funs)
         {
-            for (Function fun : funs)
+            for (UserFunction fun : funs)
                 add(fun);
             return this;
         }
 
-        public Builder add(Iterable<? extends Function> funs)
+        public Builder add(Iterable<? extends UserFunction> funs)
         {
             funs.forEach(this::add);
             return this;
@@ -343,35 +307,35 @@ public final class Functions implements Iterable<Function>
     }
 
     @SuppressWarnings("unchecked")
-    static FunctionsDiff<UDFunction> udfsDiff(Functions before, Functions after)
+    static FunctionsDiff<UDFunction> udfsDiff(UserFunctions before, UserFunctions after)
     {
         return (FunctionsDiff<UDFunction>) FunctionsDiff.diff(before, after, Filter.UDF);
     }
 
     @SuppressWarnings("unchecked")
-    static FunctionsDiff<UDAggregate> udasDiff(Functions before, Functions after)
+    static FunctionsDiff<UDAggregate> udasDiff(UserFunctions before, UserFunctions after)
     {
         return (FunctionsDiff<UDAggregate>) FunctionsDiff.diff(before, after, Filter.UDA);
     }
 
-    public static final class FunctionsDiff<T extends Function> extends Diff<Functions, T>
+    public static final class FunctionsDiff<T extends Function> extends Diff<UserFunctions, T>
     {
-        static final FunctionsDiff NONE = new FunctionsDiff<>(Functions.none(), Functions.none(), ImmutableList.of());
+        static final FunctionsDiff NONE = new FunctionsDiff<>(UserFunctions.none(), UserFunctions.none(), ImmutableList.of());
 
-        private FunctionsDiff(Functions created, Functions dropped, ImmutableCollection<Altered<T>> altered)
+        private FunctionsDiff(UserFunctions created, UserFunctions dropped, ImmutableCollection<Altered<T>> altered)
         {
             super(created, dropped, altered);
         }
 
-        private static FunctionsDiff diff(Functions before, Functions after, Filter filter)
+        private static FunctionsDiff diff(UserFunctions before, UserFunctions after, Filter filter)
         {
             if (before == after)
                 return NONE;
 
-            Functions created = after.filter(filter.and(k -> !before.find(k.name(), k.argTypes(), filter).isPresent()));
-            Functions dropped = before.filter(filter.and(k -> !after.find(k.name(), k.argTypes(), filter).isPresent()));
+            UserFunctions created = after.filter(filter.and(k -> !before.find(k.name(), k.argTypes(), filter).isPresent()));
+            UserFunctions dropped = before.filter(filter.and(k -> !after.find(k.name(), k.argTypes(), filter).isPresent()));
 
-            ImmutableList.Builder<Altered<Function>> altered = ImmutableList.builder();
+            ImmutableList.Builder<Altered<UserFunction>> altered = ImmutableList.builder();
             before.stream().filter(filter).forEach(functionBefore ->
             {
                 after.find(functionBefore.name(), functionBefore.argTypes(), filter).ifPresent(functionAfter ->

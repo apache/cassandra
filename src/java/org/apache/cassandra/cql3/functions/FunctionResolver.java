@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3.functions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.AbstractMarker;
 import org.apache.cassandra.cql3.AssignmentTestable;
@@ -38,11 +41,6 @@ public final class FunctionResolver
     {
     }
 
-    // We special case the token function because that's the only function whose argument types actually
-    // depend on the table on which the function is called. Because it's the sole exception, it's easier
-    // to handle it as a special case.
-    private static final FunctionName TOKEN_FUNCTION_NAME = FunctionName.nativeFunction("token");
-
     public static ColumnSpecification makeArgSpec(String receiverKs, String receiverCf, Function fun, int i)
     {
         return new ColumnSpecification(receiverKs,
@@ -59,8 +57,8 @@ public final class FunctionResolver
      * @param receiverCf the receiver's table
      * @param receiverType if the receiver type is known (during inserts, for example), this should be the type of
      *                     the receiver
-     * @throws InvalidRequestException
      */
+    @Nullable
     public static Function get(String keyspace,
                                FunctionName name,
                                List<? extends AssignmentTestable> providedArgs,
@@ -69,7 +67,7 @@ public final class FunctionResolver
                                AbstractType<?> receiverType)
     throws InvalidRequestException
     {
-        Collection<Function> candidates = collectCandidates(keyspace, name, receiverKs, receiverCf, receiverType);
+        Collection<Function> candidates = collectCandidates(keyspace, name, receiverKs, receiverCf, providedArgs, receiverType);
 
         if (candidates.isEmpty())
             return null;
@@ -89,39 +87,31 @@ public final class FunctionResolver
                                                           FunctionName name,
                                                           String receiverKs,
                                                           String receiverCf,
+                                                          List<? extends AssignmentTestable> providedArgs,
                                                           AbstractType<?> receiverType)
     {
         Collection<Function> candidates = new ArrayList<>();
 
-        if (name.equalsNativeFunction(TOKEN_FUNCTION_NAME))
-            candidates.add(new TokenFct(Schema.instance.getTableMetadata(receiverKs, receiverCf)));
-
-        // The toJson() function can accept any type of argument, so instances of it are not pre-declared.  Instead,
-        // we create new instances as needed while handling selectors (which is the only place that toJson() is supported,
-        // due to needing to know the argument types in advance).
-        if (name.equalsNativeFunction(ToJsonFct.NAME))
-            throw new InvalidRequestException("toJson() may only be used within the selection clause of SELECT statements");
-
-        // Similarly, we can only use fromJson when we know the receiver type (such as inserts)
-        if (name.equalsNativeFunction(FromJsonFct.NAME))
+        if (name.hasKeyspace())
         {
-            if (receiverType == null)
-                throw new InvalidRequestException("fromJson() cannot be used in the selection clause of a SELECT statement");
-            candidates.add(FromJsonFct.getInstance(receiverType));
-        }
-
-        if (!name.hasKeyspace())
-        {
-            // function name not fully qualified
-            // add 'SYSTEM' (native) candidates
-            candidates.addAll(Schema.instance.getFunctions(name.asNativeFunction()));
-            // add 'current keyspace' candidates
-            candidates.addAll(Schema.instance.getFunctions(new FunctionName(keyspace, name.name)));
+            // function name is fully qualified (keyspace + name)
+            candidates.addAll(Schema.instance.getUserFunctions(name));
+            candidates.addAll(NativeFunctions.instance.getFunctions(name));
+            candidates.addAll(NativeFunctions.instance.getFactories(name).stream()
+                                            .map(f -> f.getOrCreateFunction(providedArgs, receiverType, receiverKs, receiverCf))
+                                            .collect(Collectors.toList()));
         }
         else
         {
-            // function name is fully qualified (keyspace + name)
-            candidates.addAll(Schema.instance.getFunctions(name));
+            // function name is not fully qualified
+            // add 'current keyspace' candidates
+            candidates.addAll(Schema.instance.getUserFunctions(new FunctionName(keyspace, name.name)));
+            // add 'SYSTEM' (native) candidates
+            FunctionName nativeName = name.asNativeFunction();
+            candidates.addAll(NativeFunctions.instance.getFunctions(nativeName));
+            candidates.addAll(NativeFunctions.instance.getFactories(nativeName).stream()
+                                            .map(f -> f.getOrCreateFunction(providedArgs, receiverType, receiverKs, receiverCf))
+                                            .collect(Collectors.toList()));
         }
 
         return candidates;
@@ -252,7 +242,7 @@ public final class FunctionResolver
         if (providedArgs.size() != fun.argTypes().size())
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 
-        // It's an exact match if all are exact match, but is not assignable as soon as any is non assignable.
+        // It's an exact match if all are exact match, but is not assignable as soon as any is not assignable.
         AssignmentTestable.TestResult res = AssignmentTestable.TestResult.EXACT_MATCH;
         for (int i = 0; i < providedArgs.size(); i++)
         {

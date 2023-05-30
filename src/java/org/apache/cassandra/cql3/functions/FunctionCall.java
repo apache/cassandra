@@ -127,7 +127,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public static class Raw extends Term.Raw
     {
-        private FunctionName name;
+        private final FunctionName name;
         private final List<Term.Raw> terms;
 
         public Raw(FunctionName name, List<Term.Raw> terms)
@@ -196,10 +196,11 @@ public class FunctionCall extends Term.NonTerminal
             {
                 Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);
 
-                // Because fromJson() can return whatever type the receiver is, we'll always get EXACT_MATCH.  To
-                // handle potentially ambiguous function calls with fromJson() as an argument, always return
-                // WEAKLY_ASSIGNABLE to force the user to typecast if necessary
-                if (fun != null && fun.name().equals(FromJsonFct.NAME))
+                // Because the return type of functions built by factories is not fixed but depending on the types of
+                // their arguments, we'll always get EXACT_MATCH.  To handle potentially ambiguous function calls with
+                // dynamically built functions as an argument, always return WEAKLY_ASSIGNABLE to force the user to
+                // typecast if necessary
+                if (fun != null && NativeFunctions.instance.hasFactory(fun.name()))
                     return TestResult.WEAKLY_ASSIGNABLE;
 
                 if (fun != null && receiver.type.equals(fun.returnType()))
@@ -215,14 +216,18 @@ public class FunctionCall extends Term.NonTerminal
             }
         }
 
+        @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            // We could implement this, but the method is only used in selection clause, where FunctionCall is not used 
-            // we use a Selectable.WithFunction instead). And if that method is later used in other places, better to
-            // let that future patch make sure this can be implemented properly (note in particular we don't have access
-            // to the receiver type, which FunctionResolver.get() takes) rather than provide an implementation that may
-            // not work in all cases.
-            throw new UnsupportedOperationException();
+            try
+            {
+                Function fun = FunctionResolver.get(keyspace, name, terms, null, null, null);
+                return fun == null ? null : fun.returnType();
+            }
+            catch (InvalidRequestException e)
+            {
+                return null;
+            }
         }
 
         public String getText()

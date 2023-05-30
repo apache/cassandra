@@ -30,8 +30,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ToJsonFct extends NativeScalarFunction
 {
-    public static final FunctionName NAME = FunctionName.nativeFunction("tojson");
-
     private static final Map<AbstractType<?>, ToJsonFct> instances = new ConcurrentHashMap<>();
 
     public static ToJsonFct getInstance(List<AbstractType<?>> argTypes) throws InvalidRequestException
@@ -62,5 +60,17 @@ public class ToJsonFct extends NativeScalarFunction
             return ByteBufferUtil.bytes("null");
 
         return ByteBufferUtil.bytes(argTypes.get(0).toJSONString(parameter, protocolVersion));
+    }
+
+    public static void addFunctionsTo(NativeFunctions functions)
+    {
+        functions.add(new FunctionFactory("tojson", FunctionParameter.anyType(false))
+        {
+            @Override
+            protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+            {
+                return ToJsonFct.getInstance(argTypes);
+            }
+        });
     }
 }
