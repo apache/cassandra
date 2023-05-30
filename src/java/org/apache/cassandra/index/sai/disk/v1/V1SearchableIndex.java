@@ -37,6 +37,7 @@ import org.apache.cassandra.index.sai.disk.SearchableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -202,8 +203,11 @@ public class V1SearchableIndex implements SearchableIndex
     @Override
     public RangeIterator<PrimaryKey> reorderOneComponent(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
-        // TODO for now, we only have one ANN segment per sstable
-        return segments.get(0).reorderOneComponent(context, iterator, exp, limit);
+        RangeUnionIterator.Builder<PrimaryKey> unionIteratorBuilder = new RangeUnionIterator.Builder<>(segments.size());
+        for (Segment segment : segments)
+            unionIteratorBuilder.add(segment.reorderOneComponent(context, iterator, exp, limit));
+
+        return unionIteratorBuilder.build();
     }
 
     @Override

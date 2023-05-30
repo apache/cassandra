@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,14 +33,20 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.hnsw.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
+import org.apache.lucene.util.hnsw.HnswGraphSearcher;
+import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.assertj.core.data.Percentage;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -156,7 +162,7 @@ public class VectorLocalTest extends SAITester
 
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
-            int key = getRandom().nextIntBetween(1, vectorCount);
+            int key = getRandom().nextIntBetween(1, vectorCount - 1);
             float[] queryVector = randomVector();
             searchWithKey(queryVector, key, 1);
         }
@@ -166,7 +172,7 @@ public class VectorLocalTest extends SAITester
         // query on-disk index with existing key:
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
-            int key = getRandom().nextIntBetween(1, vectorCount);
+            int key = getRandom().nextIntBetween(1, vectorCount - 1);
             float[] queryVector = randomVector();
             searchWithKey(queryVector, key, 1);
         }
@@ -391,13 +397,49 @@ public class VectorLocalTest extends SAITester
         return rawVector;
     }
 
-    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK)
+    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException
     {
-        var sortedVectors = vectors.stream()
-                                   .sorted(Comparator.comparingDouble(v -> function.compare(v, query)))
-                                   .collect(Collectors.toList());
+        ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
+        int ordinal = 0;
 
-        List<float[]> nearestNeighbors = sortedVectors.subList(0, Math.min(sortedVectors.size(), topK));
+        ConcurrentHnswGraphBuilder<float[]> graphBuilder = ConcurrentHnswGraphBuilder.create(vectorValues,
+                                                                                             VectorEncoding.FLOAT32,
+                                                                                             VectorSimilarityFunction.COSINE,
+                                                                                             16,
+                                                                                             100);
+
+        for (float[] vector : vectors)
+        {
+            vectorValues.add(ordinal, vector);
+            graphBuilder.addGraphNode(ordinal++, vectorValues);
+        }
+
+        NeighborQueue queue = HnswGraphSearcher.search(query,
+                                                       topK,
+                                                       vectorValues,
+                                                       VectorEncoding.FLOAT32,
+                                                       VectorSimilarityFunction.COSINE,
+                                                       graphBuilder.getGraph().getView(),
+                                                       new Bits.MatchAllBits(vectors.size()),
+                                                       Integer.MAX_VALUE);
+
+        List<float[]> nearestNeighbors = new ArrayList<>();
+        while (queue.size() > 0)
+            nearestNeighbors.add(vectorValues.vectorValue(queue.pop()));
+
+        double[] neighbourScores = new double[nearestNeighbors.size()];
+
+        for (int index = 0; index < nearestNeighbors.size(); index++)
+            neighbourScores[index] = VectorSimilarityFunction.COSINE.compare(query, nearestNeighbors.get(index));
+
+        Arrays.sort(neighbourScores);
+
+        double[] resultScores = new double[result.size()];
+
+        for (int index = 0; index < result.size(); index++)
+            resultScores[index] = VectorSimilarityFunction.COSINE.compare(query, result.get(index));
+
+        Arrays.sort(resultScores);
 
         int matches = 0;
         for (float[] in : nearestNeighbors)
