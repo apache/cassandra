@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -44,7 +46,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.mina.util.ConcurrentHashSet;
 
 public class CassandraOnHeapHnsw<T>
 {
@@ -54,7 +55,7 @@ public class CassandraOnHeapHnsw<T>
     private final VectorSimilarityFunction similarityFunction;
     final Map<float[], VectorPostings<T>> postingsMap;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
-    private final ConcurrentHashSet<Integer> deletedOrdinals = new ConcurrentHashSet<>();
+    private final Set<Integer> deletedOrdinals = ConcurrentHashMap.newKeySet();
 
     public CassandraOnHeapHnsw(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
