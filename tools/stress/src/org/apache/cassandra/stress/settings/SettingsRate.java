@@ -37,6 +37,7 @@ public class SettingsRate implements Serializable
     public final int threadCount;
     public final int opsPerSecond;
     public final boolean isFixed;
+    public final int threadIncrease;
 
     public SettingsRate(ThreadOptions options)
     {
@@ -53,6 +54,7 @@ public class SettingsRate implements Serializable
 
         minThreads = -1;
         maxThreads = -1;
+        threadIncrease = options.threadIncrease.setByUser() ? Integer.parseInt(options.threadIncrease.value()) : -1;
     }
 
     public SettingsRate(AutoOptions auto)
@@ -63,6 +65,7 @@ public class SettingsRate implements Serializable
         this.threadCount = -1;
         this.opsPerSecond = 0;
         isFixed = false;
+        threadIncrease = auto.threadIncrease.setByUser() ? Integer.parseInt(auto.threadIncrease.value()) : -1;
     }
 
 
@@ -73,11 +76,15 @@ public class SettingsRate implements Serializable
         final OptionSimple auto = new OptionSimple("auto", "", null, "stop increasing threads once throughput saturates", false);
         final OptionSimple minThreads = new OptionSimple("threads>=", "[0-9]+", "4", "run at least this many clients concurrently", false);
         final OptionSimple maxThreads = new OptionSimple("threads<=", "[0-9]+", "1000", "run at most this many clients concurrently", false);
+        final OptionSimple threadIncrease = new OptionSimple("threadIncrease=", "[0-9]+", null,
+                                                             "number of threads to increase for each next iteration, if not set, each iteration will add half of its threads into the next round " +
+                                                             "and it will double it if number of threads is lower than 16",
+                                                             false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(minThreads, maxThreads, auto);
+            return Arrays.asList(minThreads, maxThreads, auto, threadIncrease);
         }
     }
 
@@ -86,11 +93,15 @@ public class SettingsRate implements Serializable
         final OptionSimple threads = new OptionSimple("threads=", "[0-9]+", null, "run this many clients concurrently", true);
         final OptionSimple throttle = new OptionSimple("throttle=", "[0-9]+/s", "0/s", "throttle operations per second across all clients to a maximum rate (or less) with no implied schedule", false);
         final OptionSimple fixed = new OptionSimple("fixed=", "[0-9]+/s", "0/s", "expect fixed rate of operations per second across all clients with implied schedule", false);
+        final OptionSimple threadIncrease = new OptionSimple("threadIncrease=", "[0-9]+", null,
+                                                             "number of threads to increase for each next iteration, if not set, each iteration will add half of its threads into the next round " +
+                                                             "and it will double it if number of threads is lower than 16",
+                                                             false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(threads, throttle, fixed);
+            return Arrays.asList(threads, throttle, fixed, threadIncrease);
         }
     }
 

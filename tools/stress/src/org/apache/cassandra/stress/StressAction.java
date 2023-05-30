@@ -30,6 +30,7 @@ import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.report.StressMetrics;
 import org.apache.cassandra.stress.settings.ConnectionAPI;
 import org.apache.cassandra.stress.settings.SettingsCommand;
+import org.apache.cassandra.stress.settings.SettingsTarget;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
@@ -140,6 +141,9 @@ public class StressAction implements Runnable
         int threadCount = settings.rate.minThreads;
         List<StressMetrics> results = new ArrayList<>();
         List<String> runIds = new ArrayList<>();
+
+        SettingsTarget.Target target = settings.target.target;
+
         do
         {
             output.println("");
@@ -155,15 +159,22 @@ public class StressAction implements Runnable
             results.add(result);
 
             if (prevThreadCount > 0)
-                System.out.println(String.format("Improvement over %d threadCount: %.0f%%",
-                        prevThreadCount, 100 * averageImprovement(results, 1)));
+            {
+                double avgImprovement = 100 * target.averageImprovement(results, 1);
+                if (avgImprovement != 0)
+                    output.printf("Improvement over %d threadCount: %.0f%%%n", prevThreadCount, avgImprovement);
+            }
 
             runIds.add(threadCount + " threadCount");
             prevThreadCount = threadCount;
-            if (threadCount < 16)
-                threadCount *= 2;
+
+            if (settings.rate.threadIncrease != -1)
+                threadCount += settings.rate.threadIncrease;
             else
-                threadCount *= 1.5;
+                if (threadCount < 16)
+                    threadCount *= 2;
+                else
+                    threadCount *= 1.5;
 
             if (!results.isEmpty() && threadCount > settings.rate.maxThreads)
                 break;
@@ -181,29 +192,14 @@ public class StressAction implements Runnable
                     return false;
                 }
             }
-            // run until we have not improved throughput significantly for previous three runs
-        } while (!auto || (hasAverageImprovement(results, 3, 0) && hasAverageImprovement(results, 5, settings.command.targetUncertainty)));
+
+            // run until we have not improved throughput significantly for previous three runs or until
+            // some target threshold was violated
+        } while (!auto || target.satistfiesTarget(results, 3, output));
 
         // summarise all results
         StressMetrics.summarise(runIds, results, output);
         return true;
-    }
-
-    private boolean hasAverageImprovement(List<StressMetrics> results, int count, double minImprovement)
-    {
-        return results.size() < count + 1 || averageImprovement(results, count) >= minImprovement;
-    }
-
-    private double averageImprovement(List<StressMetrics> results, int count)
-    {
-        double improvement = 0;
-        for (int i = results.size() - count ; i < results.size() ; i++)
-        {
-            double prev = results.get(i - 1).opRate();
-            double cur = results.get(i).opRate();
-            improvement += (cur - prev) / prev;
-        }
-        return improvement / count;
     }
 
     private StressMetrics run(OpDistributionFactory operations,

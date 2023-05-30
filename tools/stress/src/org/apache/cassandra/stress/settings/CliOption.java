@@ -31,6 +31,7 @@ public enum CliOption
     COL("Column details such as size and count distribution, data generator, names, comparator and if super columns should be used", SettingsColumn.helpPrinter()),
     RATE("Thread count, rate limit or automatic mode (default is auto)", SettingsRate.helpPrinter()),
     MODE("CQL mode options", SettingsMode.helpPrinter()),
+    TARGET("Target configuration to fail a test when violated", SettingsTarget.helpPrinter()),
     ERRORS("How to handle errors when encountered during stress", SettingsErrors.helpPrinter()),
     SCHEMA("Replication settings, compression, compaction, etc.", SettingsSchema.helpPrinter()),
     NODE("Nodes to connect to", SettingsNode.helpPrinter()),
@@ -40,7 +41,8 @@ public enum CliOption
     JMX("JMX credentials", SettingsJMX.helpPrinter()),
     GRAPH("-graph", "Graph recorded metrics", SettingsGraph.helpPrinter()),
     TOKENRANGE("Token range settings", SettingsTokenRange.helpPrinter()),
-    CREDENTIALS_FILE("Credentials file for CQL, JMX and transport", SettingsCredentials.helpPrinter());
+    CREDENTIALS_FILE("Credentials file for CQL, JMX and transport", SettingsCredentials.helpPrinter()),
+    REPORTING("Frequency of printing statistics and header for stress output", SettingsReporting.helpPrinter());
     ;
 
     private static final Map<String, CliOption> LOOKUP;
