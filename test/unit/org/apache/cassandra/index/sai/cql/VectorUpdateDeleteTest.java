@@ -27,7 +27,7 @@ import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsIn
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class VectorTombstoneTest extends SAITester
+public class VectorUpdateDeleteTest extends SAITester
 {
     @Test
     public void deleteVectorInMemoryTest() throws Throwable
