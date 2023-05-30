@@ -22,8 +22,6 @@ import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.text.StrBuilder;
-
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
@@ -90,6 +88,12 @@ public interface Selectable extends AssignmentTestable
     {
         AbstractType<?> type = getExactTypeIfKnown(keyspace);
         return type == null ? TestResult.NOT_ASSIGNABLE : type.testAssignment(keyspace, receiver);
+    }
+
+    @Override
+    public default AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+    {
+        return getExactTypeIfKnown(keyspace);
     }
 
     default int addAndGetIndex(ColumnMetadata def, List<ColumnMetadata> l)
@@ -209,6 +213,12 @@ public interface Selectable extends AssignmentTestable
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             return rawTerm.getExactTypeIfKnown(keyspace);
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return rawTerm.getCompatibleTypeIfKnown(keyspace);
         }
 
         @Override
@@ -376,17 +386,11 @@ public interface Selectable extends AssignmentTestable
                     preparedArgs.add(arg.prepare(table));
 
                 FunctionName name = functionName;
-                // We need to circumvent the normal function lookup process for toJson() because instances of the function
-                // are not pre-declared (because it can accept any type of argument). We also have to wait until we have the
-                // selector factories of the argument so we can access their final type.
-                if (functionName.equalsNativeFunction(ToJsonFct.NAME))
-                {
-                    return new WithToJSonFunction(preparedArgs);
-                }
-                // Also, COUNT(x) is equivalent to COUNT(*) for any non-null term x (since count(x) don't care about it's argument outside of check for nullness) and
-                // for backward compatibilty we want to support COUNT(1), but we actually have COUNT(x) method for every existing (simple) input types so currently COUNT(1)
-                // will throw as ambiguous (since 1 works for any type). So we have have to special case COUNT.
-                else if (functionName.equalsNativeFunction(FunctionName.nativeFunction("count"))
+                // COUNT(x) is equivalent to COUNT(*) for any non-null term x (since count(x) don't care about its
+                // argument outside of check for nullness) and for backward compatibilty we want to support COUNT(1),
+                // but we actually have COUNT(x) method for every existing (simple) input types so currently COUNT(1)
+                // will throw as ambiguous (since 1 works for any type). So we have to special case COUNT.
+                if (functionName.equalsNativeFunction(FunctionName.nativeFunction("count"))
                         && preparedArgs.size() == 1
                         && (preparedArgs.get(0) instanceof WithTerm)
                         && (((WithTerm)preparedArgs.get(0)).rawTerm instanceof Constants.Literal))
@@ -406,44 +410,6 @@ public interface Selectable extends AssignmentTestable
 
                 return new WithFunction(fun, preparedArgs);
             }
-        }
-    }
-
-    public static class WithToJSonFunction implements Selectable
-    {
-        public final List<Selectable> args;
-
-        private WithToJSonFunction(List<Selectable> args)
-        {
-            this.args = args;
-        }
-
-        @Override
-        public String toString()
-        {
-            return new StrBuilder().append(ToJsonFct.NAME)
-                                   .append("(")
-                                   .appendWithSeparators(args, ", ")
-                                   .append(")")
-                                   .toString();
-        }
-
-        public Selector.Factory newSelectorFactory(TableMetadata table, AbstractType<?> expectedType, List<ColumnMetadata> defs, VariableSpecifications boundNames)
-        {
-            SelectorFactories factories = SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, null, table, defs, boundNames);
-            Function fun = ToJsonFct.getInstance(factories.getReturnTypes());
-            return AbstractFunctionSelector.newFactory(fun, factories);
-        }
-
-        public AbstractType<?> getExactTypeIfKnown(String keyspace)
-        {
-            return UTF8Type.instance;
-        }
-
-        @Override
-        public boolean selectColumns(Predicate<ColumnMetadata> predicate)
-        {
-            return Selectable.selectColumns(args, predicate);
         }
     }
 
@@ -702,6 +668,17 @@ public interface Selectable extends AssignmentTestable
         }
 
         @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            // If there is only one element we cannot know if it is an element between parentheses or a tuple
+            // with only one element. By consequence, we need to force the user to specify the type.
+            if (selectables.size() == 1)
+                return null;
+
+            return Tuples.getExactTupleTypeIfKnown(selectables, p -> p.getCompatibleTypeIfKnown(keyspace));
+        }
+
+        @Override
         public boolean selectColumns(Predicate<ColumnMetadata> predicate)
         {
             return Selectable.selectColumns(selectables, predicate);
@@ -785,6 +762,12 @@ public interface Selectable extends AssignmentTestable
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             return Lists.getExactListTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Lists.getPreferredCompatibleType(selectables, p -> p.getCompatibleTypeIfKnown(keyspace));
         }
 
         @Override
@@ -879,6 +862,12 @@ public interface Selectable extends AssignmentTestable
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             return Sets.getExactSetTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Sets.getPreferredCompatibleType(selectables, p -> p.getCompatibleTypeIfKnown(keyspace));
         }
 
         @Override
@@ -1014,7 +1003,14 @@ public interface Selectable extends AssignmentTestable
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            // Lets force the user to specify the type.
+            // Let's force the user to specify the type.
+            return null;
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            // Let's force the user to specify the type.
             return null;
         }
 

@@ -46,7 +46,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
-import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -65,7 +64,7 @@ import static com.google.common.collect.Iterables.transform;
 /**
  * Base class for User Defined Functions.
  */
-public abstract class UDFunction extends AbstractFunction implements ScalarFunction, SchemaElement
+public abstract class UDFunction extends UserFunction implements ScalarFunction
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
@@ -611,11 +610,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return false;
     }
 
-    public boolean isNative()
-    {
-        return false;
-    }
-
     public boolean isCalledOnNullInput()
     {
         return calledOnNullInput;
@@ -765,7 +759,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
+        return Objects.hashCode(name, UserFunctions.typeHashCode(argTypes), UserFunctions.typeHashCode(returnType), returnType, language, body);
     }
 
     private static class UDFClassLoader extends ClassLoader

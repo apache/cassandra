@@ -52,7 +52,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -62,6 +61,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -532,11 +532,11 @@ public class CQLSSTableWriter implements Closeable
                 String keyspaceName = schemaStatement.keyspace();
 
                 Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspaceName,
-                                                                                                           KeyspaceParams.simple(1),
-                                                                                                           Tables.none(),
-                                                                                                           Views.none(),
-                                                                                                           Types.none(),
-                                                                                                           Functions.none()), true));
+                                                                                                    KeyspaceParams.simple(1),
+                                                                                                    Tables.none(),
+                                                                                                    Views.none(),
+                                                                                                    Types.none(),
+                                                                                                    UserFunctions.none()), true));
 
                 KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
 

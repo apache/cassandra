@@ -32,10 +32,15 @@ import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.functions.UDHelper;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.schema.Functions.FunctionsDiff;
+import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -120,8 +125,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         AbstractType<?> stateType = rawStateType.prepare(keyspaceName, keyspace.types).getType();
         List<AbstractType<?>> stateFunctionArguments = Lists.newArrayList(concat(singleton(stateType), argumentTypes));
 
-        Function stateFunction =
-            keyspace.functions
+        UserFunction stateFunction =
+            keyspace.userFunctions
                     .find(stateFunctionName, stateFunctionArguments)
                     .orElseThrow(() -> ire("State function %s doesn't exist", stateFunctionString()));
 
@@ -138,12 +143,12 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
          * Resolve the final function and return type
          */
 
-        Function finalFunction = null;
+        UserFunction finalFunction = null;
         AbstractType<?> returnType = stateFunction.returnType();
 
         if (null != finalFunctionName)
         {
-            finalFunction = keyspace.functions.find(finalFunctionName, singletonList(stateType)).orElse(null);
+            finalFunction = keyspace.userFunctions.find(finalFunctionName, singletonList(stateType)).orElse(null);
             if (null == finalFunction)
                 throw ire("Final function %s doesn't exist", finalFunctionString());
 
@@ -202,7 +207,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
                             (ScalarFunction) finalFunction,
                             initialValue);
 
-        Function existingAggregate = keyspace.functions.find(aggregate.name(), argumentTypes).orElse(null);
+        UserFunction existingAggregate = keyspace.userFunctions.find(aggregate.name(), argumentTypes).orElse(null);
         if (null != existingAggregate)
         {
             if (!existingAggregate.isAggregate())
@@ -223,7 +228,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             }
         }
 
-        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.functions.withAddedOrUpdated(aggregate)));
+        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.userFunctions.withAddedOrUpdated(aggregate)));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -245,7 +250,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
     {
         FunctionName name = new FunctionName(keyspaceName, aggregateName);
 
-        if (Schema.instance.findFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType())).isPresent() && orReplace)
+        if (Schema.instance.findUserFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType())).isPresent() && orReplace)
             client.ensurePermission(Permission.ALTER, FunctionResource.functionFromCql(keyspaceName, aggregateName, rawArgumentTypes));
         else
             client.ensurePermission(Permission.CREATE, FunctionResource.keyspace(keyspaceName));

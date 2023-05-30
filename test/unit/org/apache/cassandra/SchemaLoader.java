@@ -64,7 +64,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.Functions;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -303,7 +303,7 @@ public class SchemaLoader
 
     public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
     {
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()));
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, UserFunctions.none()));
     }
 
     public static void setupAuth(IRoleManager roleManager, IAuthenticator authenticator, IAuthorizer authorizer, INetworkAuthorizer networkAuthorizer)
@@ -798,7 +798,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
                                                        Tables.none(),
                                                        Views.none(),
                                                        Types.none(),
-                                                       Functions.none());
+                                                       UserFunctions.none());
         Schema.instance.transform(SchemaTransformations.addKeyspace(ksm, true));
 
         for (String typeCQL : typesCQL)

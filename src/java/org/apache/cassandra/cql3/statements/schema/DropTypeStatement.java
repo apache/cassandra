@@ -25,7 +25,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.UTName;
-import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -85,7 +85,7 @@ public final class DropTypeStatement extends AlterSchemaStatement
          * 2) other user type that can nest the one we drop and
          * 3) existing tables referencing the type (maybe in a nested way).
          */
-        Iterable<Function> functions = keyspace.functions.referencingUserType(name);
+        Iterable<UserFunction> functions = keyspace.userFunctions.referencingUserType(name);
         if (!isEmpty(functions))
         {
             throw ire("Cannot drop user type '%s.%s' as it is still used by functions %s",

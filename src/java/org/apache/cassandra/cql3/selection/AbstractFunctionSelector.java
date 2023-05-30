@@ -22,9 +22,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
-
 import org.apache.commons.lang3.text.StrBuilder;
-import org.apache.cassandra.schema.ColumnMetadata;
+
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -32,6 +31,7 @@ import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 abstract class AbstractFunctionSelector<T extends Function> extends Selector
 {

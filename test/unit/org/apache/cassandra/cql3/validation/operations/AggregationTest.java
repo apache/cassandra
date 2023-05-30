@@ -241,6 +241,114 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
+    public void testAggregateWithSets() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<int>, fs frozen<set<int>>)");
+
+        // Test with empty table
+        String select = "SELECT count(s), count(fs), min(s), min(fs), max(s), max(fs) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(s)", "system.count(fs)",
+                          "system.min(s)", "system.min(fs)",
+                          "system.max(s)", "system.max(fs)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, s, fs) VALUES (1, {1, 2}, {1, 2})");
+        execute("INSERT INTO %s (k, s, fs) VALUES (2, {1, 2, 3}, {1, 2, 3})");
+        execute("INSERT INTO %s (k, s, fs) VALUES (3, {2, 1}, {2, 1})");
+        assertRows(execute(select), row(3L, 3L, set(1, 2), set(1, 2), set(1, 2, 3), set(1, 2, 3)));
+    }
+
+    @Test
+    public void testAggregateWithLists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<int>, fl frozen<list<int>>)");
+
+        // Test with empty table
+        String select = "SELECT count(l), count(fl), min(l), min(fl), max(l), max(fl) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(l)", "system.count(fl)",
+                          "system.min(l)", "system.min(fl)",
+                          "system.max(l)", "system.max(fl)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, l, fl) VALUES (1, [1, 2], [1, 2])");
+        execute("INSERT INTO %s (k, l, fl) VALUES (2, [1, 2, 3], [1, 2, 3])");
+        execute("INSERT INTO %s (k, l, fl) VALUES (3, [2, 1], [2, 1])");
+        assertRows(execute(select),
+                   row(3L, 3L, list(1, 2), list(1, 2), list(2, 1), list(2, 1)));
+    }
+
+    @Test
+    public void testAggregateWithMaps() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<int, int>, fm frozen<map<int, int>>)");
+
+        // Test with empty table
+        String select = "SELECT count(m), count(fm), min(m), min(fm), max(m), max(fm) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(m)", "system.count(fm)",
+                          "system.min(m)", "system.min(fm)",
+                          "system.max(m)", "system.max(fm)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, m, fm) VALUES (1, {1:10, 2:20}, {1:10, 2:20})");
+        execute("INSERT INTO %s (k, m, fm) VALUES (2, {1:10, 2:20, 3:30}, {1:10, 2:20, 3:30})");
+        execute("INSERT INTO %s (k, m, fm) VALUES (3, {2:20, 1:10}, {2:20, 1:10})");
+        assertRows(execute(select),
+                   row(3L, 3L,
+                       map(1, 10, 2, 20), map(1, 10, 2, 20),
+                       map(1, 10, 2, 20, 3, 30), map(1, 10, 2, 20, 3, 30)));
+    }
+
+    @Test
+    public void testAggregateWithTuples() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text, boolean>)");
+
+        // Test with empty table
+        String select = "SELECT count(t), min(t), max(t) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs, "system.count(t)", "system.min(t)", "system.max(t)");
+        assertRows(rs, row(0L, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, t) VALUES (1, (1, 'a', false))");
+        execute("INSERT INTO %s (k, t) VALUES (2, (2, 'b', true))");
+        execute("INSERT INTO %s (k, t) VALUES (3, (3, null, true))");
+        assertRows(execute(select), row(3L, tuple(1, "a", false), tuple(3, null, true)));
+    }
+
+    @Test
+    public void testAggregateWithUDTs() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (x int)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, u frozen<" + udt + ">, fu frozen<" + udt + ">)");
+
+        // Test with empty table
+        String select = "SELECT count(u), count(fu), min(u), min(fu), max(u), max(fu) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(u)", "system.count(fu)",
+                          "system.min(u)", "system.min(fu)",
+                          "system.max(u)", "system.max(fu)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, u, fu) VALUES (1, {x: 2}, null)");
+        execute("INSERT INTO %s (k, u, fu) VALUES (2, {x: 4}, {x: 6})");
+        execute("INSERT INTO %s (k, u, fu) VALUES (3, null, {x: 8})");
+        assertRows(execute(select),
+                   row(2L, 2L, userType("x", 2), userType("x", 6), userType("x", 4), userType("x", 8)));
+    }
+
+    @Test
     public void testAggregateWithUdtFields() throws Throwable
     {
         String myType = createType("CREATE TYPE %s (x int)");
@@ -259,8 +367,8 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT count(b.x), max(b.x) as max, b.x, c.x as first FROM %s"),
                    row(3L, 8, 2, null));
 
-        assertInvalidMessage("Invalid field selection: system.max(b) of type blob is not a user type",
-                             "SELECT max(b).x as max FROM %s");
+        assertRows(execute("SELECT count(b), min(b).x, max(b).x, count(c), min(c).x, max(c).x FROM %s"),
+                   row(3L, 2, 8, 2L, 6, 12));
     }
 
     @Test

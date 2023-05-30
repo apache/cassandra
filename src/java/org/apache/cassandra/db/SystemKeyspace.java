@@ -33,15 +33,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -53,14 +50,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.functions.AggregateFcts;
-import org.apache.cassandra.cql3.functions.BytesConversionFcts;
-import org.apache.cassandra.cql3.functions.CastFcts;
-import org.apache.cassandra.cql3.functions.OperationFcts;
-import org.apache.cassandra.cql3.functions.TimeFcts;
-import org.apache.cassandra.cql3.functions.UuidFcts;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -81,15 +71,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.nodes.virtual.NodeConstants;
 import org.apache.cassandra.nodes.virtual.NodesSystemViews;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
@@ -392,7 +381,7 @@ public final class SystemKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.SYSTEM_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), functions());
+        return KeyspaceMetadata.create(SchemaConstants.SYSTEM_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
     }
 
     private static Tables tables()
@@ -418,18 +407,6 @@ public final class SystemKeyspace
                          BuiltViews,
                          PreparedStatements,
                          Repairs);
-    }
-
-    private static Functions functions()
-    {
-        return Functions.builder()
-                        .add(UuidFcts.all())
-                        .add(TimeFcts.all())
-                        .add(BytesConversionFcts.all())
-                        .add(AggregateFcts.all())
-                        .add(CastFcts.all())
-                        .add(OperationFcts.all())
-                        .build();
     }
 
     public static void updateCompactionHistory(UUID taskId,

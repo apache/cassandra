@@ -986,7 +986,7 @@ public class QueryProcessor implements QueryHandler
         {
             // in case there are other overloads, we have to remove all overloads since argument type
             // matching may change (due to type casting)
-            if (Schema.instance.getKeyspaceMetadata(ksName).functions.get(new FunctionName(ksName, functionName)).size() > 1)
+            if (Schema.instance.getKeyspaceMetadata(ksName).userFunctions.get(new FunctionName(ksName, functionName)).size() > 1)
                 removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 

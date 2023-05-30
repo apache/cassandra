@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 
@@ -134,14 +135,14 @@ public class KeyspaceMetadataTest extends CQLTester
 
     private void checkKeyspaceRenamingForFunctions(String newName, KeyspaceMetadata original, KeyspaceMetadata renamed)
     {
-        Set<FunctionName> names = original.functions.stream().map(Function::name).collect(Collectors.toSet());
+        Set<FunctionName> names = original.userFunctions.stream().map(Function::name).collect(Collectors.toSet());
         for (FunctionName name : names)
         {
-            Iterator<Function> originalIter = original.functions.get(name).iterator();
-            Iterator<Function> updatedIter = renamed.functions.get(new FunctionName(newName, name.name)).iterator();
+            Iterator<UserFunction> originalIter = original.userFunctions.get(name).iterator();
+            Iterator<UserFunction> updatedIter = renamed.userFunctions.get(new FunctionName(newName, name.name)).iterator();
             while (originalIter.hasNext() && updatedIter.hasNext())
             {
-                checkKeyspaceRenamingForFunction(newName, renamed.functions, renamed.types, originalIter.next(), updatedIter.next());
+                checkKeyspaceRenamingForFunction(newName, renamed.userFunctions, renamed.types, originalIter.next(), updatedIter.next());
             }
             assertFalse(originalIter.hasNext());
             assertFalse(updatedIter.hasNext());
@@ -186,7 +187,7 @@ public class KeyspaceMetadataTest extends CQLTester
     }
 
     private void checkKeyspaceRenamingForFunction(String keyspace,
-                                                  Functions newFunctions,
+                                                  UserFunctions newFunctions,
                                                   Types newTypes,
                                                   Function originalFunction,
                                                   Function updatedFunction)
@@ -198,7 +199,7 @@ public class KeyspaceMetadataTest extends CQLTester
         else
         {
             // Checks that the updated function is present in the updated Types
-            Optional<Function> maybe = newFunctions.find(updatedFunction.name(), updatedFunction.argTypes());
+            Optional<UserFunction> maybe = newFunctions.find(updatedFunction.name(), updatedFunction.argTypes());
             assertTrue(maybe.isPresent());
             assertEquals(updatedFunction, maybe.get());
 

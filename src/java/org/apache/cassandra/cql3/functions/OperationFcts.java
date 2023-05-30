@@ -18,8 +18,6 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.schema.SchemaConstants;
@@ -190,10 +188,8 @@ public final class OperationFcts
      */
     public static final String NEGATION_FUNCTION_NAME = "_negate";
 
-    public static Collection<Function> all()
+    public static void addFunctionsTo(NativeFunctions functions)
     {
-        List<Function> functions = new ArrayList<>();
-
         final NumberType<?>[] numericTypes = new NumberType[] { ByteType.instance,
                                                                 ShortType.instance,
                                                                 Int32Type.instance,
@@ -220,8 +216,6 @@ public final class OperationFcts
             functions.add(new TemporalOperationFunction(TimestampType.instance, operation));
             functions.add(new TemporalOperationFunction(SimpleDateType.instance, operation));
         }
-
-        return functions;
     }
 
     /**
