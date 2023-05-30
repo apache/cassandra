@@ -610,8 +610,7 @@ public class StorageAttachedIndex implements Index
         @Override
         public void updateRow(Row oldRow, Row newRow)
         {
-            indexContext.unindex(key, oldRow, mt, CassandraWriteContext.fromContext(writeContext).getGroup());
-            insertRow(newRow);
+            indexContext.update(key, oldRow, newRow, mt, CassandraWriteContext.fromContext(writeContext).getGroup());
         }
     }
 

@@ -130,6 +130,8 @@ public class CassandraOnHeapHnsw<T>
 
     public void remove(ByteBuffer term, T key)
     {
+        assert term != null && term.remaining() != 0;
+
         var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
         var postings = postingsMap.get(vector);
         if (postings == null)

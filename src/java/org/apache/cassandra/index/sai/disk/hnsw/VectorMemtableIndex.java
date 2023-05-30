@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -48,6 +49,7 @@ import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.lucene.document.IntRange;
 import org.apache.lucene.util.Bits;
 
 public class VectorMemtableIndex implements MemtableIndex
@@ -97,16 +99,33 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public void unindex(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    public void update(DecoratedKey key, Clustering clustering, ByteBuffer oldValue, ByteBuffer newValue, Memtable memtable, OpOrder.Group opGroup)
     {
-        if (value == null || value.remaining() == 0)
-        {
-            // don't need to un-index if the old value was null (since we don't insert those into the hnsw graph)
+        int oldRemaining = oldValue == null ? 0 : oldValue.remaining();
+        int newRemaining = newValue == null ? 0 : newValue.remaining();
+        if (oldRemaining == 0 && newRemaining == 0)
             return;
+
+        boolean different;
+        if (oldRemaining != newRemaining)
+        {
+            assert oldRemaining == 0 || newRemaining == 0; // one of them is null
+            different = true;
+        }
+        else
+        {
+            different = IntStream.range(0, oldRemaining).anyMatch(i -> oldValue.get(i) != newValue.get(i));
         }
 
-        var primaryKey = indexContext.keyFactory().create(key, clustering);
-        graph.remove(value, primaryKey);
+        if (different)
+        {
+            var primaryKey = indexContext.keyFactory().create(key, clustering);
+            // make the changes in this order so we don't have a window where the row is not in the index at all
+            if (newRemaining > 0)
+                graph.add(newValue, primaryKey);
+            if (oldRemaining > 0)
+                graph.remove(oldValue, primaryKey);
+        }
     }
 
     @Override

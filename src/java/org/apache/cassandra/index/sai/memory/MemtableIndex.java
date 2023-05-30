@@ -67,7 +67,7 @@ public interface MemtableIndex extends MemtableOrdering
 
     void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup);
 
-    default void unindex(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    default void update(DecoratedKey key, Clustering clustering, ByteBuffer oldValue, ByteBuffer newValue, Memtable memtable, OpOrder.Group opGroup)
     {
         throw new UnsupportedOperationException();
     }
