@@ -53,7 +53,7 @@ public class UnifiedCompactionTask extends CompactionTask
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
         double density = shardManager.calculateCombinedDensity(nonExpiredSSTables);
-        int numShards = controller.getNumShards(density);
+        int numShards = controller.getNumShards(density * shardManager.shardSetCoverage());
         return new ShardedCompactionWriter(realm, directories, txn, nonExpiredSSTables, keepOriginals, shardManager.boundaries(numShards));
     }
 }

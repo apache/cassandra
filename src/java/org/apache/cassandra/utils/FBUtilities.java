@@ -1116,6 +1116,38 @@ public class FBUtilities
         return v;
     }
 
+    public static long parseHumanReadableBytes(String value)
+    {
+        return (long) parseHumanReadable(value, null, "B");
+    }
+
+    /**
+     * Parse a double where both a direct value and a percentage are accepted.
+     * For example, for inputs "0.1" and "10%", this function will return 0.1.
+     */
+    public static double parsePercent(String value)
+    {
+        value = value.trim();
+        if (value.endsWith("%"))
+        {
+            value = value.substring(0, value.length() - 1).trim();
+            return Double.parseDouble(value) / 100.0;
+        }
+        else
+            return Double.parseDouble(value);
+    }
+
+    /**
+     * Parse an integer value, allowing the string "max" to mean Integer.MAX_VALUE.
+     */
+    public static int parseIntAllowingMax(String value)
+    {
+        if (value.equalsIgnoreCase("max"))
+            return Integer.MAX_VALUE;
+        else
+            return Integer.parseInt(value);
+    }
+
     /**
      * Starts and waits for the given @param pb to finish.
      * @throws java.io.IOException on non-zero exit code

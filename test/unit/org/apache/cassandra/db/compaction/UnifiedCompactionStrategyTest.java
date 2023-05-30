@@ -30,6 +30,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -58,7 +60,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Interval;
+import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.Pair;
+import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -70,7 +74,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.RETURNS_SMART_NULLS;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 /**
  * The unified compaction strategy is described in this design document:
@@ -116,7 +122,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(1);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
@@ -195,12 +200,12 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         Controller controller = Mockito.mock(Controller.class);
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
         when(controller.getNumShards(anyDouble())).thenReturn(1);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.getReservedThreadsPerLevel()).thenReturn(Integer.MAX_VALUE);
 
         when(controller.getScalingParameter(anyInt())).thenAnswer(answer -> {
             int index = answer.getArgument(0);
@@ -436,10 +441,10 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(numShards);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getMaxSpaceOverhead()).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSstableSizeBytes);
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.getReservedThreadsPerLevel()).thenReturn(Integer.MAX_VALUE);
 
         if (maxSSTablesToCompact >= numSSTables)
             when(controller.maxConcurrentCompactions()).thenReturn(levels * (W < 0 ? 1 : F)); // make sure the work is assigned to different levels
@@ -594,7 +599,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(numShards);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getMaxSpaceOverhead()).thenReturn(maxSpaceOverhead);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minSstableSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(maxCount);
@@ -602,6 +606,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.maxThroughput()).thenReturn(maxThroughput);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.getReservedThreadsPerLevel()).thenReturn(Integer.MAX_VALUE);
         // Calculate the minimum shard size such that the top bucket compactions won't be considered "oversized" and
         // all will be allowed to run. The calculation below assumes (1) that compactions are considered "oversized"
         // if they are more than 1/2 of the max shard size; (2) that mockSSTables uses 15% less than the max SSTable
@@ -788,7 +793,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenasList.addAll(mockArenas(0, 2, true, null, boundaries, sstables, buckets)); // repaired
         arenasList.addAll(mockArenas(1, 2, true, null, boundaries, sstables, buckets)); // repaired, next disk
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
     }
 
     @Test
@@ -813,7 +818,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
 
         List<Token> boundaries = makeBoundaries(numShards, 1);
         List<ArenaSpecs> arenas = mockArenas(0, 1, true, null, boundaries, sstables, buckets);
-        testGetBucketsMultipleArenas(arenas, W, m, boundaries, true);
+        testGetBucketsMultipleArenas(arenas, W, m, boundaries);
     }
 
     @Test
@@ -842,7 +847,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenas.addAll(mockArenas(0, 2, true, null, boundaries, sstables, buckets));
         arenas.addAll(mockArenas(1, 2, true, null, boundaries, sstables, buckets));
 
-        testGetBucketsMultipleArenas(arenas, W, m, boundaries, true);
+        testGetBucketsMultipleArenas(arenas, W, m, boundaries);
     }
 
     @Test
@@ -880,7 +885,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
 
         }
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
     }
 
     @Test
@@ -912,7 +917,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenasList.addAll(mockArenas(0, 1, true, null, boundaries, sstables2, buckets2)); // repaired
         arenasList.addAll(mockArenas(0, 1, false, null, boundaries, sstables1, buckets1)); // unrepaired
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
     }
 
     @Test
@@ -947,10 +952,10 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         arenasList.addAll(mockArenas(0, 2, false, null, boundaries, sstables1, buckets1));  // unrepaired, first disk
         arenasList.addAll(mockArenas(1, 2, false, null, boundaries, sstables2, buckets2));  // unrepaired, second disk
 
-        testGetBucketsMultipleArenas(arenasList, W, m, boundaries, true);
+        testGetBucketsMultipleArenas(arenasList, W, m, boundaries);
     }
 
-    private void testGetBucketsMultipleArenas(List<ArenaSpecs> arenaSpecs, int W, int m, List<Token> shards, boolean l0ShardsEnabled)
+    private void testGetBucketsMultipleArenas(List<ArenaSpecs> arenaSpecs, int W, int m, List<Token> shards)
     {
         long minimalSizeBytes = m << 20;
 
@@ -963,7 +968,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.getNumShards(anyDouble())).thenReturn(shards.size());
-        when(controller.areL0ShardsEnabled()).thenReturn(l0ShardsEnabled);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
@@ -1008,13 +1012,13 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(numShards);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.getReservedThreadsPerLevel()).thenReturn(Integer.MAX_VALUE);
         when(controller.random()).thenCallRealMethod();
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -1045,7 +1049,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(1);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
@@ -1053,7 +1056,8 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
         when(controller.random()).thenCallRealMethod();
-        when(controller.getMaxAdaptiveCompactions()).thenReturn(-1);
+        when(controller.getMaxRecentAdaptiveCompactions()).thenReturn(-1);
+        when(controller.isRecentAdaptive(any())).thenReturn(true);
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
 
@@ -1062,7 +1066,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(compaction.hasExpiredOnly()).thenReturn(false);
         List<SSTableReader> nonExpiredSSTables = createSStables(realm.getPartitioner());
         when(compaction.sstables()).thenReturn(ImmutableSet.copyOf(nonExpiredSSTables));
-        when(compaction.isAdaptive(anyInt(), anyInt())).thenReturn(true);
 
         CompactionAggregate.UnifiedAggregate aggregate = Mockito.mock(CompactionAggregate.UnifiedAggregate.class);
         when(aggregate.getSelected()).thenReturn(compaction);
@@ -1174,13 +1177,13 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(numShards);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
         when(controller.maxThroughput()).thenReturn(Double.MAX_VALUE);
         when(controller.maxSSTablesToCompact()).thenReturn(1000);
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.getReservedThreadsPerLevel()).thenReturn(Integer.MAX_VALUE);
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
         when(controller.random()).thenCallRealMethod();
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
@@ -1228,7 +1231,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getThreshold(anyInt())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(1);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
@@ -1314,7 +1316,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(1);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1);
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
@@ -1381,7 +1382,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getMinSstableSizeBytes()).thenReturn(minimalSizeBytes);
         when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
         when(controller.getNumShards(anyDouble())).thenReturn(1);
-        when(controller.areL0ShardsEnabled()).thenReturn(true);
         when(controller.getBaseSstableSize(anyInt())).thenReturn((double) minimalSizeBytes);
         when(controller.maxConcurrentCompactions()).thenReturn(1000); // let it generate as many candidates as it can
         when(controller.maxCompactionSpaceBytes()).thenReturn(Long.MAX_VALUE);
@@ -1389,6 +1389,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.getIgnoreOverlapsInExpirationCheck()).thenReturn(false);
         when(controller.random()).thenCallRealMethod();
         when(controller.prioritize(anyList())).thenAnswer(answ -> answ.getArgument(0));
+        when(controller.getReservedThreadsPerLevel()).thenReturn(Integer.MAX_VALUE);
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
         strategy.startup();
@@ -1402,344 +1403,6 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         assertEquals(3, aggregates.size());
         for (CompactionAggregate aggregate : aggregates)
             assertEquals(8, aggregate.getPending().size());
-    }
-
-    @Test
-    public void testConstructOverlapsMap()
-    {
-        Interval<Integer, String>[] input = new Interval[]{
-            Interval.create(1, 5, "A"),
-            Interval.create(1, 3, "B"),
-            Interval.create(1, 3, "C"),
-            // expected 1 - 2, ABC
-            Interval.create(2, 6, "D"),
-            // expected 2 - 3, ABCD
-            Interval.create(3, 7, "E"),
-            // expected 3 - 5 ADE
-            Interval.create(5, 7, "F"),
-            // expected 5 - 6 DEF
-            // expected 6 - 7 EF
-            Interval.create(7, 9, "G"),
-            // hole
-            // expected 7 - 9 G
-            Interval.create(10, 13, "H"),
-            // expected 10 - 11 H
-            Interval.create(11, 12, "I"),
-            // expected 11 - 12 HI
-            // expected 12 - 13 H
-            Interval.create(1399, 1799, "J"),
-            Interval.create(1402, 1798, "K"),
-
-            Interval.create(2102, 2402, "L"),
-            Interval.create(2099, 2398, "M"),
-
-            Interval.create(2502, 2998, "N"),
-            Interval.create(2499, 2601, "O"),
-            Interval.create(2602, 3001, "P"),
-            Interval.create(2799, 3401, "Q"),
-
-            Interval.create(3502, 3998, "R"),
-            Interval.create(3499, 3602, "S"),
-            Interval.create(3601, 4001, "T"),
-        };
-        String[] allOverlapsManual = new String[]{
-            "ABC",
-            "ABCD",
-            "ADE",
-            "DEF",
-            "EF",
-            "G",
-            "",
-            "H",
-            "HI",
-            "H",
-            "",
-            "J",
-            "JK",
-            "J",
-            "",
-            "M",
-            "LM",
-            "L",
-            "",
-            "O",
-            "NO",
-            "N",
-            "NP",
-            "NPQ",
-            "PQ",
-            "Q",
-            "",
-            "S",
-            "RS",
-            "RST",
-            "RT",
-            "T"
-        };
-        String[] expectedSubsumed = new String[]{
-            "ABCD",
-            "ADE",
-            "DEF",
-            "G",
-            "HI",
-            "JK",
-            "LM",
-            "NO",
-            "NPQ",
-            "RST",
-        };
-        List<String> allOverlaps = getAllOverlaps(input, false);
-        assertEquals(Arrays.asList(allOverlapsManual), allOverlaps);
-
-        List<String> subsumed = subsumeContainedNeighbours(allOverlaps);
-        assertEquals(Arrays.asList(expectedSubsumed), subsumed);
-
-        List<Set<Interval<Integer, String>>> overlaps = UnifiedCompactionStrategy.constructOverlapSets(Arrays.asList(input),
-                                                                                                       (x, y) -> x.min >= y.max,
-                                                                                                       Comparator.comparingInt(x -> x.min),
-                                                                                                       Comparator.comparingInt(x -> x.max));
-
-        List<String> result = mapOverlapSetsToStrings(overlaps);
-        assertEquals(subsumed, result);
-    }
-
-    private static List<String> mapOverlapSetsToStrings(List<Set<Interval<Integer, String>>> overlaps)
-    {
-        List<String> result = overlaps.stream()
-                                      .map(set -> set.stream()
-                                                           .map(x -> x.data)
-                                                           .sorted()
-                                                           .collect(Collectors.joining()))
-                                      .collect(Collectors.toList());
-        return result;
-    }
-
-    @Test
-    public void testConstructOverlapsMapRandom()
-    {
-        int size;
-        int range = 100;
-        Random rand = new Random();
-        for (int i = 0; i < 1000; ++i)
-        {
-            size = rand.nextInt(range) + 2;
-            Interval<Integer, String>[] input = new Interval[size];
-            char c = 'A';
-            for (int j = 0; j < size; ++j)
-            {
-                int start = rand.nextInt(range);
-                input[j] = (new Interval<>(start, start + 1 + random.nextInt(range - start), Character.toString(c++)));
-            }
-
-            boolean endInclusive = rand.nextBoolean();
-            List<String> expected = subsumeContainedNeighbours(getAllOverlaps(input, endInclusive));
-
-            List<Set<Interval<Integer, String>>> overlaps =
-                UnifiedCompactionStrategy.constructOverlapSets(Arrays.asList(input),
-                                                               endInclusive ? (x, y) -> x.min > y.max
-                                                                            : (x, y) -> x.min >= y.max,
-                                                               Comparator.comparingInt(x -> x.min),
-                                                               Comparator.comparingInt(x -> x.max));
-            List<String> result = mapOverlapSetsToStrings(overlaps);
-            assertEquals("Input " + Arrays.asList(input), expected, result);
-        }
-    }
-
-    private static List<String> getAllOverlaps(Interval<Integer, String>[] input, boolean endInclusive)
-    {
-        int min = Arrays.stream(input).mapToInt(x -> x.min).min().getAsInt();
-        int max = Arrays.stream(input).mapToInt(x -> x.max).max().getAsInt();
-        List<String> allOverlaps = new ArrayList<>();
-        IntStream.range(min, max)
-                 .mapToObj(i -> Arrays.stream(input)
-                                      .filter(iv -> i >= iv.min && (i < iv.max || endInclusive && i == iv.max))
-                                      .map(iv -> iv.data)
-                                      .collect(Collectors.joining()))
-                 .reduce(null, (prev, curr) -> {
-                     if (curr.equals(prev))
-                         return prev;
-                     allOverlaps.add(curr);
-                     return curr;
-                 });
-        return allOverlaps;
-    }
-
-    private List<String> subsumeContainedNeighbours(List<String> allOverlaps)
-    {
-        List<String> subsumed = new ArrayList<>();
-        String last = "";
-        for (String overlap : allOverlaps)
-        {
-            if (containsAll(last, overlap))
-                continue;
-            if (containsAll(overlap, last))
-            {
-                last = overlap;
-                continue;
-            }
-            subsumed.add(last);
-            last = overlap;
-        }
-        assert !last.isEmpty();
-        subsumed.add(last);
-        return subsumed;
-    }
-
-    boolean containsAll(String a, String b)
-    {
-        if (a.contains(b))
-            return true;
-        return asSet(a).containsAll(asSet(b));
-    }
-
-    private static Set<Character> asSet(String a)
-    {
-        Set<Character> as = new HashSet<>();
-        for (int i = 0; i < a.length(); ++i)
-            as.add(a.charAt(i));
-        return as;
-    }
-
-
-    @Test
-    public void testAssignOverlapsIntoBuckets()
-    {
-        String[] sets = new String[]{
-        "ABCD",
-        "ADE",
-        "EF",
-        "HI",
-        "LN",
-        "NO",
-        "NPQ",
-        "RST",
-        };
-        String[] none3 = new String[]{
-        "ABCD",
-        "ADE",
-        "NPQ",
-        "RST",
-        };
-        int[] noneUnselected = new int[]{2, 3, 4, 5};
-        String[] single3 = new String[]{
-        "ABCDE",
-        "LNOPQ",
-        "RST",
-        };
-        int[] singleUnselected = new int[]{2, 3};
-        String[] transitive3 = new String[]{
-        "ABCDEF",
-        "LNOPQ",
-        "RST",
-        };
-        int[] transitiveUnselected = new int[]{3};
-
-        List<Set<Character>> input = Arrays.stream(sets).map(UnifiedCompactionStrategyTest::asSet).collect(Collectors.toList());
-
-        verifyAssignment(Controller.OverlapInclusionMethod.NONE, input, none3, noneUnselected);
-
-        verifyAssignment(Controller.OverlapInclusionMethod.SINGLE, input, single3, singleUnselected);
-
-        verifyAssignment(Controller.OverlapInclusionMethod.TRANSITIVE, input, transitive3, transitiveUnselected);
-    }
-
-    private void verifyAssignment(Controller.OverlapInclusionMethod method, List<Set<Character>> input, String[] expected, int[] expectedUnselected)
-    {
-        List<String> actual;
-        IntArrayList unselected = new IntArrayList();
-        actual = UnifiedCompactionStrategy.assignOverlapsIntoBuckets(3, method, input, this::makeBucket, s -> unselected.add(input.indexOf(s)));
-        assertEquals(Arrays.asList(expected), actual);
-        assertArrayEquals(expectedUnselected, unselected.toIntArray());
-    }
-
-    private String makeBucket(List<Set<Character>> sets, int startIndex, int endIndex)
-    {
-        Set<Character> bucket = new HashSet<>();
-        for (int i = startIndex; i < endIndex; ++i)
-            bucket.addAll(sets.get(i));
-        return bucket.stream()
-                     .sorted()
-                     .map(x -> x.toString())
-                     .collect(Collectors.joining());
-    }
-
-    @Test
-    public void testMultiSetPullOldest()
-    {
-        // In this test each letter stands for an sstable, ordered alphabetically (i.e. A is oldest)
-        Assert.assertEquals("ABCD", pullLast(3, "ACD", "BCD"));
-        Assert.assertEquals("ABC", pullLast(2, "ACD", "BCD"));
-        Assert.assertEquals("BC", pullLast(2, "CDE", "BCD"));
-    }
-
-
-    @Test
-    public void testMultiSetPullOldestRandom()
-    {
-        int size;
-        int range = 100;
-        Random rand = new Random();
-        for (int i = 0; i < 100; ++i)
-        {
-            size = rand.nextInt(range) + 2;
-            Interval<Integer, String>[] input = new Interval[size];
-            char c = 'A';
-            for (int j = 0; j < size; ++j)
-            {
-                int start = rand.nextInt(range);
-                input[j] = (new Interval<>(start, start + 1 + random.nextInt(range - start), Character.toString(c++)));
-            }
-
-            List<Set<Interval<Integer, String>>> overlaps = UnifiedCompactionStrategy.constructOverlapSets(Arrays.asList(input),
-                                                                                                           (x, y) -> x.min >= y.max,
-                                                                                                           Comparator.comparingInt(x -> x.min),
-                                                                                                           Comparator.comparingInt(x -> x.max));
-            String[] overlapSets = mapOverlapSetsToStrings(overlaps).toArray(new String[0]);
-            int maxOverlap = Arrays.stream(overlapSets).mapToInt(String::length).max().getAsInt();
-            for (int limit = 1; limit <= maxOverlap + 1; ++limit)
-            {
-                String pulled = pullLast(limit, overlapSets);
-                String message = pulled + " from " + overlapSets + " limit " + limit;
-                Assert.assertTrue(message + ", size " + pulled.length(), pulled.length() >= Math.min(size, limit));
-                String e = "";
-                for (char j = 'A'; j < pulled.length() + 'A'; ++j)
-                    e += Character.toString(j);
-                Assert.assertEquals("Must select oldest " + message, e, pulled);
-                int countAtLimit = 0;
-                for (String set : overlapSets)
-                {
-                    int count = 0;
-                    for (int j = 0; j < set.length(); ++j)
-                        if (pulled.indexOf(set.charAt(j)) >= 0)
-                            ++count;
-                    Assert.assertTrue(message + " set " + set + " elements " + count, count <= limit);
-                    if (count == limit)
-                        ++countAtLimit;
-                }
-                if (pulled.length() < size)
-                    Assert.assertTrue(message + " must have at least one set of size " + limit, countAtLimit > 0);
-                else
-                    Assert.assertTrue(message,limit >= maxOverlap);
-            }
-        }
-    }
-
-    String pullLast(int limit, String... inputOverlapSets)
-    {
-        List<Set<String>> overlapSets = Arrays.stream(inputOverlapSets)
-                                              .map(s -> IntStream.range(0, s.length())
-                                                              .mapToObj(i -> Character.toString(s.charAt(i)))
-                                                              .collect(Collectors.toSet()))
-                                              .collect(Collectors.toList());
-
-        List<String> allObjectsSorted = overlapSets.stream()
-                                                   .flatMap(x -> x.stream())
-                                                   .sorted(Ordering.natural().reversed())
-                                                   .distinct()
-                                                   .collect(Collectors.toList());
-
-        Collection<String> pulled = UnifiedCompactionStrategy.MultiSetBucket.pullLastWithOverlapLimit(allObjectsSorted, overlapSets, limit);
-        return pulled.stream().sorted().collect(Collectors.joining());
     }
 
     @Test
@@ -1775,4 +1438,154 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
             }
         }
     }
+
+    @Test
+    public void testBucketSelectionSimple()
+    {
+        testBucketSelection(repeats(4, 10), repeats(10, 4), Overlaps.InclusionMethod.TRANSITIVE);
+    }
+
+    @Test
+    public void testBucketSelectionHalved()
+    {
+        testBucketSelection(repeats(4, arr(10, 5)), repeats(5, 6), Overlaps.InclusionMethod.TRANSITIVE);
+        testBucketSelection(repeats(4, arr(10, 5)), repeats(5, 6), Overlaps.InclusionMethod.SINGLE);
+        // When we take large sstables for one compaction, remaining overlaps don't have enough to trigger next
+        testBucketSelection(repeats(4, arr(10, 5)), repeats(5, 4), Overlaps.InclusionMethod.NONE, 10);
+    }
+
+    @Test
+    public void testBucketSelectionFives()
+    {
+        testBucketSelection(arr(25, 15, 10), repeats(5, arr(10)), Overlaps.InclusionMethod.TRANSITIVE);
+        testBucketSelection(arr(25, 15, 10), concat(repeats(5, 6), repeats(5, 4)), Overlaps.InclusionMethod.SINGLE);
+        // When we take large sstables for one compaction, remaining overlaps don't have enough to trigger next
+        testBucketSelection(arr(25, 15, 10), repeats(10, arr(3)), Overlaps.InclusionMethod.NONE, 20);
+    }
+
+    @Test
+    public void testBucketSelectionMissing()
+    {
+        testBucketSelection(repeats(4,5), repeats(4, 4), Overlaps.InclusionMethod.TRANSITIVE, 3, 1);
+    }
+
+    @Test
+    public void testBucketSelectionHalvesMissing()
+    {
+        // Drop one half: still compact because of overlap
+        testBucketSelection(repeats(4, arr(6, 3)), arr(5, 6, 6), Overlaps.InclusionMethod.TRANSITIVE, 0, 1);
+        // Drop one full: don't compact
+        testBucketSelection(repeats(4, arr(3, 6)), arr(6, 6), Overlaps.InclusionMethod.TRANSITIVE, 5, 1);
+        // Drop two adjacent halves: don't compact
+        testBucketSelection(repeats(4, arr(6, 3)), arr(6, 6), Overlaps.InclusionMethod.TRANSITIVE, 4, 2, 3);
+    }
+
+
+    private int[] arr(int... values)
+    {
+        return values;
+    }
+
+    private int[] repeats(int count, int... values)
+    {
+        int[] rep = new int[count];
+        for (int i = 0; i < count; ++i)
+            rep[i] = values[i % values.length];
+        return rep;
+    }
+
+    private int[] concat(int[]... arrays)
+    {
+        int total = 0;
+        for (int[] array : arrays)
+            total += array.length;
+        int[] result = new int[total];
+        int offset = 0;
+        for (int[] array : arrays)
+        {
+            System.arraycopy(array, 0, result, offset, array.length);
+            offset += array.length;
+        }
+        return result;
+    }
+
+    public void testBucketSelection(int[] counts, int[] expecteds, Overlaps.InclusionMethod overlapInclusionMethod)
+    {
+        testBucketSelection(counts, expecteds, overlapInclusionMethod, 0);
+    }
+
+    public void testBucketSelection(int[] counts, int[] expecteds, Overlaps.InclusionMethod overlapInclusionMethod, int expectedRemaining, int... dropFromFirst)
+    {
+        Set<SSTableReader> allSSTables = new HashSet<>();
+        int fanout = counts.length;
+        for (int i = 0; i < fanout; ++i)
+        {
+            final int count = counts[i];
+            final List<SSTableReader> list = mockNonOverlappingSSTables(count, /*ignored*/ 0, (100 << 20) / count);
+            if (i == 0)
+            {
+                for (int k = dropFromFirst.length - 1; k >= 0; --k)
+                    list.remove(dropFromFirst[k]);
+            }
+            allSSTables.addAll(list);
+        }
+        Controller controller = Mockito.mock(Controller.class);
+        when(controller.getScalingParameter(anyInt())).thenReturn(fanout - 2); // F=T=fanout
+        when(controller.getFanout(anyInt())).thenCallRealMethod();
+        when(controller.getThreshold(anyInt())).thenCallRealMethod();
+        when(controller.getMaxLevelDensity(anyInt(), anyDouble())).thenCallRealMethod();
+        when(controller.getSurvivalFactor(anyInt())).thenReturn(1.0);
+        when(controller.getBaseSstableSize(anyInt())).thenReturn((double) (90 << 20));
+        when(controller.overlapInclusionMethod()).thenReturn(overlapInclusionMethod);
+        Random randomMock = Mockito.mock(Random.class);
+        when(randomMock.nextInt(anyInt())).thenReturn(0);
+        when(controller.random()).thenReturn(randomMock);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
+        dataTracker.addInitialSSTables(allSSTables);
+
+        List<CompactionPick> picks = new ArrayList<>();
+        boolean compactionFound;
+        do
+        {
+            Collection<CompactionAggregate.UnifiedAggregate> aggregates = strategy.getPendingCompactionAggregates(0);
+            compactionFound = false;
+            for (CompactionAggregate a : aggregates)
+            {
+                CompactionPick pick = a.getSelected();
+                if (pick == null || pick.isEmpty())
+                    continue;
+                if (realm.tryModify(pick.sstables(), OperationType.COMPACTION) != null) // This will fail if the sstables are in multiple buckets (for Overlaps.InclusionMethod.NONE)
+                {
+                    compactionFound = true;
+                    picks.add(pick);
+                }
+            }
+        }
+        while (compactionFound);
+        assertEquals(expectedRemaining, Iterables.size(dataTracker.getNoncompacting()));
+
+        assertEquals(expecteds.length, picks.size());
+        int buckIdx = 0;
+        for (CompactionPick pick : picks)
+        {
+            int expectedCount = expecteds[buckIdx++];
+            assertEquals(expectedCount, pick.sstables().size()); // count / gcd sstables of each level
+
+            if (overlapInclusionMethod == Overlaps.InclusionMethod.TRANSITIVE)
+            {
+                // None of the selected sstables may intersect any in any other set.
+                for (CompactionPick pick2 : picks)
+                {
+                    if (pick == pick2)
+                        continue;
+
+                    for (CompactionSSTable r1 : pick.sstables())
+                        for (CompactionSSTable r2 : pick2.sstables())
+                            assertTrue(r1 + " intersects " + r2, r1.getFirst().compareTo(r2.getLast()) > 0 || r1.getLast().compareTo(r2.getFirst()) < 0);
+                }
+            }
+        }
+        dataTracker.removeUnsafe(allSSTables);
+    }
+
 }

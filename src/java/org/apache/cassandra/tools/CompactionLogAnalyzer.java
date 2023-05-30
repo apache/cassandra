@@ -230,7 +230,7 @@ public class CompactionLogAnalyzer
 
     private static long parseHumanReadableSize(String datum)
     {
-        return (long) FBUtilities.parseHumanReadable(datum, null, "B");
+        return FBUtilities.parseHumanReadableBytes(datum);
     }
 
     private static long parseHumanReadableRate(String datum)
