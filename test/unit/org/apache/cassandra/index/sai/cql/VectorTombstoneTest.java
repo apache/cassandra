@@ -165,6 +165,21 @@ public class VectorTombstoneTest extends SAITester
     }
 
     @Test
+    public void updateOtherColumnsTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        execute("UPDATE %s SET str_val='C' WHERE pk=0");
+
+        var result = execute("SELECT * FROM %s WHERE val ann of [0.5, 1.5, 2.5] LIMIT 2");
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     public void updateManySSTablesTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
