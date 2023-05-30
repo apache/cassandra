@@ -32,6 +32,25 @@ import static org.junit.Assert.assertEquals;
 public class ComplexQueryTest extends SAITester
 {
     @Test
+    public void partialUpdateTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c1 text, c2 text, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(c1) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(c2) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, c1, c2) VALUES (?, ?, ?)", 1, "a", "a");
+        flush();
+        execute("UPDATE %s SET c1 = ? WHERE pk = ?", "b", 1);
+        flush();
+        execute("UPDATE %s SET c2 = ? WHERE pk = ?", "c", 1);
+        flush();
+
+        UntypedResultSet resultSet = execute("SELECT pk FROM %s WHERE c1 = 'b' AND c2='c'");
+        assertRows(resultSet, row(1));
+    }
+
+    @Test
     public void basicOrTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, a int, PRIMARY KEY(pk))");
