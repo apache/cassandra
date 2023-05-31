@@ -733,7 +733,7 @@ public class AlterTest extends CQLTester
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: -1.0", ,
+                                        "Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: -1.0",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : -1 };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
