@@ -25,6 +25,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -85,6 +87,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -93,12 +96,14 @@ import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.security.AbstractCryptoProvider;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.objectweb.asm.Opcodes;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
@@ -754,6 +759,56 @@ public class FBUtilities
                 throw (ConfigurationException) e;
             else
                 throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
+        }
+    }
+
+    public static ICompressor newCompressor(Class<?> className, Map<String, String> parameters) throws ConfigurationException
+    {
+        if (className == null)
+        {
+            if (!parameters.isEmpty())
+                throw new ConfigurationException("Unknown compression options (" + parameters.keySet() + ") since no compression class found");
+            return null;
+        }
+
+        try
+        {
+            Method method = className.getMethod("create", Map.class);
+            ICompressor compressor = (ICompressor) method.invoke(null, parameters);
+            // Check for unknown options
+            CompressionParams.checkCompressorOptions(compressor, parameters.keySet());
+            return compressor;
+        }
+        catch (NoSuchMethodException e)
+        {
+            throw new ConfigurationException("create method not found", e);
+        }
+        catch (SecurityException e)
+        {
+            throw new ConfigurationException("Access forbiden", e);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new ConfigurationException("Cannot access method create in " + className.getName(), e);
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getTargetException() instanceof ConfigurationException)
+                throw (ConfigurationException) e.getTargetException();
+
+            Throwable cause = e.getCause() == null
+                              ? e
+                              : e.getCause();
+
+            throw new ConfigurationException(format("%s.create() threw an error: %s %s",
+                                                    className.getSimpleName(),
+                                                    cause.getClass().getName(),
+                                                    cause.getMessage()),
+                                             e);
+        }
+        catch (ExceptionInInitializerError e)
+        {
+            throw new ConfigurationException("Cannot initialize class " + className.getName());
         }
     }
 
