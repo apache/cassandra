@@ -173,7 +173,7 @@ public class CrcCheckChanceTest extends CQLTester
         CompactionManager.instance.disableAutoCompaction();
 
         //Start with crc_check_chance of 99%
-        createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'class': 'LZ4Compressor'} AND crc_check_chance = 0.99");
+        createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
 
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
 

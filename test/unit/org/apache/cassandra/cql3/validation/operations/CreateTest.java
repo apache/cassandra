@@ -676,7 +676,11 @@ public class CreateTest extends CQLTester
         assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                + " WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 2 };");
+                + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'chunk_length' : '32KiB' };");
+        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 2 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "2.0"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
@@ -691,35 +695,39 @@ public class CreateTest extends CQLTester
                 + " WITH compression = { 'enabled' : 'false'};");
         assertSchemaOption("compression", map("enabled", "false"));
 
-        assertThrowsConfigurationException("Missing sub-option 'class' for the 'compression' option.",
-                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = {'chunk_length_in_kb' : 32};");
-
         assertThrowsConfigurationException("The 'class' option must not be empty. To disable compression use 'enabled' : false",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compression = { 'class' : ''};");
 
-        assertThrowsConfigurationException("If the 'enabled' option is set to false no other options must be specified",
+        assertThrowsConfigurationException("Invalid 'chunk_length' value for the 'compression' option.  Must be a power of 2: 31744",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
+                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '31KiB' };");
 
-        assertThrowsConfigurationException("If the 'enabled' option is set to false no other options must be specified",
+        assertThrowsConfigurationException(format("Only one of '%s' or '%s' may be specified", CompressionParams.CHUNK_LENGTH, CompressionParams.CHUNK_LENGTH_IN_KB),
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = { 'enabled' : 'false', 'chunk_length_in_kb' : 32};");
+                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length' : '32KiB' , 'chunk_length_in_kb' : 32 };");
 
-        assertThrowsConfigurationException("chunk_length_in_kb must be a power of 2",
+        assertThrowsConfigurationException("The 'sstable_compression' option must not be used if the compression algorithm is already specified by the 'class' option",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'class' : 'SnappyCompressor'};");
+
+        assertThrowsConfigurationException("The 'chunk_length_kb' option must not be used if the chunk length is already specified by the 'chunk_length_in_kb' option",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
+
+        assertThrowsConfigurationException("Invalid 'chunk_length_in_kb' value for the 'compression' option.  Must be a power of 2: 31744",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 31 };");
 
-        assertThrowsConfigurationException("Invalid negative or null chunk_length_in_kb",
+        assertThrowsConfigurationException("Invalid 'chunk_length_in_kb' value for the 'compression' option.  May not be <= 0: -1",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : -1 };");
 
-        assertThrowsConfigurationException("Invalid negative min_compress_ratio",
+        assertThrowsConfigurationException("Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1: -1.0",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                             + " WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : -1 };");
 
-        assertThrowsConfigurationException("Unknown compression options unknownOption",
+        assertThrowsConfigurationException("Unknown compression options: ([unknownOption])",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                             + " WITH compression = { 'class' : 'SnappyCompressor', 'unknownOption' : 32 };");
     }
