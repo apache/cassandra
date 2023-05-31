@@ -186,6 +186,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
 
         {
+            // Indicate that we are running in the in-jvm dtest environment
+            CassandraRelevantProperties.DTEST_IS_IN_JVM_DTEST.setBoolean(true);
             // those properties may be set for unit-test optimizations; those should not be used when running dtests
             CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
@@ -661,6 +663,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public I get(InetSocketAddress addr)
     {
         return instanceMap.get(addr);
+    }
+
+    public List<I> get(int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            throw new IllegalArgumentException("No nodes provided");
+        List<I> list = new ArrayList<>(nodes.length);
+        for (int i : nodes)
+            list.add(get(i));
+        return list;
     }
 
     public I getFirstRunningInstance()
