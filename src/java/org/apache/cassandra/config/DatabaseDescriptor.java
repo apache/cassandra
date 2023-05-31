@@ -107,6 +107,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -342,7 +343,7 @@ public class DatabaseDescriptor
 
         applyCompatibilityMode();
 
-        applySSTableFormats();
+        applySSTableConfig();
 
         applySimpleConfig();
 
@@ -397,7 +398,7 @@ public class DatabaseDescriptor
         conf = configSupplier.get();
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
-        applySSTableFormats();
+        applySSTableConfig();
     }
 
     private static void assertNotDaemonInitialized()
@@ -504,7 +505,7 @@ public class DatabaseDescriptor
     {
         applyCompatibilityMode();
 
-        applySSTableFormats();
+        applySSTableConfig();
 
         applyCryptoProvider();
 
@@ -1630,22 +1631,47 @@ public class DatabaseDescriptor
             storageCompatibilityMode = conf.storage_compatibility_mode;
     }
 
-    private static void applySSTableFormats()
+    private static void applySSTableConfig()
     {
         ServiceLoader<SSTableFormat.Factory> loader = ServiceLoader.load(SSTableFormat.Factory.class, DatabaseDescriptor.class.getClassLoader());
         List<SSTableFormat.Factory> factories = Iterables.toList(loader);
         if (factories.isEmpty())
             factories = ImmutableList.of(new BigFormat.BigFormatFactory());
-        applySSTableFormats(factories, conf.sstable);
+        applySSTableConfig(factories, conf.sstable);
     }
 
-    private static void applySSTableFormats(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableFormatsConfig)
+    private static void applySSTableConfig(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableConfig)
     {
+        String defaultCompression = sstableConfig.default_compression;
+        if (defaultCompression != null)
+        {
+            CompressionParams.CompressorType compressorType = CompressionParams.CompressorType.fromName(defaultCompression);
+            try
+            {
+                if (compressorType != null)
+                {
+                    CompressionParams.fromParameterizedClass(new ParameterizedClass(compressorType.name(),
+                                                                                    sstableConfig.compression.getOrDefault(compressorType.name(),
+                                                                                                                           new HashMap<>())));
+                }
+                else
+                {
+                    CompressionParams.fromParameterizedClass(new ParameterizedClass(defaultCompression,
+                                                                                    sstableConfig.compression.getOrDefault(defaultCompression,
+                                                                                                                           new HashMap<>())));
+                }
+            }
+            catch (ConfigurationException ex)
+            {
+                throw new ConfigurationException(String.format("Invalid configuration of sstable default compression: %s", ex.getMessage()));
+            }
+        }
+
         if (sstableFormats != null)
             return;
 
         validateSSTableFormatFactories(factories);
-        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableFormatsConfig.format);
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableConfig.format);
 
         ImmutableMap.Builder<String, SSTableFormat<?, ?>> sstableFormatsBuilder = ImmutableMap.builder();
         providers.forEach((name, provider) -> {
@@ -1660,7 +1686,7 @@ public class DatabaseDescriptor
         });
         sstableFormats = sstableFormatsBuilder.build();
 
-        selectedSSTableFormat = getAndValidateWriteFormat(sstableFormats, sstableFormatsConfig.selected_format);
+        selectedSSTableFormat = getAndValidateWriteFormat(sstableFormats, sstableConfig.selected_format);
 
         sstableFormats.values().forEach(SSTableFormat::allComponents); // make sure to reach all supported components for a type so that we know all of them are registered
         logger.info("Supported sstable formats are: {}", sstableFormats.values().stream().map(f -> f.name() + " -> " + f.getClass().getName() + " with singleton components: " + f.allComponents()).collect(Collectors.joining(", ")));
@@ -2839,11 +2865,25 @@ public class DatabaseDescriptor
         conf.flush_compression = compression;
     }
 
-    /**
-     * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
-     * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
-     * more, depending on how soon the sync policy stops all writing threads.
-     */
+    public static ParameterizedClass getDefaultSSTableCompression()
+    {
+        String defaultCompression = conf.sstable.default_compression;
+
+        if (defaultCompression == null)
+            return null;
+
+        Map<String, String> params = conf.sstable.compression.get(defaultCompression);
+        if (params == null)
+            params = new HashMap<>();
+
+        return new ParameterizedClass(defaultCompression, params);
+    }
+
+   /**
+    * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
+    * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
+    * more, depending on how soon the sync policy stops all writing threads.
+    */
     public static int getCommitLogMaxCompressionBuffersInPool()
     {
         return conf.commitlog_max_compression_buffers_in_pool;
@@ -5158,7 +5198,7 @@ public class DatabaseDescriptor
     {
         sstableFormats = null;
         selectedSSTableFormat = null;
-        applySSTableFormats(factories, config);
+        applySSTableConfig(factories, config);
     }
 
     public static ImmutableMap<String, SSTableFormat<?, ?>> getSSTableFormats()
