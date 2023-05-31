@@ -233,6 +233,7 @@ public class OnDiskHnswGraph extends ExtendedHnswGraph
         return entryNode;
     }
 
+    // getNodesOnLevel is only used when scanning the entire graph, i.e., during compaction
     @Override
     public NodesIterator getNodesOnLevel(int level) throws IOException {
         if (cachedLevels[level] != null)
