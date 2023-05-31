@@ -7,8 +7,6 @@ executable.
 
 == Compatibility
 
-`cqlsh` is compatible with Python 2.7.
-
 In general, a given version of `cqlsh` is only guaranteed to work with the
 version of Cassandra that it was released with. 
 In some cases, `cqlsh` may work with older or newer versions of Cassandra, but this is not
@@ -22,11 +20,12 @@ of `cqlsh`.
 
 === pytz
 
-By default, `cqlsh` displays all timestamps with a UTC timezone. 
-To support display of timestamps with another timezone, install
-the http://pytz.sourceforge.net/[pytz] library. 
-See the `timezone` option in xref:cql/tools/cqlsh.adoc#cqlshrc[cqlshrc] for specifying a timezone to
-use.
+By default, `cqlsh` displays all timestamps with a UTC timezone.
+For Python 3.9 or higher, timestamps can be displayed in different timezones by modifying the
+`timezone` option in xref:cql/tools/cqlsh.adoc#cqlshrc[cqlshrc] or by setting the environment
+variable `TZ`.
+Python 3.8 or lower, however, will also require the installation of the
+the http://pytz.sourceforge.net/[pytz] library.
 
 === cython
 

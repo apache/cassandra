@@ -1,4 +1,5 @@
 5.0
+ * Remove dependency on pytz library for setting CQLSH timezones on versions >= 3.9 (CASSANDRA-17433)
  * Print header and statistics for cassandra-stress output with arbitrary frequency (CASSANDRA-12972)
  * CEP-25: Trie-indexed SSTable format (CASSANDRA-18398)
  * Make cassandra-stress able to read all credentials from a file (CASSANDRA-18544)
