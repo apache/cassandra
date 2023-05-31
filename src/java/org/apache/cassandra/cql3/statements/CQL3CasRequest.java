@@ -482,7 +482,7 @@ public class CQL3CasRequest implements CASRequest
         Update update = createUpdate(clientState, commitConsistencyLevel);
         // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
-        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(consistencyLevel);
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().readCLForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
         // In a CAS requesting only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
@@ -494,7 +494,7 @@ public class CQL3CasRequest implements CASRequest
     {
         // Potentially ignore commit consistency level if non-SERIAL write strategy is Accord
         // since it is safe to match what non-SERIAL writes do
-        commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(commitConsistencyLevel);
+        commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().commitCLForStrategy(commitConsistencyLevel);
         return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel);
     }
 

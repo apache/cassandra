@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -85,7 +84,7 @@ public class AccordCQLTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
-                                                                                    .set("non_serial_write_strategy", "accord")
+                                                                                    .set("non_serial_write_strategy", "migration")
                                                                                     .set("partition_repair_strategy", "accord")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }

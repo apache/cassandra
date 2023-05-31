@@ -1234,8 +1234,9 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
         // Potentially ignore commit consistency level if the strategy specifies accord and not migration
-        ConsistencyLevel clForCommit = nonSerialWriteStrategy.clForStrategy(consistencyLevel);
+        ConsistencyLevel clForCommit = nonSerialWriteStrategy.commitCLForStrategy(consistencyLevel);
         TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
+        logger.info("Mutating with Accord clForCommit " + clForCommit);
         Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY_READ, new TxnDataResolver(), TxnQuery.EMPTY, update);
         AccordService.instance().coordinate(txn, consistencyLevel, queryStartNanoTime);
     }
@@ -1998,9 +1999,9 @@ public class StorageProxy implements StorageProxyMBean
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
         SinglePartitionReadCommand readCommand = group.queries.get(0);
-        // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
         // level since Accord will manage reading safely
-        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(consistencyLevel);
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().readCLForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Txn txn = new Txn.InMemory(read.keys(), read, new TxnDataResolver(), TxnQuery.ALL);
         TxnResult txnResult = AccordService.instance().coordinate(txn, consistencyLevel, queryStartNanoTime);

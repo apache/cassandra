@@ -145,7 +145,9 @@ public class AccordMigrationTest extends AccordTestBase
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
         AccordTestBase.setupCluster(builder ->
                                         builder.appendConfig(config ->
-                                                             config.set("paxos_variant", PaxosVariant.v2.name())),
+                                                             config.set("paxos_variant", PaxosVariant.v2.name())
+                                                                   .set("non_serial_write_strategy", "migration")
+                                                                   .set("partition_repair_strategy", "accord")),
                                     3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(partitioner);

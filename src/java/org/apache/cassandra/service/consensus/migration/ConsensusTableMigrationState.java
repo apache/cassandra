@@ -44,7 +44,9 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.Config.PartitionRepairStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -668,6 +670,9 @@ public abstract class ConsensusTableMigrationState
 
         if (DatabaseDescriptor.getPartitionRepairStrategy() != PartitionRepairStrategy.accord)
             throw new IllegalStateException("Partition repairs need to be routed through Accord to safely migrate to Accord");
+
+        if (!DatabaseDescriptor.getNonSerialWriteStrategy().writesThroughAccord)
+            throw new IllegalStateException("non-SERIAL writes need to be routed through Accord before attempting migration");
 
         if (!Paxos.useV2())
             throw new IllegalStateException("Can't do any consensus migrations to/from PaxosV1, switch to V2 first");

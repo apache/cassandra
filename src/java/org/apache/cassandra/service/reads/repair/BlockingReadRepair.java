@@ -192,7 +192,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord
             || DatabaseDescriptor.getPartitionRepairStrategy() == PartitionRepairStrategy.accord)
         {
-            ConsistencyLevel commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(replicaPlan.get().consistencyLevel());
+            ConsistencyLevel commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().commitCLForStrategy(replicaPlan.get().consistencyLevel());
             Collection<PartitionUpdate> partitionUpdates = Mutation.merge(mutations.values()).getPartitionUpdates();
             checkState(partitionUpdates.size() == 1, "Expect only one PartitionUpdate");
             PartitionUpdate update = partitionUpdates.iterator().next();

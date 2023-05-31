@@ -1241,33 +1241,45 @@ public class Config
          * Execute writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
          * multiple outcomes for a transaction that depends on data written by non-SERIAL writes.
          */
-        normal(false),
+        normal(false, false),
         /*
          * Execute writes through Accord skipping StorageProxy's normal write path, but commit
          * writes at the provided consistency level so they can be read via non-SERIAL consistency levels.
          */
-        migration(false),
+        migration(false, true),
         /*
          * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
          * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
          */
-        accord(true);
+        accord(true, true);
 
         public final boolean ignoresSuppliedConsistencyLevel;
+        public final boolean writesThroughAccord;
 
-        NonSerialWriteStrategy(boolean ignoresSuppliedConsistencyLevel)
+        NonSerialWriteStrategy(boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord)
         {
             this.ignoresSuppliedConsistencyLevel = ignoresSuppliedConsistencyLevel;
+            this.writesThroughAccord = writesThroughAccord;
         }
 
-        public ConsistencyLevel clForStrategy(ConsistencyLevel consistencyLevel)
+        public ConsistencyLevel commitCLForStrategy(ConsistencyLevel consistencyLevel)
         {
-            // These are the only ones currently supported
             if (ignoresSuppliedConsistencyLevel)
                 return null;
 
             if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
-                throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord, supported are ANY, ONE, QUORUM, and ALL");
+                throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for write/commit, supported are ANY, ONE, QUORUM, and ALL");
+
+            return consistencyLevel;
+        }
+
+        public ConsistencyLevel readCLForStrategy(ConsistencyLevel consistencyLevel)
+        {
+            if (ignoresSuppliedConsistencyLevel)
+                return null;
+
+            if (!IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS.contains(consistencyLevel))
+                throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord for read, supported are ANY, ONE, QUORUM, and SERIAL");
 
             return consistencyLevel;
         }
