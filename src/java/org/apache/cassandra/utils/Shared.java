@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.shared;
+package org.apache.cassandra.utils;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
