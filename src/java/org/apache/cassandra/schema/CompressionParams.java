@@ -78,8 +78,7 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        emptyMap());
 
-    // The default compressor is generally fast (LZ4 with 16KiB block size)
-    public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
+    private static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
                                                                            DEFAULT_CHUNK_LENGTH,
                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                            DEFAULT_MIN_COMPRESS_RATIO,
@@ -229,27 +228,21 @@ public final class CompressionParams
             max_compressed_length_in_bytes =  CompressionParams.calcMaxCompressedLength(chunk_length_in_bytes, min_compress_ratio);
         }
 
-        CompressorType compressorType = null;
-        try
+        // try to set compressor type
+        CompressorType compressorType = StringUtils.isEmpty(sstableCompressionClass) ? DEFAULT_COMPRESSION_TYPE : null;
+        if (compressorType == null)
         {
-            compressorType = CompressorType.valueOf(sstableCompressionClass);
-        }
-        catch (Exception e)
-        {
-            // intentionally empty
+            try
+            {
+                compressorType = CompressorType.valueOf(sstableCompressionClass);
+            }
+            catch (IllegalArgumentException expected)
+            {
+                compressorType = CompressorType.forClass(sstableCompressionClass);
+            }
         }
 
-        Function<Map<String,String>, ICompressor> creator = compressorType != null ? compressorType.creator : (opt) -> {
-            if (sstableCompressionClass != null)
-            {
-                return FBUtilities.newCompressor(parseCompressorClass(sstableCompressionClass), opt);
-            }
-            else
-            {
-                return FBUtilities.newCompressor(parseCompressorClass(defaultParams().klass().getName()), opt);
-            }
-        };
-
+        Function<Map<String,String>, ICompressor> creator = compressorType != null ? compressorType.creator : (opt) -> FBUtilities.newCompressor(parseCompressorClass(sstableCompressionClass), opt);
         CompressionParams cp = new CompressionParams(enabled ? creator.apply(options) : null, chunk_length_in_bytes, max_compressed_length_in_bytes, min_compress_ratio, options);
         if (enabled && compressorType != CompressorType.none)
         {
