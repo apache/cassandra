@@ -192,7 +192,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord
             || DatabaseDescriptor.getPartitionRepairStrategy() == PartitionRepairStrategy.accord)
         {
-            ConsistencyLevel cl = replicaPlan.get().consistencyLevel();
+            ConsistencyLevel commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(replicaPlan.get().consistencyLevel());
             Collection<PartitionUpdate> partitionUpdates = Mutation.merge(mutations.values()).getPartitionUpdates();
             checkState(partitionUpdates.size() == 1, "Expect only one PartitionUpdate");
             PartitionUpdate update = partitionUpdates.iterator().next();
@@ -200,9 +200,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
             Keys key = Keys.of(partitionKey);
             List<Fragment> fragment = new ArrayList<>(1);
             fragment.add(new TxnWrite.Fragment(0, update, TxnReferenceOperations.empty()));
-            TxnUpdate txnUpdate = new TxnUpdate(fragment, TxnCondition.none(), cl);
+            TxnUpdate txnUpdate = new TxnUpdate(fragment, TxnCondition.none(), commitConsistencyLevel);
             Txn txn = new Txn.InMemory(key, TxnRead.EMPTY_READ, new TxnDataResolver(), TxnQuery.NONE, txnUpdate);
-            Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(txn, cl, queryStartNanoTime));
+            Future<TxnResult> repairFuture = Stage.ACCORD_MIGRATION.submit(() -> AccordService.instance().coordinate(txn, commitConsistencyLevel, queryStartNanoTime));
             repairs.add((remaining, timeUnit) -> {
                 try
                 {

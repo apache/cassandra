@@ -51,7 +51,9 @@ import org.apache.cassandra.utils.NullableSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Simulate;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
+import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
@@ -82,6 +84,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public TxnRead(@Nonnull TxnNamedRead[] items, @Nonnull Keys txnKeys, @Nullable ConsistencyLevel cassandraConsistencyLevel)
     {
         super(items);
+        checkArgument(SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read");
         this.txnKeys = txnKeys;
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
     }
@@ -89,6 +92,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public TxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nullable ConsistencyLevel cassandraConsistencyLevel)
     {
         super(items);
+        checkArgument(SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read");
         this.txnKeys = txnKeys;
         this.cassandraConsistencyLevel = cassandraConsistencyLevel;
     }

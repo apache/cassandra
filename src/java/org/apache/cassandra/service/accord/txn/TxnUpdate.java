@@ -29,6 +29,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.RepairWrites;
@@ -49,6 +51,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordSerializers;
+import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -85,7 +88,7 @@ public class TxnUpdate implements Update
 
     public TxnUpdate(List<TxnWrite.Fragment> fragments, TxnCondition condition, @Nullable ConsistencyLevel cassandraCommitCL)
     {
-        checkArgument(cassandraCommitCL == null || cassandraCommitCL == ConsistencyLevel.QUORUM);
+        checkArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
         // TODO: Figure out a way to shove keys into TxnCondition, and have it implement slice/merge.
         this.keys = Keys.of(fragments, fragment -> fragment.key);
         fragments.sort(TxnWrite.Fragment::compareKeys);
@@ -232,11 +235,13 @@ public class TxnUpdate implements Update
             case ANY:
                 // Safe to let Accord do asynchronous commit
                 return DataConsistencyLevel.UNSPECIFIED;
+            case ALL:
+                return DataConsistencyLevel.ALL;
             case ONE: // Safe to silently upgrade to QUORUM which is at least ONE, but would be faster to actually wait for one application
             case SERIAL:
             case QUORUM:
                 return DataConsistencyLevel.QUORUM;
-                // TODO faster ONE, TWO, THREE, ALL, EACH, LOCAL_* could all be supported with
+                // TODO faster ONE, TWO, THREE, EACH, LOCAL_* could all be supported with
                 // more logic in Accord, but defering that to supporting LOCAL_*
             default:
                 throw new IllegalStateException("ConsistencyLevel " + cassandraCommitCL + " is not supported as a transaction commit ConsistencyLevel");

@@ -183,6 +183,7 @@ public class TxnDataResolver implements DataResolver
     {
         return (repairReadCommand, replica, callback, trackRepairedStatus) -> {
             TxnNamedRead repairTxnNamedRead = new TxnNamedRead(txnNamedRead.txnDataName(), (SinglePartitionReadCommand) repairReadCommand);
+            checkState(txnRead.cassandraConsistencyLevel() != null, "If repair is occuring in Accord then the Cassandra consistency level should not be null");
             // TODO Review: Providing a consistency level here is mildly misleading, but it also happens to be harmless, probably should just be INVALID to indicate that?
             TxnRead repairTxnRead = new TxnRead(new TxnNamedRead[]{ repairTxnNamedRead }, Keys.of(PartitionKey.of((SinglePartitionReadCommand) repairReadCommand)), txnRead.cassandraConsistencyLevel());
             followupReader.read(repairTxnRead, EndpointMapping.getId(replica), new Callback<UnresolvedData>()

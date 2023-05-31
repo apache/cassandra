@@ -43,6 +43,9 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.service.accord.IAccordService;
+
+import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -1085,6 +1088,7 @@ public class Config
     public volatile boolean client_request_size_metrics_enabled = true;
 
     public LWTStrategy lwt_strategy = LWTStrategy.migration;
+    public NonSerialWriteStrategy non_serial_write_strategy = NonSerialWriteStrategy.normal;
     public PartitionRepairStrategy partition_repair_strategy = PartitionRepairStrategy.normal;
 
     public volatile int max_top_size_partition_count = 10;
@@ -1182,6 +1186,8 @@ public class Config
         exception
     }
 
+    // TODO review With three different configuration optiosn, what does a unified interface look like?
+    // Seems at least partition repair strategy could be inferred from othered
     /*
      * How to pick a consensus protocol for CAS
      * and serial read operations. Transaction statements
@@ -1203,6 +1209,68 @@ public class Config
          * requiring migration to Accord.
          */
         accord
+    }
+
+    /*
+     * Configure how non-serial writes should be executed. For Accord transactions to function correctly
+     * when mixed with non-SERIAL writes it's necessary for the writes to occur through Accord.
+     *
+     * Accord will also use this configuration to determine what consistency level to perform its reads
+     * at since it will need to be able to read data written at non-SERIAL consistency levels.
+     *
+     * If they are not written through Accord then reads through Accord will be required to occur at
+     * consistency level compatible with the non-serial writes preventing single replica reads from being performed
+     * by Accord. It will also require Accord to perform read repair of non-serial writes.
+     *
+     * Even then there is the potential for Accord to inconsistently execute transactions at different replicas
+     * because different coordinators for an Accord transaction may encounter different non-SERIAL write state and
+     * race to commit different outcomes for the transaction.
+     *
+     * This is different from Paxos because Paxos performs consensus on the actual values to be appplied so recovery
+     * coordinators will always produce a consistent state when applying a transaction. Accord performs consensus on
+     * the execution order of transaction and different coordinators witnessing different states not managed by Accord
+     * can produce multiple outcomes for a transaction.
+     *
+     * // TODO to safely migrate you would have to route all writes through Accord with the current implementation
+     * // We could do it by range instead in the migration version, but then we need to know when all in flight writes
+     * // are done before marking a range as migrated. Would waiting out the timeout be enough (timeout bugs!)?
+     */
+    public enum NonSerialWriteStrategy
+    {
+        /*
+         * Execute writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
+         * multiple outcomes for a transaction that depends on data written by non-SERIAL writes.
+         */
+        normal(false),
+        /*
+         * Execute writes through Accord skipping StorageProxy's normal write path, but commit
+         * writes at the provided consistency level so they can be read via non-SERIAL consistency levels.
+         */
+        migration(false),
+        /*
+         * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
+         * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
+         */
+        accord(true);
+
+        public final boolean ignoresSuppliedConsistencyLevel;
+
+        NonSerialWriteStrategy(boolean ignoresSuppliedConsistencyLevel)
+        {
+            this.ignoresSuppliedConsistencyLevel = ignoresSuppliedConsistencyLevel;
+        }
+
+        public ConsistencyLevel clForStrategy(ConsistencyLevel consistencyLevel)
+        {
+            // These are the only ones currently supported
+            if (ignoresSuppliedConsistencyLevel)
+                return null;
+
+            if (!IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(consistencyLevel))
+                throw new UnsupportedOperationException("Consistency level " + consistencyLevel + " is unsupported with Accord, supported are ANY, ONE, QUORUM, and ALL");
+
+            return consistencyLevel;
+        }
     }
 
     /**

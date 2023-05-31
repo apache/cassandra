@@ -964,11 +964,15 @@ public class DatabaseDescriptor
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
         
-        if (conf.lwt_strategy == LWTStrategy.accord && !conf.accord_transactions_enabled)
-            throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
-        if (conf.lwt_strategy == LWTStrategy.accord && conf.partition_repair_strategy != PartitionRepairStrategy.accord)
-            throw new ConfigurationException("If Accord is used for LWTs than partition repair strategy needs to be Accord for interoperability");
-
+        if (conf.lwt_strategy == LWTStrategy.accord)
+        {
+            if(!conf.accord_transactions_enabled)
+                throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
+            if (conf.partition_repair_strategy != PartitionRepairStrategy.accord)
+                throw new ConfigurationException("If Accord is used for LWTs than partition repair strategy needs to be Accord for interoperability");
+            if (conf.non_serial_write_strategy == Config.NonSerialWriteStrategy.normal)
+                throw new ConfigurationException("If Accord is used for LWTs than regular writes needs to be routed through Accord for interoperability");
+        }
     }
 
     @VisibleForTesting
@@ -2986,6 +2990,11 @@ public class DatabaseDescriptor
     public static LWTStrategy getLWTStrategy()
     {
         return conf.lwt_strategy;
+    }
+
+    public static Config.NonSerialWriteStrategy getNonSerialWriteStrategy()
+    {
+        return conf.non_serial_write_strategy;
     }
 
     public static PartitionRepairStrategy getPartitionRepairStrategy()

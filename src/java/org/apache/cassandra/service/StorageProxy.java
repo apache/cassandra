@@ -42,11 +42,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.cache.CacheLoader;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Key;
+import accord.primitives.Keys;
 import accord.primitives.Txn;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -126,11 +129,16 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
@@ -1197,7 +1205,10 @@ public class StorageProxy implements StorageProxyMBean
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
 
-        if (augmented != null)
+        Config.NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
+        if (DatabaseDescriptor.getNonSerialWriteStrategy() != Config.NonSerialWriteStrategy.normal)
+            mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, updatesView, queryStartNanoTime, nonSerialWriteStrategy);
+        else if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
         else
         {
@@ -1206,6 +1217,27 @@ public class StorageProxy implements StorageProxyMBean
             else
                 mutate(mutations, consistencyLevel, queryStartNanoTime);
         }
+    }
+
+    private static void mutateWithAccord(Collection<? extends IMutation> iMutations, ConsistencyLevel consistencyLevel, boolean updatesView, long queryStartNanoTime, Config.NonSerialWriteStrategy nonSerialWriteStrategy)
+    {
+        int fragmentIndex = 0;
+        List<TxnWrite.Fragment> fragments = new ArrayList<>(iMutations.size());
+        List<PartitionKey> partitionKeys = new ArrayList<>(iMutations.size());
+        for (IMutation mutation : iMutations)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+            {
+                PartitionKey pk = PartitionKey.of(update);
+                partitionKeys.add(pk);
+                fragments.add(new TxnWrite.Fragment(PartitionKey.of(update), fragmentIndex++, update, TxnReferenceOperations.empty()));
+            }
+        }
+        // Potentially ignore commit consistency level if the strategy specifies accord and not migration
+        ConsistencyLevel clForCommit = nonSerialWriteStrategy.clForStrategy(consistencyLevel);
+        TxnUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
+        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY_READ, new TxnDataResolver(), TxnQuery.EMPTY, update);
+        AccordService.instance().coordinate(txn, consistencyLevel, queryStartNanoTime);
     }
 
     /**
@@ -1966,6 +1998,9 @@ public class StorageProxy implements StorageProxyMBean
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
         SinglePartitionReadCommand readCommand = group.queries.get(0);
+        // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // level since Accord will manage reading safely
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(consistencyLevel);
         TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Txn txn = new Txn.InMemory(read.keys(), read, new TxnDataResolver(), TxnQuery.ALL);
         TxnResult txnResult = AccordService.instance().coordinate(txn, consistencyLevel, queryStartNanoTime);

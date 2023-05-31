@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Update;
 import accord.primitives.Txn;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -479,15 +480,21 @@ public class CQL3CasRequest implements CASRequest
     {
         SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
         Update update = createUpdate(clientState, commitConsistencyLevel);
-        // In a CAS request only one key is supported and writes
+        // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // level since Accord will manage reading safely
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(consistencyLevel);
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
+        // In a CAS requesting only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
-        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
         return new Txn.InMemory(read.keys(), read, new TxnDataResolver(), TxnQuery.CONDITION, update);
     }
 
     private Update createUpdate(ClientState clientState, ConsistencyLevel commitConsistencyLevel)
     {
+        // Potentially ignore commit consistency level if non-SERIAL write strategy is Accord
+        // since it is safe to match what non-SERIAL writes do
+        commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().clForStrategy(commitConsistencyLevel);
         return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel);
     }
 
