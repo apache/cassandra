@@ -107,7 +107,22 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
+        Supplier<ResultRetriever> queryIndexes = () -> new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext, command.isTopK());
+        if (!command.isTopK())
+            return queryIndexes.get();
+
+        // TODO performance: if there is shadowed primary keys, we have to at least query twice.
+        //  First time to find out there are shawdow keys, second time to find out there are no more shadow keys.
+        while (true)
+        {
+            long lastShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
+            ResultRetriever result = queryIndexes.get();
+            UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+
+            long currentShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
+            if (lastShadowedKeysCount == currentShadowedKeysCount)
+                return topK;
+        }
     }
 
     /**
@@ -147,6 +162,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final ReadExecutionController executionController;
         private final QueryContext queryContext;
         private final PrimaryKey.Factory keyFactory;
+        private final boolean topK;
 
         private PrimaryKey lastKey;
 
@@ -154,7 +170,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                                 FilterTree filterTree,
                                 QueryController controller,
                                 ReadExecutionController executionController,
-                                QueryContext queryContext)
+                                QueryContext queryContext, boolean topK)
         {
             this.keyRanges = controller.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();
@@ -165,6 +181,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             this.executionController = executionController;
             this.queryContext = queryContext;
             this.keyFactory = controller.primaryKeyFactory();
+            this.topK = topK;
 
             this.firstPrimaryKey = controller.firstPrimaryKey();
             this.lastPrimaryKey = controller.lastPrimaryKey();
@@ -405,7 +422,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             }
         }
 
-        private static UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
+        private UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
         {
             Row staticRow = partition.staticRow();
             List<Unfiltered> clusters = new ArrayList<>();
@@ -439,6 +456,9 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
              */
             if (clusters.isEmpty())
             {
+                // shadowed by expired TTL or row tombstone or range tombstone
+                if (topK)
+                    queryContext.recordShadowedPrimaryKey(key);
                 return null;
             }
 

@@ -21,14 +21,12 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.RamUsageEstimator;
 
 public class VectorPostings<T>
 {
-    public final int ordinal;
-    public final List<T> postings;
+    private final List<T> postings;
+    private final int ordinal;
 
     // TODO refactor this so we can add the first posting at construction time instead of having
     // to append it separately (which will require a copy of the list)
@@ -39,9 +37,18 @@ public class VectorPostings<T>
         postings = new CopyOnWriteArrayList<>();
     }
 
-    public void append(T key)
+    public boolean add(T key)
     {
+        for (T existing : postings)
+            if (existing.equals(key))
+                return false;
         postings.add(key);
+        return true;
+    }
+
+    public void remove(T key)
+    {
+        postings.remove(key);
     }
 
     public long ramBytesUsed()
@@ -65,5 +72,25 @@ public class VectorPostings<T>
         return REF_BYTES
                + 2 * Long.BYTES // hashes in PreHashedDecoratedKey
                + REF_BYTES; // key ByteBuffer, this is used elsewhere so we don't take the deep size
+    }
+
+    public int size()
+    {
+        return postings.size();
+    }
+
+    public List<T> getPostings()
+    {
+        return postings;
+    }
+
+    public boolean isEmpty()
+    {
+        return postings.isEmpty();
+    }
+
+    public int getOrdinal()
+    {
+        return ordinal;
     }
 }

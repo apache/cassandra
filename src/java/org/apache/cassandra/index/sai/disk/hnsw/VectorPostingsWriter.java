@@ -53,14 +53,14 @@ public class VectorPostingsWriter<T>
             // (ordinal is implied; don't need to write it)
             writer.writeLong(offset);
             var postings = postingsMap.get(vectorValues.vectorValue(i));
-            offset += 4 + (postings.postings.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
+            offset += 4 + (postings.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
         }
 
         // Write postings lists
         for (var i = 0; i < vectorValues.size(); i++) {
             var postings = postingsMap.get(vectorValues.vectorValue(i));
-            writer.writeInt(postings.postings.size());
-            for (var key : postings.postings) {
+            writer.writeInt(postings.size());
+            for (var key : postings.getPostings()) {
                 writer.writeInt(postingTransformer.apply(key));
             }
         }
@@ -76,7 +76,7 @@ public class VectorPostingsWriter<T>
         // Collect all (rowId, vectorOrdinal) pairs
         for (var i = 0; i < vectorValues.size(); i++) {
             var postings = postingsMap.get(vectorValues.vectorValue(i));
-            for (var posting : postings.postings) {
+            for (var posting : postings.getPostings()) {
                 pairs.add(Pair.create(postingTransformer.apply(posting), i));
             }
         }

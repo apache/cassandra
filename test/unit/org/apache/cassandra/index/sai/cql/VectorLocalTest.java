@@ -270,8 +270,13 @@ public class VectorLocalTest extends SAITester
 
             float[] queryVector = randomVector();
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            double recall = getRecall(resultVectors, queryVector, expected, expected.size());
-            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            if (expected.isEmpty())
+                assertThat(resultVectors).isEmpty();
+            else
+            {
+                double recall = getRecall(resultVectors, queryVector, expected, expected.size());
+                assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            }
         }
 
         flush();

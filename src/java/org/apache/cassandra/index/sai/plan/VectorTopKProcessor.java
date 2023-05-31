@@ -20,18 +20,19 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.tuple.Triple;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.BasePartitionIterator;
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.rows.BaseRowIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
@@ -68,14 +70,22 @@ import org.apache.cassandra.utils.Pair;
 public class VectorTopKProcessor
 {
     private final ReadCommand command;
-    private final StorageAttachedIndexQueryPlan queryPlan;
+    private final IndexContext indexContext;
+    private final float[] queryVector;
 
     private final int limit;
 
-    public VectorTopKProcessor(ReadCommand command, StorageAttachedIndexQueryPlan queryPlan)
+    private int rowCount = 0;
+
+    public VectorTopKProcessor(ReadCommand command)
     {
         this.command = command;
-        this.queryPlan = queryPlan;
+
+        Pair<IndexContext, float[]> annIndexAndExpression = findTopKIndexContext();
+        Preconditions.checkNotNull(annIndexAndExpression);
+
+        this.indexContext = annIndexAndExpression.left;
+        this.queryVector = annIndexAndExpression.right;
         this.limit = command.limits().count();
     }
 
@@ -90,7 +100,6 @@ public class VectorTopKProcessor
         // to store top-k results in primary key order
         TreeMap<PartitionInfo, TreeSet<Unfiltered>> unfilteredByPartition = new TreeMap<>(Comparator.comparing(p -> p.key));
 
-        Map<StorageAttachedIndex, float[]> queryVectorPerIndex = getQueryVectorPerIndex(command);
         while (partitions.hasNext())
         {
             try (R partition = partitions.next())
@@ -99,7 +108,7 @@ public class VectorTopKProcessor
                 Row staticRow = partition.staticRow();
                 PartitionInfo partitionInfo = PartitionInfo.create(partition);
                 // compute key and static row score once per partition
-                float keyAndStaticScore = getScoreForRow(queryVectorPerIndex, key, staticRow);
+                float keyAndStaticScore = getScoreForRow(key, staticRow);
 
                 while (partition.hasNext())
                 {
@@ -114,7 +123,7 @@ public class VectorTopKProcessor
                     }
 
                     Row row = (Row) unfiltered;
-                    float rowScore = getScoreForRow(queryVectorPerIndex, null, row);
+                    float rowScore = getScoreForRow(null, row);
                     topK.add(Triple.of(partitionInfo, row, keyAndStaticScore + rowScore));
 
                     // when exceeding limit, remove row with low score
@@ -130,71 +139,72 @@ public class VectorTopKProcessor
             unfilteredByPartition.computeIfAbsent(triple.getLeft(), k -> new TreeSet<>(command.metadata().comparator))
                                  .add(triple.getMiddle());
 
+        rowCount = topK.size();
+
         if (partitions instanceof PartitionIterator)
             return new InMemoryPartitionIterator(command, unfilteredByPartition);
         return new InMemoryUnfilteredPartitionIterator(command, unfilteredByPartition);
     }
 
-    private Map<StorageAttachedIndex, float[]> getQueryVectorPerIndex(ReadCommand command)
+    /**
+     * @return num of collected rows
+     */
+    public int rowCount()
     {
-        return command.rowFilter().getExpressions().stream()
-                      .map(e -> {
-                          StorageAttachedIndex sai = findVectorIndexFor(e);
-                          if (sai == null)
-                              return null;
-
-                          float[] qv = TypeUtil.decomposeVector(sai.getIndexContext(), e.getIndexValue().duplicate());
-                          return Pair.create(sai, qv);
-                      }).filter(Objects::nonNull)
-                      .collect(Collectors.toMap(p -> p.left, p -> p.right));
+        return rowCount;
     }
 
     /**
      * Sum the scores from different vector indexes for the row
      */
-    private float getScoreForRow(Map<StorageAttachedIndex, float[]> queryVectorPerIndex, DecoratedKey key, Row row)
+    private float getScoreForRow(DecoratedKey key, Row row)
     {
-        float score = 0;
-        for (Map.Entry<StorageAttachedIndex, float[]> e : queryVectorPerIndex.entrySet())
+        ColumnMetadata column = indexContext.getDefinition();
+
+        if (column.isPrimaryKeyColumn() && key == null)
+            return 0;
+
+        if (column.isStatic() && !row.isStatic())
+            return 0;
+
+        if ((column.isClusteringColumn() || column.isRegular()) && row.isStatic())
+            return 0;
+
+        ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
+        if (value != null)
         {
-            IndexContext indexContext = e.getKey().getIndexContext();
-            ColumnMetadata column = indexContext.getDefinition();
+            float[] vector = TypeUtil.decomposeVector(indexContext, value.duplicate());
+            return indexContext.getIndexWriterConfig().getSimilarityFunction().compare(vector, queryVector);
+        }
+        return 0;
+    }
 
-            if (column.isPrimaryKeyColumn() && key == null)
-                continue;
 
-            if (column.isStatic() && !row.isStatic())
-                continue;
+    private Pair<IndexContext, float[]> findTopKIndexContext()
+    {
+        ColumnFamilyStore cfs = Keyspace.openAndGetStore(command.metadata());
 
-            if ((column.isClusteringColumn() || column.isRegular()) && row.isStatic())
-                continue;
-
-            ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
-            if (value != null)
+        for (RowFilter.Expression expression : command.rowFilter().getExpressions())
+        {
+            StorageAttachedIndex sai = findVectorIndexFor(cfs.indexManager, expression);
+            if (sai != null)
             {
-                float[] vector = TypeUtil.decomposeVector(indexContext, value.duplicate());
-                score += indexContext.getIndexWriterConfig().getSimilarityFunction().compare(vector, e.getValue());
+
+                float[] qv = TypeUtil.decomposeVector(sai.getIndexContext(), expression.getIndexValue().duplicate());
+                return Pair.create(sai.getIndexContext(), qv);
             }
         }
-        return score;
+
+        return null;
     }
 
     @Nullable
-    private StorageAttachedIndex findVectorIndexFor(RowFilter.Expression e)
+    private StorageAttachedIndex findVectorIndexFor(SecondaryIndexManager sim, RowFilter.Expression e)
     {
         if (e.operator() != Operator.ANN)
             return null;
 
-        for (Index index : queryPlan.getIndexes())
-        {
-            if (!(index instanceof StorageAttachedIndex))
-                continue;
-
-            StorageAttachedIndex sai = (StorageAttachedIndex) index;
-            if (e.column().equals(sai.getIndexContext().getDefinition()))
-                return sai;
-        }
-
-        return null;
+        Optional<Index> index = sim.getBestIndexFor(e);
+        return (StorageAttachedIndex) index.filter(i -> i instanceof StorageAttachedIndex).orElse(null);
     }
 }

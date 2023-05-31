@@ -78,20 +78,20 @@ public class VectorTypeTest extends SAITester
         assertContainsInt(result, "pk", 2);
     }
 
-    private void assertContainsInt(UntypedResultSet result, String pkName, int pk)
+    public static void assertContainsInt(UntypedResultSet result, String columnName, int columnValue)
     {
         for (UntypedResultSet.Row row : result)
         {
-            if (row.has(pkName)) // assuming 'pk' is the name of your primary key column
+            if (row.has(columnName))
             {
-                int value = row.getInt("pk");
-                if (value == pk)
+                int value = row.getInt(columnName);
+                if (value == columnValue)
                 {
                     return;
                 }
             }
         }
-        throw new AssertionError("Result set does not contain a row with pk = " + pk);
+        throw new AssertionError("Result set does not contain a row with " + columnName + " = " + columnValue);
     }
 
     @Test
@@ -336,9 +336,9 @@ public class VectorTypeTest extends SAITester
         waitForIndexQueryable();
 
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
-        execute("INSERT INTO %s (pk, str_val) VALUES (1, 'B')");
+        execute("INSERT INTO %s (pk, str_val) VALUES (1, 'B')"); // no vector
         execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
-        execute("INSERT INTO %s (pk, str_val) VALUES (3, 'D')");
+        execute("INSERT INTO %s (pk, str_val) VALUES (3, 'D')"); // no vector
         execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5.0f, 6.0f, 7.0f));
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");

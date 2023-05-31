@@ -30,7 +30,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -41,6 +40,7 @@ import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 
 /**
@@ -76,18 +76,18 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(exp, keyRange, limit);
+        ReorderingPostingList results = searchPosting(context, exp, keyRange, limit);
         return toPrimaryKeyIterator(results, context);
     }
 
     @Override
     public RangeIterator<Long> searchSSTableRowIds(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(exp, keyRange, limit);
+        ReorderingPostingList results = searchPosting(context, exp, keyRange, limit);
         return toSSTableRowIdsIterator(results, context);
     }
 
-    private ReorderingPostingList searchPosting(Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit)
+    private ReorderingPostingList searchPosting(SSTableQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -95,18 +95,18 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         if (exp.getOp() != Expression.Op.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
-        SparseFixedBitSet bits = bitsetForKeyRange(keyRange);
+        Bits bits = bitsetForKeyRange(context, keyRange);
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
         return graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
     }
 
-    private SparseFixedBitSet bitsetForKeyRange(AbstractBounds<PartitionPosition> keyRange)
+    private Bits bitsetForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
     {
         // not restricted
         if (RangeUtil.coversFullRing(keyRange))
-            return null;
+            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph::getOrdinal);
 
         PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
         PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
@@ -117,7 +117,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
         // if it covers entire segment, skip bit set
         if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
-            return null;
+            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph::getOrdinal);
 
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
@@ -130,7 +130,10 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
                 int ordinal = graph.getOrdinal(segmentRowId);
                 if (ordinal >= 0)
-                    bits.set(ordinal);
+                {
+                    if (context.shouldInclude(sstableRowId, primaryKeyMap))
+                        bits.set(ordinal);
+                }
             }
             catch (IOException e)
             {
@@ -166,7 +169,10 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
             int ordinal = graph.getOrdinal(segmentRowId);
             if (ordinal >= 0)
-                bits.set(ordinal);
+            {
+                if (context.shouldInclude(sstableRowId, primaryKeyMap))
+                    bits.set(ordinal);
+            }
         }
 
         // if we have a small number of results then let TopK processor do exact NN computation

@@ -32,7 +32,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
@@ -148,20 +147,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
             return partitions -> partitions;
 
         // in case of top-k query, filter out rows that are not actually global top-K
-        return partitions -> (PartitionIterator) new VectorTopKProcessor(command, this).filter(partitions);
-    }
-
-    /**
-     * Called on replica after reading local index data before returning to coordinator
-     */
-    @Override
-    public Function<UnfilteredPartitionIterator, UnfilteredPartitionIterator> postIndexQueryProcessor(ReadCommand command)
-    {
-        if (!isTopK())
-            return partitions -> partitions;
-
-        // in case of top-k query, filter out rows that are not actually global top-K
-        return partitions -> (UnfilteredPartitionIterator) new VectorTopKProcessor(command, this).filter(partitions);
+        return partitions -> (PartitionIterator) new VectorTopKProcessor(command).filter(partitions);
     }
 
     /**

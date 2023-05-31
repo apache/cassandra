@@ -233,6 +233,23 @@ public class IndexContext
         indexMetrics.memtableIndexWriteLatency.update(System.nanoTime() - start, TimeUnit.NANOSECONDS);
     }
 
+    public void update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable, OpOrder.Group opGroup)
+    {
+        if (!isVector())
+        {
+            index(key, newRow, memtable, opGroup);
+            return;
+        }
+
+        MemtableIndex target = liveMemtables.get(memtable);
+        if (target == null)
+            return;
+
+        ByteBuffer oldValue = getValueOf(key, oldRow, FBUtilities.nowInSeconds());
+        ByteBuffer newValue = getValueOf(key, newRow, FBUtilities.nowInSeconds());
+        target.update(key, oldRow.clustering(), oldValue, newValue, memtable, opGroup);
+    }
+
     public void renewMemtable(Memtable renewed)
     {
         for (Memtable memtable : liveMemtables.keySet())

@@ -17,9 +17,19 @@
  */
 package org.apache.cassandra.index.sai;
 
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.util.CheckedFunction;
+import org.apache.lucene.util.Bits;
 
 /**
  * Tracks SSTable-specific state relevant to the execution of a single query.
@@ -30,15 +40,6 @@ import com.google.common.annotations.VisibleForTesting;
 public class SSTableQueryContext
 {
     public final QueryContext queryContext;
-
-    // During intersection queries, multiple column indexes touch the same exact tokens as we skip
-    // between range iterators. Caching the values of these global SSTable-specific lookups allows us to avoid
-    // large chunks of duplicated work.
-    public long prevTokenValue = Long.MIN_VALUE;
-    public long prevSSTableRowId = -1;
-
-    public long prevSkipToTokenValue = Long.MIN_VALUE;
-    public long prevSkipToSSTableRowId = -1;
 
     public SSTableQueryContext(QueryContext queryContext)
     {
@@ -51,13 +52,53 @@ public class SSTableQueryContext
         return new SSTableQueryContext(new QueryContext());
     }
 
-    public void markTokenSkippingLookup()
+    /**
+     * @return true to include current sstable row id; otherwise false if the sstable row id will be shadowed
+     */
+    public boolean shouldInclude(Long sstableRowId, PrimaryKeyMap primaryKeyMap)
     {
-        queryContext.tokenSkippingLookups++;
+        var shadowedPrimaryKeys = queryContext.getShadowedPrimaryKeys();
+        if (shadowedPrimaryKeys.isEmpty())
+            return true;
+
+        return !shadowedPrimaryKeys.contains(primaryKeyMap.primaryKeyFromRowId(sstableRowId));
     }
 
-    public void markTokenSkippingCacheHit()
+    /**
+     * Create a bitset to ignore ordinals corresponding to shadowed primary keys
+     */
+    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CheckedFunction<Integer, Integer, IOException> segmentRowIdToOrdinal) throws IOException
     {
-        queryContext.tokenSkippingCacheHits++;
+        Set<Integer> ignoredOrdinals = new HashSet<>();
+        for (PrimaryKey primaryKey : queryContext.getShadowedPrimaryKeys())
+        {
+            long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
+            int segmentRowId = metadata.segmentedRowId(sstableRowId);
+            // not in segment yet
+            if (segmentRowId < 0)
+                continue;
+            // end of segment
+            if (segmentRowId > metadata.maxSSTableRowId)
+                break;
+
+            int ordinal = segmentRowIdToOrdinal.apply(segmentRowId);
+            if (ordinal >= 0)
+                ignoredOrdinals.add(ordinal);
+        }
+
+        return new Bits()
+        {
+            @Override
+            public boolean get(int index)
+            {
+                return !ignoredOrdinals.contains(index);
+            }
+
+            @Override
+            public int length()
+            {
+                return 1 + metadata.segmentedRowId(metadata.maxSSTableRowId);
+            }
+        };
     }
 }
