@@ -24,6 +24,7 @@ import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 import java.util.stream.IntStream;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -49,8 +50,8 @@ public class CassandraOnDiskHnsw
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
         vectorValues = new OnDiskVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
         ordinalsMap = new OnDiskOrdinalsMap(descriptor.fileFor(IndexComponent.POSTING_LISTS, context));
-        // TODO make cache size configurable, and is this a reasonable default?
-        hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context), 1024 * 1024);
+        hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context),
+                                   CassandraRelevantProperties.SAI_VECTOR_SEARCH_HNSW_CACHE_BYTES.getInt());
     }
 
     public long ramBytesUsed()
