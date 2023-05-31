@@ -38,7 +38,7 @@ CREATE TABLE has_all_types (
     setcol set<text>,
     mapcol map<text, int>,
     vectorcol vector<float, 3>,
-) WITH compression = {'class':'LZ4Compressor'};
+) WITH compression = {'sstable_compression':'LZ4Compressor'};
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
