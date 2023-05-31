@@ -29,12 +29,14 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.rmi.AccessException;
 import java.rmi.AlreadyBoundException;
+import java.rmi.NoSuchObjectException;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -252,7 +254,8 @@ public class JMXServerUtils
         return env;
     }
 
-    private static void logJmxServiceUrl(InetAddress serverAddress, int port)
+    @VisibleForTesting
+    public static void logJmxServiceUrl(InetAddress serverAddress, int port)
     {
         String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
         String hostName;
@@ -325,11 +328,11 @@ public class JMXServerUtils
      * Better to use the internal API than re-invent the wheel.
      */
     @SuppressWarnings("restriction")
-    private static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
+    public static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
         private final String lookupName;
         private Remote remoteServerStub;
 
-        JmxRegistry(final int port,
+        public JmxRegistry(final int port,
                     final RMIClientSocketFactory csf,
                     RMIServerSocketFactory ssf,
                     final String lookupName) throws RemoteException {
@@ -361,6 +364,25 @@ public class JMXServerUtils
 
         public void setRemoteServerStub(Remote remoteServerStub) {
             this.remoteServerStub = remoteServerStub;
+        }
+
+        /**
+         * Closes the underlying JMX registry by unexporting this instance.
+         * There is no reason to do this except for in-jvm dtests where we need
+         * to stop the registry, so we can start with a clean slate for future cluster
+         * builds, and the superclass never expects to be shut down and therefore doesn't
+         * handle this edge case at all.
+         */
+        @VisibleForTesting
+        public void close() {
+            try
+            {
+                UnicastRemoteObject.unexportObject(this, true);
+            }
+            catch (NoSuchObjectException ignored)
+            {
+                // Ignore if it's already unexported
+            }
         }
     }
 }

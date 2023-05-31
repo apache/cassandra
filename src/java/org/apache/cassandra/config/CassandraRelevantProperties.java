@@ -88,6 +88,19 @@ public enum CassandraRelevantProperties
      */
     COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE ("com.sun.management.jmxremote.authenticate"),
 
+
+    /**
+     * Controls the JMX server threadpool keap-alive time.
+     * Should only be set by in-jvm dtests.
+     */
+    SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME("sun.rmi.transport.tcp.threadKeepAliveTime"),
+
+    /**
+     * Controls the distributed garbage collector lease time for JMX objects.
+     * Should only be set by in-jvm dtests.
+     */
+    JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST("java.rmi.dgc.leaseValue"),
+
     /**
      * The port number to which the RMI connector will be bound - com.sun.management.jmxremote.rmi.port.
      * An Integer object that represents the value of the second argument is returned
@@ -225,6 +238,9 @@ public enum CassandraRelevantProperties
 
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
+
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
 
     BATCH_COMMIT_LOG_SYNC_INTERVAL("cassandra.batch_commitlog_sync_interval_millis", "1000"),
 
