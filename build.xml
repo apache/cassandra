@@ -207,6 +207,7 @@
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
         <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
 
         <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
@@ -237,6 +238,7 @@
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
         <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
         <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
         <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
@@ -263,6 +265,8 @@
         <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+
+        <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm_args_concat2" refid="_jvm17_arg_items" pathsep=" "/>
     <condition property="java17-jvmargs" value="${_jvm_args_concat2}" else="">
@@ -307,7 +311,8 @@
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
-    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" else="">
+    <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
+    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -1035,6 +1040,7 @@
      <src path="${test.simulator-asm.src}"/>
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
+     <compilerarg line="${jdk11plus-javac-exports}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1811,6 +1817,24 @@
       <echo>"IDE configuration updated for use with JDK11"</echo>
   </target>
 
+  <target name="_maybe_update_idea_to_java17" depends="init" if="java.version.17">
+        <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_17"/>
+        <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_17"/>
+        <replace file=".idea/misc.xml" token="1.8" value="17"/>
+        <replaceregexp file=".idea/workspace.xml"
+                       match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
+                       replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java17-jvmargs}"
+                       byline="true"/>
+
+        <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+  </component>
+</project>]]></echo>
+        <echo>"IDE configuration updated for use with JDK17"</echo>
+    </target>
+
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
     <mkdir dir=".idea"/>
@@ -1831,6 +1855,7 @@
   </component>
 </project>]]></echo>
       <antcall target="_maybe_update_idea_to_java11"/>
+      <antcall target="_maybe_update_idea_to_java17"/>
   </target>
 
   <!-- Generate Eclipse project description files -->
