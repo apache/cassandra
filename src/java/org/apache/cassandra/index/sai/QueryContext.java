@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -69,7 +71,7 @@ public class QueryContext
 
     private final Map<SSTableReader, SSTableQueryContext> sstableQueryContexts = new HashMap<>();
 
-    private final TreeSet<PrimaryKey> shadowedPrimaryKeys = new TreeSet<>();
+    private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
 
     @VisibleForTesting
     public QueryContext()
@@ -109,7 +111,14 @@ public class QueryContext
 
     public void recordShadowedPrimaryKey(PrimaryKey primaryKey)
     {
+        if (shadowedPrimaryKeys == null)
+            shadowedPrimaryKeys = new TreeSet<>();
         shadowedPrimaryKeys.add(primaryKey);
+    }
+
+    public boolean containsShadowedPrimaryKey(Supplier<PrimaryKey> supplier)
+    {
+        return shadowedPrimaryKeys != null && shadowedPrimaryKeys.contains(supplier.get());
     }
 
     /**
@@ -117,6 +126,8 @@ public class QueryContext
      */
     public NavigableSet<PrimaryKey> getShadowedPrimaryKeys()
     {
+        if (shadowedPrimaryKeys == null)
+            return Collections.emptyNavigableSet();
         return shadowedPrimaryKeys;
     }
 }

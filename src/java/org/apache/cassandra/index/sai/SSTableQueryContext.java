@@ -57,11 +57,7 @@ public class SSTableQueryContext
      */
     public boolean shouldInclude(Long sstableRowId, PrimaryKeyMap primaryKeyMap)
     {
-        var shadowedPrimaryKeys = queryContext.getShadowedPrimaryKeys();
-        if (shadowedPrimaryKeys.isEmpty())
-            return true;
-
-        return !shadowedPrimaryKeys.contains(primaryKeyMap.primaryKeyFromRowId(sstableRowId));
+        return !queryContext.containsShadowedPrimaryKey(() -> primaryKeyMap.primaryKeyFromRowId(sstableRowId));
     }
 
     /**
