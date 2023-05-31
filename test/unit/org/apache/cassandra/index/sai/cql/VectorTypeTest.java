@@ -365,7 +365,42 @@ public class VectorTypeTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(val2) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        assertInvalid("SELECT * FROM %s ORDER BY val1 ann of [2.5, 3.5, 4.5], val2 ann of [2.1, 3.2, 4.0] LIMIT 2");
+        assertInvalidMessage("Cannot specify more than one ANN ordering",
+                             "SELECT * FROM %s ORDER BY val1 ann of [2.5, 3.5, 4.5], val2 ann of [2.1, 3.2, 4.0] LIMIT 2");
+    }
+
+    @Test
+    public void testDescendingVectorOrderingIsNotAllowed() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        assertInvalidMessage("Descending ANN ordering is not supported",
+                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] DESC LIMIT 2");
+    }
+
+    @Test
+    public void testVectorOrderingIsNotAllowedWithClusteringOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        assertInvalidMessage("ANN ordering does not support secondary ordering",
+                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5], ck ASC LIMIT 2");
+    }
+
+    @Test
+    public void annOrderingMustHaveLimit() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        assertInvalidMessage("ANN ordering does not support secondary ordering",
+                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5]");
+
     }
 
     @Test

@@ -313,12 +313,8 @@ public class QueryController
             // if there is a single expression, just run search against it even if it's ANN
             return null;
         }
-        var L = expressions.stream().filter(e -> e.operation == Expression.Op.ANN).collect(Collectors.toList());
-        if (L.size() > 1) {
-            // FIXME move this to the parser
-            throw new IllegalArgumentException("Only one ANN expression is allowed");
-        }
-        return L.size() == 1 ? L.get(0) : null;
+
+        return expressions.stream().filter(e -> e.operation == Expression.Op.ANN).findFirst().orElse(null);
     }
 
     private RangeIterator<Long> createRowIdIterator(Operation.OperationType op, List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer, boolean hasAnn)

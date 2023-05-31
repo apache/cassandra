@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
@@ -606,21 +607,19 @@ public class StatementRestrictions
          */
         private void addOrderingRestrictions(List<Ordering> orderings, RestrictionSet.Builder receiver)
         {
-            boolean hasAnnOrdering = false;
+            List<Ordering> annOrderings = orderings.stream().filter(o -> o.expression.hasNonClusteredOrdering()).collect(Collectors.toList());
 
-            for (Ordering o: orderings)
+            if (annOrderings.size() > 1)
+                throw new InvalidRequestException("Cannot specify more than one ANN ordering");
+            else if (annOrderings.size() == 1)
             {
-                if (o.expression instanceof Ordering.Ann)
-                {
-                    if (hasAnnOrdering)
-                        throw new InvalidRequestException("Cannot specify more than one ANN ordering");
-                    if (o.direction != Ordering.Direction.ASC)
-                        throw new InvalidRequestException("Descending ANN ordering is not supported");
-
-                    hasAnnOrdering = true;
-                    SingleRestriction restriction = ((Ordering.Ann) o.expression).toRestriction();
-                    receiver.addRestriction(restriction, false);
-                }
+                if (orderings.size() > 1)
+                    throw new InvalidRequestException("ANN ordering does not support secondary ordering");
+                Ordering annOrdering = annOrderings.get(0);
+                if (annOrdering.direction != Ordering.Direction.ASC)
+                    throw new InvalidRequestException("Descending ANN ordering is not supported");
+                SingleRestriction restriction = annOrdering.expression.toRestriction();
+                receiver.addRestriction(restriction, false);
             }
         }
 

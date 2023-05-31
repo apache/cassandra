@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3;
 
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
+import org.apache.cassandra.cql3.restrictions.SingleRestriction;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -40,7 +41,18 @@ public class Ordering
         this.direction = direction;
     }
 
-    public interface Expression { }
+    public interface Expression
+    {
+        default boolean hasNonClusteredOrdering()
+        {
+            return false;
+        }
+
+        default SingleRestriction toRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
 
     /**
      * Represents a single column in
@@ -71,7 +83,14 @@ public class Ordering
             this.vectorValue = vectorValue;
         }
 
-        public SingleColumnRestriction.AnnRestriction toRestriction()
+        @Override
+        public boolean hasNonClusteredOrdering()
+        {
+            return true;
+        }
+
+        @Override
+        public SingleRestriction toRestriction()
         {
             return new SingleColumnRestriction.AnnRestriction(column, vectorValue);
         }
