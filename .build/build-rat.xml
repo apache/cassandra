@@ -27,7 +27,7 @@
     </target>
 
     <target name="_build_ratinclude" depends="_rat_init">
-        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="${build.dir}/.ratinclude">
+        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="${build.dir}/.versioned_files">
             <arg line="ls-tree -r HEAD --name-only"/>
         </exec>
         <condition property="rat.skip" value="true">
@@ -37,38 +37,53 @@
         </condition>
     </target>
 
-    <target name="rat-check" depends="_build_ratinclude" unless="rat.skip" description="License checks on source" >
+    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="rat.skip">
+        <copy file="${build.dir}/.versioned_files" tofile="${build.dir}/.ratinclude">
+            <filterchain>
+                <linecontainsregexp>
+                    <regexp pattern=".*\.(java|py|sh|xml|spec|md|iml|bat|btm|cql|css|g|html|jflex|jks|mod|name|pom|textile|yml|yaml|MIDRES|HIGHRES|LOWRES)$"/>
+                </linecontainsregexp>
+            </filterchain>
+        </copy>
+    </target>
+
+    <target name="rat-check" depends="_rat_copy_versioned_files" unless="rat.skip" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
-                 <exclude name=".asf.yaml"/>
-                 <exclude name="**/cassandra*.yaml"/>
-                 <exclude NAME="doc/antora.yml"/>
-                 <exclude name="ide/**/*"/>
-                 <exclude name="**/*.json"/>
-                 <exclude name="pylib/cqlshlib/test/config/sslhandling*.config"/>
-                 <exclude NAME="src/resources/org/apache/cassandra/cql3/reserved_keywords.txt"/>
-                 <exclude NAME="src/resources/org/apache/cassandra/index/sasi/analyzer/filter/*.txt"/>
-                 <exclude name="test/conf/cdc.yaml"/>
-                 <exclude name="test/conf/commitlog*.yaml"/>
-                 <exclude name="test/conf/system_keyspaces_directory.yaml"/>
-                 <exclude name="test/conf/sstableloader_with_encryption.yaml"/>
-                 <exclude name="test/conf/unit-test-conf/test-native-port.yaml"/>
-                 <exclude name="test/resources/data/config/YamlConfigurationLoaderTest/*.yaml"/>
-                 <exclude name="tools/cqlstress-*.yaml"/>
-                 <!-- test data -->
-                 <exclude name="pylib/cqlshlib/test/test_authproviderhandling_config/*"/>
-                 <exclude name="test/**/cassandra*.conf"/>
-                 <exclude name="test/**/*.csv"/>
-                 <exclude name="test/**/*.txt"/>
-                 <exclude name="test/data/**/*.adler32"/>
-                 <exclude name="test/data/**/*.crc32"/>
-                 <exclude name="test/data/**/CommitLog-*.log"/>
-                 <exclude name="test/data/**/*.bin"/>
-                 <exclude name="test/data/**/*.db"/>
-                 <exclude name="test/data/**/*.sha1"/>
-                 <exclude name="test/data/CASSANDRA-15313/lz4-jvm-crash-failure.txt"/>
-                 <exclude name="test/data/jmxdump/cassandra-*-jmx.yaml"/>
+                 <exclude name="**/.asf.yaml"/>
+                 <exclude name="**/.github/pull_request_template.md"/>
+                 <exclude name="**/ide/**/*"/>
+                 <exclude name="**/metrics-reporter-config-sample.yaml"/>
+                 <exclude name="**/cassandra.yaml"/>
+                 <exclude name="**/cassandra-murmur.yaml"/>
+                 <exclude name="**/cassandra-seeds.yaml"/>
+                 <exclude name="**/harry-generic.yaml"/>
+                 <exclude name="**/doc/antora.yml"/>
+                 <exclude name="**/test/conf/cassandra.yaml"/>
+                 <exclude name="**/test/conf/cassandra-old.yaml"/>
+                 <exclude name="**/test/conf/cassandra-with-sstable-compressor.yaml"/>
+                 <exclude name="**/test/conf/cassandra-converters-special-cases-old-names.yaml"/>
+                 <exclude name="**/test/conf/cassandra-converters-special-cases.yaml"/>
+                 <exclude name="**/test/conf/cassandra_encryption.yaml"/>
+                 <exclude name="**/test/conf/cdc.yaml"/>
+                 <exclude name="**/test/conf/commitlog_compression_LZ4.yaml"/>
+                 <exclude name="**/test/conf/commitlog_compression_Zstd.yaml"/>
+                 <exclude name="**/test/conf/system_keyspaces_directory.yaml"/>
+                 <exclude name="**/test/conf/sstableloader_with_encryption.yaml"/>
+                 <exclude name="**/test/conf/unit-test-conf/test-native-port.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-4.1-jmx.yaml"/>
+                 <exclude name="**/test/data/config/version=3.0.0-alpha1.yml"/>
+                 <exclude name="**/test/data/config/version=3.11.0.yml"/>
+                 <exclude name="**/test/data/config/version=4.0-alpha1.yml"/>
+                 <exclude name="**/test/resources/data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml"/>
+                 <exclude name="**/tools/cqlstress-counter-example.yaml"/>
+                 <exclude name="**/tools/cqlstress-example.yaml"/>
+                 <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
+                 <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
                  <!-- Documentation files -->
                  <exclude name=".github/pull_request_template.md"/>
                  <exclude NAME="doc/modules/**/*"/>

@@ -646,6 +646,50 @@ commitlog_disk_access_mode: legacy
 #
 # flush_compression: fast
 
+# Defines the default compression used on tables when none is specified
+# in the CQL command.
+#
+# The class_name is the compressor class name. It may be one of the aliases,
+# the class name of a system ICompressor implementation, or fully qualified
+# name of a class that implements ICompressor and has a public static 'create' method that accepts
+# a Map<String, String> argument and returns an instance of the class.
+#
+# class aliases are:
+#  Alias    System compressor impl.
+#  deflate  DeflateCompressor
+#  lz4      LZ4Compressor
+#  none     (null) -- compresson disabled
+#  noop     NoopCompressor
+#  snappy   SnappyCompressor
+#  zstd     ZstdCompressor
+#
+# The standard parameters are any required or optional parameter for the instantiation of the
+# specified class, or one of the following standard parameters:
+# Parameter             Usage
+# enabled               Disables compression if set to false. Defaults to true.
+# chunk_length          The length of the compresson chunks, must include KiB, MiB or GiB suffix, defaults to 16KiB.
+# chunk_length_in_kb    Same as above but expects an integer.
+# min_compress_ratio    The minimal acceptable compression, must greater than or equal to 1.0.
+# max_compressed_length The maximum size for a compressed block. Must be less than or equal to chunk_length.
+#                       Must include KiB, MiB or GiB suffix. Defaults to Integer.MAX_VALUE
+#
+# Only one of the min_compress_ratio and max_compressed_length options can be specified.
+# They are mathematically related in that 'chunk_length / max_compressed_length = min_compress_ratio'.
+# If neither option is specified a min_compress_ratio of 0.0 and a max_compressed_length of
+# Integer.MAX_VALUE KB is the default.
+#
+# Only one of chunk_length or chunk_length_in_kb may be specified.
+#
+# Additional class specific parameters may be added to the parameters section. The value of the class specific
+# parameter must be a string.
+#
+#sstable_compression:
+#   - class_name: lz4
+#     parameters:
+#       - enabled: "true"
+#         chunk_length: 16KiB
+#         max_compressed_length: 16KiB
+
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
 seed_provider:
