@@ -37,7 +37,7 @@ import accord.primitives.Txn;
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config.LWTStrategy;
-import org.apache.cassandra.config.Config.PartitionRepairStrategy;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -189,10 +189,11 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     @Override
     public void repairPartition(DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
     {
+        NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord
-            || DatabaseDescriptor.getPartitionRepairStrategy() == PartitionRepairStrategy.accord)
+            || nonSerialWriteStrategy.writesThroughAccord)
         {
-            ConsistencyLevel commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().commitCLForStrategy(replicaPlan.get().consistencyLevel());
+            ConsistencyLevel commitConsistencyLevel = nonSerialWriteStrategy.commitCLForStrategy(replicaPlan.get().consistencyLevel());
             Collection<PartitionUpdate> partitionUpdates = Mutation.merge(mutations.values()).getPartitionUpdates();
             checkState(partitionUpdates.size() == 1, "Expect only one PartitionUpdate");
             PartitionUpdate update = partitionUpdates.iterator().next();

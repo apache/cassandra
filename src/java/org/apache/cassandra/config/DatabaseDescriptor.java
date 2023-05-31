@@ -70,7 +70,6 @@ import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.LWTStrategy;
-import org.apache.cassandra.config.Config.PartitionRepairStrategy;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -968,8 +967,6 @@ public class DatabaseDescriptor
         {
             if(!conf.accord_transactions_enabled)
                 throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
-            if (conf.partition_repair_strategy != PartitionRepairStrategy.accord)
-                throw new ConfigurationException("If Accord is used for LWTs than partition repair strategy needs to be Accord for interoperability");
             if (conf.non_serial_write_strategy == Config.NonSerialWriteStrategy.normal)
                 throw new ConfigurationException("If Accord is used for LWTs than regular writes needs to be routed through Accord for interoperability");
         }
@@ -2996,12 +2993,6 @@ public class DatabaseDescriptor
     {
         return conf.non_serial_write_strategy;
     }
-
-    public static PartitionRepairStrategy getPartitionRepairStrategy()
-    {
-        return conf.partition_repair_strategy;
-    }
-
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
     {
         if (maxRequestDataInFlightInBytes == -1)

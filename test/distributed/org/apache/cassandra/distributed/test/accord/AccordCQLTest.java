@@ -84,8 +84,7 @@ public class AccordCQLTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
-                                                                                    .set("non_serial_write_strategy", "migration")
-                                                                                    .set("partition_repair_strategy", "accord")), 2);
+                                                                                    .set("non_serial_write_strategy", "migration")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 

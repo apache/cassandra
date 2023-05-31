@@ -1089,7 +1089,6 @@ public class Config
 
     public LWTStrategy lwt_strategy = LWTStrategy.migration;
     public NonSerialWriteStrategy non_serial_write_strategy = NonSerialWriteStrategy.normal;
-    public PartitionRepairStrategy partition_repair_strategy = PartitionRepairStrategy.normal;
 
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
@@ -1186,8 +1185,8 @@ public class Config
         exception
     }
 
-    // TODO review With three different configuration optiosn, what does a unified interface look like?
-    // Seems at least partition repair strategy could be inferred from othered
+    // TODO review should NonSerialWriteStrategy and LWTStrategy be collapsed into the same thing or should
+    // we allow NonSerialWriteStrategy to be separate so we can add an unsafe interoperability mode?
     /*
      * How to pick a consensus protocol for CAS
      * and serial read operations. Transaction statements
@@ -1217,6 +1216,14 @@ public class Config
      *
      * Accord will also use this configuration to determine what consistency level to perform its reads
      * at since it will need to be able to read data written at non-SERIAL consistency levels.
+     *
+     * BlockingReadRepair will also use this configuration to determine how BRR mutations are applied. For migration
+     * and accord the BRR mutations will be applied as Accord transactions so that BRR doesn't expose Accord to
+     * uncommitted Accord data that is being RRed. This can occur when Accord has applied a transaction at some, but not
+     * all replica since Accord defaults to asynchronous commit.
+     *
+     * By routing repairs through Accord it is guaranteed that the Accord derived contents of the repair have already been applied at any
+     * replica where Accord applies the transaction. This also prevents BRR from breaking atomicity of Accord writes.
      *
      * If they are not written through Accord then reads through Accord will be required to occur at
      * consistency level compatible with the non-serial writes preventing single replica reads from being performed
@@ -1283,25 +1290,6 @@ public class Config
 
             return consistencyLevel;
         }
-    }
-
-    /**
-     * Blocking partition repair from regular quorum reads can read data written by Accord
-     * at some replicas from replicas that are further ahead applying transactions compared to other replicas.
-     *
-     * This can cause recovery coordinators to recover a transaction incorrectly by reading the data from the transaction being already completed
-     * (or subsequent transactions) and producing the wrong writes at other replicas that have not yet applied the transaction.
-     *
-     * By routing repairs through Accord it is guaranteed that the Accord derived contents of the repair have already been applied at any
-     * replica where Accord applies the transaction. This also prevents BRR from breaking atomicity of Accord writes.
-     */
-    public enum PartitionRepairStrategy
-    {
-        // Apply blocking partition repairs normally as mutations via StorageProxy
-        normal,
-        // Apply blocking partitions repairs via Accord transactions to support interoperability
-        // with Accord reads and writes to the same data
-        accord
     }
 
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{

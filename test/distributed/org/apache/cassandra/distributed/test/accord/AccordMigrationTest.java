@@ -146,8 +146,7 @@ public class AccordMigrationTest extends AccordTestBase
         AccordTestBase.setupCluster(builder ->
                                         builder.appendConfig(config ->
                                                              config.set("paxos_variant", PaxosVariant.v2.name())
-                                                                   .set("non_serial_write_strategy", "migration")
-                                                                   .set("partition_repair_strategy", "accord")),
+                                                                   .set("non_serial_write_strategy", "migration")),
                                     3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(partitioner);
