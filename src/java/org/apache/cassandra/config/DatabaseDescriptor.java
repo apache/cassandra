@@ -241,6 +241,8 @@ public class DatabaseDescriptor
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
     private static StorageCompatibilityMode storageCompatibilityMode = CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.getEnum(true, StorageCompatibilityMode.class);
 
+    private static ParameterizedClass sstableCompression;
+
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
@@ -974,6 +976,8 @@ public class DatabaseDescriptor
         Paxos.setPaxosVariant(conf.paxos_variant);
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
+
+        sstableCompression = conf.sstable_compression;
 
         logInitializationOutcome(logger);
 
@@ -2666,11 +2670,21 @@ public class DatabaseDescriptor
         conf.flush_compression = compression;
     }
 
-    /**
-     * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
-     * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
-     * more, depending on how soon the sync policy stops all writing threads.
-     */
+    public static ParameterizedClass getSSTableCompression()
+    {
+        return sstableCompression;
+    }
+
+    public static void setSSTableCompression(ParameterizedClass compressor)
+    {
+        conf.sstable_compression = compressor;
+    }
+
+   /**
+    * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
+    * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
+    * more, depending on how soon the sync policy stops all writing threads.
+    */
     public static int getCommitLogMaxCompressionBuffersInPool()
     {
         return conf.commitlog_max_compression_buffers_in_pool;
