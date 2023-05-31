@@ -536,8 +536,7 @@ public class StorageAttachedIndex implements Index
     public Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
     {
         // For now, only support ANN
-        if (!(restriction instanceof SingleColumnRestriction.AnnRestriction))
-            return null;
+        assert restriction instanceof SingleColumnRestriction.AnnRestriction;
 
         Preconditions.checkState(indexContext.isVector());
 

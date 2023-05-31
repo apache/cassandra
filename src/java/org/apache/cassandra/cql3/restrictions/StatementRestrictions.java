@@ -871,7 +871,7 @@ public class StatementRestrictions
                            .anyMatch(p -> ((SingleRestriction) p).isEQ());
     }
 
-    public List<SingleRestriction> getPostQueryOrderingRestrictions()
+    public List<SingleRestriction> getNonClusteredOrderingRestrictions()
     {
         List<SingleRestriction> annRestrictions = null;
         if (partitionKeyRestrictions instanceof PartitionKeySingleRestrictionSet)

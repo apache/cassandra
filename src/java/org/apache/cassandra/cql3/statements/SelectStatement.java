@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.restrictions.*;
@@ -1074,9 +1073,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             // If we order post-query, the sorted column needs to be in the ResultSet for sorting,
             // even if we don't ultimately ship them to the client (CASSANDRA-4911).
-            Map<ColumnMetadata, Boolean> orderingColumns = getOrderingColumns(orderings);
-            Set<ColumnMetadata> resultSetOrderingColumns = restrictions.keyIsInRelation() ? orderingColumns.keySet()
-                                                                                          : Collections.emptySet();
+            Map<ColumnMetadata, Ordering> orderingColumns = getOrderingColumns(orderings);
+            Set<ColumnMetadata> resultSetOrderingColumns = getResultSetOrdering(restrictions, orderingColumns);
 
             Selection selection = prepareSelection(table,
                                                    selectables,
@@ -1101,23 +1099,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             ColumnComparator<List<ByteBuffer>> orderingComparator = null;
             boolean isReversed = false;
 
-            if (!orderingColumns.isEmpty()) // ORDER BY syntax
+            if (!orderingColumns.isEmpty())
             {
                 assert !forView;
-                verifyOrderingIsAllowed(restrictions);
+                verifyOrderingIsAllowed(restrictions, orderingColumns);
                 orderingComparator = getOrderingComparator(selection, restrictions, orderingColumns);
                 isReversed = isReversed(table, orderingColumns, restrictions);
                 if (isReversed)
-                    orderingComparator = orderingComparator == null ? null : orderingComparator.reverse();
-            }
-            else // for reorder with index restrictions
-            {
-                List<SingleRestriction> postQueryOrderingRestrictions = restrictions.getPostQueryOrderingRestrictions();
-                if (restrictions.usesSecondaryIndexing() && !postQueryOrderingRestrictions.isEmpty())
-                {
-                    Preconditions.checkState(postQueryOrderingRestrictions.size() == 1);
-                    orderingComparator = getIndexRestrictinOrderingComparable(selection, postQueryOrderingRestrictions.get(0));
-                }
+                    orderingComparator = orderingComparator.reverse();
             }
 
             checkDisjunctionIsSupported(table, restrictions);
@@ -1135,6 +1124,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        orderingComparator,
                                        prepareLimit(bindVariables, limit, ks, limitReceiver()),
                                        prepareLimit(bindVariables, perPartitionLimit, ks, perPartitionLimitReceiver()));
+        }
+
+        private Set<ColumnMetadata> getResultSetOrdering(StatementRestrictions restrictions, Map<ColumnMetadata, Ordering> orderingColumns)
+        {
+            if (restrictions.keyIsInRelation() || orderingColumns.values().stream().anyMatch(o -> o.expression.hasNonClusteredOrdering()))
+                return orderingColumns.keySet();
+            return Collections.emptySet();
         }
 
         private Selection prepareSelection(TableMetadata table,
@@ -1185,22 +1181,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
          * Returns the columns used to order the data.
          * @return the columns used to order the data.
          */
-        private Map<ColumnMetadata, Boolean> getOrderingColumns(List<Ordering> orderings)
+        private Map<ColumnMetadata, Ordering> getOrderingColumns(List<Ordering> orderings)
         {
-            if (orderings.isEmpty())
-                return Collections.emptyMap();
-
-            Map<ColumnMetadata, Boolean> orderingColumns = new LinkedHashMap<>();
-            for (Ordering ordering : orderings)
-            {
-                if (ordering.expression instanceof Ordering.SingleColumn)
-                {
-                    ColumnMetadata column = ((Ordering.SingleColumn) ordering.expression).column;
-                    boolean reversed = (ordering.direction == Ordering.Direction.DESC);
-                    orderingColumns.put(column, reversed);
-                }
-            }
-            return orderingColumns;
+            return orderings.stream()
+                            .collect(Collectors.toMap(o -> o.expression.getColumn(),
+                                                      java.util.function.Function.identity()));
         }
 
         private List<Ordering> getOrderings(TableMetadata table)
@@ -1247,8 +1232,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             return prepLimit;
         }
 
-        private static void verifyOrderingIsAllowed(StatementRestrictions restrictions) throws InvalidRequestException
+        private static void verifyOrderingIsAllowed(StatementRestrictions restrictions, Map<ColumnMetadata, Ordering> orderingColumns) throws InvalidRequestException
         {
+            if (orderingColumns.values().stream().anyMatch(o -> o.expression.hasNonClusteredOrdering()))
+                return;
             checkFalse(restrictions.usesSecondaryIndexing(), "ORDER BY with 2ndary indexes is not supported.");
             checkFalse(restrictions.isKeyRange(), "ORDER BY is only supported when the partition key is restricted by an EQ or an IN.");
         }
@@ -1336,10 +1323,18 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
 
         private ColumnComparator<List<ByteBuffer>> getOrderingComparator(Selection selection,
-                                                                   StatementRestrictions restrictions,
-                                                                   Map<ColumnMetadata, Boolean> orderingColumns)
+                                                                         StatementRestrictions restrictions,
+                                                                         Map<ColumnMetadata, Ordering> orderingColumns)
                                                                    throws InvalidRequestException
         {
+            List<SingleRestriction> nonClustered = restrictions.getNonClusteredOrderingRestrictions();
+            if (!nonClustered.isEmpty())
+            {
+                assert nonClustered.size() == 1;
+                SingleRestriction restriction = nonClustered.get(0);
+                return new IndexColumnComparator<>(restriction, selection.getOrderingIndex(restriction.getFirstColumn()));
+            }
+
             if (!restrictions.keyIsInRelation())
                 return null;
 
@@ -1355,25 +1350,23 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                     : new CompositeComparator(sorters, idToSort);
         }
 
-        private ColumnComparator<List<ByteBuffer>> getIndexRestrictinOrderingComparable(Selection selection, SingleRestriction restriction)
-        throws InvalidRequestException
+        private boolean isReversed(TableMetadata table, Map<ColumnMetadata, Ordering> orderingColumns, StatementRestrictions restrictions) throws InvalidRequestException
         {
-            ColumnMetadata orderingColumn = restriction.getFirstColumn();
-            return new IndexColumnComparator<>(restriction, selection.getOrderingIndex(orderingColumn));
-        }
+            // FIXME exception for ANN until we properly support general ORDER BY
+            if (orderingColumns.values().stream().anyMatch(o -> o.expression.hasNonClusteredOrdering()))
+                return false;
 
-        private boolean isReversed(TableMetadata table, Map<ColumnMetadata, Boolean> orderingColumns, StatementRestrictions restrictions) throws InvalidRequestException
-        {
             Boolean[] reversedMap = new Boolean[table.clusteringColumns().size()];
             int i = 0;
-            for (Map.Entry<ColumnMetadata, Boolean> entry : orderingColumns.entrySet())
+            for (var entry : orderingColumns.entrySet())
             {
                 ColumnMetadata def = entry.getKey();
-                boolean reversed = entry.getValue();
+                Ordering ordering = entry.getValue();
+                boolean reversed = ordering.direction == Ordering.Direction.DESC;
 
+                // TODO move this to verifyOrderingIsAllowed?
                 checkTrue(def.isClusteringColumn(),
                           "Order by is currently only supported on the clustered columns of the PRIMARY KEY, got %s", def.name);
-
                 while (i != def.position())
                 {
                     checkTrue(restrictions.isColumnRestrictedByEq(table.clusteringColumns().get(i++)),
@@ -1545,7 +1538,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         private final SingleRestriction restriction;
         private final int columnIndex;
 
-        // maybe cached in prepared statement
+        // TODO maybe cache in prepared statement
         public IndexColumnComparator(SingleRestriction restriction, int columnIndex)
         {
             this.restriction = restriction;
@@ -1562,9 +1555,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         public Comparator<List<ByteBuffer>> prepareFor(TableMetadata table, QueryOptions options)
         {
             Index index = restriction.findSupportingIndex(IndexRegistry.obtain(table));
-            if (index == null)
-                return null;
-
+            assert index != null;
             return index.getPostQueryOrdering(restriction, columnIndex, options);
         }
 
