@@ -127,23 +127,9 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public AsyncChain<UnresolvedData> read(boolean digestRead, boolean filter, boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
+    public AsyncChain<UnresolvedData> read(boolean digestRead, boolean filterPartition, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
-        DecoratedKey key = command.partitionKey();
-        TableId tableId = command.metadata().id;
-        AccordClientRequestMetrics metrics = isForWriteTxn ? accordWriteMetrics : accordReadMetrics;
-        TableMigrationState tms = ConsensusTableMigrationState.getTableMigrationState(executeAt.epoch(), tableId);
-
-        // This should only rarely occur when coordinators start a transaction in a migrating range
-        // because they haven't yet updated their cluster metadata.
-        // It would be harmless to do the read, but we can respond faster skipping it
-        // and get the transaction on the correct protocol
-//        if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(tms, key))
-//        {
-//            metrics.migrationSkippedReads.mark();
-//            return AsyncChains.success(TxnData.emptyPartition(name, command));
-//        }
 
         // TODO (required, safety): before release, double check reasoning that this is safe
 //        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
@@ -152,17 +138,18 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
-        return performLocalRead(command.withNowInSecAndDigestRead(nowInSeconds, digestRead), AccordService.instance().nodeId(), filter);
+        return performLocalRead(command.withNowInSecAndDigestRead(nowInSeconds, digestRead), AccordService.instance().nodeId(), filterPartition);
     }
 
-    private AsyncChain<UnresolvedData> performLocalRead(SinglePartitionReadCommand command, Id id, boolean filter)
+    private AsyncChain<UnresolvedData> performLocalRead(SinglePartitionReadCommand command, Id id, boolean filterPartition)
     {
         return AsyncChains.ofCallable(Stage.READ.executor(), () ->
                      {
                          try (ReadExecutionController controller = command.executionController();
                               UnfilteredPartitionIterator unfilteredIterator = command.executeLocally(controller))
                          {
-                             if (filter)
+                             // Can filter here if the coordinator doesn't need to resolve the results
+                             if (filterPartition)
                              {
                                 try (PartitionIterator filteredIterator = UnfilteredPartitionIterators.filter(unfilteredIterator, command.nowInSec()))
                                 {
@@ -180,7 +167,6 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                              {
                                  TxnUnresolvedReadResponses result = new TxnUnresolvedReadResponses(1);
                                  result.add(new UnresolvedDataEntry(name, command.createResponse(unfilteredIterator, controller.getRepairedDataInfo()), command.nowInSec(), id));
-                                 logger.info("Executing " + result);
                                  return result;
                              }
                          }

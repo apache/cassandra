@@ -204,38 +204,9 @@ public abstract class AccordTestBase extends TestBaseImpl
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.AccordMigrationRejects.AccordWrite"));
     }
 
-    protected static int getAccordMigrationSkippedReads()
-    {
-        // Skipped reads can occur at any node so sum them
-        long sum = 0;
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationSkippedReads.AccordWrite");
-        return Ints.checkedCast(sum);
-    }
-
     protected static int getKeyMigrationCount(int coordinatorIndex)
     {
         return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.Table.KeyMigrationLatency.all"));
-    }
-
-    protected static int getWriteMigrationReadCount()
-    {
-        // Migration reads can occur at any node when Accord picks where to read from
-        // So add up all of them
-        long sum = 0;
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationReadLatency.AccordWrite");
-        return Ints.checkedCast(sum);
-    }
-
-    protected static int getReadMigrationReadCount()
-    {
-        // Migration reads can occur at any node when Accord picks where to read from
-        // So add up all of them
-        long sum = 0;
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationReadLatency.AccordRead");
-        return Ints.checkedCast(sum);
     }
 
     protected static int getCasWriteBeginRejects(int coordinatorIndex)

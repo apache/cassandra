@@ -203,7 +203,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         List<AsyncChain<UnresolvedData>> results = new ArrayList<>();
         // If not resolving results at coordinator we can filter as part of the read
         boolean filterPartitions = cassandraConsistencyLevel == null;
-        forEachWithKey((PartitionKey) key, read -> results.add(read.read(digestRead, cassandraConsistencyLevel == null, kind.isWrite(), safeStore, executeAt)));
+        forEachWithKey((PartitionKey) key, read -> results.add(read.read(digestRead, cassandraConsistencyLevel == null, executeAt)));
 
         if (results.isEmpty())
             // Result type must match everywhere
