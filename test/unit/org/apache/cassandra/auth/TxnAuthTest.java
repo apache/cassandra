@@ -47,11 +47,10 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class TxnAuthTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpAuthAndAccord() throws Exception
+    public static void setUpAuthAndAccord()
     {
         CassandraRelevantProperties.ENABLE_NODELOCAL_QUERIES.setBoolean(true);
 
-        SchemaLoader.prepareServer();
         IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         SchemaLoader.setupAuth(roleManager,
                                new AuthTestUtils.LocalPasswordAuthenticator(),
