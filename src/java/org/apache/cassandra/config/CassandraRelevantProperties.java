@@ -200,6 +200,8 @@ public enum CassandraRelevantProperties
     DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", convertToString(TimeUnit.MINUTES.toMillis(5))),
     DROP_OVERSIZED_READ_REPAIR_MUTATIONS("cassandra.drop_oversized_readrepair_mutations"),
     DTEST_API_LOG_TOPOLOGY("cassandra.dtest.api.log.topology"),
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
     ENABLE_DC_LOCAL_COMMIT("cassandra.enable_dc_local_commit", "true"),
     /**
      * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
@@ -262,6 +264,11 @@ public enum CassandraRelevantProperties
      * Default is absolute path to lib directory.
      */
     JAVA_LIBRARY_PATH("java.library.path"),
+    /**
+     * Controls the distributed garbage collector lease time for JMX objects.
+     * Should only be set by in-jvm dtests.
+     */
+    JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST("java.rmi.dgc.leaseValue"),
     /**
      * The value of this property represents the host name string
      * that should be associated with remote stubs for locally created remote objects,
@@ -421,6 +428,11 @@ public enum CassandraRelevantProperties
     /** Platform word size sun.arch.data.model. Examples: "32", "64", "unknown"*/
     SUN_ARCH_DATA_MODEL("sun.arch.data.model"),
     SUN_JAVA_COMMAND("sun.java.command", ""),
+    /**
+     * Controls the JMX server threadpool keap-alive time.
+     * Should only be set by in-jvm dtests.
+     */
+    SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME("sun.rmi.transport.tcp.threadKeepAliveTime"),
     SUN_STDERR_ENCODING("sun.stderr.encoding"),
     SUN_STDOUT_ENCODING("sun.stdout.encoding"),
     SUPERUSER_SETUP_DELAY_MS("cassandra.superuser_setup_delay_ms", "10000"),

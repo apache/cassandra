@@ -987,7 +987,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         completeInitialization();
     }
 
-    private void completeInitialization()
+    @VisibleForTesting
+    public void completeInitialization()
     {
         if (!initialized)
             registerMBeans();

@@ -30,10 +30,15 @@ public class ReflectionUtils
 
     public static Field getModifiersField() throws NoSuchFieldException
     {
+        return getField(Field.class, "modifiers");
+    }
+
+    public static Field getField(Class<?> clazz, String fieldName) throws NoSuchFieldException
+    {
         // below code works before Java 12
         try
         {
-            return Field.class.getDeclaredField("modifiers");
+            return clazz.getDeclaredField(fieldName);
         }
         catch (NoSuchFieldException e)
         {
@@ -42,10 +47,10 @@ public class ReflectionUtils
             {
                 Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
                 getDeclaredFields0.setAccessible(true);
-                Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+                Field[] fields = (Field[]) getDeclaredFields0.invoke(clazz, false);
                 for (Field field : fields)
                 {
-                    if ("modifiers".equals(field.getName()))
+                    if (fieldName.equals(field.getName()))
                     {
                         return field;
                     }

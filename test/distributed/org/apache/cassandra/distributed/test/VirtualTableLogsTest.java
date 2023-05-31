@@ -27,6 +27,7 @@ import ch.qos.logback.classic.Level;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.db.virtual.LogMessagesTable.LogMessage;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
@@ -68,12 +69,17 @@ public class VirtualTableLogsTest extends TestBaseImpl
     public void testMultipleAppendersFailToStartNode() throws Throwable
     {
         LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest_with_vtable_appender_invalid.xml");
+
+        // NOTE: Because cluster startup is expected to fail in this case, and can leave things in a weird state
+        // for the next state, create without starting, and set failure as shutdown to false,
+        // so the try-with-resources can close instances properly.
         try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender_invalid.xml");
-             Cluster ignored = Cluster.build(1)
-                                      .withConfig(c -> c.with(Feature.values()))
-                                      .start();
-             )
+             Cluster cluster = Cluster.build(1)
+                                      .withConfig(c -> c.with(Feature.values())
+                                                        .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
+                                      .createWithoutStarting())
         {
+            cluster.startup();
             fail("Node should not start as there is supposed to be invalid logback configuration file.");
         }
         catch (IllegalStateException ex)
