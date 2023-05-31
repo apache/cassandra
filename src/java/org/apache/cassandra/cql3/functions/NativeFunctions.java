@@ -78,6 +78,14 @@ public class NativeFunctions
     }
 
     /**
+     * @return all the registered pre-built functions.
+     */
+    public Collection<NativeFunction> getFunctions()
+    {
+        return functions.values();
+    }
+
+    /**
      * Returns all the registered functions factories with the specified name.
      *
      * @param name a function name
