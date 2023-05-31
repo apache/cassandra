@@ -42,6 +42,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.rmi.RMIJRMPServerImpl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -130,7 +132,10 @@ import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -139,6 +144,7 @@ import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCassandraInetAddressAndPort;
@@ -147,11 +153,19 @@ import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
+    private static final int RMI_KEEPALIVE_TIME = 1000;
     private Logger inInstancelogger; // Defer creation until running in the instance context
     public final IInstanceConfig config;
     private volatile boolean initialized = false;
     private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
+    private JMXConnectorServer jmxConnectorServer;
+    private JMXServerUtils.JmxRegistry registry;
+    private RMIJRMPServerImpl jmxRmiServer;
+    private MBeanWrapper.InstanceMBeanWrapper wrapper;
+    private RMIClientSocketFactoryImpl clientSocketFactory;
+    private CollectingRMIServerSocketFactoryImpl serverSocketFactory;
+    private IsolatedJmx isolatedJmx;
 
     // should never be invoked directly, so that it is instantiated on other class loader;
     // only visible for inheritance
@@ -502,6 +516,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                                                                                     config.networkTopology(), config.broadcastAddress());
                 DistributedTestSnitch.assign(config.networkTopology());
 
+                if (config.has(JMX))
+                    startJmx();
+
                 DatabaseDescriptor.daemonInitialization();
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
@@ -622,6 +639,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
 
         initialized = true;
+    }
+
+    private void startJmx()
+    {
+        isolatedJmx = new IsolatedJmx(this, inInstancelogger);
+        isolatedJmx.startJmx();
+    }
+
+    private void stopJmx() throws NoSuchFieldException, InterruptedException, IllegalAccessException
+    {
+        if (config.has(JMX))
+        {
+            isolatedJmx.stopJmx();
+        }
     }
 
     // Update the messaging versions for all instances
@@ -815,6 +846,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES));
+            
+            error = parallelRun(error, executor, this::stopJmx);
 
             Throwables.maybeFail(error);
         }).apply(isolatedExecutor);

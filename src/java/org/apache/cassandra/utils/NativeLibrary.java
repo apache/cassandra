@@ -39,10 +39,12 @@ import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.WINDOWS;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.AIX;
 
+@Shared
 public final class NativeLibrary
 {
     private static final Logger logger = LoggerFactory.getLogger(NativeLibrary.class);
 
+    @Shared
     public enum OSType
     {
         LINUX,
