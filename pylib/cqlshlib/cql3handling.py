@@ -513,7 +513,7 @@ def cf_prop_val_completer(ctxt, cass):
     exist_opts = ctxt.get_binding('propname')
     this_opt = exist_opts[-1]
     if this_opt == 'compression':
-        return ["{'sstable_compression': '"]
+        return ["{'class': '"]
     if this_opt == 'compaction':
         return ["{'class': '"]
     if this_opt == 'caching':
@@ -578,7 +578,7 @@ def cf_prop_val_mapval_completer(ctxt, cass):
             return [Hint('<NONE|ROW|CELL>')]
         return [Hint('<option_value>')]
     elif opt == 'compression':
-        if key == 'sstable_compression':
+        if key == 'class':
             return list(map(escape_value, CqlRuleSet.available_compression_classes))
         return [Hint('<option_value>')]
     elif opt == 'caching':
