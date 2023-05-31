@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -46,6 +48,8 @@ public abstract class FunctionFactory
     /** The accepted parameters. */
     protected final List<FunctionParameter> parameters;
 
+    private final int numParameters;
+
     /**
      * @param name the name of the built functions
      * @param parameters the accepted parameters
@@ -54,6 +58,7 @@ public abstract class FunctionFactory
     {
         this.name = FunctionName.nativeFunction(name);
         this.parameters = Arrays.asList(parameters);
+        this.numParameters = parameters.length;
     }
 
     public FunctionName name()
@@ -66,18 +71,22 @@ public abstract class FunctionFactory
      *
      * @param args the arguments in the function call for which the function is going to be built
      * @param receiverType the expected return type of the function call for which the function is going to be built
-     * @param receiverKs the name of the recevier keyspace
-     * @param receiverCf the name of the recevier table
-     * @return a function with a signature compatible with the specified function call
+     * @param receiverKeyspace the name of the recevier keyspace
+     * @param receiverTable the name of the recevier table
+     * @return a function with a signature compatible with the specified function call, or {@code null} if the factory
+     * cannot create a function for the supplied arguments but there might be another factory with the same
+     * {@link #name()} able to do it.
      */
+    @Nullable
     public NativeFunction getOrCreateFunction(List<? extends AssignmentTestable> args,
                                               AbstractType<?> receiverType,
-                                              String receiverKs,
-                                              String receiverCf)
+                                              String receiverKeyspace,
+                                              String receiverTable)
     {
         // validate the number of arguments
-        if (args.size() != parameters.size())
-            throw new InvalidRequestException("Invalid number of arguments for function " + this);
+        int numArgs = args.size();
+        if (numArgs != numParameters)
+            throw invalidNumberOfArgumentsException();
 
         // try to infer the types of the arguments
         List<AbstractType<?>> types = new ArrayList<>(args.size());
@@ -85,7 +94,7 @@ public abstract class FunctionFactory
         {
             AssignmentTestable arg = args.get(i);
             FunctionParameter parameter = parameters.get(i);
-            AbstractType<?> type = parameter.inferType(SchemaConstants.SYSTEM_KEYSPACE_NAME, arg, receiverType);
+            AbstractType<?> type = parameter.inferType(SchemaConstants.SYSTEM_KEYSPACE_NAME, arg, receiverType, types);
             if (type == null)
                 throw new InvalidRequestException(String.format("Cannot infer type of argument %s in call to " +
                                                                 "function %s: use type casts to disambiguate",
@@ -98,13 +107,20 @@ public abstract class FunctionFactory
         return doGetOrCreateFunction(types, receiverType);
     }
 
+    public InvalidRequestException invalidNumberOfArgumentsException()
+    {
+        return new InvalidRequestException("Invalid number of arguments for function " + this);
+    }
+
     /**
      * Returns a function compatible with the specified signature.
      *
      * @param argTypes the types of the function arguments
      * @param receiverType the expected return type of the function
-     * @return a function compatible with the specified signature
+     * @return a function compatible with the specified signature, or {@code null} if this cannot create a function for
+     * the supplied arguments but there might be another factory with the same {@link #name()} able to do it.
      */
+    @Nullable
     protected abstract NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType);
 
     @Override

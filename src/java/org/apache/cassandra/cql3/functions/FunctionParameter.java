@@ -18,10 +18,19 @@
 
 package org.apache.cassandra.cql3.functions;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.NumberType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.lang.String.format;
@@ -42,38 +51,60 @@ public interface FunctionParameter
      * @return the inferred data type of the parameter, or {@link null} it isn't possible to infer it
      */
     @Nullable
-    AbstractType<?> inferType(String keyspace, AssignmentTestable arg, @Nullable AbstractType<?> receiverType);
+    default AbstractType<?> inferType(String keyspace,
+                                      AssignmentTestable arg,
+                                      @Nullable AbstractType<?> receiverType,
+                                      List<AbstractType<?>> previousTypes)
+    {
+        return arg.getCompatibleTypeIfKnown(keyspace);
+    }
 
     void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType);
 
     /**
-     * @param type the accepted data type
+     * @return a function parameter definition that accepts values of string-based data types (text, varchar and ascii)
+     */
+    static FunctionParameter string()
+    {
+        return fixed(CQL3Type.Native.TEXT, CQL3Type.Native.VARCHAR, CQL3Type.Native.ASCII);
+    }
+
+    /**
+     * @param types the accepted data types
      * @return a function parameter definition that accepts values of a specific data type
      */
-    public static FunctionParameter fixed(AbstractType<?> type)
+    static FunctionParameter fixed(CQL3Type... types)
     {
+        assert types.length > 0;
+
         return new FunctionParameter()
         {
             @Override
-            public AbstractType<?> inferType(String keyspace, AssignmentTestable arg, AbstractType<?> receiverType)
+            public AbstractType<?> inferType(String keyspace,
+                                             AssignmentTestable arg,
+                                             @Nullable AbstractType<?> receiverType,
+                                             List<AbstractType<?>> previousTypes)
             {
                 AbstractType<?> inferred = arg.getCompatibleTypeIfKnown(keyspace);
-                return inferred != null ? inferred : type;
+                return inferred != null ? inferred : types[0].getType();
             }
 
             @Override
             public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
             {
-                if (argType.testAssignment(type) == NOT_ASSIGNABLE)
+                if (Arrays.stream(types).allMatch(t -> argType.testAssignment(t.getType()) == NOT_ASSIGNABLE))
                     throw new InvalidRequestException(format("Function %s requires an argument of type %s, " +
                                                              "but found argument %s of type %s",
-                                                             name, type, arg, argType.asCQL3Type()));
+                                                             name, this, arg, argType.asCQL3Type()));
             }
 
             @Override
             public String toString()
             {
-                return type.toString();
+                if (types.length == 1)
+                    return types[0].toString();
+
+                return '[' + Arrays.stream(types).map(Object::toString).collect(Collectors.joining("|")) + ']';
             }
         };
     }
@@ -82,12 +113,15 @@ public interface FunctionParameter
      * @param inferFromReceiver whether the parameter should try to use the function receiver to infer its data type
      * @return a function parameter definition that accepts columns of any data type
      */
-    public static FunctionParameter anyType(boolean inferFromReceiver)
+    static FunctionParameter anyType(boolean inferFromReceiver)
     {
         return new FunctionParameter()
         {
             @Override
-            public AbstractType<?> inferType(String keyspace, AssignmentTestable arg, AbstractType<?> receiverType)
+            public AbstractType<?> inferType(String keyspace,
+                                             AssignmentTestable arg,
+                                             @Nullable AbstractType<?> receiverType,
+                                             List<AbstractType<?>> previousTypes)
             {
                 AbstractType<?> type = arg.getCompatibleTypeIfKnown(keyspace);
                 return type == null && inferFromReceiver ? receiverType : type;
@@ -103,6 +137,36 @@ public interface FunctionParameter
             public String toString()
             {
                 return "any";
+            }
+        };
+    }
+
+    /**
+     * @return a function parameter definition that accepts values with the same type as the first parameter
+     */
+    static FunctionParameter sameAsFirst()
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public AbstractType<?> inferType(String keyspace,
+                                             AssignmentTestable arg,
+                                             @Nullable AbstractType<?> receiverType,
+                                             List<AbstractType<?>> previousTypes)
+            {
+                return previousTypes.get(0);
+            }
+
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                // nothing to do here, all types are accepted
+            }
+
+            @Override
+            public String toString()
+            {
+                return "same";
             }
         };
     }
