@@ -2287,20 +2287,37 @@ def main(cmdline, pkgpath):
     # create timezone based on settings, environment or auto-detection
     timezone = None
     if options.timezone or 'TZ' in os.environ:
-        try:
-            import pytz
-            if options.timezone:
-                try:
-                    timezone = pytz.timezone(options.timezone)
-                except Exception:
-                    sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
-            if 'TZ' in os.environ:
-                try:
-                    timezone = pytz.timezone(os.environ['TZ'])
-                except Exception:
-                    sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
-        except ImportError:
-            sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
+        if sys.version_info >= (3, 9):
+            try:
+                import zoneinfo
+                if options.timezone:
+                    try:
+                        timezone = zoneinfo.ZoneInfo(options.timezone)
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
+                if 'TZ' in os.environ:
+                    try:
+                        timezone = zoneinfo.ZoneInfo(os.environ['TZ'])
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
+            except ImportError:
+                sys.stderr.write("Warning: Timezone defined but unable to perform timezone conversion using 'zoneinfo' "
+                                 "module. Timestamps will be displayed in UTC timezone.\n\n")
+        else:
+            try:
+                import pytz
+                if options.timezone:
+                    try:
+                        timezone = pytz.timezone(options.timezone)
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
+                if 'TZ' in os.environ:
+                    try:
+                        timezone = pytz.timezone(os.environ['TZ'])
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
+            except ImportError:
+                sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
 
     # try auto-detect timezone if tzlocal is installed
     if not timezone:

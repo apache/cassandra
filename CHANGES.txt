@@ -1,4 +1,5 @@
 5.0
+ * Remove dependency on pytz library for setting CQLSH timezones on Python version >= 3.9 (CASSANDRA-17433)
  * Extend maximum expiration date (CASSANDRA-14227)
  * Add guardrail for partition tombstones and deprecate compaction_tombstone_warning_threshold (CASSANDRA-17194)
  * Print header and statistics for cassandra-stress output with arbitrary frequency (CASSANDRA-12972)
