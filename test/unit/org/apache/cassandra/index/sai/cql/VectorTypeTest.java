@@ -408,10 +408,23 @@ public class VectorTypeTest extends SAITester
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
 
+        // basic functionality
+        Vector<Float> q = vector(1f, 2f);
         execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
-        var result = execute("SELECT similarity_cosine(value, ?) FROM %s WHERe pk=0", vector(1f, 2f));
+        execute("SELECT similarity_cosine(value, value) FROM %s WHERE pk=0");
+
+        // type inference checks
+        var result = execute("SELECT similarity_cosine(value, ?) FROM %s WHERe pk=0", q);
         assertRows(result, row(1f));
-        result = execute("SELECT similarity_euclidean(value, ?) FROM %s WHERe pk=0", vector(1f, 2f));
+        result = execute("SELECT similarity_euclidean(value, ?) FROM %s WHERe pk=0", q);
         assertRows(result, row(1f));
+        execute("SELECT similarity_cosine(?, value) FROM %s WHERE pk=0", q);
+        assertThatThrownBy(() -> execute("SELECT similarity_cosine(?, ?) FROM %s WHERE pk=0", q, q))
+        .hasMessageContaining("Cannot infer type of argument ?");
+
+        // with explicit typing
+        execute("SELECT similarity_cosine((vector<float, 2>) ?, ?) FROM %s WHERE pk=0", q, q);
+        execute("SELECT similarity_cosine(?, (vector<float, 2>) ?) FROM %s WHERE pk=0", q, q);
+        execute("SELECT similarity_cosine((vector<float, 2>) ?, (vector<float, 2>) ?) FROM %s WHERE pk=0", q, q);
     }
 }

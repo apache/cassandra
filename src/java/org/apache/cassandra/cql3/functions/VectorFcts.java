@@ -45,7 +45,9 @@ public abstract class VectorFcts
 
     private static FunctionFactory similarity_function(String name, VectorSimilarityFunction f)
     {
-        return new FunctionFactory(name, FunctionParameter.anyType(true), FunctionParameter.sameAsFirst())
+        return new FunctionFactory(name,
+                                   FunctionParameter.sameAs(1, FunctionParameter.anyType(true)),
+                                   FunctionParameter.sameAs(0, FunctionParameter.anyType(true)))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)

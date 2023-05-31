@@ -88,8 +88,18 @@ public abstract class FunctionFactory
         if (numArgs != numParameters)
             throw invalidNumberOfArgumentsException();
 
-        // try to infer the types of the arguments
+        // Do a first pass trying to infer the types of the arguments idividually, without any context about the types
+        // of the other arguments. We don't do any validation during this first pass.
         List<AbstractType<?>> types = new ArrayList<>(args.size());
+        for (int i = 0; i < args.size(); i++)
+        {
+            AssignmentTestable arg = args.get(i);
+            FunctionParameter parameter = parameters.get(i);
+            types.add(parameter.inferType(SchemaConstants.SYSTEM_KEYSPACE_NAME, arg, receiverType, null));
+        }
+
+        // Do a second pass trying to infer the types of the arguments considering the types of other inferred types.
+        // We can validate the inferred types during this second pass.
         for (int i = 0; i < args.size(); i++)
         {
             AssignmentTestable arg = args.get(i);
@@ -101,7 +111,7 @@ public abstract class FunctionFactory
                                                                 arg, this));
             parameter.validateType(name, arg, type);
             type = type.udfType();
-            types.add(type);
+            types.set(i, type);
         }
 
         return doGetOrCreateFunction(types, receiverType);
