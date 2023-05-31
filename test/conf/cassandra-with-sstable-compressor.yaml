@@ -1,0 +1,110 @@
+
+cluster_name: Test Cluster
+# memtable_allocation_type: heap_buffers
+memtable_allocation_type: offheap_objects
+commitlog_sync: batch
+commitlog_sync_batch_window_in_ms: 1.0
+commitlog_segment_size: 5MiB
+commitlog_directory: build/test/cassandra/commitlog
+# commitlog_compression:
+# - class_name: LZ4Compressor
+cdc_raw_directory: build/test/cassandra/cdc_raw
+cdc_enabled: false
+hints_directory: build/test/cassandra/hints
+partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
+listen_address: 127.0.0.1
+storage_port: 7012
+ssl_storage_port: 17012
+start_native_transport: true
+native_transport_port: 9042
+column_index_size: 4KiB
+saved_caches_directory: build/test/cassandra/saved_caches
+data_file_directories:
+    - build/test/cassandra/data
+disk_access_mode: mmap
+seed_provider:
+    - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+      parameters:
+          - seeds: "127.0.0.1:7012"
+endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+dynamic_snitch: true
+server_encryption_options:
+    internode_encryption: none
+    keystore: conf/.keystore
+    keystore_password: cassandra
+    truststore: conf/.truststore
+    truststore_password: cassandra
+incremental_backups: true
+concurrent_compactors: 4
+compaction_throughput: 0MiB/s
+row_cache_class_name: org.apache.cassandra.cache.OHCProvider
+row_cache_size: 16MiB
+user_defined_functions_enabled: true
+scripted_user_defined_functions_enabled: true
+prepared_statements_cache_size: 1MiB
+corrupted_tombstone_strategy: exception
+stream_entire_sstables: true
+stream_throughput_outbound: 23841858MiB/s
+sasi_indexes_enabled: true
+materialized_views_enabled: true
+drop_compact_storage_enabled: true
+file_cache_enabled: true
+auto_hints_cleanup_enabled: true
+
+read_thresholds_enabled: true
+coordinator_read_size_warn_threshold: 1024KiB
+coordinator_read_size_fail_threshold: 4096KiB
+local_read_size_warn_threshold: 4096KiB
+local_read_size_fail_threshold: 8192KiB
+row_index_read_size_warn_threshold: 4096KiB
+row_index_read_size_fail_threshold: 8192KiB
+
+memtable:
+    configurations:
+        skiplist:
+            inherits: default
+            class_name: SkipListMemtable
+        skiplist_sharded:
+            class_name: ShardedSkipListMemtable
+            parameters:
+                serialize_writes: false
+                shards: 4
+        skiplist_sharded_locking:
+            inherits: skiplist_sharded
+            parameters:
+                serialize_writes: true
+        skiplist_remapped:
+            inherits: skiplist
+        test_fullname:
+            inherits: default
+            class_name: org.apache.cassandra.db.memtable.TestMemtable
+        test_shortname:
+            class_name: TestMemtable
+            parameters:
+                skiplist: true  # note: YAML must interpret this as string, not a boolean
+        test_empty_class:
+            class_name: ""
+        test_missing_class:
+            parameters:
+        test_unknown_class:
+            class_name: NotExisting
+        test_invalid_param:
+            class_name: SkipListMemtable
+            parameters:
+                invalid: throw
+        test_invalid_extra_param:
+            inherits: test_shortname
+            parameters:
+                invalid: throw
+        test_invalid_factory_method:
+            class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
+        test_invalid_factory_field:
+            class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField
+
+sstable_compression:
+    class_name: lz4
+    parameters:
+        lz4_compressor_type: high
+        lz4_high_compressor_level: "8"
+        chunk_length: 32MiB
+        min_compress_ratio: "1.5"

@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
+
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -124,7 +125,7 @@ public class SSTableReaderTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_MOVE_AND_OPEN),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED).compression(CompressionParams.DEFAULT),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED).compression(CompressionParams.defaultParams()),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED, true),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD_LOW_INDEX_INTERVAL)
                                                 .minIndexInterval(8)

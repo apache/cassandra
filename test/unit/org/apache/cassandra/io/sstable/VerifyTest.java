@@ -71,6 +71,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.reads.range.TokenUpdater;
+import org.apache.cassandra.schema.TestCompressionParamsFactory;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -116,7 +118,7 @@ public class VerifyTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        CompressionParams compressionParameters = CompressionParams.snappy(32768);
+        CompressionParams compressionParameters = TestCompressionParamsFactory.snappy(32768);
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setColumnIndexSizeInKiB(0);
 
