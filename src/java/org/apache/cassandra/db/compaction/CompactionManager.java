@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -151,6 +152,7 @@ public class CompactionManager implements CompactionManagerMBean
         MBeanWrapper.instance.registerMBean(instance, MBEAN_OBJECT_NAME);
     }
 
+    private Long lastCleanupTimeEpochSeconds = Instant.now().getEpochSecond();
     private final CompactionExecutor executor = new CompactionExecutor();
     private final ValidationExecutor validationExecutor = new ValidationExecutor();
     private final CompactionExecutor cacheCleanupExecutor = new CacheCleanupExecutor();
@@ -622,7 +624,7 @@ public class CompactionManager implements CompactionManagerMBean
         final Set<Range<Token>> fullRanges = replicas.onlyFull().ranges();
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
 
-        return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
+        AllSSTableOpStatus rtn = parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
@@ -667,6 +669,8 @@ public class CompactionManager implements CompactionManagerMBean
                 cfStore.pendingCleanups.decrementAndGet();
             }
         }, jobs, OperationType.CLEANUP);
+        lastCleanupTimeEpochSeconds = Instant.now().getEpochSecond();
+        return rtn;
     }
 
     public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
@@ -2409,5 +2413,9 @@ public class CompactionManager implements CompactionManagerMBean
     public int getPendingTablesToBeProcessed()
     {
         return pendingTablesToBeProcessed.get();
+    }
+
+    public Long getLastCleanupElapsedSeconds() {
+        return Instant.now().getEpochSecond() - lastCleanupTimeEpochSeconds;
     }
 }

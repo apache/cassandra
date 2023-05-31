@@ -58,6 +58,8 @@ public class CompactionMetrics
     public final Counter successfulCleanup;
     /** Pending tables to be processed as part of one of the operations [Cleanup|Scrub|Verify] up */
     public final Gauge<Integer> pendingTablesToBeProcessed;
+    /** To indicate if how many seconds have elapsed since the last cleanup **/
+    public final Gauge<Long> lastCleanupElapsedSeconds;
 
     /** Total number of compactions that have had sstables drop out of them */
     public final Counter compactionsReduced;
@@ -156,6 +158,14 @@ public class CompactionMetrics
             public Integer getValue()
             {
                 return CompactionManager.instance.getPendingTablesToBeProcessed();
+            }
+        });
+
+        lastCleanupElapsedSeconds = Metrics.register(factory.createMetricName("LastCleanupElapsedSeconds"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return CompactionManager.instance.getLastCleanupElapsedSeconds();
             }
         });
 
