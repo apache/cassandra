@@ -968,7 +968,7 @@ public class DatabaseDescriptor
             if(!conf.accord_transactions_enabled)
                 throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
             if (conf.non_serial_write_strategy == Config.NonSerialWriteStrategy.normal)
-                throw new ConfigurationException("If Accord is used for LWTs than regular writes needs to be routed through Accord for interoperability");
+                throw new ConfigurationException("If Accord is used for LWTs then regular writes needs to be routed through Accord for interoperability by setting non_serial_write_strategy to \"accord\" or \"migration\"");
         }
     }
 

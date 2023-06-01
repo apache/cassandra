@@ -100,7 +100,8 @@ public class ShortReadProtectionTest extends TestBaseImpl
         cluster = init(Cluster.build()
                               .withNodes(NUM_NODES)
                               .withConfig(config -> config.set("hinted_handoff_enabled", false)
-                                                          .set("lwt_strategy", "accord"))
+                                                          .set("lwt_strategy", "accord")
+                                                          .set("non_serial_write_strategy", "migration"))
                               .start());
         cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
     }
