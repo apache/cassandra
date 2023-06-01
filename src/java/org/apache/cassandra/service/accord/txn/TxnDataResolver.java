@@ -165,7 +165,7 @@ public class TxnDataResolver implements DataResolver
     // Very important to close the iterators so read repair works and generates repair mutations
    private static void processPartitionIterator(PartitionIterator partitionIterator, ReadCommand command, TxnData resolvedData, TxnDataName txnDataName)
     {
-        try (partitionIterator)
+        try (PartitionIterator closeIt = partitionIterator)
         {
             if (partitionIterator.hasNext())
             {
