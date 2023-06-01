@@ -47,6 +47,7 @@ import javax.management.ObjectName;
 import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
@@ -98,6 +99,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.codecs.CodecUtil;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
@@ -141,8 +143,11 @@ public abstract class SAITester extends CQLTester
 
     public static final PrimaryKey.Factory TEST_FACTORY = new PrimaryKey.Factory(EMPTY_COMPARATOR);
 
-    static
+    @BeforeClass
+    public static void setUpClass()
     {
+        CQLTester.setUpClass();
+
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
     }
@@ -778,13 +783,13 @@ public abstract class SAITester extends CQLTester
 
         Randomization()
         {
-            seed = Long.getLong("cassandra.test.random.seed", System.nanoTime());
+            seed = TEST_RANDOM_SEED.getLong(System.nanoTime());
             random = new Random(seed);
         }
 
         public void printSeedOnFailure()
         {
-            logger.error("Randomized test failed. To rerun test use -Dcassandra.test.random.seed=" + seed);
+            logger.error("Randomized test failed. To rerun test use -D{}={}", TEST_RANDOM_SEED.getKey(), seed);
         }
 
         public int nextInt()
