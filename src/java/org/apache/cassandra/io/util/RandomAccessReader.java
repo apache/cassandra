@@ -77,29 +77,27 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
      * Read a vector at the given (absolute) position.
      *
      * @param position the position to read from, in bytes
-     * @param vectorLength the dimensionality of the vector = number of floats to read
+     * @param dest the array to read into (always the entire array will be filled)
      *
      * May change the buffer position.
      */
-    public float[] vectorAt(long position, int vectorLength) throws IOException
+    public void readVectorAt(long position, float[] dest) throws IOException
     {
         assert position % Float.BYTES == 0 : "Position must be aligned to multiple of " + Float.BYTES;
         var bh = rebufferer.rebuffer(position);
         var floatBuffer = bh.floatBuffer();
         floatBuffer.position(Ints.checkedCast((position - bh.offset()) / Float.BYTES));
 
-        if (vectorLength > floatBuffer.remaining())
+        if (dest.length > floatBuffer.remaining())
         {
             // slow path -- desired slice is across region boundaries
-            var bb = ByteBuffer.allocate(Float.BYTES * vectorLength);
+            var bb = ByteBuffer.allocate(Float.BYTES * dest.length);
             reBufferAt(position);
             readFully(bb);
             floatBuffer = bb.asFloatBuffer();
         }
 
-        float[] vector = new float[vectorLength];
-        floatBuffer.get(vector);
-        return vector;
+        floatBuffer.get(dest);
     }
 
     @Override

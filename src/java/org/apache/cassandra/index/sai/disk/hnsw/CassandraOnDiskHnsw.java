@@ -137,6 +137,7 @@ public class CassandraOnDiskHnsw
         private final RandomAccessReader reader;
         private final int dimension;
         private final int size;
+        private final float[] vector;
 
         public OnDiskVectors(FileHandle fh)
         {
@@ -145,6 +146,7 @@ public class CassandraOnDiskHnsw
                 this.reader = fh.createReader();
                 this.size = reader.readInt();
                 this.dimension = reader.readInt();
+                this.vector = new float[dimension];
             }
             catch (IOException e)
             {
@@ -167,12 +169,19 @@ public class CassandraOnDiskHnsw
         @Override
         public float[] vectorValue(int i) throws IOException
         {
-            return reader.vectorAt(8L + i * dimension * 4L, dimension);
+            reader.readVectorAt(8L + i * dimension * 4L, vector);
+            return vector;
         }
 
         @Override
         public RandomAccessVectorValues<float[]> copy()
         {
+            // this is only necessary if we need to build a new graph from this vector source.
+            // (the idea is that if you are re-using float[] between calls, like we are here,
+            //  you can make a copy of the source so you can compare different neighbors' scores
+            //  as you build the graph.)
+            // since we only build new graphs during insert and compaction, when we get the vectors from the source rows,
+            // we don't need to worry about this.
             throw new UnsupportedOperationException();
         }
 
