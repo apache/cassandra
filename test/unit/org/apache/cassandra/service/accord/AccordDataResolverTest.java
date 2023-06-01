@@ -49,7 +49,7 @@ public class AccordDataResolverTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
 //        AccordTestBase.setupCluster(builder -> builder, 2);
-        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")), 2);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord").set("non_serial_write_strategy", "mixed")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 

@@ -1246,25 +1246,32 @@ public class Config
          * Execute writes through Cassandra via StorageProxy's normal write path. This can lead Accord to compute
          * multiple outcomes for a transaction that depends on data written by non-SERIAL writes.
          */
-        normal(false, false),
+        normal(false, false, false),
+        /*
+         * Allow mixing of non-SERIAL writes and Accord, but still force BRR through Accord
+         */
+        mixed(false, false, true),
         /*
          * Execute writes through Accord skipping StorageProxy's normal write path, but commit
          * writes at the provided consistency level so they can be read via non-SERIAL consistency levels.
          */
-        migration(false, true),
+        migration(false, true, true),
         /*
          * Execute writes through Accord skipping StorageProxy's normal write path. Ignores the provided consistency level
          * which makes Accord commit writes at ANY similar to Paxos with commit consistency level ANY.
          */
-        accord(true, true);
+        accord(true, true, true);
 
         public final boolean ignoresSuppliedConsistencyLevel;
         public final boolean writesThroughAccord;
 
-        NonSerialWriteStrategy(boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord)
+        public final boolean blockingReadRepairThroughAccord;
+
+        NonSerialWriteStrategy(boolean ignoresSuppliedConsistencyLevel, boolean writesThroughAccord, boolean blockingReadRepairThroughAccord)
         {
             this.ignoresSuppliedConsistencyLevel = ignoresSuppliedConsistencyLevel;
             this.writesThroughAccord = writesThroughAccord;
+            this.blockingReadRepairThroughAccord = blockingReadRepairThroughAccord;
         }
 
         public ConsistencyLevel commitCLForStrategy(ConsistencyLevel consistencyLevel)

@@ -191,7 +191,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     {
         NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord
-            || nonSerialWriteStrategy.writesThroughAccord)
+            || nonSerialWriteStrategy.blockingReadRepairThroughAccord)
         {
             ConsistencyLevel commitConsistencyLevel = nonSerialWriteStrategy.commitCLForStrategy(replicaPlan.get().consistencyLevel());
             Collection<PartitionUpdate> partitionUpdates = Mutation.merge(mutations.values()).getPartitionUpdates();

@@ -55,6 +55,7 @@ import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -1202,9 +1203,8 @@ public class StorageProxy implements StorageProxyMBean
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
-
-        Config.NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
-        if (DatabaseDescriptor.getNonSerialWriteStrategy() != Config.NonSerialWriteStrategy.normal)
+        NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
+        if (nonSerialWriteStrategy.writesThroughAccord)
             mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, updatesView, queryStartNanoTime, nonSerialWriteStrategy);
         else if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
