@@ -741,9 +741,16 @@ public abstract class CompactionAggregate
             return level.index;
         }
 
+        // used by CNDB, "bucket" name is historical
         public double bucketMin()
         {
             return level.min;
+        }
+
+        // used by CNDB, "bucket" name is historical
+        public double bucketMax()
+        {
+            return level.max;
         }
 
         public int maxOverlap()

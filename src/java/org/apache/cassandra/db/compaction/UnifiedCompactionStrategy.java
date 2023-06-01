@@ -815,7 +815,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     // used by CNDB to deserialize aggregates
-    public Level getLevel(int index, long min, long max)
+    public Level getLevel(int index, double min, double max)
     {
         return new Level(controller, index, min, max);
     }
@@ -1161,15 +1161,15 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             this.sstables = new ArrayList<>(threshold);
         }
 
-        Level(Controller controller, int index, double minSize, double maxSize)
+        Level(Controller controller, int index, double min, double max)
         {
             this(index,
                  controller.getScalingParameter(index),
                  controller.getFanout(index),
                  controller.getThreshold(index),
                  controller.getSurvivalFactor(index),
-                 minSize,
-                 maxSize);
+                 min,
+                 max);
         }
 
         public Collection<CompactionSSTable> getSSTables()
