@@ -213,6 +213,6 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
 
     private ByteBuffer wrap(ByteComparable bc)
     {
-        return ByteBuffer.wrap(ByteSourceInverse.readBytes(bc.asComparableBytes(ByteComparable.Version.OSS42)));
+        return ByteBuffer.wrap(ByteSourceInverse.readBytes(bc.asComparableBytes(ByteComparable.Version.OSS50)));
     }
 }

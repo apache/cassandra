@@ -51,6 +51,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ENCRYPTION;
+
 /**
  * Tests the virtual table exposing SSTable index segment metadata.
  */
@@ -170,7 +172,7 @@ public class SegmentsSystemViewTest extends SAITester
                     indexLengths.put(indexType, value + length);
                 }
             }
-            if (!Boolean.parseBoolean(System.getProperty("cassandra.test.encryption", "false")))
+            if (!TEST_ENCRYPTION.getBoolean())
                 assertEquals(indexFileLengths(), indexLengths);
         }
 

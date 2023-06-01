@@ -95,7 +95,7 @@ public class RAMStringIndexerTest extends SAIRandomizedTester
         while (terms.hasNext())
         {
             term = terms.next();
-            final ByteBuffer decoded = ByteBuffer.wrap(ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS42)));
+            final ByteBuffer decoded = ByteBuffer.wrap(ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50)));
             assertEquals(String.format("%04d", termOrd), string(decoded));
 
             try (PostingList postingList = terms.postings())

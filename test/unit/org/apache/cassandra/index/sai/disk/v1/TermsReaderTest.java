@@ -91,7 +91,7 @@ public class TermsReaderTest extends SAIRandomizedTester
             for (ByteComparable term = iterator.next(); term != null; term = iterator.next())
             {
                 final ByteComparable expected = termsEnum.get(i++).left;
-                assertEquals(0, ByteComparable.compare(expected, term, ByteComparable.Version.OSS42));
+                assertEquals(0, ByteComparable.compare(expected, term, ByteComparable.Version.OSS50));
             }
         }
     }
@@ -122,7 +122,7 @@ public class TermsReaderTest extends SAIRandomizedTester
         {
             for (Pair<ByteComparable, LongArrayList> pair : termsEnum)
             {
-                final byte[] bytes = ByteSourceInverse.readBytes(pair.left.asComparableBytes(ByteComparable.Version.OSS42));
+                final byte[] bytes = ByteSourceInverse.readBytes(pair.left.asComparableBytes(ByteComparable.Version.OSS50));
                 QueryEventListener.TrieIndexEventListener listener = mock(QueryEventListener.TrieIndexEventListener.class);
                 when(listener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
                 try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes),

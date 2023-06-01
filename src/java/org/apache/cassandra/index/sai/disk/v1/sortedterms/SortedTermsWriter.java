@@ -195,7 +195,7 @@ public class SortedTermsWriter implements Closeable
 
     private void copyBytes(ByteComparable source, BytesRefBuilder dest)
     {
-        ByteSource byteSource = source.asComparableBytes(ByteComparable.Version.OSS42);
+        ByteSource byteSource = source.asComparableBytes(ByteComparable.Version.OSS50);
         int val;
         while ((val = byteSource.next()) != ByteSource.END_OF_STREAM)
             dest.append((byte) val);

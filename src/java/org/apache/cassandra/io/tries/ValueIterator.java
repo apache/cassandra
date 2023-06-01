@@ -36,17 +36,17 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
 {
     private final ByteSource limit;
     private final TransitionBytesCollector collector;
-    private IterationPosition stack;
+    protected IterationPosition stack;
     private long next;
 
-    static class IterationPosition
+    public static class IterationPosition
     {
         final long node;
         final int limit;
         final IterationPosition prev;
         int childIndex;
 
-        IterationPosition(long node, int childIndex, int limit, IterationPosition prev)
+        public IterationPosition(long node, int childIndex, int limit, IterationPosition prev)
         {
             super();
             this.node = node;
@@ -207,7 +207,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         return collector.toByteComparable();
     }
 
-    private long advanceNode()
+    protected long advanceNode()
     {
         long child;
         int transitionByte;

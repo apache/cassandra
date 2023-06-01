@@ -118,7 +118,7 @@ public class TypeUtil
      */
     public static ByteComparable min(ByteComparable a, ByteComparable b)
     {
-        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS42) > 0) ? a : b;
+        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS50) > 0) ? a : b;
     }
 
     /**
@@ -127,7 +127,7 @@ public class TypeUtil
      */
     public static ByteComparable max(ByteComparable a, ByteComparable b)
     {
-        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS42) < 0) ? a : b;
+        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS50) < 0) ? a : b;
     }
 
     public static AbstractType<?> cellValueType(ColumnMetadata columnMetadata, IndexTarget.Type indexType)
@@ -474,7 +474,7 @@ public class TypeUtil
 
     public static ByteBuffer encodeDecimal(ByteBuffer value)
     {
-        ByteSource bs = DecimalType.instance.asComparableBytes(value, ByteComparable.Version.OSS42);
+        ByteSource bs = DecimalType.instance.asComparableBytes(value, ByteComparable.Version.OSS50);
         bs = ByteSource.cutOrRightPad(bs, DECIMAL_APPROXIMATION_BYTES, 0);
         return ByteBuffer.wrap(ByteSourceInverse.readBytes(bs, DECIMAL_APPROXIMATION_BYTES));
     }
