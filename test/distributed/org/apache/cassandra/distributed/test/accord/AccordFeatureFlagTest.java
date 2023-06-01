@@ -92,7 +92,7 @@ public class AccordFeatureFlagTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withConfig(c -> c.with(Feature.NETWORK)
                                                         .set("accord_transactions_enabled", "false")
-                                                        .set("legacy_paxos_strategy", "accord")).createWithoutStarting())
+                                                        .set("lwt_strategy", "accord")).createWithoutStarting())
         {
 
             Assertions.assertThatThrownBy(() -> cluster.startup())

@@ -26,7 +26,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.SimpleProgressLog;
 import accord.messages.Commit;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.net.Message;
@@ -100,6 +102,8 @@ public class AccordIntegrationTest extends AccordTestBase
     @Test
     public void testLostCommitReadTriggersFallbackRead() throws Exception
     {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
         test(cluster -> {
             // It's expected that the required Read will happen regardless of whether this fails to return a read
             cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {

@@ -167,6 +167,7 @@ public class AccordMigrationTest extends AccordTestBase
     @After
     public void tearDown() throws Exception
     {
+        super.tearDown();
         // Reset migration state
         forEach(() -> {
             ConsensusRequestRouter.resetInstance();

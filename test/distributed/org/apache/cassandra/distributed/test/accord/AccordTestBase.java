@@ -29,11 +29,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.SimpleProgressLog;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -100,6 +102,13 @@ public abstract class AccordTestBase extends TestBaseImpl
     public void setup()
     {
         currentTable = KEYSPACE + ".tbl" + COUNTER.getAndIncrement();
+    }
+
+    @After
+    public void tearDown() throws Exception
+    {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = false);
     }
 
     protected static void assertRowSerial(Cluster cluster, String query, int k, int c, int v, int s)

@@ -101,7 +101,8 @@ public class ReadRepairTest extends TestBaseImpl
 
     private void testReadRepair(ReadRepairStrategy strategy, boolean runWithAccordLWTs) throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, config -> config.set("lwt_strategy", runWithAccordLWTs ? "accord" : "migration"))))
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("lwt_strategy", runWithAccordLWTs ? "accord" : "migration")
+                                                                                .set("non_serial_write_strategy", runWithAccordLWTs ? "migration" : "normal"))))
         {
             cluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c)) " +

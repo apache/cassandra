@@ -43,8 +43,7 @@ public class AccordInteroperabilityTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
-                                                                                    .set("non_serial_write_strategy", "accord")
-                                                                                    .set("partition_repair_strategy", "accord")), 3);
+                                                                                    .set("non_serial_write_strategy", "accord")), 3);
     }
 
     @Test
