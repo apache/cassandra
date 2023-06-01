@@ -75,13 +75,13 @@ public class SortedTermsTest extends SAIRandomizedTester
                                                                   trieWriter))
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(99999);
-                ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS42);
+                ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
                 byte[] bytes1 = ByteSourceInverse.readBytes(byteSource);
 
                 writer.add(ByteComparable.fixedLength(bytes1));
 
                 buffer = Int32Type.instance.decompose(444);
-                byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS42);
+                byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
                 byte[] bytes2 = ByteSourceInverse.readBytes(byteSource);
 
                 assertThrows(IllegalArgumentException.class, () -> writer.add(ByteComparable.fixedLength(bytes2)));
@@ -154,7 +154,7 @@ public class SortedTermsTest extends SAIRandomizedTester
             {
                 ByteComparable term = cursor.term();
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS42));
+                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
                 assertArrayEquals(terms.get(x), bytes);
                 x++;
             }
@@ -181,7 +181,7 @@ public class SortedTermsTest extends SAIRandomizedTester
             {
                 ByteComparable term = cursor.term();
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS42));
+                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
                 assertArrayEquals(terms.get(x), bytes);
 
                 x++;
@@ -210,7 +210,7 @@ public class SortedTermsTest extends SAIRandomizedTester
                 cursor.seekToPointId(x);
                 ByteComparable term = cursor.term();
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS42));
+                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
                 assertArrayEquals(terms.get(x), bytes);
             }
         });
@@ -223,7 +223,7 @@ public class SortedTermsTest extends SAIRandomizedTester
                 cursor.seekToPointId(x);
                 ByteComparable term = cursor.term();
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS42));
+                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
                 assertArrayEquals(terms.get(x), bytes);
             }
         });
@@ -237,7 +237,7 @@ public class SortedTermsTest extends SAIRandomizedTester
                 cursor.seekToPointId(target);
                 ByteComparable term = cursor.term();
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS42));
+                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
                 assertArrayEquals(terms.get(target), bytes);
             }
         });
@@ -276,7 +276,7 @@ public class SortedTermsTest extends SAIRandomizedTester
                 for (int x = 0; x < 1000 * 4; x++)
                 {
                     ByteBuffer buffer = Int32Type.instance.decompose(x);
-                    ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS42);
+                    ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
                     byte[] bytes = ByteSourceInverse.readBytes(byteSource);
                     terms.add(bytes);
 

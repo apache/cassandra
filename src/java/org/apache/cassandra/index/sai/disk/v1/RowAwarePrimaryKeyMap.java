@@ -158,7 +158,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long rowIdFromPrimaryKey(PrimaryKey key)
     {
-        return triePrefixSearcher.prefixSearch(key.asComparableBytes(ByteComparable.Version.OSS42));
+        return triePrefixSearcher.prefixSearch(key.asComparableBytes(ByteComparable.Version.OSS50));
     }
 
     @Override
@@ -172,10 +172,10 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         try
         {
             cursor.seekToPointId(sstableRowId);
-            ByteSource.Peekable peekable = ByteSource.peekable(cursor.term().asComparableBytes(ByteComparable.Version.OSS42));
+            ByteSource.Peekable peekable = ByteSource.peekable(cursor.term().asComparableBytes(ByteComparable.Version.OSS50));
 
             Token token = partitioner.getTokenFactory().fromComparableBytes(ByteSourceInverse.nextComponentSource(peekable),
-                                                                            ByteComparable.Version.OSS42);
+                                                                            ByteComparable.Version.OSS50);
             byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekable));
 
             if (keyBytes == null)

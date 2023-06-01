@@ -52,9 +52,9 @@ public class TriePrefixSearcherTest extends SAIRandomizedTester
         try (FileHandle trieFileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
              TriePrefixSearcher searcher = new TriePrefixSearcher(trieFileHandle.instantiateRebufferer(null), trieFilePointer))
         {
-            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abcdef"), ByteComparable.Version.OSS42)));
-            assertEquals(2L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abdefg"), ByteComparable.Version.OSS42)));
-            assertEquals(3L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abdfgh"), ByteComparable.Version.OSS42)));
+            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abcdef"), ByteComparable.Version.OSS50)));
+            assertEquals(2L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abdefg"), ByteComparable.Version.OSS50)));
+            assertEquals(3L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abdfgh"), ByteComparable.Version.OSS50)));
         }
     }
 
@@ -66,13 +66,13 @@ public class TriePrefixSearcherTest extends SAIRandomizedTester
         try (FileHandle trieFileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
              TriePrefixSearcher searcher = new TriePrefixSearcher(trieFileHandle.instantiateRebufferer(null), trieFilePointer))
         {
-            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString(""), ByteComparable.Version.OSS42)));
-            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("a"), ByteComparable.Version.OSS42)));
-            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("ab"), ByteComparable.Version.OSS42)));
-            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abc"), ByteComparable.Version.OSS42)));
-            assertEquals(2L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abd"), ByteComparable.Version.OSS42)));
-            assertEquals(2L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abde"), ByteComparable.Version.OSS42)));
-            assertEquals(3L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abdf"), ByteComparable.Version.OSS42)));
+            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString(""), ByteComparable.Version.OSS50)));
+            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("a"), ByteComparable.Version.OSS50)));
+            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("ab"), ByteComparable.Version.OSS50)));
+            assertEquals(1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abc"), ByteComparable.Version.OSS50)));
+            assertEquals(2L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abd"), ByteComparable.Version.OSS50)));
+            assertEquals(2L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abde"), ByteComparable.Version.OSS50)));
+            assertEquals(3L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("abdf"), ByteComparable.Version.OSS50)));
         }
     }
 
@@ -84,7 +84,7 @@ public class TriePrefixSearcherTest extends SAIRandomizedTester
         try (FileHandle trieFileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
              TriePrefixSearcher searcher = new TriePrefixSearcher(trieFileHandle.instantiateRebufferer(null), trieFilePointer))
         {
-            assertEquals(-1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("b"), ByteComparable.Version.OSS42)));
+            assertEquals(-1L, searcher.prefixSearch(UTF8Type.instance.asComparableBytes(UTF8Type.instance.fromString("b"), ByteComparable.Version.OSS50)));
         }
     }
 
@@ -96,10 +96,10 @@ public class TriePrefixSearcherTest extends SAIRandomizedTester
         try (FileHandle trieFileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
              TriePrefixSearcher searcher = new TriePrefixSearcher(trieFileHandle.instantiateRebufferer(null), trieFilePointer))
         {
-            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "def", "ghi")));
-            assertEquals(2L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "def", "jkl")));
-            assertEquals(3L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "ghi", "jkl")));
-            assertEquals(4L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "def", "ghi", "jkl")));
+            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "def", "ghi")));
+            assertEquals(2L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "def", "jkl")));
+            assertEquals(3L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "ghi", "jkl")));
+            assertEquals(4L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "def", "ghi", "jkl")));
         }
     }
 
@@ -111,14 +111,14 @@ public class TriePrefixSearcherTest extends SAIRandomizedTester
         try (FileHandle trieFileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
              TriePrefixSearcher searcher = new TriePrefixSearcher(trieFileHandle.instantiateRebufferer(null), trieFilePointer))
         {
-            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "ab")));
-            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc")));
-            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "de")));
-            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "def")));
-            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "def", "gh")));
-            assertEquals(2L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "def", "jk")));
-            assertEquals(3L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "abc", "ghi")));
-            assertEquals(4L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS42, "d")));
+            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "ab")));
+            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc")));
+            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "de")));
+            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "def")));
+            assertEquals(1L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "def", "gh")));
+            assertEquals(2L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "def", "jk")));
+            assertEquals(3L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "abc", "ghi")));
+            assertEquals(4L, searcher.prefixSearch(createMultiPart(ByteComparable.Version.OSS50, "d")));
         }
     }
 
