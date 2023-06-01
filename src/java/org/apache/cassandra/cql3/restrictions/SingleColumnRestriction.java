@@ -83,6 +83,16 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     }
 
     @Override
+    public Index findSupportingIndex(IndexRegistry indexRegistry)
+    {
+        for (Index index : indexRegistry.listIndexes())
+            if (isSupportedBy(index))
+                return index;
+
+        return null;
+    }
+
+    @Override
     public boolean needsFiltering(Index.Group indexGroup)
     {
         for (Index index : indexGroup.getIndexes())
@@ -804,6 +814,11 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         {
             super(columnDef);
             this.value = value;
+        }
+
+        public ByteBuffer value(QueryOptions options)
+        {
+            return value.bindAndGet(options);
         }
 
         @Override

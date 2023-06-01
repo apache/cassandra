@@ -23,6 +23,8 @@ package org.apache.cassandra.index;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -33,6 +35,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -413,6 +417,19 @@ public interface Index
      *         the index was used to narrow the initial result set
      */
     public RowFilter getPostIndexQueryFilter(RowFilter filter);
+
+    /**
+     * Return a comparator that reorders query result before sending to client
+     *
+     * @param restriction restriction that requires current index
+     * @param columnIndex idx of the indexed column in returned row
+     * @param options query options
+     * @return comparator that for post-query ordering; or null if not supported
+     */
+    default Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
+    {
+        return null;
+    }
 
     /**
      * Return an estimate of the number of results this index is expected to return for any given
