@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -73,8 +72,8 @@ public abstract class VectorFcts
             @Override
             public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
-                var v1 = type.getSerializer().deserializeFloatArray(parameters.get(0), ByteBufferAccessor.instance);
-                var v2 = type.getSerializer().deserializeFloatArray(parameters.get(1), ByteBufferAccessor.instance);
+                var v1 = type.getSerializer().deserializeFloatArray(parameters.get(0));
+                var v2 = type.getSerializer().deserializeFloatArray(parameters.get(1));
                 return FloatType.instance.decompose(f.compare(v1, v2));
             }
         };

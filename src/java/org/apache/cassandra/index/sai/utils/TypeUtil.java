@@ -319,7 +319,7 @@ public class TypeUtil
     {
         return ((VectorType.VectorSerializer)indexContext.getValidator()
                                                          .getSerializer())
-               .deserializeFloatArray(byteBuffer, ByteBufferAccessor.instance);
+               .deserializeFloatArray(byteBuffer);
     }
 
     private static ByteBuffer cellValue(ColumnMetadata column, IndexTarget.Type indexType, Cell cell)

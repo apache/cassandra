@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -96,7 +95,7 @@ public class CassandraOnHeapHnsw<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
+        var vector = serializer.deserializeFloatArray(term);
         var bytesUsed = new AtomicLong();
         var postings = postingsMap.computeIfAbsent(vector, v -> {
             var bytes = RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
@@ -132,7 +131,7 @@ public class CassandraOnHeapHnsw<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = serializer.deserializeFloatArray(term, ByteBufferAccessor.instance);
+        var vector = serializer.deserializeFloatArray(term);
         var postings = postingsMap.get(vector);
         if (postings == null)
         {

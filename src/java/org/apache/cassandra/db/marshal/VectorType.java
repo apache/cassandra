@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -338,7 +339,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
         public abstract <V> List<V> split(V buffer, ValueAccessor<V> accessor);
         public abstract <V> V serializeRaw(List<V> elements, ValueAccessor<V> accessor);
-        public abstract <V> float[] deserializeFloatArray(V input, ValueAccessor<V> accessor);
+        public abstract float[] deserializeFloatArray(ByteBuffer input);
 
         @Override
         public String toString(List<T> value)
@@ -464,24 +465,17 @@ public final class VectorType<T> extends AbstractType<List<T>>
             return result;
         }
 
-        public <V> float[] deserializeFloatArray(V input, ValueAccessor<V> accessor)
+        @Override
+        public float[] deserializeFloatArray(ByteBuffer input)
         {
-            if (isNull(input, accessor))
+            if (input == null || input.remaining() == 0)
                 return null;
-            float[] result = new float[dimension];
-            int offset = 0;
-            int elementLength = elementType.valueLengthIfFixed();
-            for (int i = 0; i < dimension; i++)
-            {
-                V bb = accessor.slice(input, offset, elementLength);
-                offset += elementLength;
-                elementSerializer.validate(bb, accessor);
-                result[i] = (float)elementSerializer.deserialize(bb, accessor);
-            }
-            if (!accessor.isEmptyFromOffset(input, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
 
-            return result;
+            FloatBuffer floatBuffer = input.asFloatBuffer();
+            float[] floatArray = new float[floatBuffer.remaining()];
+            floatBuffer.get(floatArray);
+
+            return floatArray;
         }
 
         @Override
@@ -618,7 +612,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
             return result;
         }
 
-        public <V> float[] deserializeFloatArray(V input, ValueAccessor<V> accessor)
+        public float[] deserializeFloatArray(ByteBuffer input)
         {
             throw new UnsupportedOperationException();
         }
