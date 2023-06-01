@@ -670,9 +670,12 @@ public class PaxosState implements PaxosOperationLock
                 return new AcceptResult(latest, shouldRejectDueToConsensusMigration);
             }
 
-            // TODO: Consider not answering in the committed ballot case where there is no need to save anything or answer at all
-            if (proposal.hasSameBallot(before.committed) || shouldRejectDueToConsensusMigration)
+            if (shouldRejectDueToConsensusMigration)
                 return RETRY_NEW_PROTOCOL;
+
+            // TODO: Consider not answering in the committed ballot case where there is no need to save anything or answer at all
+            if (proposal.hasSameBallot(before.committed))
+                return null;
 
             after = new Snapshot(realBefore.promised, realBefore.promisedWrite, proposal.accepted(), realBefore.committed);
             if (currentUpdater.compareAndSet(this, realBefore, after))
