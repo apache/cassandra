@@ -450,6 +450,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         for (CompactionPick compaction : backgroundCompactions.getCompactionsInProgress())
         {
             final int level = levelOf(compaction);
+            if (level < 0)  // expire-only compactions are allowed to run outside of the limits
+                continue;
             ++perLevel[level];
             ++runningCompactions;
             levelCount = Math.max(levelCount, level + 1);
@@ -478,13 +480,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     private Collection<CompactionAggregate> updateLevelCountWithParentAndGetSelection(final CompactionLimits limits,
                                                                                       List<CompactionAggregate.UnifiedAggregate> pending)
     {
+        long totalCompactionLimit = controller.maxCompactionSpaceBytes();
         for (CompactionAggregate.UnifiedAggregate aggregate : pending)
         {
-            warnIfSizeAbove(aggregate, limits.spaceAvailable);
+            warnIfSizeAbove(aggregate, totalCompactionLimit);
 
             CompactionPick selected = aggregate.getSelected();
             if (selected != null)
-                limits.levelCount = Math.max(limits.levelCount, (int) selected.parent());
+                limits.levelCount = Math.max(limits.levelCount, levelOf(selected));
         }
 
         final List<CompactionAggregate> selection = getSelection(pending,
@@ -703,6 +706,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 continue; // compaction is too large for current cycle
 
             int currentLevel = levelOf(pick);
+            assert currentLevel >= 0 : "Invalid level in " + pick + ": level -1 is only allowed for expired-only compactions";
             if (perLevel[currentLevel] > perLevelCount)
                 continue;  // this level is already using up all its share + one, we can ignore candidate altogether
             else if (perLevel[currentLevel] == perLevelCount)
