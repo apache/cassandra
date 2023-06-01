@@ -45,8 +45,6 @@ import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.service.accord.IAccordService;
 
-import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS;
-
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
  *

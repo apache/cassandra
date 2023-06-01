@@ -33,9 +33,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.txn.TxnWrite.Update;
 
-import static junit.framework.TestCase.assertEquals;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.utils.SerializerTestUtils.assertSerializerIOEquality;
+import static org.junit.Assert.assertEquals;
 
 public class TxnUpdateTest
 {
