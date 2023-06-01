@@ -65,10 +65,13 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         Gen<Boolean> nulls = SourceDSL.integers().between(1, 100).map(i -> i < 5);
         qt().checkAssert(random -> {
-            TypeGenBuilder nonEmptyNoDuration = AbstractTypeGenerators.builder()
-                                                                      .withoutEmpty()
-                                                                      .withUserTypeKeyspace(KEYSPACE)
-                                                                      .withoutPrimitive(DurationType.instance);
+            TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.builder()
+                                                                         .withoutEmpty()
+                                                                         .withUserTypeKeyspace(KEYSPACE)
+                                                                         .withoutPrimitive(DurationType.instance)
+                                                                         // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
+                                                                         // see CASSANDRA-18530
+                                                                         .withoutPrimitive(DecimalType.instance);
             TableMetadata metadata = new TableMetadataBuilder()
                                      .withKeyspaceName(KEYSPACE)
                                      .withTableKinds(TableMetadata.Kind.REGULAR)
@@ -76,13 +79,10 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                                                                .withoutEmpty()
                                                                                .withUserTypeKeyspace(KEYSPACE)
                                                                                .withMaxDepth(2)
-                                                                               .withDefaultSetKey(nonEmptyNoDuration)
+                                                                               .withDefaultSetKey(withoutUnsafeEquality)
                                                                                .build())
                                      .withPartitionColumnsCount(1)
-                                     .withPrimaryColumnTypeGen(new TypeGenBuilder(nonEmptyNoDuration)
-                                                               // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
-                                                               // see CASSANDRA-18530
-                                                               .withoutPrimitive(DecimalType.instance)
+                                     .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)
                                                                .withMaxDepth(2)
                                                                .build())
                                      .withClusteringColumnsBetween(1, 2)
@@ -142,8 +142,9 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 subTypes.remove(next); // it includes self
                 if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> created.contains(t.name)))
                 {
-                    logger.warn("Creating UDT {}", next.getCqlTypeName());
-                    schemaChange(next.toCqlString(false, false));
+                    String cql = next.toCqlString(false, false);
+                    logger.warn("Creating UDT {}", cql);
+                    schemaChange(cql);
                     created.add(next.name);
                 }
                 else
