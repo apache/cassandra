@@ -60,6 +60,10 @@ public class RandomSchemaTest extends CQLTester.InMemory
         CassandraRelevantProperties.TEST_BLOB_SHARED_SEED.setInt(42);
     }
 
+    {
+        requireNetwork();
+    }
+
     @Test
     public void test()
     {
@@ -104,11 +108,15 @@ public class RandomSchemaTest extends CQLTester.InMemory
                     execute(insertStmt, expected);
                     // check memtable
                     assertRows(execute(selectStmt, rowKey), expected);
+                    assertRowsNet(executeNet(selectStmt, rowKey), expected);
 
                     // check sstable
                     flush(KEYSPACE, metadata.name);
                     compact(KEYSPACE, metadata.name);
                     assertRows(execute(selectStmt, rowKey), expected);
+                    assertRowsNet(executeNet(selectStmt, rowKey), expected);
+
+                    execute("TRUNCATE " + metadata);
                 }
                 catch (Throwable t)
                 {

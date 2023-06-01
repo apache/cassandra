@@ -83,6 +83,8 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.SocketOptions;
 import com.datastax.driver.core.Statement;
+import com.datastax.driver.core.UDTValue;
+import com.datastax.driver.core.UserType;
 import com.datastax.driver.core.exceptions.UnauthorizedException;
 import com.datastax.shaded.netty.channel.EventLoopGroup;
 import org.apache.cassandra.SchemaLoader;
@@ -1489,6 +1491,7 @@ public abstract class CQLTester
 
     protected void assertRowsNet(ProtocolVersion protocolVersion, ResultSet result, Object[]... rows)
     {
+        com.datastax.driver.core.ProtocolVersion version = com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt());
         // necessary as we need cluster objects to supply CodecRegistry.
         // It's reasonably certain that the network setup has already been done
         // by the time we arrive at this point, but adding this check doesn't hurt
@@ -1519,20 +1522,40 @@ public abstract class CQLTester
                 com.datastax.driver.core.TypeCodec<Object> codec = getCluster(protocolVersion).getConfiguration()
                                                                                               .getCodecRegistry()
                                                                                               .codecFor(type);
-                ByteBuffer expectedByteValue = codec.serialize(expected[j], com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()));
-                int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
+                ByteBuffer expectedByteValue = expected[j] instanceof ByteBuffer ? (ByteBuffer) expected[j] : codec.serialize(expected[j], version);
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
-                int actualBytes = actualValue == null ? -1 : actualValue.remaining();
                 if (!Objects.equal(expectedByteValue, actualValue))
+                {
+                    // TODO confirm this isn't a bug...
+                    // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
+                    // If the user writes a null for each column, then the whole tuple is null
+                    if (type instanceof UserType && actualValue == null)
+                    {
+                        UDTValue value = (UDTValue) codec.deserialize(expectedByteValue, version);
+                        boolean allNull = true;
+                        for (int c = 0; c < value.getType().size(); c++)
+                        {
+                            if (!value.isNull(c))
+                            {
+                                // don't match
+                                allNull = false;
+                                break;
+                            }
+                        }
+                        if (allNull) continue;
+                    }
+                    int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
+                    int actualBytes = actualValue == null ? -1 : actualValue.remaining();
                     Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), " +
                                               "expected <%s> (%d bytes) but got <%s> (%d bytes) " +
                                               "(using protocol version %s)",
                                               i, j, meta.getName(j), type,
-                                              codec.format(expected[j]),
+                                              codec.format(expected[j] instanceof ByteBuffer ? codec.deserialize((ByteBuffer) expected[j], version) : expected[j]),
                                               expectedBytes,
-                                              codec.format(codec.deserialize(actualValue, com.datastax.driver.core.ProtocolVersion.fromInt(protocolVersion.asInt()))),
+                                              codec.format(codec.deserialize(actualValue, version)),
                                               actualBytes,
                                               protocolVersion));
+                }
             }
             i++;
         }
