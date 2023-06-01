@@ -188,6 +188,17 @@ public class TypeParser
         throw new SyntaxException("Syntax error parsing '" + str + ": for msg unexpected character '" + str.charAt(idx) + "'");
     }
 
+    public static String stringifyTKeyValueParameters(Map<String, String> map)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        for (Map.Entry<String, String> e : map.entrySet())
+            sb.append(e.getKey()).append(" = ").append(e.getValue()).append(", ");
+        if (!map.isEmpty())
+            sb.setLength(sb.length() - 2);
+        return sb.append(')').toString();
+    }
+
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         if (isEOS())

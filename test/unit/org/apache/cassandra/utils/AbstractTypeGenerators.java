@@ -342,17 +342,20 @@ public final class AbstractTypeGenerators
             }
             else
                 kindGen = SourceDSL.arbitrary().enumValues(TypeKind.class);
-            return buildRecursive(maxDepth, kindGen);
+            return buildRecursive(maxDepth, maxDepth, kindGen, BOOLEAN_GEN);
         }
 
-        private Gen<AbstractType<?>> buildRecursive(int maxDepth, Gen<TypeKind> typeKindGen)
+        private Gen<AbstractType<?>> buildRecursive(int maxDepth, int level, Gen<TypeKind> typeKindGen, Gen<Boolean> multiCellGen)
         {
-            if (maxDepth == -1)
+            if (level == -1)
                 return primitiveGen;
-            assert maxDepth >= 0 : "max depth must be positive or zero; given " + maxDepth;
-            boolean atBottom = maxDepth == 0;
-            Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth - 1, typeKindGen);
+            assert level >= 0 : "max depth must be positive or zero; given " + level;
+            boolean atBottom = level == 0;
+            boolean atTop = maxDepth == level;
+            Gen<Boolean> multiCell = atTop ? Generators.cached(multiCellGen) : multiCellGen;
             return rnd -> {
+                Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, multiCell);
+
                 // figure out type to get
                 TypeKind kind = typeKindGen.generate(rnd);
                 switch (kind)
@@ -361,24 +364,24 @@ public final class AbstractTypeGenerators
                         return primitiveGen.generate(rnd);
                     case SET:
                         if (defaultSetKeyFunc != null)
-                            return setTypeGen(defaultSetKeyFunc.apply(maxDepth - 1)).generate(rnd);
-                        return setTypeGen(next.get()).generate(rnd);
+                            return setTypeGen(defaultSetKeyFunc.apply(level - 1), multiCell).generate(rnd);
+                        return setTypeGen(next.get(), multiCell).generate(rnd);
                     case LIST:
-                        return listTypeGen(next.get()).generate(rnd);
+                        return listTypeGen(next.get(), multiCell).generate(rnd);
                     case MAP:
                         if (defaultSetKeyFunc != null)
-                            return mapTypeGen(defaultSetKeyFunc.apply(maxDepth - 1), next.get()).generate(rnd);
-                        return mapTypeGen(next.get()).generate(rnd);
+                            return mapTypeGen(defaultSetKeyFunc.apply(level - 1), next.get(), multiCell).generate(rnd);
+                        return mapTypeGen(next.get(), next.get(), multiCell).generate(rnd);
                     case TUPLE:
-                        return tupleTypeGen(next.get(), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
+                        return tupleTypeGen(next.get().map(AbstractType::freeze), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
-                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName).generate(rnd);
+                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCell).generate(rnd);
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
                         if (!atBottom && vectorSizeNonPrimitiveGen != null)
                             sizeGen = vectorSizeNonPrimitiveGen;
-                        return vectorTypeGen(next.get(), sizeGen).generate(rnd);
+                        return vectorTypeGen(next.get().map(AbstractType::freeze), sizeGen).generate(rnd);
                     }
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
@@ -436,7 +439,12 @@ public final class AbstractTypeGenerators
 
     public static Gen<SetType<?>> setTypeGen(Gen<AbstractType<?>> typeGen)
     {
-        return rnd -> SetType.getInstance(typeGen.generate(rnd).freeze(), BOOLEAN_GEN.generate(rnd));
+        return setTypeGen(typeGen, BOOLEAN_GEN);
+    }
+
+    public static Gen<SetType<?>> setTypeGen(Gen<AbstractType<?>> typeGen, Gen<Boolean> multiCell)
+    {
+        return rnd -> SetType.getInstance(typeGen.generate(rnd).freeze(), multiCell.generate(rnd));
     }
 
     @SuppressWarnings("unused")
@@ -447,7 +455,12 @@ public final class AbstractTypeGenerators
 
     public static Gen<ListType<?>> listTypeGen(Gen<AbstractType<?>> typeGen)
     {
-        return rnd -> ListType.getInstance(typeGen.generate(rnd).freeze(), BOOLEAN_GEN.generate(rnd));
+        return listTypeGen(typeGen, BOOLEAN_GEN);
+    }
+
+    public static Gen<ListType<?>> listTypeGen(Gen<AbstractType<?>> typeGen, Gen<Boolean> multiCell)
+    {
+        return rnd -> ListType.getInstance(typeGen.generate(rnd).freeze(), multiCell.generate(rnd));
     }
 
     @SuppressWarnings("unused")
@@ -463,7 +476,12 @@ public final class AbstractTypeGenerators
 
     public static Gen<MapType<?, ?>> mapTypeGen(Gen<AbstractType<?>> keyGen, Gen<AbstractType<?>> valueGen)
     {
-        return rnd -> MapType.getInstance(keyGen.generate(rnd).freeze(), valueGen.generate(rnd).freeze(), BOOLEAN_GEN.generate(rnd));
+        return mapTypeGen(keyGen, valueGen, BOOLEAN_GEN);
+    }
+
+    public static Gen<MapType<?, ?>> mapTypeGen(Gen<AbstractType<?>> keyGen, Gen<AbstractType<?>> valueGen, Gen<Boolean> multiCell)
+    {
+        return rnd -> MapType.getInstance(keyGen.generate(rnd).freeze(), valueGen.generate(rnd).freeze(), multiCell.generate(rnd));
     }
 
     public static Gen<TupleType> tupleTypeGen()
@@ -509,9 +527,14 @@ public final class AbstractTypeGenerators
 
     public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen)
     {
+        return userTypeGen(elementGen, sizeGen, ksGen, nameGen, BOOLEAN_GEN);
+    }
+
+    public static Gen<UserType> userTypeGen(Gen<AbstractType<?>> elementGen, Gen<Integer> sizeGen, Gen<String> ksGen, Gen<String> nameGen, Gen<Boolean> multiCellGen)
+    {
         Gen<FieldIdentifier> fieldNameGen = IDENTIFIER_GEN.map(FieldIdentifier::forQuoted);
         return rnd -> {
-            boolean multiCell = BOOLEAN_GEN.generate(rnd);
+            boolean multiCell = multiCellGen.generate(rnd);
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
             LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);

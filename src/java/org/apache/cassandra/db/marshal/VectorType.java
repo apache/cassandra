@@ -18,12 +18,18 @@
 
 package org.apache.cassandra.db.marshal;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
@@ -100,6 +106,21 @@ public final class VectorType<T> extends AbstractType<List<T>>
     {
         Key key = new Key(elements, dimension);
         return instances.computeIfAbsent(key, Key::create);
+    }
+
+    public static VectorType<?> getInstance(TypeParser parser)
+    {
+        Map<String, String> map = parser.getKeyValueParameters();
+        String type;
+        try
+        {
+            type = new String(Base64.getDecoder().decode(map.get("type")), "utf-8");
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw new AssertionError("utf-8 is not in the jvm?", e);
+        }
+        return new VectorType<>(TypeParser.parse(type), Integer.parseInt(map.get("dimension")));
     }
 
     @Override
@@ -298,14 +319,14 @@ public final class VectorType<T> extends AbstractType<List<T>>
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(getClass().getName());
-        sb.append('(');
-        sb.append(elementType);
-        sb.append(", ");
-        sb.append(dimension);
-        sb.append(')');
-        return sb.toString();
+        return toString(false);
+    }
+
+    @Override
+    public String toString(boolean ignoreFreezing)
+    {
+        return getClass().getName() + TypeParser.stringifyTKeyValueParameters(ImmutableMap.of("dimension", Integer.toString(dimension),
+                                                                                              "type", Base64.getEncoder().encodeToString(elementType.toString(ignoreFreezing).getBytes(StandardCharsets.UTF_8))));
     }
 
     private void check(List<?> values)

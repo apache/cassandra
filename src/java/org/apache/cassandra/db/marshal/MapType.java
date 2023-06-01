@@ -151,7 +151,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public AbstractType<?> freeze()
     {
         if (isMultiCell)
-            return getInstance(this.keys, this.values, false);
+            return getInstance(this.keys.freeze(), this.values.freeze(), false);
         else
             return this;
     }

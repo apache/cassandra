@@ -288,7 +288,7 @@ public class UserType extends TupleType implements SchemaElement
     public UserType freeze()
     {
         if (isMultiCell)
-            return new UserType(keyspace, name, fieldNames, fieldTypes(), false);
+            return new UserType(keyspace, name, fieldNames, fieldTypes().stream().map(t -> t.freeze()).collect(Collectors.toList()), false);
         else
             return this;
     }

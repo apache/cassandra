@@ -425,6 +425,22 @@ public final class Generators
         return filter(gen, dedup::add);
     }
 
+    public static <T> Gen<T> cached(Gen<T> gen)
+    {
+        Object cacheMissed = new Object();
+        return new Gen<T>()
+        {
+            private Object value = cacheMissed;
+            @Override
+            public T generate(RandomnessSource randomnessSource)
+            {
+                if (value == cacheMissed)
+                    value = gen.generate(randomnessSource);
+                return (T) value;
+            }
+        };
+    }
+
     private static boolean isDash(char c)
     {
         switch (c)

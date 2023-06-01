@@ -74,6 +74,12 @@ public class AbstractTypeTest
         CassandraRelevantProperties.TEST_BLOB_SHARED_SEED.setInt(42);
     }
 
+    private static final Reflections reflections = new Reflections(new ConfigurationBuilder()
+                                                                   .forPackage("org.apache.cassandra")
+                                                                   .setScanners(Scanners.SubTypes)
+                                                                   .setExpandSuperTypes(true)
+                                                                   .setParallel(true));
+
     // TODO
     // isCompatibleWith/isValueCompatibleWith/isSerializationCompatibleWith,
     // withUpdatedUserType/expandUserTypes/referencesDuration - types that recursive check types
@@ -83,11 +89,6 @@ public class AbstractTypeTest
     public void allTypesCovered()
     {
         // this test just makes sure that all types are covered and no new type is left out
-        Reflections reflections = new Reflections(new ConfigurationBuilder()
-                                                  .forPackage("org.apache.cassandra")
-                                                  .setScanners(Scanners.SubTypes)
-                                                  .setExpandSuperTypes(true)
-                                                  .setParallel(true));
         Set<Class<? extends AbstractType>> subTypes = reflections.getSubTypesOf(AbstractType.class);
         Set<Class<? extends AbstractType>> coverage = AbstractTypeGenerators.knownTypes();
         StringBuilder sb = new StringBuilder();
@@ -104,6 +105,14 @@ public class AbstractTypeTest
         }
         if (sb.length() > 0)
             throw new AssertionError("Uncovered types:\n" + sb);
+    }
+
+    @Test
+    public void typeParser()
+    {
+        qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build())
+            .checkAssert(type ->
+                         assertThat(TypeParser.parse(type.toString())).describedAs("TypeParser mismatch for type %s", type.asCQL3Type().toString()).isEqualTo(type));
     }
 
     @Test

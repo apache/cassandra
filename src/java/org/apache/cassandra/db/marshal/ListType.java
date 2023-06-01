@@ -127,7 +127,7 @@ public class ListType<T> extends CollectionType<List<T>>
     public AbstractType<?> freeze()
     {
         if (isMultiCell)
-            return getInstance(this.elements, false);
+            return getInstance(this.elements.freeze(), false);
         else
             return this;
     }
