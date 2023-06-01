@@ -3,6 +3,7 @@ Merged from 4.0:
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
 Merged from 3.11:
 Merged from 3.0:
+ * Remove dh_python use in Debian packaging (CASSANDRA-18558)
 
 4.1.2
  * Allow keystore and trustrore passwords to be nullable (CASSANDRA-18124)
