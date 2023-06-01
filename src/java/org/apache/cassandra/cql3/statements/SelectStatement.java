@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.cql3.Ordering;
 import org.apache.cassandra.cql3.restrictions.*;
@@ -1327,12 +1328,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                                                          Map<ColumnMetadata, Ordering> orderingColumns)
                                                                    throws InvalidRequestException
         {
-            List<SingleRestriction> nonClustered = restrictions.getNonClusteredOrderingRestrictions();
-            if (!nonClustered.isEmpty())
+            for (Map.Entry<ColumnMetadata, Ordering> e : orderingColumns.entrySet())
             {
-                assert nonClustered.size() == 1;
-                SingleRestriction restriction = nonClustered.get(0);
-                return new IndexColumnComparator<>(restriction, selection.getOrderingIndex(restriction.getFirstColumn()));
+                if (e.getValue().expression.hasNonClusteredOrdering())
+                {
+                    Preconditions.checkState(orderingColumns.size() == 1);
+                    return new IndexColumnComparator<>(e.getValue().expression.toRestriction(), selection.getOrderingIndex(e.getKey()));
+                }
             }
 
             if (!restrictions.keyIsInRelation())
@@ -1346,6 +1348,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 idToSort.add(selection.getOrderingIndex(orderingColumn));
                 sorters.add(orderingColumn.type);
             }
+
             return idToSort.size() == 1 ? new SingleColumnComparator(idToSort.get(0), sorters.get(0))
                     : new CompositeComparator(sorters, idToSort);
         }

@@ -822,12 +822,6 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public boolean needsPostQueryOrdering()
-        {
-            return true;
-        }
-
-        @Override
         public void addFunctionsTo(List<Function> functions)
         {
             value.addFunctionsTo(functions);

@@ -36,11 +36,6 @@ public interface SingleRestriction extends Restriction
         return false;
     }
 
-    public default boolean needsPostQueryOrdering()
-    {
-        return false;
-    }
-
     public default boolean isLIKE()
     {
         return false;

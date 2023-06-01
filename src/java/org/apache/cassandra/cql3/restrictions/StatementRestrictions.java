@@ -871,42 +871,6 @@ public class StatementRestrictions
                            .anyMatch(p -> ((SingleRestriction) p).isEQ());
     }
 
-    public List<SingleRestriction> getNonClusteredOrderingRestrictions()
-    {
-        List<SingleRestriction> annRestrictions = null;
-        if (partitionKeyRestrictions instanceof PartitionKeySingleRestrictionSet)
-        {
-            for (SingleRestriction restriction : ((PartitionKeySingleRestrictionSet) partitionKeyRestrictions).restrictions())
-            {
-                if (restriction.needsPostQueryOrdering())
-                {
-                    annRestrictions = new ArrayList<>();
-                    annRestrictions.add(restriction);
-                }
-            }
-        }
-
-        for (SingleRestriction restriction : clusteringColumnsRestrictions.restrictions())
-        {
-            if (restriction.needsPostQueryOrdering())
-            {
-                annRestrictions = new ArrayList<>();
-                annRestrictions.add(restriction);
-            }
-        }
-
-        for (SingleRestriction restriction : nonPrimaryKeyRestrictions.restrictions())
-        {
-            if (restriction.needsPostQueryOrdering())
-            {
-                annRestrictions = new ArrayList<>();
-                annRestrictions.add(restriction);
-            }
-        }
-
-        return annRestrictions == null ? List.of() : annRestrictions;
-    }
-
     /**
      * Returns the <code>Restrictions</code> for the specified type of columns.
      *
