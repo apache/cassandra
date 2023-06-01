@@ -97,6 +97,8 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @BeforeClass
     public static void setupCluster() throws IOException
     {
+        // TODO this blocks some of the original testing of SRP invoking BRR since it is BRRing through Accord
+        // but maybe that is out of scope and is covered by the dedicated BRR tests?
         cluster = init(Cluster.build()
                               .withNodes(NUM_NODES)
                               .withConfig(config -> config.set("hinted_handoff_enabled", false)

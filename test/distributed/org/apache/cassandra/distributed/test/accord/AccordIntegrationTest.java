@@ -54,6 +54,7 @@ public class AccordIntegrationTest extends AccordTestBase
     @Test
     public void testRecovery() throws Exception
     {
+        pauseSimpleProgressLog();
         test(cluster -> {
             IMessageFilters.Filter lostApply = cluster.filters().verbs(Verb.ACCORD_APPLY_REQ.id).drop();
             IMessageFilters.Filter lostCommit = cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).to(2).drop();
@@ -102,8 +103,7 @@ public class AccordIntegrationTest extends AccordTestBase
     @Test
     public void testLostCommitReadTriggersFallbackRead() throws Exception
     {
-        for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
+        pauseSimpleProgressLog();
         test(cluster -> {
             // It's expected that the required Read will happen regardless of whether this fails to return a read
             cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {
@@ -127,5 +127,11 @@ public class AccordIntegrationTest extends AccordTestBase
                            "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check, 0, 0);
         });
+    }
+
+    private void pauseSimpleProgressLog()
+    {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
     }
 }
