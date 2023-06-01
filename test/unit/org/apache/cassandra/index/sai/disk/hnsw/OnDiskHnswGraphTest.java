@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 
 import org.junit.After;
@@ -85,7 +86,7 @@ public class OnDiskHnswGraphTest extends SAITester
         return builder.build();
     }
 
-    private void validateGraph(FullyConnectedHnswGraph original, OnDiskHnswGraph onDisk) throws IOException {
+    private void validateGraph(HnswGraph original, OnDiskHnswGraph onDisk) throws IOException {
         assertThat(onDisk.size()).isEqualTo(original.size());
         assertThat(onDisk.entryNode()).isEqualTo(original.entryNode());
         assertThat(onDisk.numLevels()).isEqualTo(original.numLevels());
@@ -119,6 +120,8 @@ public class OnDiskHnswGraphTest extends SAITester
         while (nodesActual.hasNext()) {
             L2.add(nodesActual.next());
         }
+        L1.sort(Integer::compareTo);
+        L2.sort(Integer::compareTo);
         assertThat(L2).isEqualTo(L1);
         return L1;
     }
@@ -213,6 +216,37 @@ public class OnDiskHnswGraphTest extends SAITester
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[1].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[0].containsNeighbors()).isTrue();
+    }
+
+    @Test
+    public void testLargeGraph() throws IOException
+    {
+        System.out.println("constructing graph");
+        var graph = new RandomlyConnectedHnswGraph.Builder().addLevels(10, 1_000_000, 16).build();
+        System.out.println("writing graph");
+        File outputFile = new File(testDirectory, "test_graph");
+        new HnswGraphWriter(graph).write(outputFile);
+        System.out.println("Graph is " + outputFile.length() + " bytes");
+        OnDiskHnswGraph onDiskGraph = new OnDiskHnswGraph(outputFile, 0);
+        System.out.println("validating graph");
+        validateGraph(graph, onDiskGraph);
+
+        System.out.println("random queries");
+        for (int i = 0; i < 1000; i++)
+        {
+            // pick a random node from a random level in the original graph
+            int level = ThreadLocalRandom.current().nextInt(graph.numLevels());
+            var nodes = new ArrayList<>(graph.rawNodesOnLevel(level).keySet());
+            int node = nodes.get(ThreadLocalRandom.current().nextInt(nodes.size()));
+
+            onDiskGraph.seek(level, node);
+            while (true)
+            {
+                int neighbor = onDiskGraph.nextNeighbor();
+                if (neighbor == NO_MORE_DOCS)
+                    break;
+            }
+        }
     }
 }
 
