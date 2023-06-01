@@ -31,7 +31,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -52,9 +51,9 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 /**
  * Handles the status of an index across the ring, updating the status per index and endpoint
  * in a per-endpoint map.
- *
+ * <p>
  * Peer status changes are recieved via the {@link StorageService} {@link org.apache.cassandra.gms.IEndpointStateChangeSubscriber}.
- *
+ * <p>
  * Local status changes are propagated to the {@link Gossiper} using an async executor.
  */
 public class IndexStatusManager
@@ -66,8 +65,6 @@ public class IndexStatusManager
     // executes index status propagation task asynchronously to avoid potential deadlock on SIM
     private final ExecutorPlus statusPropagationExecutor = executorFactory().withJmxInternal()
                                                                             .sequential("StatusPropagationExecutor");
-    // used to produce a status string from the current endpoint states in JSON format for Gossip propagation
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * A map of per-endpoint index statuses: the key of inner map is the identifier "keyspace.index"
@@ -135,8 +132,7 @@ public class IndexStatusManager
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 return;
 
-            @SuppressWarnings("unchecked")
-            Map<String, String> peerStatus = (Map<String, String>) JsonUtils.decodeJson(versionedValue.value);
+            Map<String, String> peerStatus = JsonUtils.fromJsonMap(versionedValue.value);
             Map<String, Index.Status> indexStatus = new HashMap<>();
 
             for (Map.Entry<String, String> e : peerStatus.entrySet())
@@ -185,7 +181,7 @@ public class IndexStatusManager
             // logged and this causes a number of dtests to fail.
             if (Gossiper.instance.isEnabled())
             {
-                String newStatus = objectMapper.writeValueAsString(states);
+                String newStatus = JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(states);
                 statusPropagationExecutor.submit(() -> {
                     // schedule gossiper update asynchronously to avoid potential deadlock when another thread is holding
                     // gossiper taskLock.

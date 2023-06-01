@@ -28,10 +28,10 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * Thread-unsafe specialized value -> long trie prefix searcher.
- *
+ * <p>
  * This is a specialization of the {@link Walker} that will look for a prefix or
  * a complete term and return the first payload associated with the term.
- *
+ * <p>
  * TODO Make generic to handle any payload type.
  * TODO Extend search to return first payload or all sub-payloads as iterator (LIKE support?)
  */

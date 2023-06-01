@@ -310,5 +310,4 @@ public class WalkerTest extends AbstractTrieTestBase
         s = StringUtils.leftPad(s, size, '0');
         return source(s);
     }
-
 }

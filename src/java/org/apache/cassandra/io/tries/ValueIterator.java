@@ -39,7 +39,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
     protected IterationPosition stack;
     private long next;
 
-    protected static class IterationPosition
+    public static class IterationPosition
     {
         final long node;
         final int limit;
