@@ -173,7 +173,7 @@ public class VectorTopKProcessor
         ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
         if (value != null)
         {
-            float[] vector = TypeUtil.decomposeVector(indexContext, value.duplicate());
+            float[] vector = TypeUtil.decomposeVector(indexContext, value);
             return indexContext.getIndexWriterConfig().getSimilarityFunction().compare(vector, queryVector);
         }
         return 0;
