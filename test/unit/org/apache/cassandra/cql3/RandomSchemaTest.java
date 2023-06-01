@@ -102,8 +102,13 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 {
                     ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
                     execute(insertStmt, expected);
-                    UntypedResultSet row = execute(selectStmt, rowKey);
-                    assertRows(row, expected);
+                    // check memtable
+                    assertRows(execute(selectStmt, rowKey), expected);
+
+                    // check sstable
+                    flush(KEYSPACE, metadata.name);
+                    compact(KEYSPACE, metadata.name);
+                    assertRows(execute(selectStmt, rowKey), expected);
                 }
                 catch (Throwable t)
                 {

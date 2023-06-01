@@ -62,6 +62,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -715,6 +716,21 @@ public abstract class CQLTester
             Util.flush(store);
     }
 
+    public void flush(String keyspace, String table1, String... tables)
+    {
+        tables = ArrayUtils.add(tables, table1);
+        for (ColumnFamilyStore store : getTables(keyspace, tables))
+            Util.flush(store);
+    }
+
+    private List<ColumnFamilyStore> getTables(String keyspace, String[] tables)
+    {
+        List<ColumnFamilyStore> stores = new ArrayList<>(tables.length);
+        for (String name : tables)
+            stores.add(getColumnFamilyStore(keyspace, name));
+        return stores;
+    }
+
     public void disableCompaction(String keyspace)
     {
         ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
@@ -727,6 +743,13 @@ public abstract class CQLTester
          ColumnFamilyStore store = getCurrentColumnFamilyStore();
          if (store != null)
              store.forceMajorCompaction();
+    }
+
+    public void compact(String keyspace, String table1, String... tables)
+    {
+        tables = ArrayUtils.add(tables, table1);
+        for (ColumnFamilyStore store : getTables(keyspace, tables))
+            store.forceMajorCompaction();
     }
 
     public void disableCompaction()
