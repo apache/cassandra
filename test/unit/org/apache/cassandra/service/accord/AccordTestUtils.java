@@ -215,7 +215,7 @@ public class AccordTestUtils
                                                               throw new RuntimeException(e);
                                                           }
                                                       })
-                                                      .reduce(null, UnresolvedData::merge);
+                                                      .reduce(null, UnresolvedData::mergeForReduce);
                                   TxnData readData = null;
                                   try
                                   {
