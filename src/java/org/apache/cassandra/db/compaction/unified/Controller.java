@@ -119,7 +119,7 @@ public abstract class Controller
     public static final int DEFAULT_BASE_SHARD_COUNT = Integer.parseInt(System.getProperty(PREFIX + BASE_SHARD_COUNT_OPTION, "4"));
 
     static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
-    public static final double DEFAULT_TARGET_SSTABLE_SIZE = FBUtilities.parseHumanReadable(System.getProperty(PREFIX + TARGET_SSTABLE_SIZE_OPTION, "1GiB"), null, "B");
+    public static final double DEFAULT_TARGET_SSTABLE_SIZE = FBUtilities.parseHumanReadable(System.getProperty(PREFIX + TARGET_SSTABLE_SIZE_OPTION, "5GiB"), null, "B");
     static final double MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
