@@ -417,12 +417,15 @@ public enum CassandraRelevantProperties
     RING_DELAY("cassandra.ring_delay_ms"),
 
     // SAI specific properties
+
     /** Controls the maximum number of index query intersections that will take part in a query */
     SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection.clause.limit", "2"),
     /** Latest version to be used for SAI index writing */
     SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
+    SAI_MAX_FROZEN_TERM_SIZE("cassandra.sai.max_frozen_term_size_kb", "5"),
+    SAI_MAX_STRING_TERM_SIZE("cassandra.sai.max_string_term_size_kb", "1"),
+    SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
 
-    /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
@@ -487,6 +490,7 @@ public enum CassandraRelevantProperties
     TEST_DEBUG_REF_COUNT("cassandra.debugrefcount"),
     TEST_DRIVER_CONNECTION_TIMEOUT_MS("cassandra.test.driver.connection_timeout_ms", "5000"),
     TEST_DRIVER_READ_TIMEOUT_MS("cassandra.test.driver.read_timeout_ms", "12000"),
+    TEST_ENCRYPTION("cassandra.test.encryption", "false"),
     TEST_FAIL_MV_LOCKS_COUNT("cassandra.test.fail_mv_locks_count", "0"),
     TEST_FAIL_WRITES_KS("cassandra.test.fail_writes_ks", ""),
     /** Flush changes of {@link org.apache.cassandra.schema.SchemaKeyspace} after each schema modification. In production,
@@ -499,6 +503,7 @@ public enum CassandraRelevantProperties
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_LEGACY_SSTABLE_ROOT("legacy-sstable-root"),
     TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT("org.caffinitas.ohc.segmentCount"),
+    TEST_RANDOM_SEED("cassandra.test.random.seed"),
     TEST_READ_ITERATION_DELAY_MS("cassandra.test.read_iteration_delay_ms", "0"),
     TEST_REUSE_PREPARED("cassandra.test.reuse_prepared", "true"),
     TEST_ROW_CACHE_SIZE("cassandra.test.row_cache_size"),
