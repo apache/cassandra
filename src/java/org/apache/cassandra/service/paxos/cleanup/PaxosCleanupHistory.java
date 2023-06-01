@@ -63,7 +63,7 @@ public class PaxosCleanupHistory
             PaxosRepairHistory history = PaxosRepairHistory.serializer.deserialize(in, version);
             Epoch epoch = null;
             if (version >= MessagingService.VERSION_50)
-                Epoch.messageSerializer.deserialize(in, version);
+                epoch = Epoch.messageSerializer.deserialize(in, version);
             return new PaxosCleanupHistory(tableId, lowBound, history, epoch);
         }
 
