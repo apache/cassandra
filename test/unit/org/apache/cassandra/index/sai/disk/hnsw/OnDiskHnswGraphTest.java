@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -126,12 +127,17 @@ public class OnDiskHnswGraphTest extends SAITester
         return L1;
     }
 
+    private static OnDiskHnswGraph createOnDiskGraph(File outputFile, int cacheRamBudget) throws IOException
+    {
+        return new OnDiskHnswGraph(new FileHandle.Builder(outputFile).complete(), cacheRamBudget);
+    }
+
     @Test
     public void testOneLevelGraph() throws IOException {
         var outputPath = testDirectory.resolve("one_level_graph");
         var outputFile = new File(outputPath);
         new HnswGraphWriter(oneLevelGraph).write(outputFile);
-        OnDiskHnswGraph onDiskGraph = new OnDiskHnswGraph(outputFile, 0);
+        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(oneLevelGraph, onDiskGraph);
         onDiskGraph.close();
     }
@@ -141,7 +147,7 @@ public class OnDiskHnswGraphTest extends SAITester
         var outputPath = testDirectory.resolve("two_level_graph");
         var outputFile = new File(outputPath);
         new HnswGraphWriter(twoLevelGraph).write(outputFile);
-        OnDiskHnswGraph onDiskGraph = new OnDiskHnswGraph(outputFile, 0);
+        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(twoLevelGraph, onDiskGraph);
         onDiskGraph.close();
     }
@@ -151,7 +157,7 @@ public class OnDiskHnswGraphTest extends SAITester
         var outputPath = testDirectory.resolve("three_level_graph");
         var outputFile = new File(outputPath);
         new HnswGraphWriter(threeLevelGraph).write(outputFile);
-        OnDiskHnswGraph onDiskGraph = new OnDiskHnswGraph(outputFile, 0);
+        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(threeLevelGraph, onDiskGraph);
         onDiskGraph.close();
     }
@@ -162,7 +168,7 @@ public class OnDiskHnswGraphTest extends SAITester
         File outputFile = new File(testDirectory, "test_graph");
         new HnswGraphWriter(threeLevelGraph).write(outputFile);
 
-        var onDiskGraph = new OnDiskHnswGraph(outputFile, 0);
+        var onDiskGraph = createOnDiskGraph(outputFile, 0);
         BiFunction<OnDiskHnswGraph, Integer, Integer> nodeIdBytes = (g, i) -> {
             try
             {
@@ -187,7 +193,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
         // test graph that caches just the offsets of the top level
         int ramBudget = Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 2) + offsetBytes.apply(onDiskGraph, 2));
-        onDiskGraph = new OnDiskHnswGraph(outputFile, ramBudget);
+        onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isFalse();
         assertThat(onDiskGraph.cachedLevels[1]).isNull();
@@ -195,7 +201,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
         // test graph that caches just the entire top level
         ramBudget = Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 2) + neighborBytes.apply(onDiskGraph, 2));
-        onDiskGraph = new OnDiskHnswGraph(outputFile, ramBudget);
+        onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[1]).isNull();
@@ -203,7 +209,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
         // test graph that caches the entire top level, and offsets from the next
         ramBudget += Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 1) + offsetBytes.apply(onDiskGraph, 1));
-        onDiskGraph = new OnDiskHnswGraph(outputFile, ramBudget);
+        onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[1].containsNeighbors()).isFalse();
@@ -211,7 +217,7 @@ public class OnDiskHnswGraphTest extends SAITester
         assertThat(onDiskGraph.getCacheSizeInBytes()).isEqualTo(ramBudget);
 
         // test graph that caches the entire structure
-        onDiskGraph = new OnDiskHnswGraph(outputFile, 1024);
+        onDiskGraph = createOnDiskGraph(outputFile, 1024);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[1].containsNeighbors()).isTrue();
@@ -227,7 +233,7 @@ public class OnDiskHnswGraphTest extends SAITester
         File outputFile = new File(testDirectory, "test_graph");
         new HnswGraphWriter(graph).write(outputFile);
         System.out.println("Graph is " + outputFile.length() + " bytes");
-        OnDiskHnswGraph onDiskGraph = new OnDiskHnswGraph(outputFile, 0);
+        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         System.out.println("validating graph");
         validateGraph(graph, onDiskGraph);
 

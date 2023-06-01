@@ -24,41 +24,50 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.FileHandle;
 
 public class OnDiskOrdinalsMap
 {
     private static final Logger logger = LoggerFactory.getLogger(OnDiskOrdinalsMap.class);
 
-    private final RandomAccessReader reader;
+    private final FileHandle fh;
     private final int size;
     private final long rowOrdinalOffset;
 
-    public OnDiskOrdinalsMap(File file) throws IOException
+    public OnDiskOrdinalsMap(FileHandle fh)
     {
-        this.reader = RandomAccessReader.open(file);
-        this.size = reader.readInt();
-        reader.seek(reader.length() - 8);
-        this.rowOrdinalOffset = reader.readLong();
+        this.fh = fh;
+        try (var reader = fh.createReader())
+        {
+            this.size = reader.readInt();
+            reader.seek(reader.length() - 8);
+            this.rowOrdinalOffset = reader.readLong();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
     {
         Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
 
-        // read index entry
-        reader.seek(4L + vectorOrdinal * 8L);
-        var offset = reader.readLong();
-        // seek to and read ordinals
-        reader.seek(offset);
-        var postingsSize = reader.readInt();
-        var ordinals = new int[postingsSize];
-        for (var i = 0; i < ordinals.length; i++)
+        try (var reader = fh.createReader())
         {
-            ordinals[i] = reader.readInt();
+            // read index entry
+            reader.seek(4L + vectorOrdinal * 8L);
+            var offset = reader.readLong();
+            // seek to and read ordinals
+            reader.seek(offset);
+            var postingsSize = reader.readInt();
+            var ordinals = new int[postingsSize];
+            for (var i = 0; i < ordinals.length; i++)
+            {
+                ordinals[i] = reader.readInt();
+            }
+            return ordinals;
         }
-        return ordinals;
     }
 
     /**
@@ -66,30 +75,33 @@ public class OnDiskOrdinalsMap
      */
     public int getOrdinalForRowId(int rowId) throws IOException
     {
-        // Compute the offset of the start of the rowId to vectorOrdinal mapping
-        var high = (reader.length() - 8 - rowOrdinalOffset) / 8;
-        long index = DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
-            try
-            {
-                long offset = rowOrdinalOffset + i * 8;
-                reader.seek(offset);
-                return reader.readInt();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
+        try (var reader = fh.createReader())
+        {
+            // Compute the offset of the start of the rowId to vectorOrdinal mapping
+            var high = (reader.length() - 8 - rowOrdinalOffset) / 8;
+            long index = DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
+                try
+                {
+                    long offset = rowOrdinalOffset + i * 8;
+                    reader.seek(offset);
+                    return reader.readInt();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
 
-        // not found
-        if (index < 0)
-            return -1;
+            // not found
+            if (index < 0)
+                return -1;
 
-        return reader.readInt();
+            return reader.readInt();
+        }
     }
 
     public void close()
     {
-        reader.close();
+        fh.close();
     }
 }

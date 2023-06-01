@@ -31,10 +31,12 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class HnswGraphWriter
 {
     private final ExtendedHnswGraph hnsw;
+    private final int maxOrdinal;
 
     public HnswGraphWriter(ExtendedHnswGraph hnsw)
     {
         this.hnsw = hnsw;
+        this.maxOrdinal = hnsw.size();
     }
 
     private long levelSize(int level) throws IOException
@@ -91,6 +93,7 @@ public class HnswGraphWriter
                 var nodeOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
                 for (var node : sortedNodes)
                 {
+                    assertOrdinalValid(node);
                     out.writeInt(node);
                     out.writeLong(nextNodeOffset);
                     nodeOffsets.put(node, nextNodeOffset);
@@ -102,11 +105,13 @@ public class HnswGraphWriter
                 {
                     assert out.position() == nodeOffsets.get(node) : String.format("level %s node %s offset mismatch: %s actual vs %s expected", level, node, out.position(), nodeOffsets.get(node));
                     var n = hnsw.getNeighborCount(level, node);
+                    assertOrdinalValid(n);
                     out.writeInt(n);
                     hnsw.seek(level, node);
                     int neighborId;
                     while ((neighborId = hnsw.nextNeighbor()) != NO_MORE_DOCS)
                     {
+                        assertOrdinalValid(neighborId);
                         out.writeInt(neighborId);
                     }
                 }
@@ -115,6 +120,11 @@ public class HnswGraphWriter
             }
             assert out.position() == nextLevelOffset : String.format("final level offset mismatch: %s actual vs %s expected", out.position(), nextLevelOffset);
         }
+    }
+
+    private void assertOrdinalValid(int node)
+    {
+        assert 0 <= node && node < maxOrdinal : String.format("node %s is out of bounds: %s", node, maxOrdinal);
     }
 
     private static int[] getSortedNodes(HnswGraph.NodesIterator nodesOnLevel) {

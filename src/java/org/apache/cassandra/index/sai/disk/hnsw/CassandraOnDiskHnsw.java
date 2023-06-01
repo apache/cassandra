@@ -22,14 +22,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
-import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -40,17 +40,17 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class CassandraOnDiskHnsw
 {
-    private final OnDiskVectors vectorValues;
+    private final Supplier<OnDiskVectors> vectorsSupplier;
     private final OnDiskOrdinalsMap ordinalsMap;
     private final OnDiskHnswGraph hnsw;
     private final VectorSimilarityFunction similarityFunction;
 
-    public CassandraOnDiskHnsw(IndexDescriptor descriptor, IndexContext context) throws IOException
+    public CassandraOnDiskHnsw(PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
-        vectorValues = new OnDiskVectors(descriptor.fileFor(IndexComponent.VECTOR, context));
-        ordinalsMap = new OnDiskOrdinalsMap(descriptor.fileFor(IndexComponent.POSTING_LISTS, context));
-        hnsw = new OnDiskHnswGraph(descriptor.fileFor(IndexComponent.TERMS_DATA, context),
+        vectorsSupplier = () -> new OnDiskVectors(indexFiles.vectors());
+        ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists());
+        hnsw = new OnDiskHnswGraph(indexFiles.termsData(),
                                    CassandraRelevantProperties.SAI_VECTOR_SEARCH_HNSW_CACHE_BYTES.getInt());
     }
 
@@ -61,7 +61,7 @@ public class CassandraOnDiskHnsw
 
     public int size()
     {
-        return vectorValues.size();
+        return hnsw.size();
     }
 
     /**
@@ -71,14 +71,14 @@ public class CassandraOnDiskHnsw
     public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
     {
         NeighborQueue queue;
-        try
+        try (var vectors = vectorsSupplier.get(); var view = hnsw.getView())
         {
             queue = HnswGraphSearcher.search(queryVector,
                                              topK,
-                                             vectorValues,
+                                             vectors,
                                              VectorEncoding.FLOAT32,
                                              similarityFunction,
-                                             hnsw,
+                                             view,
                                              acceptBits,
                                              vistLimit);
             return annRowIdsToPostings(queue);
@@ -123,7 +123,6 @@ public class CassandraOnDiskHnsw
 
     public void close()
     {
-        vectorValues.close();
         ordinalsMap.close();
         hnsw.close();
     }
@@ -133,17 +132,24 @@ public class CassandraOnDiskHnsw
         return ordinalsMap.getOrdinalForRowId(segmentRowId);
     }
 
-    private static class OnDiskVectors implements RandomAccessVectorValues<float[]>
+    private static class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoCloseable
     {
         private final RandomAccessReader reader;
         private final int dimension;
         private final int size;
 
-        public OnDiskVectors(File file) throws IOException
+        public OnDiskVectors(FileHandle fh)
         {
-            this.reader = RandomAccessReader.open(file);
-            this.size = reader.readInt();
-            this.dimension = reader.readInt();
+            try
+            {
+                this.reader = fh.createReader();
+                this.size = reader.readInt();
+                this.dimension = reader.readInt();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -171,9 +177,9 @@ public class CassandraOnDiskHnsw
         }
 
         @Override
-        public RandomAccessVectorValues<float[]> copy() throws IOException
+        public RandomAccessVectorValues<float[]> copy()
         {
-            return new OnDiskVectors(reader.getFile());
+            throw new UnsupportedOperationException();
         }
 
         public void close()

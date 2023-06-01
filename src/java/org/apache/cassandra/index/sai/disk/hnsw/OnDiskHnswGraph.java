@@ -21,94 +21,94 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.util.Arrays;
 
-import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-// FIXME share cache across all readers
-public class OnDiskHnswGraph extends ExtendedHnswGraph
+public class OnDiskHnswGraph extends HnswGraph
 {
-    private final RandomAccessReader reader;
+    private final FileHandle fh;
+    private final long fileSize;
     private final int size;
     private final int numLevels;
     private final int entryNode;
 
-    private int currentNeighborCount;
-    private int currentNeighborsRead;
-    private long currentCachedLevelNode = -1;
-    private int[] currentCachedNeighbors;
-    private long[] levelOffsets;
+    private final long[] levelOffsets;
 
     @VisibleForTesting
-    CachedLevel[] cachedLevels;
-    private int cacheSizeInBytes;
+    final CachedLevel[] cachedLevels;
+    private final int cacheSizeInBytes;
 
-    public OnDiskHnswGraph(File file, int cacheRamBudget) throws IOException {
-        this.reader = RandomAccessReader.open(file);
+    public OnDiskHnswGraph(FileHandle fh, int cacheRamBudget) throws IOException {
+        this.fh = fh;
+        try (var reader = fh.createReader())
+        {
+            fileSize = reader.length();
+            size = reader.readInt();
+            numLevels = reader.readInt();
+            cachedLevels = new CachedLevel[numLevels];
+            entryNode = reader.readInt();
 
-        size = reader.readInt();
-        numLevels = reader.readInt();
-        cachedLevels = new CachedLevel[numLevels];
-        entryNode = reader.readInt();
-
-        // always load the level offsets
-        levelOffsets = new long[numLevels];
-        for (int i = 0; i < numLevels; i++) {
-            levelOffsets[i] = reader.readLong();
-        }
-
-        // cache levels based on cacheRamBudget starting with the top level
-        // if we have enough room left in the budget, cache the entire level including neighbors
-        // if we don't have enough room left in the budget, cache only the level's node offsets
-        int remainingRamBudget = cacheRamBudget;
-        int topLevel = numLevels - 1;
-        for (int level = topLevel; level >= 0 && remainingRamBudget > 0; level--) {
-            reader.seek(levelOffsets[level]);
-            int numNodes = reader.readInt();
-            long nodeIdsSize = (long) numNodes * Integer.BYTES;
-            long offsetsSize = (long) numNodes * Long.BYTES;
-            long neighborsSize = levelSize(level) - (offsetsSize + nodeIdsSize);
-
-            if (remainingRamBudget >= nodeIdsSize + neighborsSize) {
-                // Cache entire level including neighbors
-                int[] nodeIds = new int[numNodes];
-                int[][] neighbors = new int[numNodes][];
-
-                // Read node IDs
-                for (int i = 0; i < numNodes; i++) {
-                    nodeIds[i] = reader.readInt();  // read node id
-                    reader.skipBytes(Long.BYTES);   // skip offset
-                }
-
-                // Read neighbors
-                for (int i = 0; i < numNodes; i++) {
-                    int numNeighbors = reader.readInt();
-                    neighbors[i] = new int[numNeighbors];
-                    for (int j = 0; j < numNeighbors; j++) {
-                        neighbors[i][j] = reader.readInt();
-                    }
-                }
-
-                cachedLevels[level] = new CachedLevel(level, nodeIds, neighbors);
-                remainingRamBudget -= (nodeIdsSize + neighborsSize);
-            } else if (remainingRamBudget >= nodeIdsSize + offsetsSize) {
-                // Cache level's node offsets
-                int[] nodeIds = new int[numNodes];
-                long[] offsets = new long[numNodes];
-                for (int i = 0; i < numNodes; i++) {
-                    nodeIds[i] = reader.readInt();
-                    offsets[i] = reader.readLong();
-                }
-                cachedLevels[level] = new CachedLevel(level, nodeIds, offsets);
-                remainingRamBudget -= (nodeIdsSize + offsetsSize);
-            } else {
-                // No room left in the RAM budget
-                break;
+            // always load the level offsets
+            levelOffsets = new long[numLevels];
+            for (int i = 0; i < numLevels; i++) {
+                levelOffsets[i] = reader.readLong();
             }
+
+            // cache levels based on cacheRamBudget starting with the top level
+            // if we have enough room left in the budget, cache the entire level including neighbors
+            // if we don't have enough room left in the budget, cache only the level's node offsets
+            int remainingRamBudget = cacheRamBudget;
+            int topLevel = numLevels - 1;
+            for (int level = topLevel; level >= 0 && remainingRamBudget > 0; level--) {
+                reader.seek(levelOffsets[level]);
+                int numNodes = reader.readInt();
+                long nodeIdsSize = (long) numNodes * Integer.BYTES;
+                long offsetsSize = (long) numNodes * Long.BYTES;
+                long neighborsSize = levelSize(level) - (offsetsSize + nodeIdsSize);
+
+                if (remainingRamBudget >= nodeIdsSize + neighborsSize) {
+                    // Cache entire level including neighbors
+                    int[] nodeIds = new int[numNodes];
+                    int[][] neighbors = new int[numNodes][];
+
+                    // Read node IDs
+                    for (int i = 0; i < numNodes; i++) {
+                        nodeIds[i] = reader.readInt();  // read node id
+                        reader.skipBytes(Long.BYTES);   // skip offset
+                    }
+
+                    // Read neighbors
+                    for (int i = 0; i < numNodes; i++) {
+                        int numNeighbors = reader.readInt();
+                        neighbors[i] = new int[numNeighbors];
+                        for (int j = 0; j < numNeighbors; j++) {
+                            neighbors[i][j] = reader.readInt();
+                        }
+                    }
+
+                    cachedLevels[level] = new CachedLevel(level, nodeIds, neighbors);
+                    remainingRamBudget -= (nodeIdsSize + neighborsSize);
+                } else if (remainingRamBudget >= nodeIdsSize + offsetsSize) {
+                    // Cache level's node offsets
+                    int[] nodeIds = new int[numNodes];
+                    long[] offsets = new long[numNodes];
+                    for (int i = 0; i < numNodes; i++) {
+                        nodeIds[i] = reader.readInt();
+                        offsets[i] = reader.readLong();
+                    }
+                    cachedLevels[level] = new CachedLevel(level, nodeIds, offsets);
+                    remainingRamBudget -= (nodeIdsSize + offsetsSize);
+                } else {
+                    // No room left in the RAM budget
+                    break;
+                }
+            }
+            cacheSizeInBytes = cacheRamBudget - remainingRamBudget;
         }
-        cacheSizeInBytes = cacheRamBudget - remainingRamBudget;
     }
 
     int getCacheSizeInBytes() {
@@ -116,81 +116,14 @@ public class OnDiskHnswGraph extends ExtendedHnswGraph
     }
 
     @Override
-    public int getNeighborCount(int level, int node) throws IOException
+    public void seek(int level, int target) throws IOException
     {
-        seek(level, node);
-        return currentNeighborCount;
-    }
-
-    @Override
-    public void seek(int level, int target) throws IOException {
-        if (currentNeighborsRead == 0 && currentCachedLevelNode == levelNodeOf(level, target))
-        {
-            // seek was called redundantly (usually because getNeighborCount was also called)
-            return;
-        }
-
-        currentCachedLevelNode = -1;
-        currentCachedNeighbors = null;
-        currentNeighborsRead = 0;
-        long neighborsOffset;
-
-        var cachedLevel = cachedLevels[level];
-        if (cachedLevel != null)
-        {
-            if (cachedLevel.containsNeighbors())
-            {
-                currentCachedNeighbors = cachedLevel.neighborsFor(target);
-                currentCachedLevelNode = levelNodeOf(level, target);
-                currentNeighborCount = currentCachedNeighbors.length;
-                return;
-            }
-
-            // get the offset of the node's index entry from the cache, if present
-            neighborsOffset = cachedLevel.offsetFor(target);
-        }
-        else
-        {
-            // seek to the level
-            reader.seek(levelOffsets[level]);
-            // binary search for the node's index entry within the level
-            int numNodes = reader.readInt();
-            long firstOffset = reader.getFilePointer();
-            long lastOffset = firstOffset + numNodes * 12L;
-            long entryOffset = binarySearchNodeOffset(firstOffset, lastOffset, target);
-//            reader.seek(entryOffset);
-//            var diskNodeId = reader.readInt();
-//            assert diskNodeId == target : String.format("Expected node %d, but found %d", target, diskNodeId);
-            neighborsOffset = reader.readLong();
-        }
-
-        // seek to the neighbor list
-        reader.seek(neighborsOffset);
-        currentNeighborCount = reader.readInt();
+        throw new UnsupportedOperationException();
     }
 
     private static long levelNodeOf(int level, int target)
     {
         return ((long) level << 32) | target;
-    }
-
-    private long binarySearchNodeOffset(long firstOffset, long lastOffset, int target) throws IOException {
-        long index = DiskBinarySearch.searchInt(0, Math.toIntExact((lastOffset - firstOffset) / 12), target, i -> {
-            try
-            {
-                long offset = firstOffset + i * 12;
-                reader.seek(offset);
-                return reader.readInt();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        });
-        if (index < 0)
-            throw new IllegalStateException("Element " + target + " not found");
-
-        return firstOffset + index * 12;
     }
 
     @Override
@@ -206,21 +139,15 @@ public class OnDiskHnswGraph extends ExtendedHnswGraph
         if (i < topLevel) {
             nextLevelOffset = levelOffsets[i + 1];
         } else {
-            nextLevelOffset = reader.length();
+            nextLevelOffset = fileSize;
         }
         return nextLevelOffset - currentLevelOffset;
     }
 
     @Override
-    public int nextNeighbor() throws IOException {
-        if (currentNeighborsRead++ < currentNeighborCount)
-        {
-            if (currentCachedNeighbors != null)
-                return currentCachedNeighbors[currentNeighborsRead - 1];
-            else
-                return reader.readInt();
-        }
-        return NO_MORE_DOCS;
+    public int nextNeighbor()
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -233,62 +160,196 @@ public class OnDiskHnswGraph extends ExtendedHnswGraph
         return entryNode;
     }
 
-    // getNodesOnLevel is only used when scanning the entire graph, i.e., during compaction
-    @Override
-    public NodesIterator getNodesOnLevel(int level) throws IOException {
-        if (cachedLevels[level] != null)
-        {
-            var nodes = cachedLevels[level].nodesOnLevel();
-            var it = Arrays.stream(nodes).iterator();
-            return new AbstractNodesIterator(nodes.length)
-            {
-                @Override
-                public int nextInt()
-                {
-                    return it.nextInt();
-                }
+    /** return an HnswGraph that can be safely querried concurrently */
+    public OnDiskView getView()
+    {
+        return new OnDiskView(fh.createReader());
+    }
 
-                @Override
-                public boolean hasNext()
-                {
-                    return it.hasNext();
-                }
-            };
+    public class OnDiskView extends HnswGraph implements AutoCloseable
+    {
+        private final RandomAccessReader reader;
+        private int currentNeighborCount;
+        private int currentNeighborsRead;
+        private long currentCachedLevelNode = -1;
+        private int[] currentCachedNeighbors;
+
+        public OnDiskView(RandomAccessReader reader)
+        {
+            super();
+            this.reader = reader;
         }
 
-        reader.seek(levelOffsets[level]);
-        int numNodes = reader.readInt();
-        return new AbstractNodesIterator(numNodes)
+        @Override
+        public void seek(int level, int target) throws IOException
         {
-            private int nodesRead = 0;
-
-            @Override
-            public int nextInt()
+            if (currentNeighborsRead == 0 && currentCachedLevelNode == levelNodeOf(level, target))
             {
+                // seek was called redundantly (usually because getNeighborCount was also called)
+                return;
+            }
+
+            currentCachedLevelNode = -1;
+            currentCachedNeighbors = null;
+            currentNeighborsRead = 0;
+            long neighborsOffset;
+
+            var cachedLevel = cachedLevels[level];
+            if (cachedLevel != null)
+            {
+                if (cachedLevel.containsNeighbors())
+                {
+                    currentCachedNeighbors = cachedLevel.neighborsFor(target);
+                    currentCachedLevelNode = levelNodeOf(level, target);
+                    currentNeighborCount = currentCachedNeighbors.length;
+                    return;
+                }
+
+                // get the offset of the node's index entry from the cache, if present
+                neighborsOffset = cachedLevel.offsetFor(target);
+            }
+            else
+            {
+                // seek to the level
+                reader.seek(levelOffsets[level]);
+                // binary search for the node's index entry within the level
+                int numNodes = reader.readInt();
+                long firstOffset = reader.getFilePointer();
+                long lastOffset = firstOffset + numNodes * 12L;
+                binarySearchNodeOffset(firstOffset, lastOffset, target);
+                neighborsOffset = reader.readLong();
+            }
+
+            // seek to the neighbor list
+            reader.seek(neighborsOffset);
+            currentNeighborCount = reader.readInt();
+        }
+
+        private long binarySearchNodeOffset(long firstOffset, long lastOffset, int target)
+        {
+            long index = DiskBinarySearch.searchInt(0, Math.toIntExact((lastOffset - firstOffset) / 12), target, i -> {
                 try
                 {
-                    int value = reader.readInt();
-                    reader.skipBytes(Long.BYTES);
-                    nodesRead++;
-                    return value;
+                    long offset = firstOffset + i * 12;
+                    reader.seek(offset);
+                    return reader.readInt();
                 }
                 catch (IOException e)
                 {
                     throw new RuntimeException(e);
                 }
+            });
+            if (index < 0)
+                throw new IllegalStateException("Element " + target + " not found");
+
+            return firstOffset + index * 12;
+        }
+
+        @Override
+        public int size()
+        {
+            return OnDiskHnswGraph.this.size();
+        }
+
+        @Override
+        public int nextNeighbor() throws IOException
+        {
+            if (currentNeighborsRead++ < currentNeighborCount)
+            {
+                if (currentCachedNeighbors != null)
+                    return currentCachedNeighbors[currentNeighborsRead - 1];
+                else
+                {
+                    var n = reader.readInt();
+                    assert n < size() : "neighbor " + n + " is out of bounds for graph of size " + size();
+                    return n;
+                }
+            }
+            return NO_MORE_DOCS;
+        }
+
+        @Override
+        public int numLevels()
+        {
+            return OnDiskHnswGraph.this.numLevels();
+        }
+
+        @Override
+        public int entryNode()
+        {
+            return OnDiskHnswGraph.this.entryNode();
+        }
+
+        @Override
+        public NodesIterator getNodesOnLevel(int level) throws IOException
+        {
+            if (cachedLevels[level] != null)
+            {
+                var nodes = cachedLevels[level].nodesOnLevel();
+                var it = Arrays.stream(nodes).iterator();
+                return new AbstractNodesIterator(nodes.length)
+                {
+                    @Override
+                    public int nextInt()
+                    {
+                        return it.nextInt();
+                    }
+
+                    @Override
+                    public boolean hasNext()
+                    {
+                        return it.hasNext();
+                    }
+                };
             }
 
-            @Override
-            public boolean hasNext()
+            reader.seek(levelOffsets[level]);
+            int numNodes = reader.readInt();
+            return new AbstractNodesIterator(numNodes)
             {
-                return nodesRead < size;
-            }
-        };
+                private int nodesRead = 0;
+
+                @Override
+                public int nextInt()
+                {
+                    try
+                    {
+                        int value = reader.readInt();
+                        reader.skipBytes(Long.BYTES);
+                        nodesRead++;
+                        return value;
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public boolean hasNext()
+                {
+                    return nodesRead < size;
+                }
+            };
+        }
+
+        @Override
+        public void close()
+        {
+            reader.close();
+        }
+    }
+
+    // getNodesOnLevel is only used when scanning the entire graph, i.e., during compaction
+    @Override
+    public NodesIterator getNodesOnLevel(int level) throws IOException
+    {
+        throw new UnsupportedOperationException();
     }
 
     public void close()
     {
-        reader.close();
+        fh.close();
     }
 
     @VisibleForTesting

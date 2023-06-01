@@ -55,11 +55,11 @@ public class VectorSiftSmallTest extends SAITester
         waitForIndexQueryable();
 
         insertVectors(baseVectors);
-        double memoryRecall = testRecall(queryVectors, groundTruth, true); // memtable hnsw is threadsafe
+        double memoryRecall = testRecall(queryVectors, groundTruth);
         assertTrue(memoryRecall > 0.975);
 
         flush();
-        var diskRecall = testRecall(queryVectors, groundTruth, false); // on disk hnsw is not threadsafe
+        var diskRecall = testRecall(queryVectors, groundTruth);
         assertTrue(diskRecall > 0.975);
     }
 
@@ -115,15 +115,13 @@ public class VectorSiftSmallTest extends SAITester
         return groundTruthTopK;
     }
 
-    public double testRecall(List<float[]> queryVectors, List<HashSet<Integer>> groundTruth, boolean parallel)
+    public double testRecall(List<float[]> queryVectors, List<HashSet<Integer>> groundTruth)
     {
         AtomicInteger topKfound = new AtomicInteger(0);
         int topK = 100;
 
         // Perform query and compute recall
-        var stream = IntStream.range(0, queryVectors.size());
-        if (parallel)
-            stream = stream.parallel();
+        var stream = IntStream.range(0, queryVectors.size()).parallel();
         stream.forEach(i -> {
             float[] queryVector = queryVectors.get(i);
             String queryVectorAsString = Arrays.toString(queryVector);
