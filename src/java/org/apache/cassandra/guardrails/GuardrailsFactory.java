@@ -91,4 +91,9 @@ public interface GuardrailsFactory
      * @param messageProvider  a function to generate the warning or error message if the guardrail is triggered
      */
     <T> ValueBasedGuardrail<T> predicates(String name, Predicate<T> warnPredicate, Predicate<T> failurePredicate, ValueBasedGuardrail.MessageProvider<T> messageProvider);
+
+    long getTotalUserTablesForGuardrail(QueryState state);
+    
+    long getTotalIndexesForGuardrail(String indexClassName, QueryState state);
+
 }

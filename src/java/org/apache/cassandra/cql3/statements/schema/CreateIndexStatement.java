@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
 import java.util.function.UnaryOperator;
-import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -29,12 +28,10 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget.Type;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.guardrails.Guardrails;
@@ -178,10 +175,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         // Guardrail to limit number of secondary indexes (total)
         if (guardRails.hasTotalThreshold())
         {
-            long indexesOnAllTables = StreamSupport.stream(Keyspace.all().spliterator(), false).flatMap(ks -> ks.getColumnFamilyStores().stream())
-                                                   .flatMap(ks -> ks.indexManager.listIndexes().stream())
-                                                   .map(i -> i.getIndexMetadata().getIndexClassName())
-                                                   .filter(otherClassName -> className.equals(otherClassName)).count();
+            long indexesOnAllTables = Guardrails.factory.getTotalIndexesForGuardrail(className, state);
             guardRails.totalThreshold.guard(indexesOnAllTables + 1, indexDescription, false, state);
         }
 

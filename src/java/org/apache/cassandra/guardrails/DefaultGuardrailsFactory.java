@@ -24,6 +24,11 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.StreamSupport;
+
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.QueryState;
 
 public class DefaultGuardrailsFactory implements GuardrailsFactory
 {
@@ -58,5 +63,25 @@ public class DefaultGuardrailsFactory implements GuardrailsFactory
     public <T> ValueBasedGuardrail<T> predicates(String name, Predicate<T> warnPredicate, Predicate<T> failurePredicate, ValueBasedGuardrail.MessageProvider<T> messageProvider)
     {
         return new DefaultGuardrail.Predicates<>(name, warnPredicate, failurePredicate, messageProvider);
+    }
+    
+    @Override
+    public long getTotalUserTablesForGuardrail(QueryState state)
+    {
+        int totalUserTables = Schema.instance.getUserKeyspaces().stream().map(ksm -> Keyspace.open(ksm.name))
+                                             .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
+                                             .sum();
+        return totalUserTables;
+    }
+
+    @Override
+    public long getTotalIndexesForGuardrail(String indexClassName, QueryState state)
+    {
+        // TODO This is based on ALL keyspaces, while getTotalIndexesForGuardrail is based on user keyspaces - is this correct?
+        long indexesOnAllTables = StreamSupport.stream(Keyspace.all().spliterator(), false).flatMap(ks -> ks.getColumnFamilyStores().stream())
+                                               .flatMap(ks -> ks.indexManager.listIndexes().stream())
+                                               .map(i -> i.getIndexMetadata().getIndexClassName())
+                                               .filter(otherClassName -> indexClassName.equals(otherClassName)).count();
+        return indexesOnAllTables;
     }
 }

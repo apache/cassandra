@@ -35,7 +35,6 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.RawKeyspaceAwareStatement;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.guardrails.Guardrails;
@@ -120,9 +119,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             if (Guardrails.tablesLimit.enabled(state))
             {
                 // guardrails on number of tables
-                int totalUserTables = Schema.instance.getUserKeyspaces().stream().map(ksm -> Keyspace.open(ksm.name))
-                                                     .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
-                                                     .sum();
+                long totalUserTables = Guardrails.factory.getTotalUserTablesForGuardrail(state);
                 Guardrails.tablesLimit.guard(totalUserTables + 1, tableName, false, state);
             }
         }
