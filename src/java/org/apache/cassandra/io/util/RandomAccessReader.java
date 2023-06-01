@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -70,6 +71,35 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         buffer.position(Ints.checkedCast(position - bufferHolder.offset()));
 
         assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
+    }
+
+    /**
+     * Read a vector at the given (absolute) position.
+     *
+     * @param position the position to read from, in bytes
+     * @param vectorLength the dimensionality of the vector = number of floats to read
+     *
+     * May change the buffer position.
+     */
+    public float[] vectorAt(long position, int vectorLength) throws IOException
+    {
+        assert position % Float.BYTES == 0 : "Position must be aligned to multiple of " + Float.BYTES;
+        var bh = rebufferer.rebuffer(position);
+        var floatBuffer = bh.floatBuffer();
+        floatBuffer.position(Ints.checkedCast((position - bh.offset()) / Float.BYTES));
+
+        if (vectorLength > floatBuffer.remaining())
+        {
+            // slow path -- desired slice is across region boundaries
+            var bb = ByteBuffer.allocate(Float.BYTES * vectorLength);
+            reBufferAt(position);
+            readFully(bb);
+            floatBuffer = bb.asFloatBuffer();
+        }
+
+        float[] vector = new float[vectorLength];
+        floatBuffer.get(vector);
+        return vector;
     }
 
     @Override

@@ -167,13 +167,7 @@ public class CassandraOnDiskHnsw
         @Override
         public float[] vectorValue(int i) throws IOException
         {
-            reader.seek(8L + i * dimension * 4L);
-            float[] vector = new float[dimension];
-            for (int j = 0; j < dimension; j++)
-            {
-                vector[j] = reader.readFloat();
-            }
-            return vector;
+            return reader.vectorAt(8L + i * dimension * 4L, dimension);
         }
 
         @Override
