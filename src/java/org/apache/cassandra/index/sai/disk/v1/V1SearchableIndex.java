@@ -161,26 +161,6 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public List<RangeIterator<PrimaryKey>> search(Expression expression,
-                                      AbstractBounds<PartitionPosition> keyRange,
-                                      SSTableQueryContext context,
-                                      boolean defer,
-                                      int limit) throws IOException
-    {
-        List<RangeIterator<PrimaryKey>> iterators = new ArrayList<>();
-
-        for (Segment segment : segments)
-        {
-            if (segment.intersects(keyRange))
-            {
-                iterators.add(segment.search(expression, keyRange, context, defer, limit));
-            }
-        }
-
-        return iterators;
-    }
-
-    @Override
     public List<RangeIterator<Long>> searchSSTableRowIds(Expression expression,
                                                    AbstractBounds<PartitionPosition> keyRange,
                                                    SSTableQueryContext context,

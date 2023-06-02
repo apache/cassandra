@@ -61,11 +61,6 @@ public interface SearchableIndex extends Closeable, SegmentOrdering
 
     public DecoratedKey maxKey();
 
-    public List<RangeIterator<PrimaryKey>> search(Expression expression,
-                                                  AbstractBounds<PartitionPosition> keyRange,
-                                                  SSTableQueryContext context,
-                                                  boolean defer, int limit) throws IOException;
-
     public List<RangeIterator<Long>> searchSSTableRowIds(Expression expression,
                                                          AbstractBounds<PartitionPosition> keyRange,
                                                          SSTableQueryContext context,
