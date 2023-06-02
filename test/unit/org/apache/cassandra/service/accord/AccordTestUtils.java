@@ -66,6 +66,10 @@ import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.utils.async.AsyncChains;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.concurrent.ManualExecutor;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
@@ -129,20 +133,20 @@ public class AccordTestUtils
         return new CommandsForKey(key, CommandsForKeySerializer.loader);
     }
 
-    public static <K, V> AccordLoadingState<K, V> loaded(K key, V value)
+    public static <K, V> AccordCachingState<K, V> loaded(K key, V value)
     {
-        AccordLoadingState<K, V> global = new AccordLoadingState<>(key);
-        global.load(k -> {
+        AccordCachingState<K, V> global = new AccordCachingState<>(key);
+        global.load(ImmediateExecutor.INSTANCE, k -> {
             Assert.assertEquals(key, k);
             return value;
-        }).run();
-        Assert.assertEquals(AccordLoadingState.LoadingState.LOADED, global.state());
+        });
+        Assert.assertEquals(AccordCachingState.Status.LOADED, global.status());
         return global;
     }
 
     public static AccordSafeCommand safeCommand(Command command)
     {
-        AccordLoadingState<TxnId, Command> global = loaded(command.txnId(), command);
+        AccordCachingState<TxnId, Command> global = loaded(command.txnId(), command);
         return new AccordSafeCommand(global);
     }
 
@@ -154,13 +158,11 @@ public class AccordTestUtils
         };
     }
 
-    public static <K, V> void testLoad(AccordSafeState<K, V> safeState, V val)
+    public static <K, V> void testLoad(ManualExecutor executor, AccordSafeState<K, V> safeState, V val)
     {
-        Assert.assertEquals(AccordLoadingState.LoadingState.UNINITIALIZED, safeState.loadingState());
-        Runnable load = safeState.load(testableLoad(safeState.key(), val));
-        Assert.assertEquals(AccordLoadingState.LoadingState.PENDING, safeState.loadingState());
-        load.run();
-        Assert.assertEquals(AccordLoadingState.LoadingState.LOADED, safeState.loadingState());
+        Assert.assertEquals(AccordCachingState.Status.LOADING, safeState.globalStatus());
+        executor.runOne();
+        Assert.assertEquals(AccordCachingState.Status.LOADED, safeState.globalStatus());
         safeState.preExecute();
         Assert.assertEquals(val, safeState.current());
     }
@@ -325,7 +327,8 @@ public class AccordTestUtils
         return result;
     }
 
-    public static AccordCommandStore createAccordCommandStore(Node.Id node, LongSupplier now, Topology topology)
+    public static AccordCommandStore createAccordCommandStore(
+        Node.Id node, LongSupplier now, Topology topology, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
         NodeTimeService time = new NodeTimeService()
         {
@@ -337,24 +340,37 @@ public class AccordTestUtils
 
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
         AccordCommandStore result = new AccordCommandStore(0,
-                                      time,
-                                      new AccordAgent(),
-                                      null,
-                                      cs -> NOOP_PROGRESS_LOG,
-                                      holder);
+                                                           time,
+                                                           new AccordAgent(),
+                                                           null,
+                                                           cs -> NOOP_PROGRESS_LOG,
+                                                           holder,
+                                                           loadExecutor,
+                                                           saveExecutor);
         holder.set(result);
         return result;
     }
 
-    public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
+    public static AccordCommandStore createAccordCommandStore(Node.Id node, LongSupplier now, Topology topology)
+    {
+        return createAccordCommandStore(node, now, topology, Stage.READ.executor(), Stage.MUTATION.executor());
+    }
+
+    public static AccordCommandStore createAccordCommandStore(
+        LongSupplier now, String keyspace, String table, ExecutorPlus loadExecutor, ExecutorPlus saveExecutor)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.keyspace);
         Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
-        AccordCommandStore store = createAccordCommandStore(node, now, topology);
+        AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
         store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).setCacheSize(1 << 20));
         return store;
+    }
+
+    public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
+    {
+        return createAccordCommandStore(now, keyspace, table, Stage.READ.executor(), Stage.MUTATION.executor());
     }
 
     public static void execute(AccordCommandStore commandStore, Runnable runnable)

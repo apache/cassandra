@@ -30,11 +30,11 @@ import accord.primitives.TxnId;
 public class AccordSafeCommand extends SafeCommand implements AccordSafeState<TxnId, Command>
 {
     private boolean invalidated;
-    private final AccordLoadingState<TxnId, Command> global;
+    private final AccordCachingState<TxnId, Command> global;
     private Command original;
     private Command current;
 
-    public AccordSafeCommand(AccordLoadingState<TxnId, Command> global)
+    public AccordSafeCommand(AccordCachingState<TxnId, Command> global)
     {
         super(global.key());
         this.global = global;
@@ -69,7 +69,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     }
 
     @Override
-    public AccordLoadingState<TxnId, Command> global()
+    public AccordCachingState<TxnId, Command> global()
     {
         checkNotInvalidated();
         return global;
@@ -100,7 +100,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     public void preExecute()
     {
         checkNotInvalidated();
-        original = global.value();
+        original = global.get();
         current = original;
     }
 
@@ -108,7 +108,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     public void postExecute()
     {
         checkNotInvalidated();
-        global.value(current);
+        global.set(current);
     }
 
     @Override
@@ -126,18 +126,21 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     @Override
     public void addListener(Command.TransientListener listener)
     {
+        checkNotInvalidated();
         global.addListener(listener);
     }
 
     @Override
     public boolean removeListener(Command.TransientListener listener)
     {
-        return global().removeListener(listener);
+        checkNotInvalidated();
+        return global.removeListener(listener);
     }
 
     @Override
     public Collection<Command.TransientListener> transientListeners()
     {
-        return global.transientListeners();
+        checkNotInvalidated();
+        return global.listeners();
     }
 }
