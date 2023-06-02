@@ -18,15 +18,12 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import org.apache.cassandra.distributed.test.sai.SAIUtil;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -389,6 +386,19 @@ public class VectorTypeTest extends SAITester
 
         assertInvalidMessage("ANN ordering does not support secondary ordering",
                              "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5], ck ASC LIMIT 2");
+    }
+
+    @Test
+    public void testVectorOrderingWithFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        waitForIndexQueryable();
+
+        assertInvalidMessage(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE,
+                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5");
+
+        assertInvalidMessage(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE,
+                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5 ALLOW FILTERING");
     }
 
     @Test

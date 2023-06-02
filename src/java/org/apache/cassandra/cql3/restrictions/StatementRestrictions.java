@@ -72,6 +72,8 @@ public class StatementRestrictions
     public static final String PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL =
     "Restriction on partition key column %s must not be nested under OR operator";
 
+    public static final String VECTOR_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
+
     /**
      * The Column Family meta data
      */
@@ -569,8 +571,14 @@ public class StatementRestrictions
                 }
                 if (hasQueriableIndex)
                     usesSecondaryIndexing = true;
-                else if (!allowFiltering)
-                    throwRequiresAllowFilteringError(table, clusteringColumnsRestrictions, nonPrimaryKeyRestrictions);
+                else
+                {
+                    if (nonPrimaryKeyRestrictions.getColumnDefs().stream().anyMatch(c -> c.type.isVector()))
+                        throw invalidRequest(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE);
+
+                    if (!allowFiltering)
+                        throwRequiresAllowFilteringError(table, clusteringColumnsRestrictions, nonPrimaryKeyRestrictions);
+                }
 
                 filterRestrictionsBuilder.add(nonPrimaryKeyRestrictions);
             }
