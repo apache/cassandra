@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord.async;
 
 import java.util.HashMap;
@@ -24,7 +23,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -43,6 +41,13 @@ import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeState;
 
 import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.INITIALIZED;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.LOADING;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.PREPARING;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.RUNNING;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.COMPLETING;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FINISHED;
+import static org.apache.cassandra.service.accord.async.AsyncOperation.State.FAILED;
 
 public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>
 {
@@ -74,36 +79,20 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     enum State
     {
-        INITIALIZED,
-        LOADING,
-        PREPARING_OPERATION,  // setup safe store for RUNNING
-        RUNNING,
-        SAVING,  // submits write to mutation stage
-        AWAITING_SAVE,  // wait for writes to complete
-        COMPLETING,
-        FINISHED,
-        FAILED;
+        INITIALIZED, LOADING, PREPARING, RUNNING, COMPLETING, FINISHED, FAILED;
 
         boolean isComplete()
         {
-            switch (this)
-            {
-                case FAILED:
-                case FINISHED:
-                    return true;
-                default:
-                    return false;
-            }
+            return this == FINISHED || this == FAILED;
         }
     }
 
-    private State state = State.INITIALIZED;
+    private State state = INITIALIZED;
     private final AccordCommandStore commandStore;
     private final PreLoadContext preLoadContext;
     private final Context context = new Context();
     private AccordSafeCommandStore safeStore;
     private final AsyncLoader loader;
-    private final AsyncWriter writer;
     private R result;
     private final String loggingId;
     private BiConsumer<? super R, Throwable> callback;
@@ -126,10 +115,13 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         this.commandStore = commandStore;
         this.preLoadContext = preLoadContext;
         this.loader = createAsyncLoader(commandStore, preLoadContext);
-        setLoggingIds();
-        this.writer = createAsyncWriter(commandStore);
-        logger.trace("Created {} on {}", this, commandStore);
-        clearLoggingIds();
+
+        if (logger.isTraceEnabled())
+        {
+            setLoggingIds();
+            logger.trace("Created {} on {}", this, commandStore);
+            clearLoggingIds();
+        }
     }
 
     @Override
@@ -138,26 +130,9 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return "AsyncOperation{" + state + "}-" + loggingId;
     }
 
-    AsyncWriter createAsyncWriter(AccordCommandStore commandStore)
-    {
-        return new AsyncWriter(commandStore);
-    }
-
     AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
         return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys());
-    }
-
-    @VisibleForTesting
-    State state()
-    {
-        return state;
-    }
-
-    @VisibleForTesting
-    protected void setState(State state)
-    {
-        this.state = state;
     }
 
     private void callback(Object o, Throwable throwable)
@@ -168,7 +143,14 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             fail(throwable);
         }
         else
+        {
             run();
+        }
+    }
+
+    private void state(State state)
+    {
+        this.state = state;
     }
 
     private void finish(R result, Throwable failure)
@@ -180,14 +162,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
         finally
         {
-            state = failure == null ? State.FINISHED : State.FAILED;
+            state(failure == null ? FINISHED : FAILED);
         }
-    }
-
-    private void finish(R result)
-    {
-        Invariants.checkArgument(state == State.COMPLETING, "Unexpected state %s", state);
-        finish(result, null);
     }
 
     private void fail(Throwable throwable)
@@ -195,26 +171,22 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         Invariants.nonNull(throwable);
         if (state.isComplete())
             throw new IllegalStateException("Unexpected state " + state, throwable);
+
         try
         {
             switch (state)
             {
-                case INITIALIZED:
                 case COMPLETING:
-                    // nothing to cleanup, call callback
-                    break;
+                    break; // everything's cleaned up, invoke callback
                 case RUNNING:
                     context.revertChanges();
-                case PREPARING_OPERATION:
+                case PREPARING:
                     commandStore.abortCurrentOperation();
                 case LOADING:
                     context.releaseResources(commandStore);
                     break;
-                case SAVING:
-                case AWAITING_SAVE:
-                    // TODO: revert changs
-                    // TODO: panic?
-                    break;
+                case INITIALIZED:
+                    break; // nothing to clean up, call callback
             }
         }
         catch (Throwable cleanup)
@@ -222,6 +194,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             commandStore.agent().onUncaughtException(cleanup);
             throwable.addSuppressed(cleanup);
         }
+
         finish(null, throwable);
     }
 
@@ -229,42 +202,27 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     {
         switch (state)
         {
+            default: throw new IllegalStateException("Unexpected state " + state);
             case INITIALIZED:
-                state = State.LOADING;
+                state(LOADING);
             case LOADING:
                 if (!loader.load(context, this::callback))
                     return;
-
-                state = State.PREPARING_OPERATION;
+                state(PREPARING);
+            case PREPARING:
                 safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.commandsForKeys);
-                state = State.RUNNING;
+                state(RUNNING);
+            case RUNNING:
                 result = apply(safeStore);
                 safeStore.postExecute(context.commands, context.commandsForKeys);
-
-                state = State.SAVING;
-            case SAVING:
-            case AWAITING_SAVE:
-                boolean updatesPersisted = writer.save(context, this::callback);
-
-                if (state == State.SAVING)
-                {
-                    context.releaseResources(commandStore);
-                    commandStore.completeOperation(safeStore, context.commands, context.commandsForKeys);
-                    // with any updates on the way to disk, release resources so operations waiting
-                    // to use these objects don't have issues with fields marked as unsaved
-                    state = State.AWAITING_SAVE;
-                }
-
-                if (!updatesPersisted)
-                    return;
-
-                state = State.COMPLETING;
-                finish(result);
+                context.releaseResources(commandStore);
+                commandStore.completeOperation(safeStore);
+                state(COMPLETING);
+            case COMPLETING:
+                finish(result, null);
             case FINISHED:
             case FAILED:
                 break;
-            default:
-                throw new IllegalStateException("Unexpected state " + state);
         }
     }
 
@@ -301,7 +259,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     @Override
     public void start(BiConsumer<? super R, Throwable> callback)
     {
-        Invariants.checkArgument(this.callback == null);
+        Invariants.checkState(this.callback == null);
         this.callback = callback;
         commandStore.executor().execute(this);
     }
