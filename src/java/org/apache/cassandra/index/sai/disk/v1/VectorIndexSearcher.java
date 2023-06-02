@@ -40,8 +40,9 @@ import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.GrowableBitSet;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
@@ -122,7 +123,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
-        SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+        BitSet bits = new GrowableBitSet(graph.size());
         for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
         {
             try
@@ -149,7 +150,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         // materialize the underlying iterator as a bitset, then ask hnsw to search.
         // the iterator represents keys from the same sstable segment as us,
         // so we can use row ids to order the results by vector similarity
-        SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+        BitSet bits  = new GrowableBitSet(graph.size());
         int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
         int[] bruteForceRows = new int[maxBruteForceRows];
         int n = 0;

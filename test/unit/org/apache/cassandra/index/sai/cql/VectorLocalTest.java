@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.cql;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,7 +30,7 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -48,6 +49,8 @@ import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.assertj.core.data.Percentage;
+import smile.nlp.embedding.GloVe;
+import smile.nlp.embedding.Word2Vec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,18 +58,18 @@ public class VectorLocalTest extends SAITester
 {
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
 
-    private int dimensionCount;
+    private static Word2Vec word2vec;
 
-    @Before
-    public void setup() throws Throwable
+    @BeforeClass
+    public static void loadModel() throws Throwable
     {
-        dimensionCount = getRandom().nextIntBetween(1, 2048);
+        word2vec = GloVe.of(Path.of(VectorLocalTest.class.getClassLoader().getResource("glove.3K.50d.txt").getPath()));
     }
 
     @Test
     public void randomizedTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -121,7 +124,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void multiSSTablesTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         disableCompaction(keyspace());
@@ -130,22 +133,25 @@ public class VectorLocalTest extends SAITester
         int vectorCountPerSSTable = getRandom().nextIntBetween(200, 400);
         int pk = 0;
 
+        int vectorCount = 0;
         // create multiple sstables
         List<float[]> allVectors = new ArrayList<>(sstableCount * vectorCountPerSSTable);
-        for (int i = 0; i < sstableCount; i++)
+        for (int sstable = 0; sstable < sstableCount; sstable++)
         {
-            List<float[]> vectors = IntStream.range(0, vectorCountPerSSTable).mapToObj(s -> randomVector()).collect(Collectors.toList());
-            for (float[] vector : vectors)
-                execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(vector) + " )", pk++);
-
-            allVectors.addAll(vectors);
+            for (int row = 0; row < vectorCountPerSSTable; row++)
+            {
+                String word = word2vec.words[vectorCount++];
+                float[] vector = word2vec.get(word);
+                execute("INSERT INTO %s (pk, str_val, val) VALUES (?, ?, " + vectorString(vector) + " )", pk++, word);
+                allVectors.add(vector);
+            }
             flush();
         }
         assertThat(getCurrentColumnFamilyStore(keyspace()).getLiveSSTables()).hasSize(sstableCount);
 
         // query multiple on-disk indexes
         int limit = Math.min(getRandom().nextIntBetween(30, 50), vectorCountPerSSTable);
-        float[] queryVector = randomVector();
+        float[] queryVector = allVectors.get(getRandom().nextIntBetween(0, allVectors.size() - 1));
         UntypedResultSet resultSet = search(queryVector, limit);
 
         // expect recall to be at least 0.8
@@ -159,23 +165,21 @@ public class VectorLocalTest extends SAITester
     @Test
     public void partitionRestrictedTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
         int vectorCount = getRandom().nextIntBetween(500, 1000);
-        List<float[]> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
 
-        int pk = 0;
-        for (float[] vector : vectors)
-            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(vector) + " )", pk++);
+        for (int pk = 0; pk < vectorCount; pk++)
+            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(word2vec.get(word2vec.words[pk])) + " )", pk);
 
         // query memtable index
 
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
             int key = getRandom().nextIntBetween(1, vectorCount - 1);
-            float[] queryVector = randomVector();
+            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
             searchWithKey(queryVector, key, 1);
         }
 
@@ -185,7 +189,7 @@ public class VectorLocalTest extends SAITester
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
             int key = getRandom().nextIntBetween(1, vectorCount - 1);
-            float[] queryVector = randomVector();
+            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
             searchWithKey(queryVector, key, 1);
         }
 
@@ -193,7 +197,7 @@ public class VectorLocalTest extends SAITester
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
             int nonExistingKey = getRandom().nextIntBetween(1, vectorCount) + vectorCount;
-            float[] queryVector = randomVector();
+            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
             searchWithNonExistingKey(queryVector, nonExistingKey);
         }
     }
@@ -201,7 +205,7 @@ public class VectorLocalTest extends SAITester
     @Test
     public void partitionRestrictedWidePartitionTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, ck int, val vector<float, %d>, PRIMARY KEY(pk, ck))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, ck int, val vector<float, %d>, PRIMARY KEY(pk, ck))", word2vec.dimension()));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -250,19 +254,20 @@ public class VectorLocalTest extends SAITester
     @Test
     public void rangeRestrictedTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
         int vectorCount = getRandom().nextIntBetween(500, 1000);
-        List<float[]> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
 
         int pk = 0;
         Multimap<Long, float[]> vectorsByToken = ArrayListMultimap.create();
-        for (float[] vector : vectors)
+        for (int index = 0; index < vectorCount; index++)
         {
+            String word = word2vec.words[index];
+            float[] vector = word2vec.get(word);
             vectorsByToken.put(Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(pk)).getLongValue(), vector);
-            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(vector) + " )", pk++);
+            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, ?, " + vectorString(vector) + " )", pk++, word);
         }
 
         // query memtable index
@@ -280,7 +285,8 @@ public class VectorLocalTest extends SAITester
                                                   .map(Map.Entry::getValue)
                                                   .collect(Collectors.toList());
 
-            float[] queryVector = randomVector();
+            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
             assertDescendingScore(queryVector, resultVectors);
 
@@ -288,7 +294,7 @@ public class VectorLocalTest extends SAITester
                 assertThat(resultVectors).isEmpty();
             else
             {
-                double recall = getRecall(resultVectors, queryVector, expected, expected.size());
+                double recall = recallMatch(expected, resultVectors, expected.size());
                 assertThat(recall).isGreaterThanOrEqualTo(0.8);
             }
         }
@@ -310,11 +316,12 @@ public class VectorLocalTest extends SAITester
                                                    .map(Map.Entry::getValue)
                                                    .collect(Collectors.toList());
 
-            float[] queryVector = randomVector();
+            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
             assertDescendingScore(queryVector, resultVectors);
 
-            double recall = getRecall(resultVectors, queryVector, expected, expected.size());
+            double recall = recallMatch(expected, resultVectors, expected.size());
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
     }
@@ -322,23 +329,23 @@ public class VectorLocalTest extends SAITester
     @Test
     public void multipleNonAnnSegmentsTest() throws Throwable
     {
-        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", dimensionCount));
+        createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));
         disableCompaction(KEYSPACE);
 
         int sstableCount = getRandom().nextIntBetween(3, 6);
         int vectorCountPerSSTable = getRandom().nextIntBetween(200, 400);
-        int vectorCount = sstableCount * vectorCountPerSSTable;
         int pk = 0;
 
         // create multiple sstables
         Multimap<String, float[]> vectorsByStringValue = ArrayListMultimap.create();
+        int vectorCount = 0;
         for (int i = 0; i < sstableCount; i++)
         {
-            List<float[]> vectors = IntStream.range(0, vectorCountPerSSTable).mapToObj(s -> randomVector()).collect(Collectors.toList());
-            for (float[] vector : vectors)
+            for (int row = 0; row < vectorCountPerSSTable; row++)
             {
                 String stringValue = String.valueOf(pk % 10); // 10 different string values
-                execute("INSERT INTO %s (pk, str_val, val) VALUES (?, '" + stringValue + "', " + vectorString(vector) + " )", pk++);
+                float[] vector = word2vec.get(word2vec.words[vectorCount++]);
+                execute("INSERT INTO %s (pk, str_val, val) VALUES (?, ?, " + vectorString(vector) + " )", pk++, stringValue);
                 vectorsByStringValue.put(stringValue, vector);
             }
             flush();
@@ -355,7 +362,7 @@ public class VectorLocalTest extends SAITester
         for (String stringValue : vectorsByStringValue.keySet())
         {
             int limit = Math.min(getRandom().nextIntBetween(30, 50), vectorCountPerSSTable);
-            float[] queryVector = randomVector();
+            float[] queryVector = vectorsByStringValue.get(stringValue).stream().findAny().get();
             UntypedResultSet resultSet = search(stringValue, queryVector, limit);
 
             // expect recall to be at least 0.8
@@ -412,8 +419,8 @@ public class VectorLocalTest extends SAITester
 
     private float[] randomVector()
     {
-        float[] rawVector = new float[dimensionCount];
-        for (int i = 0; i < dimensionCount; i++)
+        float[] rawVector = new float[word2vec.dimension()];
+        for (int i = 0; i < word2vec.dimension(); i++)
         {
             rawVector[i] = getRandom().nextFloat();
         }
@@ -463,24 +470,18 @@ public class VectorLocalTest extends SAITester
         while (queue.size() > 0)
             nearestNeighbors.add(vectorValues.vectorValue(queue.pop()));
 
-        double[] neighbourScores = new double[nearestNeighbors.size()];
+        return recallMatch(nearestNeighbors, result, topK);
+    }
 
-        for (int index = 0; index < nearestNeighbors.size(); index++)
-            neighbourScores[index] = VectorSimilarityFunction.COSINE.compare(query, nearestNeighbors.get(index));
-
-        Arrays.sort(neighbourScores);
-
-        double[] resultScores = new double[result.size()];
-
-        for (int index = 0; index < result.size(); index++)
-            resultScores[index] = VectorSimilarityFunction.COSINE.compare(query, result.get(index));
-
-        Arrays.sort(resultScores);
+    private double recallMatch(List<float[]> expected, List<float[]> actual, int topK)
+    {
+        if (expected.size() == 0 && actual.size() == 0)
+            return 1.0;
 
         int matches = 0;
-        for (float[] in : nearestNeighbors)
+        for (float[] in : expected)
         {
-            for (float[] out : result)
+            for (float[] out : actual)
             {
                 if (Arrays.compare(in, out) ==0)
                 {
@@ -496,7 +497,7 @@ public class VectorLocalTest extends SAITester
     private List<float[]> getVectorsFromResult(UntypedResultSet result)
     {
         List<float[]> vectors = new ArrayList<>();
-        VectorType vectorType = VectorType.getInstance(FloatType.instance, dimensionCount);
+        VectorType<?> vectorType = VectorType.getInstance(FloatType.instance, word2vec.dimension());
 
         // verify results are part of inserted vectors
         for (UntypedResultSet.Row row: result)
