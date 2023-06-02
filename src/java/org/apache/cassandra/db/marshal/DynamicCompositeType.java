@@ -648,6 +648,21 @@ public class DynamicCompositeType extends AbstractCompositeType
     }
 
     @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DynamicCompositeType that = (DynamicCompositeType) o;
+        return aliases.equals(that.aliases);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(aliases);
+    }
+
+    @Override
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyAliasesParameters(aliases);
@@ -657,7 +672,8 @@ public class DynamicCompositeType extends AbstractCompositeType
      * A comparator that always sorts it's first argument before the second
      * one.
      */
-    private static class FixedValueComparator extends AbstractType<Void>
+    @VisibleForTesting
+    public static class FixedValueComparator extends AbstractType<Void>
     {
         public static final FixedValueComparator alwaysLesserThan = new FixedValueComparator(-1);
         public static final FixedValueComparator alwaysGreaterThan = new FixedValueComparator(1);

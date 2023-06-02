@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -99,11 +98,14 @@ public final class AbstractTypeGenerators
     private static final Gen<Integer> VERY_SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
-    private static final Map<Class<? extends AbstractType<?>>, String> UNSUPPORTED_PRIMITIVES = ImmutableMap.<Class<? extends AbstractType<?>>, String>builder()
-                                                                                                            .put(DateType.class, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
-                                                                                                            .put(LegacyTimeUUIDType.class, "Says its CQL timeuuid type, but that maps to TimeUUIDType; is this actually dead code at this point?")
-                                                                                                            .put(PartitionerDefinedOrder.class, "This is a fake type used for ordering partitions using a Partitioner")
-                                                                                                            .build();
+    public static final Map<Class<? extends AbstractType<?>>, String> UNSUPPORTED = ImmutableMap.<Class<? extends AbstractType<?>>, String>builder()
+                                                                                                .put(DateType.class, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
+                                                                                                .put(LegacyTimeUUIDType.class, "Says its CQL timeuuid type, but that maps to TimeUUIDType; is this actually dead code at this point?")
+                                                                                                .put(PartitionerDefinedOrder.class, "This is a fake type used for ordering partitions using a Partitioner")
+                                                                                                .put((Class<? extends AbstractType<?>>) (Class<? extends AbstractType>) ReversedType.class, "Implementation detail for cluster ordering... its expected the caller will unwrap the clustering type to always get access to the real type")
+                                                                                                .put(DynamicCompositeType.FixedValueComparator.class, "Hack type used for special ordering case, not a real/valid type")
+                                                                                                .put(FrozenType.class, "Fake class only used during parsing... the parsing creates this and the real type under it, then this gets swapped for the real type")
+                                                                                                .build();
 
     /**
      * Java does a char by char compare, but Cassandra does a byte ordered compare.  This mostly overlaps but some cases
@@ -186,9 +188,7 @@ public final class AbstractTypeGenerators
     {
         Set<Class<? extends AbstractType>> types = PRIMITIVE_TYPE_DATA_GENS.keySet().stream().map(a -> a.getClass()).collect(Collectors.toSet());
         types.addAll(NON_PRIMITIVE_TYPES);
-        types.add(FrozenType.class);
-        types.add(ReversedType.class);
-        types.addAll(UNSUPPORTED_PRIMITIVES.keySet());
+        types.addAll(UNSUPPORTED.keySet());
         return types;
     }
 

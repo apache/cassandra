@@ -137,7 +137,7 @@ public class AbstractTypeTest
         StringBuilder sb = new StringBuilder();
         outter: for (Class<? extends AbstractType> type : reflections.getSubTypesOf(AbstractType.class))
         {
-            if (Modifier.isAbstract(type.getModifiers()) || isTestType(type) || ReversedType.class.isAssignableFrom(type) || FrozenType.class.isAssignableFrom(type))
+            if (Modifier.isAbstract(type.getModifiers()) || isTestType(type) || AbstractTypeGenerators.UNSUPPORTED.containsKey(type))
                 continue;
             boolean hasEq = false;
             boolean hasHashCode = false;
