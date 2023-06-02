@@ -382,10 +382,10 @@ public class AccordJournal
      */
     public enum Type implements IVersionedSerializer<TxnRequest<?>>
     {
-        PREACCEPT_REQ (0, MessageType.PREACCEPT_REQ, PreacceptSerializers.request),
-        ACCEPT_REQ    (1, MessageType.ACCEPT_REQ,    AcceptSerializers.request   ),
-        COMMIT_REQ    (2, MessageType.COMMIT_REQ,    CommitSerializers.request   ),
-        APPLY_REQ     (3, MessageType.APPLY_REQ,     ApplySerializers.request    );
+        PREACCEPT_REQ (0, MessageType.PRE_ACCEPT_REQ, PreacceptSerializers.request),
+        ACCEPT_REQ    (1, MessageType.ACCEPT_REQ,     AcceptSerializers.request   ),
+        COMMIT_REQ    (2, MessageType.COMMIT_REQ,     CommitSerializers.request   ),
+        APPLY_REQ     (3, MessageType.APPLY_REQ,      ApplySerializers.request    );
 
         final int id;
         final MessageType msgType;
@@ -460,7 +460,7 @@ public class AccordJournal
 
         static boolean mustMakeDurable(TxnRequest<?> message)
         {
-            return msgTypeToTypeMap.containsKey(message.type());
+            return message.type().hasSideEffects;
         }
 
         @Override

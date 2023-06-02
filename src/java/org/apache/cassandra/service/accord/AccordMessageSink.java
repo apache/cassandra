@@ -52,24 +52,24 @@ public class AccordMessageSink implements MessageSink
 
         private VerbMapping()
         {
-            mapping.put(MessageType.PREACCEPT_REQ,          Verb.ACCORD_PREACCEPT_REQ);
-            mapping.put(MessageType.PREACCEPT_RSP,          Verb.ACCORD_PREACCEPT_RSP);
+            mapping.put(MessageType.PRE_ACCEPT_REQ,         Verb.ACCORD_PRE_ACCEPT_REQ);
+            mapping.put(MessageType.PRE_ACCEPT_RSP,         Verb.ACCORD_PRE_ACCEPT_RSP);
             mapping.put(MessageType.ACCEPT_REQ,             Verb.ACCORD_ACCEPT_REQ);
             mapping.put(MessageType.ACCEPT_RSP,             Verb.ACCORD_ACCEPT_RSP);
             mapping.put(MessageType.ACCEPT_INVALIDATE_REQ,  Verb.ACCORD_ACCEPT_INVALIDATE_REQ);
             mapping.put(MessageType.COMMIT_REQ,             Verb.ACCORD_COMMIT_REQ);
-            mapping.put(MessageType.COMMIT_INVALIDATE,      Verb.ACCORD_COMMIT_INVALIDATE_REQ);
+            mapping.put(MessageType.COMMIT_INVALIDATE_REQ,  Verb.ACCORD_COMMIT_INVALIDATE_REQ);
             mapping.put(MessageType.APPLY_REQ,              Verb.ACCORD_APPLY_REQ);
             mapping.put(MessageType.APPLY_RSP,              Verb.ACCORD_APPLY_RSP);
             mapping.put(MessageType.READ_REQ,               Verb.ACCORD_READ_REQ);
             mapping.put(MessageType.READ_RSP,               Verb.ACCORD_READ_RSP);
-            mapping.put(MessageType.BEGIN_RECOVER_REQ,      Verb.ACCORD_RECOVER_REQ);
-            mapping.put(MessageType.BEGIN_RECOVER_RSP,      Verb.ACCORD_RECOVER_RSP);
+            mapping.put(MessageType.BEGIN_RECOVER_REQ,      Verb.ACCORD_BEGIN_RECOVER_REQ);
+            mapping.put(MessageType.BEGIN_RECOVER_RSP,      Verb.ACCORD_BEGIN_RECOVER_RSP);
             mapping.put(MessageType.BEGIN_INVALIDATE_REQ,   Verb.ACCORD_BEGIN_INVALIDATE_REQ);
             mapping.put(MessageType.BEGIN_INVALIDATE_RSP,   Verb.ACCORD_BEGIN_INVALIDATE_RSP);
-            mapping.put(MessageType.WAIT_ON_COMMIT_REQ,     Verb.ACCORD_WAIT_COMMIT_REQ);
-            mapping.put(MessageType.WAIT_ON_COMMIT_RSP,     Verb.ACCORD_WAIT_COMMIT_RSP);
-            mapping.put(MessageType.INFORM_TXNID_REQ,       Verb.ACCORD_INFORM_OF_TXNID_REQ);
+            mapping.put(MessageType.WAIT_ON_COMMIT_REQ,     Verb.ACCORD_WAIT_ON_COMMIT_REQ);
+            mapping.put(MessageType.WAIT_ON_COMMIT_RSP,     Verb.ACCORD_WAIT_ON_COMMIT_RSP);
+            mapping.put(MessageType.INFORM_OF_TXN_REQ,      Verb.ACCORD_INFORM_OF_TXN_REQ);
             mapping.put(MessageType.INFORM_HOME_DURABLE_REQ,Verb.ACCORD_INFORM_HOME_DURABLE_REQ);
             mapping.put(MessageType.INFORM_DURABLE_REQ,     Verb.ACCORD_INFORM_DURABLE_REQ);
             mapping.put(MessageType.CHECK_STATUS_REQ,       Verb.ACCORD_CHECK_STATUS_REQ);
