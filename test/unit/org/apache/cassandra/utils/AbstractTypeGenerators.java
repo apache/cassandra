@@ -990,9 +990,21 @@ public final class AbstractTypeGenerators
                     throw new UnsupportedOperationException("Unknown kind: " + ct.kind);
             }
         }
+        else if (type instanceof CompositeType)
+        {
+            CompositeType ct = (CompositeType) type;
+            sb.append("CompositeType:");
+            indent += 2;
+            for (AbstractType<?> subtype : ct.subTypes())
+            {
+                newline(sb, indent);
+                sb.append("- ");
+                typeTree(sb, subtype, indent);
+            }
+        }
         else
         {
-            sb.append(type.asCQL3Type());
+            sb.append(type.asCQL3Type().toString().replaceAll("org.apache.cassandra.db.marshal.", ""));
         }
     }
 

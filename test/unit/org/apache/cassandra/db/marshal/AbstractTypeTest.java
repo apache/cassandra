@@ -124,7 +124,7 @@ public class AbstractTypeTest
         Map<TypeSerializer<?>, AbstractType<?>> lookup = new HashMap<>();
         qt().forAll(genBuilder().withMaxDepth(0).build()).checkAssert(t -> {
             AbstractType<?> old = lookup.put(t.getSerializer(), t);
-            if (old != null && !old.getClass().isAssignableFrom(t.getClass()))
+            if (old != null && !old.equals(t))
                 throw new AssertionError(String.format("Different types detected that shared the same serializer: %s != %s", old.asCQL3Type(), t.asCQL3Type()));
         });
     }
@@ -323,12 +323,14 @@ public class AbstractTypeTest
         Gen<AbstractType<?>> typeGen = genBuilder()
                                        // fromCQL(toCQL()) does not work
                                        .withoutPrimitive(DurationType.instance)
+                                       .withTypeKinds(COMPOSITE, PRIMITIVE)
                                        .build();
         qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
             AbstractType type = example.type;
 
             // to -> from cql
             String cqlType = type.asCQL3Type().toString();
+            cqlType = cqlType.replaceAll("org.apache.cassandra.db.marshal.", "");
             assertThat(CQLTypeParser.parse(null, cqlType, toTypes(extractUDTs(type))))
             .describedAs("CQL type %s parse did not match the expected type", cqlType)
             .isEqualTo(type);

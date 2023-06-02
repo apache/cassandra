@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -38,9 +36,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
-    public static class Serializer extends BytesSerializer { }
-    private static final Serializer SERIALIZER = new Serializer();
-
     protected AbstractCompositeType()
     {
         super(ComparisonType.CUSTOM);
@@ -315,11 +310,6 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     }
 
     public abstract ByteBuffer decompose(Object... objects);
-
-    public TypeSerializer<ByteBuffer> getSerializer()
-    {
-        return SERIALIZER;
-    }
 
     abstract protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset);
     /**

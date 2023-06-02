@@ -25,9 +25,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -37,6 +39,7 @@ import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -68,6 +71,32 @@ import static com.google.common.collect.Iterables.any;
  */
 public class DynamicCompositeType extends AbstractCompositeType
 {
+    public static class Serializer extends BytesSerializer
+    {
+        // aliases are held to make sure the serializer is unique for each collection of types, this is to make sure it's
+        // safe to cache in all cases
+        private final Map<Byte, AbstractType<?>> aliases;
+
+        public Serializer(Map<Byte, AbstractType<?>> aliases)
+        {
+            this.aliases = aliases;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Serializer that = (Serializer) o;
+            return aliases.equals(that.aliases);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(aliases);
+        }
+    }
     private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
 
     private static final ByteSource[] EMPTY_BYTE_SOURCE_ARRAY = new ByteSource[0];
@@ -75,6 +104,7 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     private final Map<Byte, AbstractType<?>> aliases;
     private final Map<AbstractType<?>, Byte> inverseMapping;
+    private final Serializer serializer;
 
     // interning instances
     private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
@@ -94,10 +124,17 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
     {
-        this.aliases = aliases;
+        this.aliases = ImmutableMap.copyOf(aliases);
+        this.serializer = new Serializer(this.aliases);
         this.inverseMapping = new HashMap<>();
         for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
             this.inverseMapping.put(en.getValue(), en.getKey());
+    }
+
+    @Override
+    public TypeSerializer<ByteBuffer> getSerializer()
+    {
+        return serializer;
     }
 
     protected <V> boolean readIsStatic(V value, ValueAccessor<V> accessor)
