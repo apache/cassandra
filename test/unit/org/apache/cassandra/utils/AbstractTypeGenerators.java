@@ -836,11 +836,10 @@ public final class AbstractTypeGenerators
             if (uniq != -1)
                 return uniq == 1 ? 1 : uniq * vector.dimension;
         }
-        if (type instanceof TupleType)
+        if (type instanceof TupleType || type instanceof CompositeType)
         {
-            TupleType tt = (TupleType) type;
             int product = 1;
-            for (AbstractType<?> f : tt.subTypes())
+            for (AbstractType<?> f : type.subTypes())
             {
                 int uniq = uniqueElementsForDomain(f);
                 if (uniq == -1)
