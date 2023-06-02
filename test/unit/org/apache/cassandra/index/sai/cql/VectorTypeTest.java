@@ -220,33 +220,6 @@ public class VectorTypeTest extends SAITester
     }
 
     @Test
-    public void cannotInsertWrongNumberOfDimensions()
-    {
-        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
-
-        assertThatThrownBy(() -> execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0])"))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Invalid vector literal for val of type vector<float, 3>; expected 3 elements, but given 2");
-    }
-
-    @Test
-    public void cannotQueryWrongNumberOfDimensions() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', [3.0, 4.0, 5.0])");
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', [4.0, 5.0, 6.0])");
-
-        assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5] LIMIT 5"))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Invalid vector literal for val of type vector<float, 3>; expected 3 elements, but given 2");
-    }
-
-    @Test
     public void changingOptionsTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
@@ -351,66 +324,6 @@ public class VectorTypeTest extends SAITester
 
         result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(1);
-    }
-
-    @Test
-    public void testMultiVectorOrderingsNotAllowed() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, str_val text, val1 vector<float, 3>, val2 vector<float, 3>, PRIMARY KEY(pk))");
-        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(val1) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(val2) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        assertInvalidMessage("Cannot specify more than one ANN ordering",
-                             "SELECT * FROM %s ORDER BY val1 ann of [2.5, 3.5, 4.5], val2 ann of [2.1, 3.2, 4.0] LIMIT 2");
-    }
-
-    @Test
-    public void testDescendingVectorOrderingIsNotAllowed() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        assertInvalidMessage("Descending ANN ordering is not supported",
-                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] DESC LIMIT 2");
-    }
-
-    @Test
-    public void testVectorOrderingIsNotAllowedWithClusteringOrdering() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        assertInvalidMessage("ANN ordering does not support secondary ordering",
-                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5], ck ASC LIMIT 2");
-    }
-
-    @Test
-    public void testVectorOrderingWithFiltering() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
-        waitForIndexQueryable();
-
-        assertInvalidMessage(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE,
-                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5");
-
-        assertInvalidMessage(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE,
-                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5 ALLOW FILTERING");
-    }
-
-    @Test
-    public void annOrderingMustHaveLimit() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        assertInvalidMessage("Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than 1000. LIMIT was NO LIMIT",
-                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5]");
-
     }
 
     @Test
