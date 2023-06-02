@@ -471,13 +471,6 @@ public class DatabaseDescriptor
         //InetAddressAndPort and get the right defaults
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
-        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
-        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND, conf.stream_throughput_outbound);
-        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.inter_dc_stream_throughput_outbound);
-        setProperty(ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_stream_throughput_outbound);
-        setProperty(ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, conf.entire_sstable_inter_dc_stream_throughput_outbound);
-        setProperty(ConfigFields.COMPACTION_THROUGHPUT, conf.compaction_throughput);
-
         if (conf.auto_snapshot_ttl != null)
         {
             try
@@ -606,7 +599,6 @@ public class DatabaseDescriptor
             conf.repair_session_max_tree_depth = 20;
         }
 
-        setProperty(ConfigFields.REPAIR_SESSION_SPACE, conf.repair_session_space);
         checkForLowestAcceptedTimeouts(conf);
 
         long valueInBytes = conf.native_transport_max_frame_size.toBytes();

@@ -41,6 +41,7 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBY
 import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -122,6 +123,31 @@ public class YamlConfigurationLoaderTest
         assertThat(c.sstable_preemptive_open_interval).isNull();
         assertThat(c.index_summary_resize_interval).isNull();
         assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
+    }
+
+    @Test
+    public void testValidationWithConfiguredMethodsConfig()
+    {
+        Config c = load("test/conf/cassandra-validatedby-cases.yaml");
+        assertThat(c.snapshot_links_per_second).isEqualTo(10);
+        assertThat(c.compaction_throughput).isEqualTo(new DataRateSpec.LongBytesPerSecondBound("48MiB/s"));
+        assertThat(c.repair_session_space).isNotNull()
+                                          .isEqualTo(new DataStorageSpec.IntMebibytesBound("910MiB"));
+        assertThat(c.stream_throughput_outbound).isEqualTo(new DataRateSpec.LongBytesPerSecondBound("25000000000000B/s"));
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.credentials_update_interval).isNull();
+    }
+
+    @Test
+    public void testValidationIfNullIsSetConfig() throws Exception
+    {
+        assertThat(catchThrowableOfType(() -> load("test/conf/cassandra-validatedby-null-case.yaml"),
+                                        ConfigurationException.class))
+        .extracting(Throwable::getCause)
+        .extracting(Throwable::getCause)
+        .isInstanceOf(ConfigurationException.class)
+        .extracting(Throwable::getMessage)
+        .isEqualTo("Invalid yaml. The property 'entire_sstable_inter_dc_stream_throughput_outbound' can't be null");
     }
 
     @Test

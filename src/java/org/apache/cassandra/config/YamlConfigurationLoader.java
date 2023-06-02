@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -45,6 +46,8 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.composer.Composer;
+import org.yaml.snakeyaml.constructor.BaseConstructor;
+import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -52,7 +55,11 @@ import org.yaml.snakeyaml.introspector.BeanAccess;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.NodeId;
+import org.yaml.snakeyaml.nodes.NodeTuple;
+import org.yaml.snakeyaml.nodes.ScalarNode;
 import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.representer.Represent;
 import org.yaml.snakeyaml.representer.Representer;
@@ -137,8 +144,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker();
-            Yaml yaml = YamlFactory.instance.newYamlInstance(new CustomConstructor(Config.class, Yaml.class.getClassLoader()),
-                                                    propertiesChecker);
+            Yaml yaml = YamlFactory.instance.newYamlInstance(new ConfigWithValidationConstructor(Config.class, Yaml.class.getClassLoader()), propertiesChecker);
             Config result = loadConfig(yaml, configBytes);
             propertiesChecker.check();
             maybeAddSystemProperties(result);
@@ -218,7 +224,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     @SuppressWarnings("unchecked") //getSingleData returns Object, not T
     public static <T> T fromMap(Map<String,Object> map, boolean shouldCheck, Class<T> klass)
     {
-        SafeConstructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        SafeConstructor constructor = new ConfigWithValidationConstructor(klass, klass.getClassLoader());
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new PropertiesChecker();
@@ -242,7 +248,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     public static <T> T updateFromMap(Map<String, ?> map, boolean shouldCheck, T obj)
     {
         Class<T> klass = (Class<T>) obj.getClass();
-        SafeConstructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader())
+        SafeConstructor constructor = new ConfigWithValidationConstructor(klass, klass.getClassLoader())
         {
             @Override
             protected Object newInstance(Node node)
@@ -255,7 +261,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new PropertiesChecker();
-        constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = YamlFactory.instance.newYamlInstance(constructor, propertiesChecker);
         Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
@@ -272,20 +277,104 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return value;
     }
 
+    /**
+     * For the configuration properties that are not mentioned in the configuration yaml file, we need additionally
+     * trigger the validation methods for the remaining properties to make sure the default values are valid and set.
+     * These validation methods are configured with {@link ValidatedBy} for each property. This will create
+     * a {@link MappingNode} with default values obtained from the {@link Config} class intance to finalize the
+     * configuration instance creation.
+     */
     @VisibleForTesting
-    static class CustomConstructor extends CustomClassLoaderConstructor
+    static class ConfigWithValidationConstructor extends CustomClassLoaderConstructor
     {
-        CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
+        private final Class<?> theRoot;
+
+        public ConfigWithValidationConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
             super(theRoot, classLoader);
+            this.theRoot = theRoot;
+            yamlClassConstructors.put(NodeId.mapping, new CassandraMappingConstructor());
+        }
 
-            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
-            seedDesc.putMapPropertyType("parameters", String.class, String.class);
-            addTypeDescription(seedDesc);
+        private class CassandraMappingConstructor extends Constructor.ConstructMapping
+        {
+            @Override
+            protected Object constructJavaBean2ndStep(MappingNode loadedYamlNode, Object object)
+            {
+                Object result = super.constructJavaBean2ndStep(loadedYamlNode, object);
 
-            TypeDescription memtableDesc = new TypeDescription(Config.MemtableOptions.class);
-            memtableDesc.addPropertyParameters("configurations", String.class, InheritingClass.class);
-            addTypeDescription(memtableDesc);
+                // If the node is not the root node, we don't need to handle the validation.
+                if (!loadedYamlNode.getTag().equals(rootTag))
+                    return result;
+
+                assert theRoot.isInstance(result);
+                Representer representer = YamlFactory.representer(new PropertyUtils()
+                {
+                    private final Loader loader = Properties.defaultLoader();
+
+                    @Override
+                    protected Map<String, Property> getPropertiesMap(Class<?> type, BeanAccess bAccess)
+                    {
+                        Map<String, Property> result = loader.getProperties(type);
+                        // Filter out properties that are not validated by any method.
+                        return result.entrySet()
+                                     .stream()
+                                     .filter(e -> {
+                                         Property property = e.getValue();
+                                         return property.getAnnotation(ValidatedBy.class) != null &&
+                                                (property.getAnnotation(ValidatedByList.class) == null ||
+                                                 property.getAnnotation(ValidatedByList.class).value().length == 0);
+                                     })
+                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
+                });
+
+                // Load default values from the Config class instance for the properties that are not mentioned
+                // in the configuration yaml file.
+                MappingNode allWithDefauls = (MappingNode) new Yaml(representer).represent(object);
+                allWithDefauls.setType(theRoot);
+                removeIfLoadedFromYaml(loadedYamlNode, allWithDefauls);
+
+                // This will trigger the validation and default values set for the remaining properties
+                // that annotated with @ValidatedBy.
+                return super.constructJavaBean2ndStep(allWithDefauls, result);
+            }
+
+            private void removeIfLoadedFromYaml(MappingNode loadedYamlNode, MappingNode all)
+            {
+                all.getValue().removeIf(nodeTuple -> {
+                    Node valueNode = nodeTuple.getValueNode();
+                    String key = mappingKeyHandleReplacements((ScalarNode) nodeTuple.getKeyNode(), all.getType());
+                    Node mappingNodeOrig = mappingNodeByKey(loadedYamlNode, key);
+
+                    if (valueNode instanceof MappingNode && mappingNodeOrig instanceof MappingNode)
+                        removeIfLoadedFromYaml((MappingNode) mappingNodeOrig, (MappingNode) valueNode);
+
+                    return mappingNodeOrig != null;
+                });
+            }
+
+            private String mappingKeyHandleReplacements(ScalarNode keyNode, Class<?> rootType)
+            {
+                keyNode.setType(String.class);
+                String key = (String) constructObject(keyNode);
+                List<Replacement> replacements = Replacements.getReplacements(rootType);
+                for (Replacement replacement : replacements)
+                {
+                    if (replacement.oldName.equals(key))
+                        return replacement.newName;
+                }
+                return key;
+            }
+
+            private Node mappingNodeByKey(MappingNode node, String key)
+            {
+                return node.getValue().stream()
+                           .filter(t -> mappingKeyHandleReplacements((ScalarNode) t.getKeyNode(), node.getType()).equals(key))
+                           .findFirst()
+                           .map(NodeTuple::getValueNode)
+                           .orElse(null);
+            }
         }
 
         @Override
@@ -325,8 +414,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         private final Loader loader = Properties.withReplacementsLoader(Properties.validatedPropertyLoader());
         private final Set<String> missingProperties = new HashSet<>();
 
-        private final Set<String> nullProperties = new HashSet<>();
-
         private final Set<String> deprecationWarnings = new HashSet<>();
 
         PropertiesChecker()
@@ -360,7 +447,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 {
                     // TODO: CASSANDRA-17785, add @Nullable to all nullable Config properties and remove value == null
                     if (value == null && get(object) != null && !allowsNull)
-                        nullProperties.add(getName());
+                        throw new ConfigurationException("Invalid yaml. The property '" + result.getName() + "' can't be null", false);
 
                     result.set(object, value);
                 }
@@ -405,9 +492,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         public void check() throws ConfigurationException
         {
-            if (!nullProperties.isEmpty())
-                throw new ConfigurationException("Invalid yaml. Those properties " + nullProperties + " are not valid", false);
-
             if (!missingProperties.isEmpty())
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml", false);
 
@@ -441,15 +525,25 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             PropertyUtils propertyUtils = new PropertyUtils();
             propertyUtils.setBeanAccess(BeanAccess.FIELD);
             propertyUtils.setAllowReadOnlyProperties(true);
-            return newYamlInstance(new CustomConstructor(root, Config.class.getClassLoader()), propertyUtils);
+            return newYamlInstance(new ConfigWithValidationConstructor(root, Config.class.getClassLoader()), propertyUtils);
         }
 
-        public Yaml newYamlInstance(SafeConstructor constructor, PropertyUtils propertyUtils)
+        public Yaml newYamlInstance(BaseConstructor constructor, PropertyUtils propertyUtils)
         {
             return create(constructor, propertyUtils);
         }
 
-        private static Yaml create(SafeConstructor constructor, PropertyUtils propertyUtils)
+        private static Yaml create(BaseConstructor constructor, PropertyUtils propertyUtils)
+        {
+            constructor.setPropertyUtils(propertyUtils);
+            Yaml yaml = new Yaml(constructor, representer(propertyUtils));
+
+            scalarCassandraTypes.forEach(yaml::addTypeDescription);
+            javaBeanCassandraTypes.forEach(yaml::addTypeDescription);
+            return yaml;
+        }
+
+        private static Representer representer(PropertyUtils propertyUtils)
         {
             DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
@@ -458,12 +552,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             options.setPrettyFlow(true); // to remove brackets around
             Representer representer = new CassandraRepresenter(scalarCassandraTypes, options);
             representer.setPropertyUtils(propertyUtils);
-            constructor.setPropertyUtils(propertyUtils);
-            Yaml yaml = new Yaml(constructor, representer);
-
-            scalarCassandraTypes.forEach(yaml::addTypeDescription);
-            javaBeanCassandraTypes.forEach(yaml::addTypeDescription);
-            return yaml;
+            return representer;
         }
 
         private static List<TypeDescription> loadScalarTypeDescriptions()

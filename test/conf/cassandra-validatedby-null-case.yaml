@@ -1,0 +1,3 @@
+# Null value are not allowed for the configuration property as it is not annotated by @Nullable,
+# so the validation method must throw an exception.
+entire_sstable_inter_dc_stream_throughput_outbound:

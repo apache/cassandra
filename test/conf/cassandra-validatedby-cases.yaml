@@ -1,0 +1,15 @@
+#
+# Some configuration options are validated by the methods used in the @ValidatedBy annotation.
+#
+sstable_preemptive_open_interval:
+credentials_update_interval: ~
+
+# Warning! This is for test the backward compatibility of the configuration stream_throughput_outbound.
+stream_throughput_outbound_megabits_per_sec: 200000000
+
+# Null value must be handled by the validation method and the corresponding default value must be set correctly.
+repair_session_space: null
+
+# non-default values are validated by the methods used in the @ValidatedBy annotation and loaded.
+snapshot_links_per_second: 10
+compaction_throughput: 48MiB/s

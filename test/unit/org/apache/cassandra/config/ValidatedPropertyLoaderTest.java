@@ -32,11 +32,19 @@ public class ValidatedPropertyLoaderTest
     @Test
     public void testListenablePropertyMethodPattern() throws Exception
     {
-        assertThatThrownBy(() -> LOADER.getProperties(TestConfig.class)
-                                       .get("test_property")
-                                       .set(new TestConfig(), 42))
+        Property property = LOADER.getProperties(TestConfig.class).get("test_property");
+
+        assertThatThrownBy(() -> property.set(new TestConfig(), 42))
         .hasRootCauseInstanceOf(ConfigurationException.class)
-        .hasRootCauseMessage("Value must not be equal to 42");
+        .hasRootCauseMessage("Value for the property 'test_property' must not be equal to 42");
+
+        assertThatThrownBy(() -> property.set(new TestConfig(), 41))
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseMessage("TestConfig instance TestConfig{}, the value for the property 'test_property' must not be equal to 41");
+
+        assertThatThrownBy(() -> property.set(new TestConfig(), 40))
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseMessage("Value must not be equal to 40");
     }
 
     @Test
@@ -53,11 +61,25 @@ public class ValidatedPropertyLoaderTest
     }
 
     @Test
-    public void testListenablePropertySet() throws Exception
+    public void testListenablePropertyMigthtBeSet() throws Exception
     {
         TestConfig conf = new TestConfig();
-        LOADER.getProperties(TestConfig.class).get("test_property").set(conf, 40);
-        assertThat(conf.test_property).isEqualTo(40);
+        LOADER.getProperties(TestConfig.class).get("test_property").set(conf, 39);
+        assertThat(conf.test_property).isEqualTo(39);
+    }
+
+    @Test
+    public void testListenablePropertyHandler() throws Exception
+    {
+        TestConfig conf = new TestConfig();
+        Property property = LOADER.getProperties(TestConfig.class).get("test_string_property");
+        assertThatThrownBy(() -> property.set(conf, "test"))
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasRootCauseMessage("Value must be null");
+
+        property.set(conf, null);
+        assertThat(property.get(conf)).isEqualTo("test_string_property_value");
+        assertThat(conf.test_string_property).isEqualTo("test_string_property_value");
     }
 
     @SuppressWarnings("unchecked")
@@ -90,13 +112,57 @@ public class ValidatedPropertyLoaderTest
 
     public static class TestConfig
     {
-        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "validateTestPropertyInvalid")
+        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "validateTestProperty1Arguments")
+        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "validateTestProperty2Arguments")
+        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "validateTestProperty3Arguments")
         public Integer test_property = 0;
 
-        public static void validateTestPropertyInvalid(TestConfig conf, Integer value)
+        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "handleTestStringProperty")
+        public String test_string_property = null;
+
+        public NestedTestConfig nested_test_config = new NestedTestConfig();
+
+        public static void validateTestProperty1Arguments(Integer value)
+        {
+            if (value == 40)
+                throw new ConfigurationException("Value must not be equal to 40");
+        }
+
+        public static void validateTestProperty2Arguments(String name, Integer value)
         {
             if (value == 42)
-                throw new ConfigurationException("Value must not be equal to 42");
+                throw new ConfigurationException("Value for the property '" + name + "' must not be equal to 42");
+        }
+
+        public static void validateTestProperty3Arguments(TestConfig conf, String name, Integer value)
+        {
+            if (value == 41)
+                throw new ConfigurationException("TestConfig instance " + conf + ", the value for the property '" + name + "' must not be equal to 41");
+        }
+
+        public static String handleTestStringProperty(String value)
+        {
+            if (value == null)
+                return "test_string_property_value";
+            throw new ConfigurationException("Value must be null");
+        }
+
+        @Override
+        public String toString()
+        {
+            return "TestConfig{}";
+        }
+    }
+
+    public static class NestedTestConfig
+    {
+        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$NestedTestConfig", useClassMethod = "validateTestProperty1Arguments")
+        public String good_string_to_go_with = "good_string_to_go_with";
+
+        public static void validateTestProperty1Arguments(String value)
+        {
+            if (value.length() > 10)
+                throw new ConfigurationException("String value must be greater than 10 characters");
         }
     }
 }
