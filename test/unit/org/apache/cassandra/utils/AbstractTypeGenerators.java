@@ -159,6 +159,7 @@ public final class AbstractTypeGenerators
                                                                                               .add(TupleType.class)
                                                                                               .add(UserType.class)
                                                                                               .add(VectorType.class)
+                                                                                              .add(CompositeType.class)
                                                                                               .build();
 
     private AbstractTypeGenerators()
@@ -333,7 +334,9 @@ public final class AbstractTypeGenerators
         public Gen<AbstractType<?>> build()
         {
             udtName = Generators.unique(IDENTIFIER_GEN);
-            return buildRecursive(maxDepth);
+            // strip out the package to make it easier to read
+            // type parser assumes this package when one isn't provided, so this does not corrupt the type conversion
+            return buildRecursive(maxDepth).describedAs(t -> t.asCQL3Type().toString().replaceAll("org.apache.cassandra.db.marshal.", ""));
         }
 
         private Gen<AbstractType<?>> buildRecursive(int maxDepth)
@@ -938,15 +941,15 @@ public final class AbstractTypeGenerators
         else if (type.isCollection())
         {
             CollectionType<?> ct = (CollectionType<?>) type;
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
             switch (ct.kind)
             {
                 case MAP:
                 {
-                    if (indent != 0)
-                    {
-                        indent += 2;
-                        newline(sb, indent);
-                    }
                     MapType<?, ?> mt = (MapType<?, ?>) type;
                     sb.append("map:");
                     indent += 2;
@@ -961,11 +964,6 @@ public final class AbstractTypeGenerators
                 break;
                 case LIST:
                 {
-                    if (indent != 0)
-                    {
-                        indent += 2;
-                        newline(sb, indent);
-                    }
                     ListType<?> lt = (ListType<?>) type;
                     sb.append("list: ");
                     indent += 2;
@@ -974,11 +972,6 @@ public final class AbstractTypeGenerators
                 break;
                 case SET:
                 {
-                    if (indent != 0)
-                    {
-                        indent += 2;
-                        newline(sb, indent);
-                    }
                     SetType<?> st = (SetType<?>) type;
                     sb.append("set: ");
                     indent += 2;
@@ -992,12 +985,18 @@ public final class AbstractTypeGenerators
         else if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType) type;
+            if (indent != 0)
+            {
+                indent += 2;
+                newline(sb, indent);
+            }
             sb.append("CompositeType:");
             indent += 2;
+            int idx = 0;
             for (AbstractType<?> subtype : ct.subTypes())
             {
                 newline(sb, indent);
-                sb.append("- ");
+                sb.append(idx++).append(':');
                 typeTree(sb, subtype, indent);
             }
         }
