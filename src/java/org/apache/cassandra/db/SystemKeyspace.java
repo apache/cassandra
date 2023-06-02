@@ -36,7 +36,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
@@ -1301,28 +1300,6 @@ public final class SystemKeyspace
             return result.one().getUUID("host_id");
 
         return null;
-    }
-
-    /**
-     * Read the host ID from the system keyspace, creating (and storing) one if
-     * none exists.
-     */
-    // TODO: this method should not exist. Only CMS can give out host ids.
-    public static synchronized UUID getOrInitializeLocalHostId()
-    {
-        return getOrInitializeLocalHostId(UUID::randomUUID);
-    }
-
-    private static synchronized UUID getOrInitializeLocalHostId(Supplier<UUID> nodeIdSupplier)
-    {
-        UUID hostId = getLocalHostId();
-        if (hostId != null)
-            return hostId;
-
-        // ID not found, generate a new one, persist, and then return it.
-        hostId = nodeIdSupplier.get();
-        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
-        return setLocalHostId(hostId);
     }
 
     /**

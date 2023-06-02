@@ -23,7 +23,6 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.dht.Range;
@@ -66,7 +65,7 @@ class OnClusterReplace extends OnClusterChangeTopology
     {
         IInvokableInstance joinInstance = actions.cluster.get(joining);
         before(joinInstance);
-        UUID leavingNodeId = actions.cluster.get(leaving).unsafeCallOnThisThread(() -> ClusterMetadata.current().myNodeId().toUUID());
+        int leavingNodeId = actions.cluster.get(leaving).unsafeCallOnThisThread(() -> ClusterMetadata.current().myNodeId().id());
         List<Action> actionList = new ArrayList<>();
         actionList.add(new SubmitPrepareReplace(actions, leavingNodeId, joining));
         actionList.add(new OnInstanceTopologyChangePaxosRepair(actions, joining, "Replace"));
@@ -128,7 +127,7 @@ class OnClusterReplace extends OnClusterChangeTopology
 
     private static class SubmitPrepareReplace extends ClusterReliableAction
     {
-        public SubmitPrepareReplace(ClusterActions actions, UUID leavingNodeId, int joining)
+        public SubmitPrepareReplace(ClusterActions actions, int leavingNodeId, int joining)
         {
             super("Prepare Replace", actions, joining, () -> {
                 ClusterMetadata metadata = ClusterMetadata.current();

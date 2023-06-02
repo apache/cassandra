@@ -133,7 +133,7 @@ public class Directory implements MetadataValue<Directory>
                                          NodeState state,
                                          UUID hostId)
     {
-        NodeId id = new NodeId(new UUID(0L, nextId));
+        NodeId id = new NodeId(nextId);
         return with(addresses, id, hostId, location, version).withNodeState(id, state).withRackAndDC(id);
     }
 
@@ -145,8 +145,7 @@ public class Directory implements MetadataValue<Directory>
 
     public Directory with(NodeAddresses addresses, Location location, NodeVersion nodeVersion)
     {
-        // this is obviously not the right way to do this
-        NodeId id = new NodeId(new UUID(0L, nextId));
+        NodeId id = new NodeId(nextId);
         return with(addresses, id, id.toUUID(), location, nodeVersion);
     }
 

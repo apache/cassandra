@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -32,22 +34,42 @@ public class NodeId implements Comparable<NodeId>
 {
     public static final Serializer serializer = new Serializer();
 
-    private final UUID uuid;
+    private final int id;
 
-    public NodeId(UUID id)
+    public NodeId(int id)
     {
-        this.uuid = id;
+        this.id = id;
     }
 
-    public static NodeId fromString(String sequenceOwner)
+    public static NodeId fromString(String nodeOrHostId)
     {
-        return new NodeId(UUID.fromString(sequenceOwner));
+        if (nodeOrHostId.length() == UUID.randomUUID().toString().length())
+            return NodeId.fromUUID(UUID.fromString(nodeOrHostId));
+        return new NodeId(Integer.parseInt(nodeOrHostId));
+    }
+
+    public static NodeId fromUUID(UUID uuid)
+    {
+        if (!isValidNodeId(uuid))
+            throw new UnsupportedOperationException("Not a node id: " + uuid); // see RemoveTest#testBadHostId
+        return new NodeId(Ints.checkedCast(uuid.getLeastSignificantBits()));
+    }
+
+    public static boolean isValidNodeId(UUID uuid)
+    {
+        return uuid.getMostSignificantBits() == 0 &&
+               uuid.getLeastSignificantBits() < Integer.MAX_VALUE;
     }
 
     @Deprecated
     public UUID toUUID()
     {
-        return uuid;
+        return new UUID(0, id);
+    }
+
+    public int id()
+    {
+        return id;
     }
 
     @Override
@@ -56,44 +78,43 @@ public class NodeId implements Comparable<NodeId>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeId nodeId = (NodeId) o;
-        return Objects.equals(uuid, nodeId.uuid);
+        return Objects.equals(id, nodeId.id);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(uuid);
+        return Objects.hash(id);
     }
 
     @Override
     public String toString()
     {
         return "NodeId{" +
-               "id=" + uuid +
+               "id=" + id +
                '}';
     }
 
     public int compareTo(NodeId o)
     {
-        return uuid.compareTo(o.uuid);
+        return Integer.compare(id, o.id);
     }
 
     public static class Serializer implements MetadataSerializer<NodeId>
     {
         public void serialize(NodeId n, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeLong(n.uuid.getMostSignificantBits());
-            out.writeLong(n.uuid.getLeastSignificantBits());
+            out.writeUnsignedVInt32(n.id);
         }
 
         public NodeId deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new NodeId(new UUID(in.readLong(), in.readLong()));
+            return new NodeId(in.readUnsignedVInt32());
         }
 
         public long serializedSize(NodeId t, Version version)
         {
-            return TypeSizes.LONG_SIZE + TypeSizes.LONG_SIZE;
+            return TypeSizes.sizeofUnsignedVInt(t.id);
         }
     }
 }

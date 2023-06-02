@@ -87,14 +87,6 @@ public class SystemKeyspaceTest
         assert !SystemKeyspace.loadTokens().containsValue(token);
     }
 
-    @Test
-    public void testLocalHostID()
-    {
-        UUID firstId = SystemKeyspace.getOrInitializeLocalHostId();
-        UUID secondId = SystemKeyspace.getOrInitializeLocalHostId();
-        assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
-    }
-
     private void assertDeleted()
     {
         assertTrue(getSystemSnapshotFiles(SchemaConstants.SYSTEM_KEYSPACE_NAME).isEmpty());

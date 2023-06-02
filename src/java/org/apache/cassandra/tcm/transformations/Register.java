@@ -128,6 +128,7 @@ public class Register implements Transformation
     {
         // Try to recover node ID from the system keyspace
         UUID localHostId = SystemKeyspace.getLocalHostId();
+        Directory directory = ClusterMetadata.current().directory;
         if (force || localHostId == null)
         {
             NodeId nodeId = register(NodeAddresses.current());
@@ -136,11 +137,14 @@ public class Register implements Transformation
             logger.info("New node ID obtained {}, (Note: This should happen exactly once per node)", localHostId);
             return nodeId;
         }
+        else if (NodeId.isValidNodeId(localHostId) && directory.peerIds().contains(NodeId.fromUUID(localHostId)))
+        {
+            return NodeId.fromUUID(localHostId);
+        }
         else
         {
-            Directory dir = ClusterMetadata.current().directory;
-            NodeId nodeId = dir.peerId(FBUtilities.getBroadcastAddressAndPort());
-            NodeVersion dirVersion = dir.version(nodeId);
+            NodeId nodeId = directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+            NodeVersion dirVersion = directory.version(nodeId);
 
             // If this is a node in the process of upgrading, update the host id in the system.local table
             // TODO: when constructing the initial cluster metadata for upgrade, we include a mapping from
@@ -148,7 +152,7 @@ public class Register implements Transformation
             //      hint delivery immediately following an upgrade.
             if (dirVersion == null || !dirVersion.isUpgraded())
             {
-                if (dir.hostId(nodeId).equals(localHostId))
+                if (directory.hostId(nodeId).equals(localHostId))
                 {
                     SystemKeyspace.setLocalHostId(nodeId.toUUID());
                     logger.info("Updated local HostId from pre-upgrade version {} to the one which was pre-registered " +
@@ -161,7 +165,7 @@ public class Register implements Transformation
                                                String.format("Endpoint: %s, NodeId: %s, Recorded: %s, Local: %s",
                                                              FBUtilities.getBroadcastAddressAndPort(),
                                                              nodeId,
-                                                             dir.hostId(nodeId),
+                                                             directory.hostId(nodeId),
                                                              localHostId));
                 }
             }

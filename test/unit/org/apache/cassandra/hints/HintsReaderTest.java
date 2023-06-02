@@ -66,7 +66,7 @@ public class HintsReaderTest
     {
         SchemaLoader.prepareServer();
 
-        descriptor = new HintsDescriptor(UUID.randomUUID(), System.currentTimeMillis());
+        descriptor = new HintsDescriptor(new UUID(0, 100), System.currentTimeMillis());
     }
 
     private static Mutation createMutation(int index, long timestamp, String ks, String tb)

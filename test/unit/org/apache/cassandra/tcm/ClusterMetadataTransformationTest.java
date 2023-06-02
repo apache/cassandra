@@ -21,7 +21,7 @@ package org.apache.cassandra.tcm;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Random;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
@@ -174,7 +174,7 @@ public class ClusterMetadataTransformationTest
         Transformed transformed = metadata.transformer().with(InProgressSequences.EMPTY).build();
         assertModifications(transformed);
 
-        InProgressSequences trivial = metadata.inProgressSequences.with(new NodeId(UUID.randomUUID()),
+        InProgressSequences trivial = metadata.inProgressSequences.with(new NodeId(ThreadLocalRandom.current().nextInt()),
                                                                         Mockito.mock(InProgressSequence.class));
         transformed = transformed.metadata.transformer().with(trivial).build();
         assertModifications(transformed, IN_PROGRESS_SEQUENCES);

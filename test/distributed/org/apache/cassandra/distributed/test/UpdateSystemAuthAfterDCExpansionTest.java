@@ -19,10 +19,15 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.Collections;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
 
+<<<<<<< HEAD
+=======
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Unregister;
+>>>>>>> 678a2da900 (rdar://104857612 (Switch nodeId from uuid to int) (#3469))
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -197,15 +202,16 @@ public class UpdateSystemAuthAfterDCExpansionTest extends TestBaseImpl
 
             // Forcibly shutdown and have node2 evicted by FD
             logger.debug("Force shutdown node2");
-            String node2hostId = cluster.get(2).callOnInstance(() -> StorageService.instance.getLocalHostId());
+            int node2hostId = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().myNodeId().id());
             cluster.get(2).shutdown(false);
 
             logger.debug("removeNode node2");
             cluster.get(1).runOnInstance(() -> {
-                UUID hostId = UUID.fromString(node2hostId);
-                InetAddressAndPort endpoint = StorageService.instance.getEndpointForHostId(hostId);
+                NodeId nodeId = new NodeId(node2hostId);
+                InetAddressAndPort endpoint = ClusterMetadata.current().directory.endpoint(nodeId);
                 FailureDetector.instance.forceConviction(endpoint);
-                StorageService.instance.removeNode(node2hostId);
+                StorageService.instance.removeNode(nodeId, true);
+                Unregister.unregister(nodeId);
             });
 
             logger.debug("Remove replication to decomissioned dc2");

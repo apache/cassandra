@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -656,13 +655,13 @@ public class ClusterUtils
         return new NodeId(getNodeId(target, target));
     }
 
-    public static UUID getNodeId(IInvokableInstance target, IInvokableInstance executor)
+    public static int getNodeId(IInvokableInstance target, IInvokableInstance executor)
     {
         InetSocketAddress targetAddress = target.config().broadcastAddress();
         return executor.callOnInstance(() -> {
             try
             {
-                return ClusterMetadata.current().directory.peerId(toCassandraInetAddressAndPort(targetAddress)).toUUID();
+                return ClusterMetadata.current().directory.peerId(toCassandraInetAddressAndPort(targetAddress)).id();
             }
             catch (Exception e)
             {
@@ -679,12 +678,12 @@ public class ClusterUtils
 
     public static boolean cancelInProgressSequences(NodeId nodeId, IInvokableInstance executor)
     {
-        UUID uuid = nodeId.toUUID();
+        int id = nodeId.id();
         return executor.callOnInstance(() -> {
             try
             {
 
-                StorageService.instance.cancelInProgressSequences(new NodeId(uuid));
+                StorageService.instance.cancelInProgressSequences(new NodeId(id));
                 return true;
             }
             catch (Exception e)

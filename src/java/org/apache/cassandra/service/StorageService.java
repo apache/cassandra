@@ -2289,7 +2289,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Nullable
     public InetAddressAndPort getEndpointForHostId(UUID hostId)
     {
-        NodeId nodeId = new NodeId(hostId);
+        NodeId nodeId = NodeId.fromUUID(hostId);
         return ClusterMetadata.current().directory.endpoint(nodeId);
     }
 
@@ -3785,8 +3785,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void removeNode(String hostIdString, boolean force)
     {
+        NodeId toRemove = NodeId.fromString(hostIdString);
+        removeNode(toRemove, force);
+    }
+
+    public void removeNode(NodeId toRemove, boolean force)
+    {
         ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId toRemove = new NodeId(UUID.fromString(hostIdString));
         if (toRemove.equals(metadata.myNodeId()))
             throw new UnsupportedOperationException("Cannot remove self");
         InetAddressAndPort endpoint = metadata.directory.endpoint(toRemove);
