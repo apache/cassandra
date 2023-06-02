@@ -143,12 +143,6 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     }
 
     @Override
-    public boolean isTopK()
-    {
-        return query.isTopK();
-    }
-
-    @Override
     public String toString()
     {
         return new StringJoiner(", ", PartitionRangeQueryPager.class.getSimpleName() + "[", "]")

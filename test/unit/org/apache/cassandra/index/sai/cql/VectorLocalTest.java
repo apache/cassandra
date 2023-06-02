@@ -82,16 +82,12 @@ public class VectorLocalTest extends SAITester
 
         // query memtable index
         int limit = Math.min(getRandom().nextIntBetween(30, 50), vectors.size());
-        float[] queryVector = randomVector();
-        UntypedResultSet resultSet = search(queryVector, limit);
-        assertDescendingScore(queryVector, getVectorsFromResult(resultSet));
+        search(randomVector(), limit);
 
         flush();
 
         // query on-disk index
-        queryVector = randomVector();
-        resultSet = search(queryVector, limit);
-        assertDescendingScore(queryVector, getVectorsFromResult(resultSet));
+        search(randomVector(), limit);
 
         // populate some more vectors
         int additionalVectorCount = getRandom().nextIntBetween(500, 1000);
@@ -102,23 +98,17 @@ public class VectorLocalTest extends SAITester
         vectors.addAll(additionalVectors);
 
         // query both memtable index and on-disk index
-        queryVector = randomVector();
-        resultSet = search(queryVector, limit);
-        assertDescendingScore(queryVector, getVectorsFromResult(resultSet));
+        search(randomVector(), limit);
 
         flush();
 
         // query multiple on-disk indexes
-        queryVector = randomVector();
-        resultSet = search(queryVector, limit);
-        assertDescendingScore(queryVector, getVectorsFromResult(resultSet));
+        search(randomVector(), limit);
 
         compact();
 
         // query compacted on-disk index
-        queryVector = randomVector();
-        resultSet = search(queryVector, limit);
-        assertDescendingScore(queryVector, getVectorsFromResult(resultSet));
+        search(randomVector(), limit);
     }
 
     @Test
@@ -156,8 +146,6 @@ public class VectorLocalTest extends SAITester
 
         // expect recall to be at least 0.8
         List<float[]> resultVectors = getVectorsFromResult(resultSet);
-        assertDescendingScore(queryVector, resultVectors);
-
         double recall = getRecall(allVectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.8);
     }
@@ -288,8 +276,6 @@ public class VectorLocalTest extends SAITester
             float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
 
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            assertDescendingScore(queryVector, resultVectors);
-
             if (expected.isEmpty())
                 assertThat(resultVectors).isEmpty();
             else
@@ -319,8 +305,6 @@ public class VectorLocalTest extends SAITester
             float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
 
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            assertDescendingScore(queryVector, resultVectors);
-
             double recall = recallMatch(expected, resultVectors, expected.size());
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
@@ -367,8 +351,6 @@ public class VectorLocalTest extends SAITester
 
             // expect recall to be at least 0.8
             List<float[]> resultVectors = getVectorsFromResult(resultSet);
-            assertDescendingScore(queryVector, resultVectors);
-
             double recall = getRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors, limit);
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
@@ -425,19 +407,6 @@ public class VectorLocalTest extends SAITester
             rawVector[i] = getRandom().nextFloat();
         }
         return rawVector;
-    }
-
-    private void assertDescendingScore(float[] queryVector, List<float[]> resultVectors)
-    {
-        float prevScore = -1;
-        for (float[] current : resultVectors)
-        {
-            float score = function.compare(current, queryVector);
-            if (prevScore >= 0)
-                assertThat(score).isLessThanOrEqualTo(prevScore);
-
-            prevScore = score;
-        }
     }
 
     private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException

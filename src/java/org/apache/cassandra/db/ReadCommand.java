@@ -224,7 +224,9 @@ public abstract class ReadCommand extends AbstractReadQuery
         return indexQueryPlan;
     }
 
-    @Override
+    /**
+     * @return true given read query is a top-k request
+     */
     public boolean isTopK()
     {
         return indexQueryPlan != null && indexQueryPlan.isTopK();

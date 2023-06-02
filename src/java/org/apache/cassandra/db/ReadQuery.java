@@ -254,12 +254,4 @@ public interface ReadQuery
     default void maybeValidateIndex()
     {
     }
-
-    /**
-     * @return true given read query is a top-k request
-     */
-    default boolean isTopK()
-    {
-        return false;
-    }
 }

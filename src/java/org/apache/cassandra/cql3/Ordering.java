@@ -52,8 +52,6 @@ public class Ordering
         {
             throw new UnsupportedOperationException();
         }
-
-        ColumnMetadata getColumn();
     }
 
     /**
@@ -67,12 +65,6 @@ public class Ordering
         public SingleColumn(ColumnMetadata column)
         {
             this.column = column;
-        }
-
-        @Override
-        public ColumnMetadata getColumn()
-        {
-            return column;
         }
     }
 
@@ -101,12 +93,6 @@ public class Ordering
         public SingleRestriction toRestriction()
         {
             return new SingleColumnRestriction.AnnRestriction(column, vectorValue);
-        }
-
-        @Override
-        public ColumnMetadata getColumn()
-        {
-            return column;
         }
     }
 
