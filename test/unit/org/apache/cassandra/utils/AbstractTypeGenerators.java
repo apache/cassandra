@@ -209,7 +209,7 @@ public final class AbstractTypeGenerators
         private EnumSet<TypeKind> kinds;
         private Gen<TypeKind> typeKindGen;
         private Gen<Integer> defaultSizeGen = VERY_SMALL_POSITIVE_SIZE_GEN;
-        private Gen<Integer> vectorSizeGen, vectorSizeNonPrimitiveGen, tupleSizeGen, udtSizeGen;
+        private Gen<Integer> vectorSizeGen, tupleSizeGen, udtSizeGen, compositeSizeGen;
         private Gen<AbstractType<?>> primitiveGen = PRIMITIVE_TYPE_GEN;
         private Gen<String> userTypeKeyspaceGen = IDENTIFIER_GEN;
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
@@ -223,7 +223,6 @@ public final class AbstractTypeGenerators
             typeKindGen = other.typeKindGen;
             defaultSizeGen = other.defaultSizeGen;
             vectorSizeGen = other.vectorSizeGen;
-            vectorSizeNonPrimitiveGen = other.vectorSizeNonPrimitiveGen;
             tupleSizeGen = other.tupleSizeGen;
             udtSizeGen = other.udtSizeGen;
             primitiveGen = other.primitiveGen;
@@ -261,12 +260,6 @@ public final class AbstractTypeGenerators
             return this;
         }
 
-        public TypeGenBuilder withVectorSizeNonPrimitiveGen(Gen<Integer> sizeGen)
-        {
-            this.vectorSizeNonPrimitiveGen = sizeGen;
-            return this;
-        }
-
         public TypeGenBuilder withTupleSizeGen(Gen<Integer> sizeGen)
         {
             this.tupleSizeGen = sizeGen;
@@ -276,6 +269,12 @@ public final class AbstractTypeGenerators
         public TypeGenBuilder withUDTSizeGen(Gen<Integer> sizeGen)
         {
             this.udtSizeGen = sizeGen;
+            return this;
+        }
+
+        public TypeGenBuilder withCompositeSizeGen(Gen<Integer> sizeGen)
+        {
+            this.compositeSizeGen = sizeGen;
             return this;
         }
 
@@ -401,12 +400,10 @@ public final class AbstractTypeGenerators
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
-                        if (!atBottom && vectorSizeNonPrimitiveGen != null)
-                            sizeGen = vectorSizeNonPrimitiveGen;
                         return vectorTypeGen(next.get().map(AbstractType::freeze), sizeGen).generate(rnd);
                     }
                     case COMPOSITE:
-                        return compositeTypeGen(next.get()).generate(rnd);
+                        return compositeTypeGen(next.get(), compositeSizeGen != null ? compositeSizeGen : defaultSizeGen).generate(rnd);
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
                 }
