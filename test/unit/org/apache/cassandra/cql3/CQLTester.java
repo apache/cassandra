@@ -2279,7 +2279,14 @@ public abstract class CQLTester
             return ser.toString(ser.deserialize(bb));
         }
 
-        return type.getString(bb);
+        try
+        {
+            return type.getString(bb);
+        }
+        catch (Exception | Error e)
+        {
+            return "getString failed for type " + type.asCQL3Type() + ": " + e.getMessage();
+        }
     }
 
     protected TupleValue tuple(Object...values)

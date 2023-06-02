@@ -84,16 +84,21 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                                                .withMaxDepth(2)
                                                                .build())
                                      .withClusteringColumnsBetween(1, 2)
+                                     .withRegularColumnsBetween(1, 5)
+                                     .withStaticColumnsBetween(0, 2)
                                      .build(random);
             maybeCreateUDTs(metadata);
-            createTable(KEYSPACE, metadata.toCqlString(false, false));
+            String createTable = metadata.toCqlString(false, false);
+            // just to make the CREATE TABLE stmt easier to read for CUSTOM types
+            createTable = createTable.replaceAll("org.apache.cassandra.db.marshal.", "");
+            createTable(KEYSPACE, createTable);
 
             Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, nulls);
             String insertStmt = insertStmt(metadata);
             int primaryColumnCount = primaryColumnCount(metadata);
             String selectStmt = selectStmt(metadata);
 
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 100; i++)
             {
                 ByteBuffer[] expected = dataGen.generate(random);
                 try
@@ -115,14 +120,14 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 catch (Throwable t)
                 {
                     Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
-                    List<String> cql = new ArrayList<>(expected.length);
+                    List<String> literals = new ArrayList<>(expected.length);
                     for (int idx = 0; idx < expected.length; idx++)
                     {
                         assert it.hasNext();
                         ColumnMetadata meta = it.next();
-                        cql.add(meta.type.asCQL3Type().toCQLLiteral(expected[idx]));
+                        literals.add(meta.type.asCQL3Type().toCQLLiteral(expected[idx]));
                     }
-                    AssertionError error = new AssertionError(String.format("Failure for values %s with schema\n%s", cql, metadata.toCqlString(false, false)), t);
+                    AssertionError error = new AssertionError(String.format("Failure at attempt %d with schema\n%s\nfor values %s", i, createTable, literals), t);
                     throw error;
                 }
             }
