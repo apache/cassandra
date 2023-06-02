@@ -78,6 +78,7 @@
         <packageUrl regex="true">^pkg:maven/com\.google\.guava/guava@.*$</packageUrl>
         <cve>CVE-2018-10237</cve>
         <cve>CVE-2020-8908</cve>
+        <cve>CVE-2023-2976</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-18146 -->
