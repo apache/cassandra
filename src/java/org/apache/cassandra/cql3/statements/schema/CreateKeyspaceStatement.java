@@ -133,7 +133,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement implemen
     {
         HashSet<String> clientWarnings = new HashSet<>();
         int keyspaceCount = Schema.instance.getKeyspaces().size();
-        if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
+        if (DatabaseDescriptor.keyspaceCountWarnThreshold() > 0 && keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
         {
             String msg = String.format("Cluster already contains %d keyspaces. Having a large number of keyspaces will significantly slow down schema dependent cluster operations.",
                                        keyspaceCount);
