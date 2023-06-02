@@ -344,8 +344,6 @@ public final class AbstractTypeGenerators
         public Gen<AbstractType<?>> build()
         {
             udtName = Generators.unique(IDENTIFIER_GEN);
-            if (defaultSetKeyFunc == null)
-                withDefaultSetKey(withoutUnsafeEquality());
             // strip out the package to make it easier to read
             // type parser assumes this package when one isn't provided, so this does not corrupt the type conversion
             return buildRecursive(maxDepth).describedAs(t -> t.asCQL3Type().toString().replaceAll("org.apache.cassandra.db.marshal.", ""));
