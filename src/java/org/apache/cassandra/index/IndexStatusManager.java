@@ -41,6 +41,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
@@ -131,8 +132,7 @@ public class IndexStatusManager
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 return;
 
-            @SuppressWarnings("unchecked")
-            Map<String, String> peerStatus = null;// TODO: (Map<String, String>) JSONValue.parseWithException(versionedValue.value);
+            Map<String, String> peerStatus = JsonUtils.fromJsonMap(versionedValue.value);
             Map<String, Index.Status> indexStatus = new HashMap<>();
 
             for (Map.Entry<String, String> e : peerStatus.entrySet())
@@ -149,9 +149,8 @@ public class IndexStatusManager
                 logger.debug("Received index status for peer {}:\n    Updated: {}\n    Removed: {}",
                              endpoint, updated, removed);
         }
-        catch (IllegalArgumentException e)
+        catch (MarshalException | IllegalArgumentException e)
         {
-// TODO: catch parsing exception from above?
             logger.warn("Unable to parse index status: {}", e.getMessage());
         }
     }
