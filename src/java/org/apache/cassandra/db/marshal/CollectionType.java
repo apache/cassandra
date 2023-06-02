@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -243,6 +244,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
             return false;
 
         return nameComparator().equals(other.nameComparator()) && valueComparator().equals(other.valueComparator());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(kind, isMultiCell(), nameComparator(), valueComparator());
     }
 
     @Override

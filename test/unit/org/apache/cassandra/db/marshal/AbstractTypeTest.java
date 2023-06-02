@@ -137,6 +137,8 @@ public class AbstractTypeTest
         {
             if (Modifier.isAbstract(type.getModifiers()) || isTestType(type) || ReversedType.class.isAssignableFrom(type) || FrozenType.class.isAssignableFrom(type))
                 continue;
+            boolean hasEq = false;
+            boolean hasHashCode = false;
             for (Class<? extends AbstractType> t = type; !t.equals(AbstractType.class); t = (Class<? extends AbstractType>) t.getSuperclass())
             {
                 try
@@ -160,15 +162,34 @@ public class AbstractTypeTest
                 try
                 {
                     Method eq = t.getDeclaredMethod("equals", Object.class);
-                    Method hash = t.getDeclaredMethod("hashCode");
-                    continue outter;
+                    hasEq = true;
                 }
                 catch (NoSuchMethodException e)
                 {
                     // ignore
                 }
+                try
+                {
+                    Method hash = t.getDeclaredMethod("hashCode");
+                    hasHashCode = true;
+                }
+                catch (NoSuchMethodException e)
+                {
+                    // ignore
+                }
+                if (hasEq && hasHashCode)
+                    continue outter;
             }
-            sb.append("AbstractType must be safe for map keys, so must either be a singleton or define equals/hashCode; ").append(type).append('\n');
+            sb.append("AbstractType must be safe for map keys, so must either be a singleton or define ");
+            if (!hasEq)
+                sb.append("equals");
+            if (!hasHashCode)
+            {
+                if (!hasEq)
+                    sb.append('/');
+                sb.append("hashCode");
+            }
+            sb.append("; ").append(type).append('\n');
         }
         if (sb.length() != 0)
         {
