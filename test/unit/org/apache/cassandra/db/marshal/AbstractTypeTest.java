@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
@@ -339,22 +340,40 @@ public class AbstractTypeTest
     }
 
     @Test
+    public void toStringIsCQLYo()
+    {
+        cqlTypeSerde(type -> "'" + type.toString() + "'");
+    }
+
+    @Test
+    public void cqlTypeSerde()
+    {
+        cqlTypeSerde(type -> type.asCQL3Type().toString());
+    }
+
+    private static void cqlTypeSerde(Function<AbstractType<?>, String> cqlFunc)
+    {
+        qt().withShrinkCycles(0).forAll(genBuilder().build()).checkAssert(type -> {
+            // to -> from cql
+            String cqlType = cqlFunc.apply(type);
+            // just easier to read this way...
+            cqlType = cqlType.replaceAll("org.apache.cassandra.db.marshal.", "");
+            AbstractType<?> fromCQLTypeParser = CQLTypeParser.parse(null, cqlType, toTypes(extractUDTs(type)));
+            assertThat(fromCQLTypeParser)
+            .describedAs("CQL type %s parse did not match the expected type", cqlType)
+            .isEqualTo(type);
+        });
+    }
+
+    @Test
     public void serde()
     {
         Gen<AbstractType<?>> typeGen = genBuilder()
                                        // fromCQL(toCQL()) does not work
                                        .withoutPrimitive(DurationType.instance)
-                                       .withTypeKinds(COMPOSITE, PRIMITIVE)
                                        .build();
-        qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
+        qt().withFixedSeed(417698243009458L).withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
             AbstractType type = example.type;
-
-            // to -> from cql
-            String cqlType = type.asCQL3Type().toString();
-            cqlType = cqlType.replaceAll("org.apache.cassandra.db.marshal.", "");
-            assertThat(CQLTypeParser.parse(null, cqlType, toTypes(extractUDTs(type))))
-            .describedAs("CQL type %s parse did not match the expected type", cqlType)
-            .isEqualTo(type);
 
             boolean getStringIsSafe = !containsUnsafeGetString(type);
             boolean toLiteralIsSafe = !containsUnsafeToLiteral(type);
