@@ -210,11 +210,13 @@ public final class AbstractTypeGenerators
         private Gen<TypeKind> typeKindGen;
         private Gen<Integer> defaultSizeGen = VERY_SMALL_POSITIVE_SIZE_GEN;
         private Gen<Integer> vectorSizeGen, tupleSizeGen, udtSizeGen, compositeSizeGen;
-        private Gen<AbstractType<?>> primitiveGen = PRIMITIVE_TYPE_GEN;
+        private Gen<AbstractType<?>> primitiveGen = PRIMITIVE_TYPE_GEN, compositeElementGen;
         private Gen<String> userTypeKeyspaceGen = IDENTIFIER_GEN;
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
 
-        public TypeGenBuilder() {}
+        public TypeGenBuilder()
+        {
+        }
 
         public TypeGenBuilder(TypeGenBuilder other)
         {
@@ -228,6 +230,12 @@ public final class AbstractTypeGenerators
             primitiveGen = other.primitiveGen;
             userTypeKeyspaceGen = other.userTypeKeyspaceGen;
             defaultSetKeyFunc = other.defaultSetKeyFunc;
+        }
+
+        public TypeGenBuilder withCompositeElementGen(Gen<AbstractType<?>> gen)
+        {
+            this.compositeElementGen = gen;
+            return this;
         }
 
         public TypeGenBuilder withDefaultSetKey(Function<Integer, Gen<AbstractType<?>>> mapKeyFunc)
@@ -246,6 +254,11 @@ public final class AbstractTypeGenerators
         {
             userTypeKeyspaceGen = SourceDSL.arbitrary().constant(keyspace);
             return this;
+        }
+
+        public TypeGenBuilder withDefaultSizeGen(int size)
+        {
+            return withDefaultSizeGen(SourceDSL.arbitrary().constant(size));
         }
 
         public TypeGenBuilder withDefaultSizeGen(Gen<Integer> sizeGen)
@@ -403,7 +416,7 @@ public final class AbstractTypeGenerators
                         return vectorTypeGen(next.get().map(AbstractType::freeze), sizeGen).generate(rnd);
                     }
                     case COMPOSITE:
-                        return compositeTypeGen(next.get(), compositeSizeGen != null ? compositeSizeGen : defaultSizeGen).generate(rnd);
+                        return compositeTypeGen(compositeElementGen != null ? compositeElementGen : next.get(), compositeSizeGen != null ? compositeSizeGen : defaultSizeGen).generate(rnd);
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
                 }

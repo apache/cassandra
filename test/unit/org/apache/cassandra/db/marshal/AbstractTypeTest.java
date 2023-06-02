@@ -372,8 +372,11 @@ public class AbstractTypeTest
                                        // fromCQL(toCQL()) does not work
                                        .withoutPrimitive(DurationType.instance)
                                        .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
+                                       // composite requires all elements fit into Short.MAX_VALUE bytes
+                                       // so try to limit the possible expansion of types
+                                       .withCompositeElementGen(genBuilder().withDefaultSizeGen(1).withMaxDepth(1).build())
                                        .build();
-        qt().withFixedSeed(422699568443625L).withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
+        qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
             AbstractType type = example.type;
 
             boolean getStringIsSafe = !containsUnsafeGetString(type);
