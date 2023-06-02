@@ -1000,7 +1000,7 @@ public class DatabaseDescriptor
     private static <T extends DataRateSpec<T>> T validateThroughputUpperBound(T value, ToDoubleFunction<T> throughput)
     {
         if (throughput.applyAsDouble(value) >= Integer.MAX_VALUE)
-            throw new ConfigurationException(String.format("Invalid value: '%s'", value), false);
+            throw new ConfigurationException(String.format("Invalid value: '%s' is too large", value), false);
         return value;
     }
 
@@ -2283,12 +2283,7 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        if (value == Integer.MAX_VALUE)
-            throw new IllegalArgumentException("entire_sstable_stream_throughput_outbound: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in MiB/s");
-
-        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+        setProperty(ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
@@ -2318,22 +2313,17 @@ public class DatabaseDescriptor
 
     public static void setInterDCStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
-        if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("inter_dc_stream_throughput_outbound: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in megabits/s");
-
-        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static void setInterDCStreamThroughputOutboundBytesPerSec(long value)
     {
-        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND);
+        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND));
     }
 
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.inter_dc_stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
+        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value));
     }
 
     public static double getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec()
@@ -2348,12 +2338,7 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        if (value == Integer.MAX_VALUE)
-            throw new IllegalArgumentException("entire_sstable_inter_dc_stream_throughput_outbound: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in MiB/s");
-
-        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+        setProperty(ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     /**

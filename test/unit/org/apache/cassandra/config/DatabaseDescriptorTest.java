@@ -590,14 +590,14 @@ public class DatabaseDescriptorTest
     {
         Config config = DatabaseDescriptor.loadConfig();
 
-        String expectedMsg = "Invalid value: '2147483647MiB/s'";
+        String expectedMsg = "Invalid value: '2147483647MiB/s' is too large";
         config.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
         validateProperty(config, expectedMsg);
 
         config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
         validateProperty(config, expectedMsg);
 
-        expectedMsg = "Invalid value: '268435455875000B/s'";
+        expectedMsg = "Invalid value: '268435455875000B/s' is too large";
         config.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
         validateProperty(config, expectedMsg);
 
