@@ -18,16 +18,15 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import org.junit.Test;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
 /**
- * {@link MixedModeConsistencyTestBase} for upgrades from v30.
+ * {@link MixedModeAvailabilityTestBase} for upgrades from v30 with QUORUM-QUORUM write-read consistency.
  */
-public class MixedModeConsistencyV30Test extends MixedModeConsistencyTestBase
+public class MixedModeAvailabilityQuorumQuorumTest extends MixedModeAvailabilityTestBase
 {
-    @Test
-    public void testConsistency() throws Throwable
+    public MixedModeAvailabilityQuorumQuorumTest()
     {
-        testConsistency(v30);
+        super(ConsistencyLevel.QUORUM, ConsistencyLevel.QUORUM);
     }
 }

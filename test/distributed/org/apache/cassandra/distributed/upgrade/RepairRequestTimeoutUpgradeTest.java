@@ -33,7 +33,7 @@ public class RepairRequestTimeoutUpgradeTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(1)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP).set("repair_request_timeout_in_ms", 1000))
-        .upgrades(v40, v41)
+        .applicableVersionsRange(v40, v41)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             for (int i = 0; i < 10; i++)

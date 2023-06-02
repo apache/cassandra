@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -34,7 +33,7 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 
 import org.junit.After;
-import org.junit.Assume;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import org.slf4j.Logger;
@@ -111,14 +110,14 @@ public class UpgradeTestBase extends DistributedTestBase
     public static class TestVersions
     {
         final Version initial;
-        final List<Version> upgrade;
-        final List<Semver> upgradeVersions;
+        final Version targetVersion;
+        final Semver targetSemver;
 
-        public TestVersions(Version initial, List<Version> upgrade)
+        public TestVersions(Version initial, Version target)
         {
             this.initial = initial;
-            this.upgrade = upgrade;
-            this.upgradeVersions = upgrade.stream().map(v -> v.version).collect(Collectors.toList());
+            this.targetVersion = target;
+            this.targetSemver = target.version;
         }
 
         @Override
@@ -127,13 +126,13 @@ public class UpgradeTestBase extends DistributedTestBase
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TestVersions that = (TestVersions) o;
-            return Objects.equals(initial.version, that.initial.version) && Objects.equals(upgradeVersions, that.upgradeVersions);
+            return Objects.equals(initial.version, that.initial.version) && Objects.equals(targetSemver, that.targetSemver);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(initial.version, upgradeVersions);
+            return Objects.hash(initial.version, targetSemver);
         }
 
         @Override
@@ -141,7 +140,7 @@ public class UpgradeTestBase extends DistributedTestBase
         {
             StringBuilder sb = new StringBuilder();
             sb.append(initial.version).append(" -> ");
-            sb.append(upgradeVersions);
+            sb.append(targetSemver);
             return sb.toString();
         }
     }
@@ -150,6 +149,10 @@ public class UpgradeTestBase extends DistributedTestBase
     {
         private final Versions versions;
         private final List<TestVersions> upgrade = new ArrayList<>();
+        // the minimal and maximal C* version that this test case is applicable for
+        // by default the test case is applicable for all versions
+        private Semver minimalApplicableVersion = OLDEST;
+        private Semver maximalApplicableVersion = CURRENT;
         private int nodeCount = 3;
         private RunOnCluster setup;
         private RunOnClusterAndNode runBeforeNodeRestart;
@@ -165,7 +168,7 @@ public class UpgradeTestBase extends DistributedTestBase
             this(find());
         }
 
-        public TestCase(Versions versions)
+        private TestCase(Versions versions)
         {
             this.versions = versions;
         }
@@ -176,70 +179,156 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        /** performs all supported upgrade paths that exist in between from and end on CURRENT (inclusive)
-         * {@code upgradesToCurrentFrom(3.0); // produces: 3.0 -> CURRENT, 3.11 -> CURRENT, …}
+        /**
+         * @param minimalSupportedVersion the minimal version that this test case is applicable for
+         *
+         * This function sets the lower bound of test case's applicability
+         * the test case will run (see {@link #run}) all supported direct upgrades source -> target
+         * such that:
+         * - source >= minimalSupportedVersion
+         * - source == CURRENT or target == CURRENT
+         *
+         * example:
+         * with CURRENT = v50 and minimalSupportedVersion = v30 the test case will run:
+         * - v40 -> v50
+         * - v41 -> v50
+         * with CURRENT = v41 and minimalSupportedVersion = v30 the test case will run:
+         * - v30 -> v41
+         * - v3x -> v41
+         * - v40 -> v41
+         * with CURRENT = v3x and minimalSupportedVersion = v30 the test case will run:
+         * - v30 -> v3x
+         */
+        public TestCase minimalApplicableVersion(Semver minimalSupportedVersion)
+        {
+            this.minimalApplicableVersion = minimalSupportedVersion;
+            addUpgrades();
+            return this;
+        }
+
+        /**
+         * @param minimalSupportedVersion the minimal version that this test case is applicable for
+         * @param maximalSupportedVersion the maximal version that this test case is applicable for
+         *
+         * This function sets both the lower and the upper bounds of test case's applicability
+         * the test case will run (see {@link #run}) all supported direct upgrades source -> target
+         * such that:
+         * - source >= minimalSupportedVersion
+         * - target <= maximalSupportedVersion
+         * - source == CURRENT or target == CURRENT
+         *
+         * example:
+         * with CURRENT = v50, minimalSupportedVersion = v30, and maximalSupportedVersion = v41
+         * the test case will not run any upgrades.
+         * with CURRENT = v41, minimalSupportedVersion = v30, and maximalSupportedVersion = v41
+         * the test case will run:
+         * - v30 -> v41
+         * - v3x -> v41
+         * - v40 -> v41
+         */
+        public TestCase applicableVersionsRange(Semver minimalSupportedVersion, Semver maximalSupportedVersion)
+        {
+            this.minimalApplicableVersion = minimalSupportedVersion;
+            this.maximalApplicableVersion = maximalSupportedVersion;
+            addUpgrades();
+            return this;
+        }
+
+        /**
+         * this is a deprecated, backwards-compatible API for upgrade tests, that allows to specify which upgrades to perform
+         *
+         * upgradesToCurrentFrom(Semver from) sets the upgrades to perform to be all supported direct upgrades (upgrade
+         * paths with length 1) to the CURRENT version, but omitting versions older than the given "from" version
+         *
+         * This intent is best expressed by the newer alternatives:
+         * - appplicableVersionsRange(from, CURRENT)
+         * or, perhaps, depending on the actual case:
+         * - minimalApplicableVersion(from)
+         *
+         * please note, that upgrades that do not involve the CURRENT version are not meant to be run in upgrade tests
+         *
+         * Beware, there may be no supported direct upgrade path from -> CURRENT, and this is OK.
+         * e.g. when CURRENT == v4
+         * {@code upgradesToCurrentStartingNoEarlierThan(3.0); // produces: 3.0 -> CURRENT, 3.11 -> CURRENT, …}
+         * and when CURRENT == v5
+         * {@code upgradesToCurrentStartingNoEarlierThan(3.0); // produces: 4.0 -> CURRENT, 4.1 -> CURRENT, …}
+         * and when CURRENT == v3.11
+         * {@code upgradesToCurrentStartingNoEarlierThan(3.0); // produces: 3.0 -> CURRENT, …}
          **/
+        @Deprecated
         public TestCase upgradesToCurrentFrom(Semver from)
         {
-            return upgradesTo(from, CURRENT);
+            return applicableVersionsRange(from, CURRENT);
         }
 
         /**
-         * performs all supported upgrade paths to the "to" target; example
-         * {@code upgradesTo(3.0, 4.0); // produces: 3.0 -> 4.0, 3.11 -> 4.0}
+         * On pre-5.0 versions there used to be a public upgradesTo(Semver from, Semver to) method here.
+         * It's semantics was:
+         * upgradesTo(Semver from, Semver to) sets the upgrades to perform to be all direct upgrades (upgrade paths with length 1)
+         * with source not older than the given "from" version to the fixed "to" version. However, since the CURRENT
+         * version must be either source or the target version, this meant either:
+         * a single CURRENT -> "to" upgrade, or
+         * all direct upgrades "source" -> CURRENT, where "source" >= "from"
+         *
+         * The method was not used in tests, and it is unlikely that you need such semantics in your test.
+         * Thus, it was removed.
+         *
+         * Should you need it, please reconsider if the above semantics is what you really want.
+         * Please check:
+         * - minimalApplicableVersion(from)
+         * - maximalApplicableVersion(to)
+         * - applicableVersionsRange(from, to)
+         * for alternatives
          */
-        public TestCase upgradesTo(Semver from, Semver to)
-        {
-            List<TestVersions> upgrade = new ArrayList<>();
-            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
-            for (Semver start : vertices.subSet(from, true, to, false))
-            {
-                // only include pairs that are allowed, and start or end on CURRENT
-                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to) && contains(start, to, CURRENT))
-                    upgrade.add(new TestVersions(versions.getLatest(start), Collections.singletonList(versions.getLatest(to))));
-            }
-            logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
-            this.upgrade.addAll(upgrade);
-            return this;
-        }
 
         /**
-         * performs all supported upgrade paths from the "from" target; example
-         * {@code upgradesFrom(4.0, 4.2); // produces: 4.0 -> 4.1, 4.0 -> 4.2}
+         * On pre-5.0 versions there used to be a public upgradesFrom(Semver from, Semver to) method here.
+         * It's semantics was:
+         * upgradesFrom(Semver from, Semver to) sets the upgrades to perform to be all direct upgrades (upgrade paths with length 1)
+         * with source fixed to "from" and target belonging to (from, to] range. However, since the CURRENT
+         * version must be either source or the target version, this meant either:
+         * a single "from" -> CURRENT upgrade, or
+         * all direct upgrades CURRENT -> "target", where "target" <= "to"
+         *
+         * The method was not used in tests, and it is unlikely that you need such semantics in your test.
+         * Thus, it was removed.
+         *
+         * Should you need it, please reconsider if the above semantics is what you really want.
+         * Please check:
+         * - minimalApplicableVersion(from)
+         * - maximalApplicableVersion(to)
+         * - applicableVersionsRange(from, to)
+         * for alternatives
          */
-        public TestCase upgradesFrom(Semver from, Semver to)
-        {
-            List<TestVersions> upgrade = new ArrayList<>();
-            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
-            for (Semver end : vertices.subSet(from, false, to, true))
-            {
-                // only include pairs that are allowed, and start or end on CURRENT
-                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end) && contains(from, end, CURRENT))
-                    upgrade.add(new TestVersions(versions.getLatest(from), Collections.singletonList(versions.getLatest(end))));
-            }
-            logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
-            this.upgrade.addAll(upgrade);
-            return this;
-        }
 
         /**
-         * performs all supported upgrade paths that exist in between from and to that include the current version.
-         * This call is equivalent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
+         * this is a deprecated, backwards-compatible API for upgrade tests, that allows to specify which upgrades to perform
+         *
+         * upgrades(Semver from, Semver to) sets the upgrades to perform to be all supported direct upgrades (upgrade
+         * paths with length 1) with either source or target version being the CURRENT version, and the other
+         * end belonging to the [from, to] range.
+         *
+         * This intent is best expressed by the newer alternatives:
+         * - appplicableVersionsRange(from, to)
+         * or, perhaps, depending on the actual case:
+         * - minimalApplicableVersion(from)
          **/
+        @Deprecated
         public TestCase upgrades(Semver from, Semver to)
         {
-            Assume.assumeTrue("Unable to do upgrades(" + from + ", " + to + "); does not contain CURRENT=" + CURRENT, contains(from, to, CURRENT));
-            if (from.compareTo(CURRENT) < 0)
-                upgradesTo(from, CURRENT);
-            if (CURRENT.compareTo(to) < 0)
-                upgradesFrom(CURRENT, to);
+            applicableVersionsRange(from, to);
             return this;
         }
 
-        private static boolean contains(Semver from, Semver to, Semver target)
+        private void addUpgrades()
         {
-            // target >= from && target <= to
-            return target.compareTo(from) >= 0 && target.compareTo(to) <= 0;
+            Assert.assertEquals("upgrade paths already defined?", this.upgrade, Collections.emptyList());
+            NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
+            for (Semver end : vertices.subSet(this.minimalApplicableVersion, true, this.maximalApplicableVersion, true))
+            {
+                addSingleUpgrade(end, CURRENT);
+                addSingleUpgrade(CURRENT, end);
+            }
         }
 
         /** Will test this specific upgrade path **/
@@ -247,10 +336,18 @@ public class UpgradeTestBase extends DistributedTestBase
         {
             if (!SUPPORTED_UPGRADE_PATHS.hasEdge(from, CURRENT))
                 throw new AssertionError("Upgrading from " + from + " to " + CURRENT + " isn't directly supported and must go through other versions first; supported paths: " + SUPPORTED_UPGRADE_PATHS.findPaths(from, CURRENT));
-            TestVersions tests = new TestVersions(this.versions.getLatest(from), Arrays.asList(this.versions.getLatest(CURRENT)));
-            logger.info("Adding upgrade of {}", tests);
-            this.upgrade.add(tests);
+            addSingleUpgrade(from, CURRENT);
             return this;
+        }
+
+        private void addSingleUpgrade(Semver from, Semver to)
+        {
+            if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, to))
+            {
+                TestVersions singleUpgrade = new TestVersions(this.versions.getLatest(from), this.versions.getLatest(to));
+                logger.info("Adding upgrade of {}", singleUpgrade);
+                this.upgrade.add(singleUpgrade);
+            }
         }
 
         public TestCase setup(RunOnCluster setup)
@@ -300,7 +397,10 @@ public class UpgradeTestBase extends DistributedTestBase
             if (setup == null)
                 throw new AssertionError();
             if (upgrade.isEmpty())
-                throw new AssertionError("no upgrade paths have been specified (or exist)");
+            {
+                throw new AssertionError(String.format("no upgrade paths have been specified (or exist) for the given applicability range: %s -> %s; CURRENT=%s",
+                                                       minimalApplicableVersion, maximalApplicableVersion, CURRENT));
+            }
             if (runAfterClusterUpgrade == null && runAfterNodeUpgrade == null)
                 throw new AssertionError();
             if (runBeforeNodeRestart == null)
@@ -318,12 +418,12 @@ public class UpgradeTestBase extends DistributedTestBase
             int offset = 0;
             for (TestVersions upgrade : this.upgrade)
             {
-                logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgradeVersions);
+                logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.targetSemver);
                 try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);
 
-                    for (Version nextVersion : upgrade.upgrade)
+                    Version nextVersion = upgrade.targetVersion;
                     {
                         try
                         {
@@ -383,7 +483,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesToCurrentFrom(v30)
+                             .applicableVersionsRange(OLDEST, CURRENT)
                              .nodesToUpgrade(toUpgrade);
     }
 
