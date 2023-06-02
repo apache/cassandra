@@ -67,6 +67,11 @@ public final class Generators
 
     public static final Gen<String> IDENTIFIER_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
 
+    public static Gen<Character> letterOrDigit()
+    {
+        return SourceDSL.integers().between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).map(idx -> LETTER_OR_DIGIT_DOMAIN[idx]);
+    }
+
     public static final Gen<UUID> UUID_RANDOM_GEN = rnd -> {
         long most = rnd.next(Constraint.none());
         most &= 0x0f << 8; /* clear version        */

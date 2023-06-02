@@ -23,12 +23,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -59,6 +61,7 @@ import org.apache.cassandra.db.marshal.DateType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.DynamicCompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.FrozenType;
@@ -160,6 +163,7 @@ public final class AbstractTypeGenerators
                                                                                               .add(UserType.class)
                                                                                               .add(VectorType.class)
                                                                                               .add(CompositeType.class)
+                                                                                              .add(DynamicCompositeType.class)
                                                                                               .build();
 
     private AbstractTypeGenerators()
@@ -173,7 +177,7 @@ public final class AbstractTypeGenerators
         SET, LIST, MAP,
         TUPLE, UDT,
         VECTOR,
-        COMPOSITE
+        COMPOSITE, DYNAMIC_COMPOSITE
     }
 
     private static final Gen<TypeKind> TYPE_KIND_GEN = SourceDSL.arbitrary().enumValuesWithNoOrder(TypeKind.class);
@@ -417,6 +421,10 @@ public final class AbstractTypeGenerators
                     }
                     case COMPOSITE:
                         return compositeTypeGen(compositeElementGen != null ? compositeElementGen : next.get(), compositeSizeGen != null ? compositeSizeGen : defaultSizeGen).generate(rnd);
+                    case DYNAMIC_COMPOSITE:
+                        Gen<Byte> aliasGen = Generators.letterOrDigit().map(c -> (byte) c.charValue());
+                        // stores alias names by class and not what is actually valid by cql... so only primitive types match!
+                        return dynamicCompositeGen(primitiveGen, aliasGen, defaultSizeGen).generate(rnd);
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
                 }
@@ -488,6 +496,22 @@ public final class AbstractTypeGenerators
                 types.add(type);
             }
             return CompositeType.getInstance(types);
+        };
+    }
+
+    public static Gen<DynamicCompositeType> dynamicCompositeGen(Gen<AbstractType<?>> typeGen, Gen<Byte> aliasGen, Gen<Integer> sizeGen)
+    {
+        return rnd -> {
+            int size = sizeGen.generate(rnd);
+            Map<Byte, AbstractType<?>> aliases = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                byte alias = aliasGen.generate(rnd);
+                while (aliases.containsKey(alias))
+                    alias = aliasGen.generate(rnd);
+                aliases.put(alias, typeGen.generate(rnd));
+            }
+            return DynamicCompositeType.getInstance(aliases);
         };
     }
 
@@ -784,7 +808,6 @@ public final class AbstractTypeGenerators
         else if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType) type;
-//            return (TypeSupport<T>) TypeSupport.of(ct, SourceDSL.arbitrary().constant(ByteBufferUtil.EMPTY_BYTE_BUFFER), (a, b) -> 0);
             List<TypeSupport<Object>> elementSupport = (List<TypeSupport<Object>>) (List<?>) ct.types.stream().map(AbstractTypeGenerators::getTypeSupport).collect(Collectors.toList());
             Serde<ByteBuffer, List<Object>> serde = new Serde<ByteBuffer, List<Object>>()
             {
@@ -810,6 +833,57 @@ public final class AbstractTypeGenerators
                     values.add(elementSupport.get(i).valueGen.generate(rnd));
                 return values;
             }, listComparator((index, a, b) -> elementSupport.get(index).valueComparator.compare(a, b)));
+        }
+        else if (type instanceof DynamicCompositeType)
+        {
+            // data generation limits to what is valid for the type, and sadly the type
+            DynamicCompositeType dct = (DynamicCompositeType) type;
+            Map<Byte, TypeSupport<?>> supports = new TreeMap<>();
+            for (Map.Entry<Byte, AbstractType<?>> e : dct.aliases.entrySet())
+                supports.put(e.getKey(), getTypeSupport(e.getValue()));
+            List<Byte> orderedAliases = new ArrayList<>(supports.keySet());
+            Serde<ByteBuffer, Map<Byte, Object>> serde = new Serde<ByteBuffer, Map<Byte, Object>>()
+            {
+                @Override
+                public ByteBuffer from(Map<Byte, Object> byteObjectMap)
+                {
+                    return dct.build(byteObjectMap);
+                }
+
+                @Override
+                public Map<Byte, Object> to(ByteBuffer buffer)
+                {
+                    ByteBuffer[] parts = dct.split(buffer);
+                    Map<Byte, Object> values = Maps.newHashMapWithExpectedSize(parts.length);
+                    for (int i = 0; i < parts.length; i++)
+                    {
+                        Byte alias = orderedAliases.get(i);
+                        AbstractType<?> type = dct.aliases.get(alias);
+                        ByteBuffer bytes = parts[i];
+                        type.validate(bytes);
+                        values.put(alias, type.compose(bytes));
+                    }
+                    return values;
+                }
+            };
+            return (TypeSupport<T>) TypeSupport.of(dct, serde, rnd -> {
+                Map<Byte, Object> byteObjectMap = new TreeMap<>();
+                for (Byte alias : orderedAliases)
+                    byteObjectMap.put(alias, supports.get(alias).valueGen.generate(rnd));
+                return byteObjectMap;
+            }, (a, b) -> {
+                for (Byte alias : orderedAliases)
+                {
+                    @SuppressWarnings("rawtype")
+                    TypeSupport support = supports.get(alias);
+                    Object as = a.get(alias);
+                    Object bs = b.get(alias);
+                    int rc = support.valueComparator.compare(as, bs);
+                    if (rc != 0)
+                        return rc;
+                }
+                return 0;
+            });
         }
         throw new UnsupportedOperationException("Unsupported type: " + type);
     }
@@ -859,7 +933,7 @@ public final class AbstractTypeGenerators
             if (uniq != -1)
                 return uniq == 1 ? 1 : uniq * vector.dimension;
         }
-        if (type instanceof TupleType || type instanceof CompositeType)
+        if (type instanceof TupleType || type instanceof CompositeType || type instanceof DynamicCompositeType)
         {
             int product = 1;
             for (AbstractType<?> f : type.subTypes())

@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,7 +103,7 @@ public class DynamicCompositeType extends AbstractCompositeType
     private static final ByteSource[] EMPTY_BYTE_SOURCE_ARRAY = new ByteSource[0];
     private static final String REVERSED_TYPE = ReversedType.class.getSimpleName();
 
-    private final Map<Byte, AbstractType<?>> aliases;
+    public final Map<Byte, AbstractType<?>> aliases;
     private final Map<AbstractType<?>, Byte> inverseMapping;
     private final Serializer serializer;
 
@@ -129,6 +130,17 @@ public class DynamicCompositeType extends AbstractCompositeType
         this.inverseMapping = new HashMap<>();
         for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
             this.inverseMapping.put(en.getValue(), en.getKey());
+    }
+
+    public int size()
+    {
+        return aliases.size();
+    }
+
+    @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return new ArrayList<>(aliases.values());
     }
 
     @Override
@@ -366,6 +378,27 @@ public class DynamicCompositeType extends AbstractCompositeType
         return build(accessor, types, inverseMapping, values, lastEoc);
     }
 
+    public ByteBuffer build(Map<Byte, Object> valuesMap)
+    {
+        Sets.SetView<Byte> unknownAliases = Sets.difference(valuesMap.keySet(), aliases.keySet());
+        if (!unknownAliases.isEmpty())
+            throw new IllegalArgumentException(String.format("Aliases %s used; only valid values are %s", unknownAliases, aliases.keySet()));
+        List<AbstractType<?>> types = new ArrayList<>(valuesMap.size());
+        List<ByteBuffer> values = new ArrayList<>(valuesMap.size());
+        for (Map.Entry<Byte, Object> e : valuesMap.entrySet())
+        {
+            @SuppressWarnings("rawtype")
+            AbstractType type = aliases.get(e.getKey());
+            types.add(type);
+            values.add(type.decompose(e.getValue()));
+        }
+        // inverseMapping is dangerous as the whole alias feature is broken...  we store a header to mark an alias as such
+        // rather than a length, but this header is > Short.MAX_VALUE... aka it gets truncated when we actually store it!
+        // This means alias all look like a type should be written next to it, and can go in bad ways...
+        // To avoid this issue, disable the inverse map, so that all known alias are lost!
+        return build(ByteBufferAccessor.instance, types, inverseMapping, values, (byte) 0);
+    }
+
     public static ByteBuffer build(List<String> types, List<ByteBuffer> values)
     {
         return build(ByteBufferAccessor.instance,
@@ -429,6 +462,8 @@ public class DynamicCompositeType extends AbstractCompositeType
             // Write the type payload data (2-byte length header + the payload).
             V value = values.get(i);
             int bytesToCopy = accessor.size(value);
+            if ((short) bytesToCopy != bytesToCopy)
+                throw new IllegalArgumentException(String.format("Value of type %s is of length %d; does not fit in a short", type.asCQL3Type(), bytesToCopy));
             accessor.putShort(result, offset, (short) bytesToCopy);
             offset += 2;
             accessor.copyTo(value, 0, result, accessor, offset, bytesToCopy);

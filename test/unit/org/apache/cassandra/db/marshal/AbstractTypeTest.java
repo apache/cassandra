@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
@@ -265,7 +266,7 @@ public class AbstractTypeTest
                                        // toCQLLiteral is lossy, which causes deserialization to produce different bytes
                                        .withoutPrimitive(DecimalType.instance)
                                        // does not support toJSONString
-                                       .withoutTypeKinds(COMPOSITE)
+                                       .withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE)
                                        .build();
         qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(es -> {
             AbstractType type = es.type;
@@ -295,9 +296,14 @@ public class AbstractTypeTest
     @Test
     public void nested()
     {
+        Map<Class<? extends AbstractType>, Function<? super AbstractType<?>, Integer>> complexTypes = ImmutableMap.of(MapType.class, ignore -> 2,
+                                                                                                                      TupleType.class, t -> ((TupleType) t).size(),
+                                                                                                                      UserType.class, t -> ((UserType) t).size(),
+                                                                                                                      CompositeType.class, t -> ((CompositeType) t).types.size(),
+                                                                                                                      DynamicCompositeType.class, t -> ((DynamicCompositeType) t).size());
         qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE).build()).checkAssert(type -> {
-            List<AbstractType<?>> subtypes = type.subTypes();
-            assertThat(subtypes).hasSize(type instanceof MapType ? 2 : type instanceof TupleType ? ((TupleType) type).size() : type instanceof CompositeType ? ((CompositeType) type).types.size() : 1);
+            int expectedSize = complexTypes.containsKey(type.getClass()) ? complexTypes.get(type.getClass()).apply(type) : 1;
+            assertThat(type.subTypes()).hasSize(expectedSize);
         });
     }
 
@@ -314,6 +320,15 @@ public class AbstractTypeTest
             {
                 AbstractType<?> unwrap = e.unwrap();
                 if (unwrap instanceof StringType || unwrap instanceof TupleType)
+                    return true;
+            }
+        }
+        else if (type instanceof DynamicCompositeType)
+        {
+            for (AbstractType<?> e : type.subTypes())
+            {
+                AbstractType<?> unwrap = e.unwrap();
+                if (unwrap instanceof StringType)
                     return true;
             }
         }
@@ -464,7 +479,6 @@ public class AbstractTypeTest
     {
         Gen<AbstractType<?>> types = genBuilder()
                                      .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
-                                     .withMaxDepth(0)
                                      .build();
         qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
