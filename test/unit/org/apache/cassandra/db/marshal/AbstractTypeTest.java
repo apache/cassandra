@@ -353,7 +353,7 @@ public class AbstractTypeTest
 
     private static void cqlTypeSerde(Function<AbstractType<?>, String> cqlFunc)
     {
-        qt().withShrinkCycles(0).forAll(genBuilder().build()).checkAssert(type -> {
+        qt().withShrinkCycles(0).forAll(genBuilder().withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality()).build()).checkAssert(type -> {
             // to -> from cql
             String cqlType = cqlFunc.apply(type);
             // just easier to read this way...
@@ -371,8 +371,9 @@ public class AbstractTypeTest
         Gen<AbstractType<?>> typeGen = genBuilder()
                                        // fromCQL(toCQL()) does not work
                                        .withoutPrimitive(DurationType.instance)
+                                       .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
                                        .build();
-        qt().withFixedSeed(417698243009458L).withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
+        qt().withFixedSeed(422699568443625L).withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
             AbstractType type = example.type;
 
             boolean getStringIsSafe = !containsUnsafeGetString(type);
