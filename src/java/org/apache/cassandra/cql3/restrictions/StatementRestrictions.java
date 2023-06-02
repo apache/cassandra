@@ -72,7 +72,9 @@ public class StatementRestrictions
     public static final String PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL =
     "Restriction on partition key column %s must not be nested under OR operator";
 
-    public static final String VECTOR_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
+    public static final String ANN_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
+
+    public static final String VECTOR_INDEXES_ANN_ONLY_MESSAGE = "Vector indexes only support ANN queries";
 
     /**
      * The Column Family meta data
@@ -561,6 +563,8 @@ public class StatementRestrictions
             // there is restrictions not covered by the PK.
             if (!nonPrimaryKeyRestrictions.isEmpty())
             {
+                var columnRestrictions = allColumnRestrictions(clusteringColumnsRestrictions, nonPrimaryKeyRestrictions);
+
                 if (!type.allowNonPrimaryKeyInWhereClause())
                 {
                     Collection<ColumnIdentifier> nonPrimaryKeyColumns =
@@ -573,11 +577,19 @@ public class StatementRestrictions
                     usesSecondaryIndexing = true;
                 else
                 {
-                    if (nonPrimaryKeyRestrictions.getColumnDefs().stream().anyMatch(c -> c.type.isVector()))
-                        throw invalidRequest(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE);
+                    var vectorColumn = nonPrimaryKeyRestrictions.getColumnDefs().stream().filter(c -> c.type.isVector()).findFirst();
+                    if (vectorColumn.isPresent())
+                    {
+                        var vc = vectorColumn.get();
+                        var hasIndex = indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vc));
+                        if (hasIndex)
+                            throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
+                        else
+                            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
+                    }
 
                     if (!allowFiltering)
-                        throwRequiresAllowFilteringError(table, clusteringColumnsRestrictions, nonPrimaryKeyRestrictions);
+                        throwRequiresAllowFilteringError(table, columnRestrictions);
                 }
 
                 filterRestrictionsBuilder.add(nonPrimaryKeyRestrictions);
@@ -631,13 +643,6 @@ public class StatementRestrictions
             }
         }
 
-        private Set<ColumnMetadata> getColumnsWithUnsupportedIndexRestrictions(TableMetadata table,
-                                                                               ClusteringColumnRestrictions clusteringColumnsRestrictions,
-                                                                               RestrictionSet nonPrimaryKeyRestrictions)
-        {
-            return getColumnsWithUnsupportedIndexRestrictions(table, Iterables.concat(clusteringColumnsRestrictions.restrictions(), nonPrimaryKeyRestrictions.restrictions()));
-        }
-
         private Set<ColumnMetadata> getColumnsWithUnsupportedIndexRestrictions(TableMetadata table, Iterable<Restriction> restrictions)
         {
             IndexRegistry indexRegistry = IndexRegistry.obtain(table);
@@ -665,13 +670,9 @@ public class StatementRestrictions
             return builder.build();
         }
 
-        private void throwRequiresAllowFilteringError(TableMetadata table,
-                                                      ClusteringColumnRestrictions clusteringColumnsRestrictions,
-                                                      RestrictionSet nonPrimaryKeyRestrictions)
+        private void throwRequiresAllowFilteringError(TableMetadata table, Iterable<Restriction> columnRestrictions)
         {
-            Set<ColumnMetadata> unsupported = getColumnsWithUnsupportedIndexRestrictions(table,
-                                                                                         clusteringColumnsRestrictions,
-                                                                                         nonPrimaryKeyRestrictions);
+            Set<ColumnMetadata> unsupported = getColumnsWithUnsupportedIndexRestrictions(table, columnRestrictions);
             if (unsupported.isEmpty())
             {
                 throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
@@ -1181,8 +1182,12 @@ public class StatementRestrictions
 
     private Set<ColumnMetadata> getColumnsWithUnsupportedIndexRestrictions(TableMetadata table)
     {
-        return getColumnsWithUnsupportedIndexRestrictions(table, Iterables.concat(clusteringColumnsRestrictions.restrictions(),
-                                                                                  nonPrimaryKeyRestrictions.restrictions()));
+        return getColumnsWithUnsupportedIndexRestrictions(table, allColumnRestrictions(clusteringColumnsRestrictions, nonPrimaryKeyRestrictions));
+    }
+
+    private static Iterable<Restriction> allColumnRestrictions(ClusteringColumnRestrictions clusteringColumnsRestrictions, RestrictionSet nonPrimaryKeyRestrictions)
+    {
+        return Iterables.concat(clusteringColumnsRestrictions.restrictions(), nonPrimaryKeyRestrictions.restrictions());
     }
 
     private Set<ColumnMetadata> getColumnsWithUnsupportedIndexRestrictions(TableMetadata table, Iterable<Restriction> restrictions)

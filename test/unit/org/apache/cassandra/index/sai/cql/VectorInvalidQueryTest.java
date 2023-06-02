@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.cql;
 
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
@@ -96,13 +95,26 @@ public class VectorInvalidQueryTest extends SAITester
     public void testVectorOrderingIsNotAllowedWithoutIndex() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
-        waitForIndexQueryable();
 
-        assertInvalidMessage(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE,
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE,
                              "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5");
 
-        assertInvalidMessage(StatementRestrictions.VECTOR_REQUIRES_INDEX_MESSAGE,
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE,
                              "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5 ALLOW FILTERING");
+    }
+
+    @Test
+    public void testVectorEqualityIsNotAllowed() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE,
+                             "SELECT * FROM %s WHERE val = [2.5, 3.5, 4.5] LIMIT 1");
+
+        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE,
+                             "SELECT * FROM %s WHERE val = [2.5, 3.5, 4.5]");
     }
 
     @Test

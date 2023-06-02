@@ -409,8 +409,11 @@ public class IndexContext
     {
         if (op.isLike() || op == Operator.LIKE) return false;
 
+        // ANN is only supported against vectors, and vector indexes only support ANN
+        if (column.type instanceof VectorType)
+            return op == Operator.ANN;
         if (op == Operator.ANN)
-            return column.type instanceof VectorType;
+            return false;
 
         Expression.Op operator = Expression.Op.valueOf(op);
 
