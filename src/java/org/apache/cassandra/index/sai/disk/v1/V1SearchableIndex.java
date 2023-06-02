@@ -61,7 +61,7 @@ import static org.apache.cassandra.index.sai.virtual.SegmentsSystemView.TABLE_NA
 public class V1SearchableIndex implements SearchableIndex
 {
     private final IndexContext indexContext;
-    public final ImmutableList<Segment> segments; // FIXME probably shouldn't be public
+    private final ImmutableList<Segment> segments;
     private final List<SegmentMetadata> metadatas;
     private final DecoratedKey minKey;
     private final DecoratedKey maxKey; // in token order
