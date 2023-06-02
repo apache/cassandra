@@ -61,6 +61,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.RangeConcatIterator;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
@@ -328,7 +329,7 @@ public class QueryController
                                             var sstContext = queryContext.getSSTableQueryContext(ie.index.getSSTable());
                                             List<RangeIterator<Long>> iterators = ie.index.searchSSTableRowIds(ie.expression, mergeRange, sstContext, defer, getLimit());
                                             // union the result from multiple segments for the same index
-                                            return RangeUnionIterator.build(iterators);
+                                            return RangeConcatIterator.build(iterators);
                                         }
                                         catch (Throwable ex)
                                         {
