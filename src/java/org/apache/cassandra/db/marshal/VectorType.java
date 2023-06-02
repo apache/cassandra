@@ -120,7 +120,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             throw new AssertionError("utf-8 is not in the jvm?", e);
         }
-        return new VectorType<>(TypeParser.parse(type), Integer.parseInt(map.get("dimension")));
+        return new VectorType<>(TypeParser.parse(type).freeze(), Integer.parseInt(map.get("dimension")));
     }
 
     @Override
