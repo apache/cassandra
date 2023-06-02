@@ -15,120 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord;
 
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.utils.Invariants;
-import accord.utils.async.AsyncChains;
-import accord.utils.async.AsyncResult;
-import org.apache.cassandra.utils.ObjectSizes;
+import accord.utils.IntrusiveLinkedList;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.service.accord.AccordCachingState.Status;
 
-import static org.apache.cassandra.service.accord.AccordLoadingState.LoadingState.FAILED;
-import static org.apache.cassandra.service.accord.AccordLoadingState.LoadingState.LOADED;
+import static accord.utils.Invariants.checkState;
+import static java.lang.String.format;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.EVICTED;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_LOAD;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADING;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.SAVING;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
- *
+ * </p>
  * Supports dynamic object sizes. After each acquire/free cycle, the cacheable objects size is recomputed to
  * account for data added/removed during txn processing if it's modified flag is set
  */
-public class AccordStateCache
+public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?>>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordStateCache.class);
-
-    public static class Node<K, V> extends AccordLoadingState<K, V>
-    {
-        static final long EMPTY_SIZE = ObjectSizes.measure(new AccordStateCache.Node(null));
-
-        private Node<?, ?> prev;
-        private Node<?, ?> next;
-        private int references = 0;
-        private long lastQueriedEstimatedSizeOnHeap = 0;
-
-        public Node(K key)
-        {
-            super(key);
-        }
-
-        public int referenceCount()
-        {
-            return references;
-        }
-
-        boolean isLoaded()
-        {
-            return state() == LOADED;
-        }
-
-        public boolean isComplete()
-        {
-            switch (state())
-            {
-                case PENDING:
-                case UNINITIALIZED:
-                    return false;
-                case FAILED:
-                case LOADED:
-                    return true;
-                default: throw new UnsupportedOperationException("Unknown state: " + state());
-            }
-        }
-
-        private boolean isInQueue()
-        {
-            return prev != null && next != null;
-        }
-
-        long estimatedSizeOnHeap(ToLongFunction<V> estimator)
-        {
-            long result = EMPTY_SIZE;
-            V v;
-            if (isLoaded() && (v = value()) != null)
-                result += estimator.applyAsLong(v);
-            lastQueriedEstimatedSizeOnHeap = result;
-            return result;
-        }
-
-        long estimatedSizeOnHeapDelta(ToLongFunction<V> estimator)
-        {
-            long prevSize = lastQueriedEstimatedSizeOnHeap;
-            return estimatedSizeOnHeap(estimator) - prevSize;
-        }
-
-        boolean shouldUpdateSize()
-        {
-            return isLoaded() && lastQueriedEstimatedSizeOnHeap == EMPTY_SIZE;
-        }
-
-        void maybeCleanupLoad()
-        {
-            state();
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Node{" + state() +
-                   ", key=" + key() +
-                   ", references=" + references +
-                   "}@" + Integer.toHexString(System.identityHashCode(this));
-        }
-    }
 
     static class Stats
     {
@@ -137,37 +58,27 @@ public class AccordStateCache
         private long misses;
     }
 
-    private static class NamedMap<K, V> extends HashMap<K, V>
-    {
-        final String name;
+    private final Map<Object, AccordCachingState<?, ?>> cache = new HashMap<>();
+    private final HashMap<Class<?>, Instance<?, ?, ?>> instances = new HashMap<>();
 
-        public NamedMap(String name)
-        {
-            this.name = name;
-        }
-    }
-
-    private final Map<Object, Node<?, ?>> cache = new HashMap<>();
-    private final Set<Instance<?, ?, ?>> instances = new HashSet<>();
-
-    private final NamedMap<Object, AsyncResult<Void>> saveResults = new NamedMap<>("saveResults");
+    private final ExecutorPlus loadExecutor, saveExecutor;
 
     private int unreferenced = 0;
-    Node<?, ?> head;
-    Node<?, ?> tail;
     private long maxSizeInBytes;
     private long bytesCached = 0;
     private final Stats stats = new Stats();
 
-    public AccordStateCache(long maxSizeInBytes)
+    public AccordStateCache(ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, long maxSizeInBytes)
     {
+        this.loadExecutor = loadExecutor;
+        this.saveExecutor = saveExecutor;
         this.maxSizeInBytes = maxSizeInBytes;
     }
 
     public void setMaxSize(long size)
     {
         maxSizeInBytes = size;
-        maybeEvict();
+        maybeEvictSomeNodes();
     }
 
     public long getMaxSize()
@@ -175,360 +86,301 @@ public class AccordStateCache
         return maxSizeInBytes;
     }
 
-    @VisibleForTesting
-    public void clear()
+    private void unlink(AccordCachingState<?, ?> node)
     {
-        head = tail = null;
-        cache.clear();
-        saveResults.clear();
-    }
-
-    @VisibleForTesting
-    public Map<Object, AsyncResult<Void>> saveResults()
-    {
-        return saveResults;
-    }
-
-    private void unlink(Node<?, ?> node)
-    {
-        Node<?, ?> prev = node.prev;
-        Node<?, ?> next = node.next;
-
-        if (prev == null)
-        {
-            Preconditions.checkState(head == node, "previous is null but the head isnt the provided node!");
-            head = next;
-        }
-        else
-        {
-            prev.next = next;
-        }
-
-        if (next == null)
-        {
-            Preconditions.checkState(tail == node, "next is null but the tail isnt the provided node!");
-            tail = prev;
-        }
-        else
-        {
-            next.prev = prev;
-        }
-
-        node.prev = null;
-        node.next = null;
+        node.unlink();
         unreferenced--;
     }
 
-    private void push(Node<?, ?> node)
+    private void link(AccordCachingState<?, ?> node)
     {
-        if (head != null)
-        {
-            node.prev = null;
-            node.next = head;
-            head.prev = node;
-            head = node;
-        }
-        else
-        {
-            head = node;
-            tail = node;
-        }
+        addLast(node);
         unreferenced++;
     }
 
-    private <K, V> void updateSize(Node<K, V> node, ToLongFunction<V> estimator)
+    @SuppressWarnings("unchecked")
+    private <K, V> void maybeUpdateSize(AccordCachingState<?, ?> node, ToLongFunction<?> estimator)
     {
-        bytesCached += node.estimatedSizeOnHeapDelta(estimator);
+        if (node.shouldUpdateSize())
+            bytesCached += ((AccordCachingState<K, V>) node).estimatedSizeOnHeapDelta((ToLongFunction<V>) estimator);
     }
 
-    // don't evict if there's an outstanding save result. If an item is evicted then reloaded
-    // before it's mutation is applied, out of date info will be loaded
-    private boolean canEvict(Node<?, ?> node)
-    {
-        Invariants.checkState(node.references == 0);
-        return node.state() == FAILED || !hasActiveAsyncResult(saveResults, node.key());
-    }
-
-    private void maybeEvict()
+    /*
+     * Roughly respects LRU semantics when evicting. Might consider prioritising keeping MODIFIED nodes around
+     * for longer to maximise the chances of hitting system tables fewer times (or not at all).
+     */
+    private void maybeEvictSomeNodes()
     {
         if (bytesCached <= maxSizeInBytes)
             return;
 
-        Node<?, ?> current = tail;
-        while (current != null && bytesCached > maxSizeInBytes)
+        Iterator<AccordCachingState<?, ?>> iter = this.iterator();
+        while (iter.hasNext() && bytesCached > maxSizeInBytes)
         {
-            Node<?, ?> evict = current;
-            current = current.prev;
+            AccordCachingState<?, ?> node = iter.next();
+            checkState(node.references == 0);
 
-            // TODO (expected, efficiency): can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
-            if (!canEvict(evict))
-                continue;
-
-            evict(evict, true);
+            /*
+             * TODO (expected, efficiency):
+             *    can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
+             */
+            Status status = node.status(); // status() call completes (if completeable)
+            switch (status)
+            {
+                default: throw new IllegalStateException("Unhandled status " + status);
+                case LOADED:
+                    unlink(node);
+                    evict(node);
+                    break;
+                case MODIFIED:
+                    // schedule a save to disk, keep linked and in the cache map
+                    Instance<?, ?, ?> instance = instanceForNode(node);
+                    node.save(saveExecutor, instance.saveFunction);
+                    maybeUpdateSize(node, instance.heapEstimator);
+                    break;
+                case SAVING:
+                    // skip over until completes to LOADED or FAILED_TO_SAVE
+                    break;
+                case FAILED_TO_SAVE:
+                    // TODO (consider): panic when a save fails
+                    // permanently unlink, but keep in the map
+                    unlink(node);
+            }
         }
     }
 
-    private void evict(Node<?, ?> evict, boolean unlink)
+    private boolean isInQueue(AccordCachingState<?, ?> node)
     {
-        logger.trace("Evicting {} {} - {}", evict.state(), evict.key(), evict.isLoaded() ? evict.value() : null);
-        if (unlink)
-            unlink(evict);
-        else
-            Invariants.checkState(!evict.isInQueue());
-
-        Node<?, ?> self = cache.get(evict.key());
-        Invariants.checkState(self == evict, "Leaked node detected; was attempting to remove %s but cache had %s", evict, self);
-        cache.remove(evict.key());
-        bytesCached -= evict.lastQueriedEstimatedSizeOnHeap;
+        return node.isLinked();
     }
 
-    private static <K, V, F extends AsyncResult<V>> F getAsyncResult(NamedMap<Object, F> resultMap, K key)
+    private void evict(AccordCachingState<?, ?> node)
     {
-        F r = resultMap.get(key);
-        if (r == null)
-            return null;
-
-        // if the result was a failure, can not remove from the map as this would allow eviction
-        if (!r.isSuccess())
-            return r;
-
         if (logger.isTraceEnabled())
-            logger.trace("Clearing result for {} from {}: {}", key, resultMap.name, r);
-        resultMap.remove(key);
-        return null;
-    }
+            logger.trace("Evicting {} {} - {}", node.status(), node.key(), node.isLoaded() ? node.get() : null);
 
-    private static <K, F extends AsyncResult<?>> void setAsyncResult(Map<Object, F> resultsMap, K key, F result)
-    {
-        Preconditions.checkState(!resultsMap.containsKey(key));
-        resultsMap.put(key, result);
-    }
+        checkState(!isInQueue(node));
 
-    private static <K, V> boolean hasActiveAsyncResult(NamedMap<Object, AsyncResult<V>> resultMap, K key)
-    {
-        // getResult only returns a result if it is not complete, so don't need to check if its been completed
-        return getAsyncResult(resultMap, key) != null;
-    }
-
-    private static <K> void mergeAsyncResult(Map<Object, AsyncResult<Void>> resultMap, K key, AsyncResult<Void> result)
-    {
-        AsyncResult<Void> existing = resultMap.get(key);
-        if (existing != null && !existing.isDone())
+        bytesCached -= node.lastQueriedEstimatedSizeOnHeap;
+        if (!node.hasListeners())
         {
-            logger.trace("Merging result {} with existing {}", result, existing);
-            result = AsyncChains.reduce(existing, result, (a, b) -> null).beginAsResult();
+            AccordCachingState<?, ?> self = cache.remove(node.key());
+            checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
         }
-
-        resultMap.put(key, result);
+        else
+        {
+            node.markEvicted(); // keep the node in the cache to prevent transient listeners from being GCd
+        }
     }
 
-    @VisibleForTesting
-    private <K> void maybeCleanupLoad(K key)
+    private Instance<?, ?, ?> instanceForNode(AccordCachingState<?, ?> node)
     {
-        Node<?, ?> node = cache.get(key);
-        if (node != null)
-            node.maybeCleanupLoad();
+        return instances.get(node.key().getClass());
     }
 
-    private <K> void maybeClearAsyncResult(K key)
+    public <K, V, S extends AccordSafeState<K, V>> Instance<K, V, S> instance(
+        Class<K> keyClass,
+        Class<? extends K> realKeyClass,
+        Function<AccordCachingState<K, V>, S> safeRefFactory,
+        Function<K, V> loadFunction,
+        BiFunction<V, V, Runnable> saveFunction,
+        ToLongFunction<V> heapEstimator)
     {
-        maybeCleanupLoad(key);
-        // will clear if it's done
-        getAsyncResult(saveResults, key);
+        Instance<K, V, S> instance =
+            new Instance<>(keyClass, safeRefFactory, loadFunction, saveFunction, heapEstimator);
+
+        if (instances.put(realKeyClass, instance) != null)
+            throw new IllegalArgumentException(format("Cache instances for key type %s already exists", realKeyClass.getName()));
+
+        return instance;
     }
 
     public class Instance<K, V, S extends AccordSafeState<K, V>>
     {
         private final Class<K> keyClass;
-        private final Class<V> valClass;
-        private final Function<AccordLoadingState<K, V>, S> safeRefFactory;
+        private final Function<AccordCachingState<K, V>, S> safeRefFactory;
+        private Function<K, V> loadFunction;
+        private BiFunction<V, V, Runnable> saveFunction;
         private final ToLongFunction<V> heapEstimator;
         private final Stats stats = new Stats();
 
-        public Instance(Class<K> keyClass, Class<V> valClass, Function<AccordLoadingState<K, V>, S> safeRefFactory, ToLongFunction<V> heapEstimator)
+        public Instance(
+            Class<K> keyClass,
+            Function<AccordCachingState<K, V>, S> safeRefFactory,
+            Function<K, V> loadFunction,
+            BiFunction<V, V, Runnable> saveFunction,
+            ToLongFunction<V> heapEstimator)
         {
             this.keyClass = keyClass;
-            this.valClass = valClass;
             this.safeRefFactory = safeRefFactory;
+            this.loadFunction = loadFunction;
+            this.saveFunction = saveFunction;
             this.heapEstimator = heapEstimator;
         }
 
-        public Stream<Node<K, V>> stream()
+        public Stream<AccordCachingState<K, V>> stream()
         {
             return cache.entrySet().stream()
                         .filter(e -> keyClass.isAssignableFrom(e.getKey().getClass()))
-                        .map(e -> (Node<K, V>) e.getValue());
+                        .map(e -> (AccordCachingState<K, V>) e.getValue());
         }
 
-        @Override
-        public boolean equals(Object o)
+        public S acquire(K key)
         {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Instance<?, ?, ?> instance = (Instance<?, ?, ?>) o;
-            return keyClass.equals(instance.keyClass) && valClass.equals(instance.valClass);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(keyClass, valClass);
-        }
-
-        private Node<K, V> reference(K key, boolean createIfAbsent)
-        {
-            stats.queries++;
-            AccordStateCache.this.stats.queries++;
-
-            Node<K, V> node = (Node<K, V>) cache.get(key);
-            if (node == null)
-            {
-                stats.misses++;
-                AccordStateCache.this.stats.misses++;
-                if (!createIfAbsent)
-                    return null;
-                node = new Node<>(key);
-                // need to store ref right away, so eviction can not remove
-                node.references++;
-                cache.put(key, node);
-                updateSize(node, heapEstimator);
-                maybeEvict();
-            }
-            else
-            {
-                if (node.state() == FAILED)
-                {
-                    if (node.references != 0)
-                    {
-                        //TODO concurrent access to a failed node
-                        // the API does not return Node but instead what node points to, this is a problem in this case as
-                        // releasing 42 would attempt to release the retry and not the failed that is trying to cleanup
-                        throw new UnsupportedOperationException("Attempted to reference failed node " + node);
-                    }
-
-                    evict(node, true);
-                    return reference(key, createIfAbsent);
-                }
-                stats.hits++;
-                AccordStateCache.this.stats.hits++;
-                if (node.references == 0)
-                    unlink(node);
-                else
-                    Invariants.checkState(!node.isInQueue());
-                node.references++;
-            }
-
-            return node;
-        }
-
-        public S reference(K key)
-        {
-            Node<K, V> node = reference(key, true);
+            AccordCachingState<K, V> node = acquire(key, false);
             return safeRefFactory.apply(node);
         }
 
-        public S referenceAndGetIfLoaded(K key)
+        public S acquireIfLoaded(K key)
         {
-            Node<K, V> node = reference(key, false);
-            if (node == null || !node.isLoaded())
+            AccordCachingState<K, V> node = acquire(key, true);
+            if (node == null)
                 return null;
-            S safeRef = safeRefFactory.apply(node);
-            safeRef.preExecute();
-            return safeRef;
+            return safeRefFactory.apply(node);
         }
 
-        @VisibleForTesting
-        public Node<K, V> getUnsafe(K key)
+        private AccordCachingState<K, V> acquire(K key, boolean onlyIfLoaded)
         {
-            return (Node<K, V>) cache.get(key);
+            incrementCacheQueries();
+            @SuppressWarnings("unchecked")
+            AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
+            return node == null
+                 ? acquireAbsent(key, onlyIfLoaded)
+                 : acquireExisting(node, onlyIfLoaded);
         }
 
-        @VisibleForTesting
-        public boolean isReferenced(K key)
+        /*
+         * Can only return a LOADING Node (or null)
+         */
+        private AccordCachingState<K, V> acquireAbsent(K key, boolean onlyIfLoaded)
         {
-            Node<K, V> node = (Node<K, V>) cache.get(key);
-            return node != null && node.references > 0;
+            incrementCacheMisses();
+            if (onlyIfLoaded)
+                return null;
+            AccordCachingState<K, V> node = new AccordCachingState<>(key);
+            node.load(loadExecutor, loadFunction);
+            node.references++;
+            cache.put(key, node);
+            maybeUpdateSize(node, heapEstimator);
+            maybeEvictSomeNodes();
+            return node;
         }
 
-        @VisibleForTesting
-        public boolean isLoaded(K key)
+        /*
+         * Can't return EVICTED or INITIALIZED
+         */
+        private AccordCachingState<K, V> acquireExisting(AccordCachingState<K, V> node, boolean onlyIfLoaded)
         {
-            Node<K, V> node = (Node<K, V>) cache.get(key);
-            return node != null && node.isLoaded();
+            Status status = node.status(); // status() completes
+
+            if (status.isLoaded())
+                incrementCacheHits();
+            else
+                incrementCacheMisses();
+
+            if (onlyIfLoaded && !status.isLoaded())
+                return null;
+
+            if (node.references == 0)
+            {
+                if (status == FAILED_TO_LOAD || status == EVICTED)
+                    node.reset().load(loadExecutor, loadFunction);
+
+                if (isInQueue(node))
+                    unlink(node);
+            }
+            node.references++;
+
+            return node;
         }
 
         public void release(S safeRef)
         {
             K key = safeRef.global().key();
             logger.trace("Releasing resources for {}: {}", key, safeRef);
-            maybeClearAsyncResult(key);
-            Node<K, V> node = (Node<K, V>) cache.get(key);
-            Invariants.checkState(node != null, "node is null for %s", key);
-            Invariants.checkState(node.references > 0, "references (%d) are zero for %s (%s)", node.references, key, node);
 
-            Invariants.checkState(safeRef.global() == node);
-            if (node.isLoaded() && (safeRef.hasUpdate() || node.shouldUpdateSize()))
-            {
-                node.value(safeRef.current());
-                updateSize(node, heapEstimator);
-            }
+            @SuppressWarnings("unchecked")
+            AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
+
+            checkState(node != null, "node is null for %s", key);
+            checkState(node.references > 0, "references (%d) are zero for %s (%s)", node.references, key, node);
+            checkState(safeRef.global() == node);
+            checkState(!isInQueue(node));
+
+            if (safeRef.hasUpdate())
+                node.set(safeRef.current());
+
+            maybeUpdateSize(node, heapEstimator);
 
             if (--node.references == 0)
             {
-                if (node.state() == FAILED)
+                Status status = node.status(); // status() completes
+                switch (status)
                 {
-                    logger.trace("Found failed node {}, evicting", key);
-                    evict(node, false);
-                }
-                else
-                {
-                    logger.trace("Moving {} from active pool to cache", key);
-                    Invariants.checkState(!node.isInQueue());
-                    push(node);
+                    default: throw new IllegalStateException("Unhandled status " + status);
+                    case LOADING:
+                    case FAILED_TO_LOAD:
+                        logger.trace("Evicting {} with status {}", key, status);
+                        evict(node);
+                        break;
+                    case LOADED:
+                    case MODIFIED:
+                    case SAVING:
+                        logger.trace("Moving {} with status {} to eviction queue", key, status);
+                        link(node);
+                        break;
+                    case FAILED_TO_SAVE:
+                        break; // can never evict, so no point in adding to eviction queue either
                 }
             }
 
-            maybeEvict();
+            // TODO (performance, expected): triggering on every release is potentially heavy
+            maybeEvictSomeNodes();
         }
 
         @VisibleForTesting
-        public boolean canEvict(K key)
+        public AccordCachingState<K, V> getUnsafe(K key)
         {
-            return AccordStateCache.this.canEvict(cache.get(key));
+            //noinspection unchecked
+            return (AccordCachingState<K, V>) cache.get(key);
+        }
+
+        @VisibleForTesting
+        public boolean isReferenced(K key)
+        {
+            //noinspection unchecked
+            AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
+            return node != null && node.references > 0;
+        }
+
+        @VisibleForTesting
+        public boolean isLoaded(K key)
+        {
+            //noinspection unchecked
+            AccordCachingState<K, V> node = (AccordCachingState<K, V>) cache.get(key);
+            return node != null && node.isLoaded();
         }
 
         @VisibleForTesting
         public boolean hasLoadResult(K key)
         {
-            Node<?, ?> node = cache.get(key);
-            return node != null && !node.isLoaded();
-        }
-
-        public void cleanupLoadResult(K key)
-        {
-            maybeCleanupLoad(key);
-        }
-
-        public AsyncResult<?> getSaveResult(K key)
-        {
-            return getAsyncResult(saveResults, key);
-        }
-
-        public void addSaveResult(K key, AsyncResult<Void> result)
-        {
-            logger.trace("Adding save result for {}: {}", key, result);
-            mergeAsyncResult(saveResults, key, result);
-        }
-
-        public void cleanupSaveResult(K key)
-        {
-            getSaveResult(key);
+            AccordCachingState<?, ?> node = cache.get(key);
+            return node != null && node.status() == LOADING;
         }
 
         @VisibleForTesting
         public boolean hasSaveResult(K key)
         {
-            return saveResults.get(key) != null;
+            AccordCachingState<?, ?> node = cache.get(key);
+            return node != null && node.status() == SAVING;
+        }
+
+        @VisibleForTesting
+        public void complete(K key)
+        {
+            AccordCachingState<?, ?> node = cache.get(key);
+            if (node != null)
+                node.complete();
         }
 
         public long cacheQueries()
@@ -545,17 +397,61 @@ public class AccordStateCache
         {
             return stats.misses;
         }
+
+        private void incrementCacheQueries()
+        {
+            stats.queries++;
+            AccordStateCache.this.stats.queries++;
+        }
+
+        private void incrementCacheHits()
+        {
+            stats.hits++;
+            AccordStateCache.this.stats.hits++;
+        }
+
+        private void incrementCacheMisses()
+        {
+            stats.misses++;
+            AccordStateCache.this.stats.misses++;
+        }
+
+        @VisibleForTesting
+        public void unsafeSetLoadFunction(Function<K, V> loadFunction)
+        {
+            this.loadFunction = loadFunction;
+        }
+
+        @VisibleForTesting
+        public void unsafeSetSaveFunction(BiFunction<V, V, Runnable> saveFunction)
+        {
+            this.saveFunction = saveFunction;
+        }
     }
 
-    public <K, V, S extends AccordSafeState<K, V>> Instance<K, V, S> instance(Class<K> keyClass, Class<V> valClass,
-                                                                           Function<AccordLoadingState<K, V>, S> safeRefFactory,
-                                                                           ToLongFunction<V> heapEstimator)
+    @VisibleForTesting
+    void unsafeClear()
     {
-        Instance<K, V, S> instance = new Instance<>(keyClass, valClass, safeRefFactory, heapEstimator);
-        if (!instances.add(instance))
-            throw new IllegalArgumentException(String.format("Cache instances for types %s -> %s already exists",
-                                                             keyClass.getName(), valClass.getName()));
-        return instance;
+        cache.clear();
+        //noinspection StatementWithEmptyBody
+        while (null != poll());
+    }
+
+    @VisibleForTesting
+    AccordCachingState<?, ?> head()
+    {
+        Iterator<AccordCachingState<?, ?>> iter = iterator();
+        return iter.hasNext() ? iter.next() : null;
+    }
+
+    @VisibleForTesting
+    AccordCachingState<?, ?> tail()
+    {
+        AccordCachingState<?,?> last = null;
+        Iterator<AccordCachingState<?, ?>> iter = iterator();
+        while (iter.hasNext())
+            last = iter.next();
+        return last;
     }
 
     @VisibleForTesting
@@ -585,20 +481,21 @@ public class AccordStateCache
     @VisibleForTesting
     boolean keyIsReferenced(Object key)
     {
-        Node<?, ?> node = cache.get(key);
+        AccordCachingState<?, ?> node = cache.get(key);
         return node != null && node.references > 0;
     }
 
     @VisibleForTesting
     boolean keyIsCached(Object key)
     {
-        return cache.containsKey(key);
+        AccordCachingState<?, ?> node = cache.get(key);
+        return node != null && node.status() != EVICTED;
     }
 
     @VisibleForTesting
     int references(Object key)
     {
-        Node<?, ?> node = cache.get(key);
+        AccordCachingState<?, ?> node = cache.get(key);
         return node != null ? node.references : 0;
     }
 
