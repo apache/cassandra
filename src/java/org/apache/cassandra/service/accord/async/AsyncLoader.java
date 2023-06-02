@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -36,8 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
-import accord.impl.CommandsForKey;
-import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
@@ -48,21 +44,20 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
-import accord.utils.async.AsyncResults;
 import accord.utils.async.Observable;
-import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.service.accord.AccordCachingState;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordLoadingState;
 import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 
 public class AsyncLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncLoader.class);
+
     enum State
     {
         INITIALIZED,
@@ -78,12 +73,6 @@ public class AsyncLoader
     private final Seekables<?, ?> keysOrRanges;
 
     protected AsyncResult<?> readResult;
-
-    @Deprecated
-    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<RoutableKey> keysOrRanges)
-    {
-        this(commandStore, txnIds, (Seekables<?, ?>) keysOrRanges);
-    }
 
     public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Seekables<?, ?> keysOrRanges)
     {
@@ -104,86 +93,52 @@ public class AsyncLoader
     private <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReads(Iterable<? extends K> keys,
                                                                                    Map<K, S> context,
                                                                                    AccordStateCache.Instance<K, V, S> cache,
-                                                                                   Function<K, V> loadFunction,
-                                                                                   List<Runnable> loadRunnables,
                                                                                    List<AsyncChain<?>> listenChains)
     {
         for (K key : keys)
         {
-            S safeRef = cache.reference(key);
+            S safeRef = cache.acquire(key);
             context.put(key, safeRef);
-            AccordLoadingState.LoadingState state = safeRef.loadingState();
-            switch (state)
+            AccordCachingState.Status status = safeRef.globalStatus(); // globalStatus() completes
+            switch (status)
             {
-                case UNINITIALIZED:
-                    AsyncResults.RunnableResult<V> load = safeRef.load(loadFunction);
-                    listenChains.add(load);
-                    loadRunnables.add(load);
+                default: throw new IllegalStateException("Unhandled global state: " + status);
+                case LOADING:
+                    listenChains.add(safeRef.loading());
                     break;
-                case PENDING:
-                    listenChains.add(safeRef.listen());
+                case SAVING:
+                    // make sure we work with a completed state that supports get() and set()
+                    listenChains.add(safeRef.saving());
                     break;
                 case LOADED:
+                case MODIFIED:
+                case FAILED_TO_SAVE:
                     break;
-                case FAILED:
+                case FAILED_TO_LOAD:
                     throw new RuntimeException(safeRef.failure());
-                default:
-                    throw new IllegalStateException("Unhandled loading state: " + state);
             }
         }
     }
 
-    @VisibleForTesting
-    Function<TxnId, Command> loadCommandFunction()
-    {
-        return txnId -> AccordKeyspace.loadCommand(commandStore, txnId);
-    }
-
-    @VisibleForTesting
-    Function<RoutableKey, CommandsForKey> loadCommandsPerKeyFunction()
-    {
-        return key -> AccordKeyspace.loadCommandsForKey(commandStore, (PartitionKey) key);
-    }
-
     private AsyncResult<?> referenceAndDispatchReads(AsyncOperation.Context context)
     {
-        List<Runnable> readRunnables = new ArrayList<>();
         List<AsyncChain<?>> chains = new ArrayList<>();
 
-        referenceAndAssembleReads(txnIds,
-                                  context.commands,
-                                  commandStore.commandCache(),
-                                  loadCommandFunction(),
-                                  readRunnables,
-                                  chains);
+        referenceAndAssembleReads(txnIds, context.commands, commandStore.commandCache(), chains);
+
         switch (keysOrRanges.domain())
         {
             case Key:
                 // cast to Keys fails...
                 Iterable<RoutableKey> keys = (Iterable<RoutableKey>) keysOrRanges;
-                referenceAndAssembleReads(keys,
-                                          context.commandsForKeys,
-                                          commandStore.commandsForKeyCache(),
-                                          loadCommandsPerKeyFunction(),
-                                          readRunnables,
-                                          chains);
-            break;
+                referenceAndAssembleReads(keys, context.commandsForKeys, commandStore.commandsForKeyCache(), chains);
+                break;
             case Range:
                 chains.add(referenceAndDispatchReadsForRange(context));
-            break;
+                break;
             default:
                 throw new UnsupportedOperationException("Unable to process keys of " + keysOrRanges.domain());
         }
-
-        if (chains.isEmpty())
-        {
-            Invariants.checkState(readRunnables.isEmpty());
-            return null;
-        }
-
-        // runnable results are already contained in the chains collection
-        if (!readRunnables.isEmpty())
-            AsyncChains.ofRunnables(Stage.READ.executor(), readRunnables).begin(commandStore.agent());
 
         return !chains.isEmpty() ? AsyncChains.reduce(chains, (a, b) -> null).beginAsResult() : null;
     }
@@ -191,31 +146,19 @@ public class AsyncLoader
     private AsyncChain<?> referenceAndDispatchReadsForRange(AsyncOperation.Context context)
     {
         AsyncChain<Set<? extends RoutableKey>> overlappingKeys = findOverlappingKeys((Ranges) keysOrRanges);
+
         return overlappingKeys.flatMap(keys -> {
             if (keys.isEmpty())
                 return AsyncChains.success(null);
-            // TODO (duplicate code): repeat of referenceAndDispatchReads
-            List<Runnable> readRunnables = new ArrayList<>();
             List<AsyncChain<?>> chains = new ArrayList<>();
-            referenceAndAssembleReads(keys,
-                                      context.commandsForKeys,
-                                      commandStore.commandsForKeyCache(),
-                                      loadCommandsPerKeyFunction(),
-                                      readRunnables,
-                                      chains);
-            // all keys are already loaded
-            if (chains.isEmpty())
-                return AsyncChains.success(null);
-            // runnable results are already contained in the chains collection
-            if (!readRunnables.isEmpty())
-                AsyncChains.ofRunnables(Stage.READ.executor(), readRunnables).begin(commandStore.agent());
-            return AsyncChains.reduce(chains, (a, b) -> null);
+            referenceAndAssembleReads(keys, context.commandsForKeys, commandStore.commandsForKeyCache(), chains);
+            return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
         }, commandStore);
     }
 
     private AsyncChain<Set<? extends RoutableKey>> findOverlappingKeys(Ranges ranges)
     {
-        assert !ranges.isEmpty();
+        Invariants.checkArgument(!ranges.isEmpty());
 
         List<AsyncChain<Set<PartitionKey>>> chains = new ArrayList<>(ranges.size());
         for (Range range : ranges)

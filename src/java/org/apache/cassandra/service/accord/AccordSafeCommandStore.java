@@ -97,13 +97,17 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     protected AccordSafeCommand getIfLoaded(TxnId txnId)
     {
-        return commandStore.commandCache().referenceAndGetIfLoaded(txnId);
+        AccordSafeCommand command = commandStore.commandCache().acquireIfLoaded(txnId);
+        if (command != null) command.preExecute();
+        return command;
     }
 
     @Override
     protected AccordSafeCommandsForKey getIfLoaded(RoutableKey key)
     {
-        return commandStore.commandsForKeyCache().referenceAndGetIfLoaded(key);
+        AccordSafeCommandsForKey cfk = commandStore.commandsForKeyCache().acquireIfLoaded(key);
+        if (cfk != null) cfk.preExecute();
+        return cfk;
     }
 
     @Override
