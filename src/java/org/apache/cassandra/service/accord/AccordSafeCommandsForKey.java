@@ -30,11 +30,11 @@ import accord.primitives.RoutableKey;
 public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutableKey, CommandsForKey>
 {
     private boolean invalidated;
-    private final AccordLoadingState<RoutableKey, CommandsForKey> global;
+    private final AccordCachingState<RoutableKey, CommandsForKey> global;
     private CommandsForKey original;
     private CommandsForKey current;
 
-    public AccordSafeCommandsForKey(AccordLoadingState<RoutableKey, CommandsForKey> global)
+    public AccordSafeCommandsForKey(AccordCachingState<RoutableKey, CommandsForKey> global)
     {
         super((Key) global.key());
         this.global = global;
@@ -69,7 +69,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     }
 
     @Override
-    public AccordLoadingState<RoutableKey, CommandsForKey> global()
+    public AccordCachingState<RoutableKey, CommandsForKey> global()
     {
         checkNotInvalidated();
         return global;
@@ -100,7 +100,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public void preExecute()
     {
         checkNotInvalidated();
-        original = global.value();
+        original = global.get();
         current = original;
     }
 
@@ -108,7 +108,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public void postExecute()
     {
         checkNotInvalidated();
-        global.value(current);
+        global.set(current);
     }
 
     @Override
