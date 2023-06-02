@@ -286,8 +286,10 @@ public enum CassandraRelevantProperties
     /** Controls the maximum top-k limit for vector search */
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
 
-    /** Controls the hnsw cache size, in bytes, per index segment. 0 to disable */
-    SAI_VECTOR_SEARCH_HNSW_CACHE_BYTES("cassandra.sai.vector_search.hnsw_cache_bytes", String.valueOf(128 * 1024)),
+    /** Controls the hnsw offset cache size, in bytes, per index segment. 0 to disable */
+    SAI_HNSW_OFFSET_CACHE_BYTES("cassandra.sai.vector_search.offset_cache_bytes", String.valueOf(128 * 1024)),
+    /** Controls the hnsw vector cache size, in bytes, per index segment. 0 to disable */
+    SAI_HNSW_VECTOR_CACHE_BYTES("cassandra.sai.vector_search.vector_cache_bytes", String.valueOf(1 * 1024 * 1024)),
 
     /**
      * Whether to disable auto-compaction

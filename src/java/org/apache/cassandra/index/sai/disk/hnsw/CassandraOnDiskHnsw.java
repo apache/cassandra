@@ -40,23 +40,29 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class CassandraOnDiskHnsw
 {
+    private final int vectorDimension;
     private final Supplier<OnDiskVectors> vectorsSupplier;
     private final OnDiskOrdinalsMap ordinalsMap;
     private final OnDiskHnswGraph hnsw;
     private final VectorSimilarityFunction similarityFunction;
+    private final VectorCache vectorCache;
 
     public CassandraOnDiskHnsw(PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
         vectorsSupplier = () -> new OnDiskVectors(indexFiles.vectors());
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists());
-        hnsw = new OnDiskHnswGraph(indexFiles.termsData(),
-                                   CassandraRelevantProperties.SAI_VECTOR_SEARCH_HNSW_CACHE_BYTES.getInt());
+        hnsw = new OnDiskHnswGraph(indexFiles.termsData(), CassandraRelevantProperties.SAI_HNSW_OFFSET_CACHE_BYTES.getInt());
+        try (var vectors = vectorsSupplier.get())
+        {
+            vectorDimension = vectors.dimension;
+            vectorCache = VectorCache.load(hnsw.getView(), vectors, CassandraRelevantProperties.SAI_HNSW_VECTOR_CACHE_BYTES.getInt());
+        }
     }
 
     public long ramBytesUsed()
     {
-        return hnsw.getCacheSizeInBytes();
+        return hnsw.getCacheSizeInBytes() + vectorCache.ramBytesUsed();
     }
 
     public int size()
@@ -132,7 +138,7 @@ public class CassandraOnDiskHnsw
         return ordinalsMap.getOrdinalForRowId(segmentRowId);
     }
 
-    private static class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoCloseable
+    class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoCloseable
     {
         private final RandomAccessReader reader;
         private final int dimension;
@@ -169,8 +175,17 @@ public class CassandraOnDiskHnsw
         @Override
         public float[] vectorValue(int i) throws IOException
         {
-            reader.readVectorAt(8L + i * dimension * 4L, vector);
+            var cached = vectorCache.get(i);
+            if (cached != null)
+                return cached;
+
+            readVector(i, vector);
             return vector;
+        }
+
+        void readVector(int i, float[] v) throws IOException
+        {
+            reader.readVectorAt(8L + i * dimension * 4L, v);
         }
 
         @Override
