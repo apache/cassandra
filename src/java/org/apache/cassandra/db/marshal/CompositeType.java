@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -140,6 +141,12 @@ public class CompositeType extends AbstractCompositeType
     protected CompositeType(List<AbstractType<?>> types)
     {
         this.types = ImmutableList.copyOf(types);
+    }
+
+    @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return types;
     }
 
     protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> accessor, int offset)
@@ -268,7 +275,7 @@ public class CompositeType extends AbstractCompositeType
 
     public ByteBuffer decompose(Object... objects)
     {
-        assert objects.length == types.size();
+        assert objects.length == types.size() : String.format("Expected length %d but given %d", types.size(), objects.length);
 
         ByteBuffer[] serialized = new ByteBuffer[objects.length];
         for (int i = 0; i < objects.length; i++)
@@ -438,6 +445,21 @@ public class CompositeType extends AbstractCompositeType
         }
 
         public void serializeComparator(ByteBuffer bb) {}
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompositeType that = (CompositeType) o;
+        return types.equals(that.types);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(types);
     }
 
     @Override

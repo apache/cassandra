@@ -38,6 +38,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
+    public static class Serializer extends BytesSerializer { }
+    private static final Serializer SERIALIZER = new Serializer();
+
     protected AbstractCompositeType()
     {
         super(ComparisonType.CUSTOM);
@@ -315,7 +318,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
     public TypeSerializer<ByteBuffer> getSerializer()
     {
-        return BytesSerializer.instance;
+        return SERIALIZER;
     }
 
     abstract protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset);

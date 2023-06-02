@@ -20,12 +20,15 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -48,6 +51,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -96,7 +100,7 @@ public class AbstractTypeTest
         {
             if (Modifier.isAbstract(klass.getModifiers()))
                 continue;
-            if ("test".equals(new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath()).name()))
+            if (isTestType(klass))
                 continue;
             String name = klass.getCanonicalName();
             if (name == null)
@@ -105,6 +109,72 @@ public class AbstractTypeTest
         }
         if (sb.length() > 0)
             throw new AssertionError("Uncovered types:\n" + sb);
+    }
+
+    private boolean isTestType(Class<? extends AbstractType> klass)
+    {
+        return "test".equals(new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath()).name());
+    }
+
+    @Test
+    public void unsafeSharedSerializer()
+    {
+        // For all types, make sure the serializer returned is unique to that type,
+        // this is required as some places, such as SetSerializer, cache at this level!
+        Map<TypeSerializer<?>, AbstractType<?>> lookup = new HashMap<>();
+        qt().forAll(genBuilder().withMaxDepth(0).build()).checkAssert(t -> {
+            AbstractType<?> old = lookup.put(t.getSerializer(), t);
+            if (old != null && !old.getClass().isAssignableFrom(t.getClass()))
+                throw new AssertionError(String.format("Different types detected that shared the same serializer: %s != %s", old.asCQL3Type(), t.asCQL3Type()));
+        });
+    }
+
+    @Test
+    public void eqHashSafe()
+    {
+        StringBuilder sb = new StringBuilder();
+        outter: for (Class<? extends AbstractType> type : reflections.getSubTypesOf(AbstractType.class))
+        {
+            if (Modifier.isAbstract(type.getModifiers()) || isTestType(type) || ReversedType.class.isAssignableFrom(type) || FrozenType.class.isAssignableFrom(type))
+                continue;
+            for (Class<? extends AbstractType> t = type; !t.equals(AbstractType.class); t = (Class<? extends AbstractType>) t.getSuperclass())
+            {
+                try
+                {
+                    t.getDeclaredMethod("getInstance");
+                    continue outter;
+                }
+                catch (NoSuchMethodException e)
+                {
+                    // ignore
+                }
+                try
+                {
+                    t.getDeclaredField("instance");
+                    continue outter;
+                }
+                catch (NoSuchFieldException e)
+                {
+                    // ignore
+                }
+                try
+                {
+                    Method eq = t.getDeclaredMethod("equals", Object.class);
+                    Method hash = t.getDeclaredMethod("hashCode");
+                    continue outter;
+                }
+                catch (NoSuchMethodException e)
+                {
+                    // ignore
+                }
+            }
+            sb.append("AbstractType must be safe for map keys, so must either be a singleton or define equals/hashCode; ").append(type).append('\n');
+        }
+        if (sb.length() != 0)
+        {
+            sb.setLength(sb.length() - 1);
+            throw new AssertionError(sb.toString());
+        }
     }
 
     @Test
@@ -171,8 +241,10 @@ public class AbstractTypeTest
     {
         Gen<AbstractType<?>> typeGen = genBuilder()
                                        // toCQLLiteral is lossy, which causes deserialization to produce different bytes
-                                     .withoutPrimitive(DecimalType.instance)
-                                     .build();
+                                       .withoutPrimitive(DecimalType.instance)
+                                       // does not support toJSONString
+                                       .withoutTypeKinds(COMPOSITE)
+                                       .build();
         qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(es -> {
             AbstractType type = es.type;
             for (Object example : es.samples)
@@ -203,7 +275,7 @@ public class AbstractTypeTest
     {
         qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE).build()).checkAssert(type -> {
             List<AbstractType<?>> subtypes = type.subTypes();
-            assertThat(subtypes).hasSize(type instanceof MapType ? 2 : type instanceof TupleType ? ((TupleType) type).size() : 1);
+            assertThat(subtypes).hasSize(type instanceof MapType ? 2 : type instanceof TupleType ? ((TupleType) type).size() : type instanceof CompositeType ? ((CompositeType) type).types.size() : 1);
         });
     }
 

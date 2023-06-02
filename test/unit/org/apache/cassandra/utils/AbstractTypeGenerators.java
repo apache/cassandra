@@ -54,6 +54,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.DateType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DoubleType;
@@ -166,7 +167,13 @@ public final class AbstractTypeGenerators
     }
 
     public enum TypeKind
-    {PRIMITIVE, SET, LIST, MAP, TUPLE, UDT, VECTOR}
+    {
+        PRIMITIVE,
+        SET, LIST, MAP,
+        TUPLE, UDT,
+        VECTOR,
+        COMPOSITE
+    }
 
     private static final Gen<TypeKind> TYPE_KIND_GEN = SourceDSL.arbitrary().enumValuesWithNoOrder(TypeKind.class);
 
@@ -385,6 +392,8 @@ public final class AbstractTypeGenerators
                             sizeGen = vectorSizeNonPrimitiveGen;
                         return vectorTypeGen(next.get().map(AbstractType::freeze), sizeGen).generate(rnd);
                     }
+                    case COMPOSITE:
+                        return compositeTypeGen(next.get()).generate(rnd);
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
                 }
@@ -430,6 +439,32 @@ public final class AbstractTypeGenerators
             while (element == EmptyType.instance)
                 element = typeGen.generate(rnd);
             return VectorType.getInstance(element, dimention);
+        };
+    }
+
+    public static Gen<CompositeType> compositeTypeGen()
+    {
+        return compositeTypeGen(typeGen(2));
+    }
+
+    public static Gen<CompositeType> compositeTypeGen(Gen<AbstractType<?>> typeGen)
+    {
+        return compositeTypeGen(typeGen, VERY_SMALL_POSITIVE_SIZE_GEN);
+    }
+
+    public static Gen<CompositeType> compositeTypeGen(Gen<AbstractType<?>> typeGen, Gen<Integer> sizeGen)
+    {
+        return rnd -> {
+            int size = sizeGen.generate(rnd);
+            List<AbstractType<?>> types = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+            {
+                AbstractType<?> type = typeGen.generate(rnd);
+                while (type == BytesType.instance || type == UUIDType.instance)
+                    type = typeGen.generate(rnd);
+                types.add(type);
+            }
+            return CompositeType.getInstance(types);
         };
     }
 
@@ -723,6 +758,36 @@ public final class AbstractTypeGenerators
                 return list;
             }, listComparator(elementSupport.valueComparator));
         }
+        else if (type instanceof CompositeType)
+        {
+            CompositeType ct = (CompositeType) type;
+//            return (TypeSupport<T>) TypeSupport.of(ct, SourceDSL.arbitrary().constant(ByteBufferUtil.EMPTY_BYTE_BUFFER), (a, b) -> 0);
+            List<TypeSupport<Object>> elementSupport = (List<TypeSupport<Object>>) (List<?>) ct.types.stream().map(AbstractTypeGenerators::getTypeSupport).collect(Collectors.toList());
+            Serde<ByteBuffer, List<Object>> serde = new Serde<ByteBuffer, List<Object>>()
+            {
+                @Override
+                public ByteBuffer from(List<Object> objects)
+                {
+                    return ct.decompose(objects.toArray());
+                }
+
+                @Override
+                public List<Object> to(ByteBuffer buffer)
+                {
+                    ByteBuffer[] bbs = ct.split(buffer);
+                    List<Object> values = new ArrayList<>(bbs.length);
+                    for (int i = 0; i < bbs.length; i++)
+                        values.add(bbs[i] == null ? null : elementSupport.get(i).type.compose(bbs[i]));
+                    return values;
+                }
+            };
+            return (TypeSupport<T>) TypeSupport.of(ct, serde, rnd -> {
+                List<Object> values = new ArrayList<>(ct.types.size());
+                for (int i = 0, size = ct.types.size(); i < size; i++)
+                    values.add(elementSupport.get(i).valueGen.generate(rnd));
+                return values;
+            }, listComparator((index, a, b) -> elementSupport.get(index).valueComparator.compare(a, b)));
+        }
         throw new UnsupportedOperationException("Unsupported type: " + type);
     }
 
@@ -963,6 +1028,12 @@ public final class AbstractTypeGenerators
         }
     }
 
+    public interface Serde<A, B>
+    {
+        A from(B b);
+        B to(A a);
+    }
+
     /**
      * Pair of {@link AbstractType} and a Generator of values that are handled by that type.
      */
@@ -987,6 +1058,11 @@ public final class AbstractTypeGenerators
         public static <T> TypeSupport<T> of(AbstractType<T> type, Gen<T> valueGen, Comparator<T> valueComparator)
         {
             return new TypeSupport<>(type, valueGen, valueComparator);
+        }
+
+        public static <A, B> TypeSupport<A> of(AbstractType<A> type, Serde<A, B> serde, Gen<B> valueGen, Comparator<B> valueComparator)
+        {
+            return of(type, valueGen.map(serde::from), (a, b) -> valueComparator.compare(serde.to(a), serde.to(b)));
         }
 
         /**
