@@ -15,15 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord;
-
-import java.util.function.Function;
 
 import accord.impl.SafeState;
 import accord.utils.async.AsyncChain;
-import accord.utils.async.AsyncResults;
-import org.apache.cassandra.service.accord.AccordLoadingState.LoadingState;
+import org.apache.cassandra.service.accord.AccordCachingState.Status;
 
 public interface AccordSafeState<K, V> extends SafeState<V>
 {
@@ -31,7 +27,7 @@ public interface AccordSafeState<K, V> extends SafeState<V>
     V original();
     void preExecute();
     void postExecute();
-    AccordLoadingState<K, V> global();
+    AccordCachingState<K, V> global();
 
     default boolean hasUpdate()
     {
@@ -48,19 +44,19 @@ public interface AccordSafeState<K, V> extends SafeState<V>
         return global().key();
     }
 
-    default LoadingState loadingState()
+    default Status globalStatus()
     {
-        return global().state();
+        return global().status();
     }
 
-    default AsyncResults.RunnableResult<V> load(Function<K, V> loadFunction)
+    default AsyncChain<?> loading()
     {
-        return global().load(loadFunction);
+        return global().loading();
     }
 
-    default AsyncChain<?> listen()
+    default AsyncChain<?> saving()
     {
-        return global().listen();
+        return global().saving();
     }
 
     default Throwable failure()

@@ -529,10 +529,13 @@ public class AccordKeyspace
 
     public static Mutation getCommandMutation(AccordCommandStore commandStore, AccordSafeCommand liveCommand, long timestampMicros)
     {
+        return getCommandMutation(commandStore.id(), liveCommand.original(), liveCommand.current(), timestampMicros);
+    }
+
+    public static Mutation getCommandMutation(int storeId, Command original, Command command, long timestampMicros)
+    {
         try
         {
-            Command command = liveCommand.current();
-            Command original = liveCommand.original();
             Invariants.checkArgument(original != command);
 
             Row.Builder builder = BTreeRow.unsortedBuilder();
@@ -569,12 +572,13 @@ public class AccordKeyspace
                 }
             }
 
-            ByteBuffer key = CommandsColumns.keyComparator.make(commandStore.id(),
-                                                                command.txnId().domain().ordinal(),
-                                                                serializeTimestamp(command.txnId())).serializeAsPartitionKey();
             Row row = builder.build();
             if (row.isEmpty())
                 return null;
+
+            ByteBuffer key = CommandsColumns.keyComparator.make(storeId,
+                                                                command.txnId().domain().ordinal(),
+                                                                serializeTimestamp(command.txnId())).serializeAsPartitionKey();
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, key, row);
             return new Mutation(update);
         }
@@ -1014,26 +1018,29 @@ public class AccordKeyspace
         addSeriesMutations(kind.getValues(original), kind.getValues(cfk), kind, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
     }
 
-    private static DecoratedKey makeKey(CommandStore commandStore, PartitionKey key)
+    private static DecoratedKey makeKey(int storeId, PartitionKey key)
     {
         Token token = key.token();
-        ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(commandStore.id(),
-                                                                  serializeToken(token),
-                                                                  serializeKey(key)).serializeAsPartitionKey();
+        ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(storeId,
+                                                                 serializeToken(token),
+                                                                 serializeKey(key)).serializeAsPartitionKey();
         return CommandsForKeys.partitioner.decorateKey(pk);
     }
 
-    private static DecoratedKey makeKey(CommandStore commandStore, CommandsForKey cfk)
+    private static DecoratedKey makeKey(int storeId, CommandsForKey cfk)
     {
-        return makeKey(commandStore, (PartitionKey) cfk.key());
+        return makeKey(storeId, (PartitionKey) cfk.key());
     }
 
     public static Mutation getCommandsForKeyMutation(AccordCommandStore commandStore, AccordSafeCommandsForKey liveCfk, long timestampMicros)
     {
+        return getCommandsForKeyMutation(commandStore.id(), liveCfk.original(), liveCfk.current(), timestampMicros);
+    }
+
+    public static Mutation getCommandsForKeyMutation(int storeId, CommandsForKey original, CommandsForKey cfk, long timestampMicros)
+    {
         try
         {
-            CommandsForKey cfk = liveCfk.current();
-            CommandsForKey original = liveCfk.original();
             Invariants.checkArgument(original != cfk);
             // TODO: convert to byte arrays
             ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
@@ -1046,7 +1053,7 @@ public class AccordKeyspace
                                + estimateMapChanges(c -> c.byExecuteAt().commands, original, cfk);
 
             PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(CommandsForKeys,
-                                                                                   makeKey(commandStore, cfk),
+                                                                                   makeKey(storeId, cfk),
                                                                                    CommandsForKeyColumns.columnsFor(original, cfk),
                                                                                    expectedRows);
 
@@ -1095,13 +1102,13 @@ public class AccordKeyspace
         return clustering.accessor().toBuffer(clustering.get(idx));
     }
 
-    public static SinglePartitionReadCommand getCommandsForKeyRead(CommandStore commandStore, PartitionKey key, long nowInSeconds)
+    public static SinglePartitionReadCommand getCommandsForKeyRead(int storeId, PartitionKey key, long nowInSeconds)
     {
         return SinglePartitionReadCommand.create(CommandsForKeys, nowInSeconds,
                                                  CommandsForKeyColumns.allColumns,
                                                  RowFilter.NONE,
                                                  DataLimits.NONE,
-                                                 makeKey(commandStore, key),
+                                                 makeKey(storeId, key),
                                                  FULL_PARTITION);
     }
 
@@ -1111,7 +1118,7 @@ public class AccordKeyspace
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-        SinglePartitionReadCommand command = getCommandsForKeyRead(commandStore, key, nowInSeconds);
+        SinglePartitionReadCommand command = getCommandsForKeyRead(commandStore.id(), key, nowInSeconds);
 
         EnumMap<SeriesKind, ImmutableSortedMap.Builder<Timestamp, ByteBuffer>> seriesMaps = new EnumMap<>(SeriesKind.class);
         for (SeriesKind kind : SeriesKind.values())
