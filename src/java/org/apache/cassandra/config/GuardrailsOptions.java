@@ -453,6 +453,36 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.simplestrategy_enabled;
     }
 
+    @Override
+    public boolean getSystemAuthDcRemovalEnabled()
+    {
+        return config.system_auth_dc_removal_enabled;
+    }
+
+    @Override
+    public void setSystemAuthDcRemovalEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("system_auth_dc_removal_enabled",
+                                  enabled,
+                                  () -> config.system_auth_dc_removal_enabled,
+                                  x -> config.system_auth_dc_removal_enabled = x);
+    }
+
+    @Override
+    public boolean getSystemAuthDcRemovalWarned()
+    {
+        return config.system_auth_dc_removal_warned;
+    }
+
+    @Override
+    public void setSystemAuthDcRemovalWarned(boolean warned)
+    {
+        updatePropertyWithLogging("system_auth_dc_removal_warned",
+                                  warned,
+                                  () -> config.system_auth_dc_removal_warned,
+                                  x -> config.system_auth_dc_removal_warned = x);
+    }
+
     public void setSimpleStrategyEnabled(boolean enabled)
     {
         updatePropertyWithLogging("simplestrategy_enabled",

@@ -22,12 +22,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.dht.Datacenters;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -86,6 +88,12 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     public ReplicationFactor getReplicationFactor()
     {
         return rf;
+    }
+
+    @Override
+    public Set<String> getDatacenters()
+    {
+        return Datacenters.getValidDatacenters();
     }
 
     private static void validateOptionsInternal(Map<String, String> configOptions) throws ConfigurationException

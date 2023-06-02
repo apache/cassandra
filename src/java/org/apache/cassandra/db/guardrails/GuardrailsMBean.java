@@ -236,6 +236,35 @@ public interface GuardrailsMBean
      */
     void setSimpleStrategyEnabled(boolean enabled);
 
+
+    /**
+     * Returns whether removal of a datacenter from replication settings of system_auth keyspace emit warning or not.
+     *
+     * @return {@code true} if removal of a datacenter from system_auth keyspace emits warning, {@code false} otherwise.
+     */
+    boolean getSystemAuthDcRemovalWarned();
+
+    /**
+     * Sets whether removal of a datacenter from replication settings of system_auth keyspace emit warning or not.
+     *
+     * @param warned {@code true} if warning will be emitted, {@code false} otherwise.
+     */
+    void setSystemAuthDcRemovalWarned(boolean warned);
+
+    /**
+     * Returns whether removal of a datacenter from replication settings of system_auth keyspace is enabled.
+     *
+     * @return {@code true} if removal of a datacenter from system_auth keyspace is enabled, {@code false} otherwise.
+     */
+    boolean getSystemAuthDcRemovalEnabled();
+
+    /**
+     * Sets whether removal of a datacenter from replication settings of system_auth keyspace is allowed.
+     *
+     * @param enabled {@code true} if allowed, {@code false} otherwise.
+     */
+    void setSystemAuthDcRemovalEnabled(boolean enabled);
+
     /**
      * Returns whether users can disable compression on tables
      *

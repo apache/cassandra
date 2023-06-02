@@ -874,6 +874,8 @@ public class Config
     public volatile boolean read_before_write_list_operations_enabled = true;
     public volatile boolean allow_filtering_enabled = true;
     public volatile boolean simplestrategy_enabled = true;
+    public volatile boolean system_auth_dc_removal_enabled = false;
+    public volatile boolean system_auth_dc_removal_warned = true;
     public volatile DataStorageSpec.LongBytesBound partition_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound partition_size_fail_threshold = null;
     public volatile long partition_tombstones_warn_threshold = -1;

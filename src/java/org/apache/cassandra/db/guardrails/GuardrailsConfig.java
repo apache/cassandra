@@ -207,6 +207,34 @@ public interface GuardrailsConfig
     boolean getSimpleStrategyEnabled();
 
     /**
+     * Returns whether removal of a datacenter from replication settings of system_auth keyspace emits warning or not.
+     *
+     * @return {@code true} if removal of a datacenter from system_auth keyspace emits warning, {@code false} otherwise.
+     */
+    boolean getSystemAuthDcRemovalWarned();
+
+    /**
+     * Sets whether removal of a datacenter from replication settings of system_auth keyspace emits warning or not.
+     *
+     * @return {@code true} if removal of a datacenter from system_auth keyspace emits warning, {@code false} otherwise.
+     */
+    void setSystemAuthDcRemovalWarned(boolean warned);
+
+    /**
+     * Returns whether removal of a datacenter from replication settings of system_auth keyspace is enabled.
+     *
+     * @return {@code true} if removal of a datacenter from system_auth keyspace is enabled, {@code false} otherwise.
+     */
+    boolean getSystemAuthDcRemovalEnabled();
+
+    /**
+     * Sets whether removal of a datacenter from replication settings of system_auth keyspace is enabled.
+     *
+     * @return {@code true} if removal of a datacenter from system_auth keyspace is enabled, {@code false} otherwise.
+     */
+    void setSystemAuthDcRemovalEnabled(boolean enabled);
+
+    /**
      * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
      * -1 means disabled.
      */

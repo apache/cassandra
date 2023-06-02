@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -196,6 +197,8 @@ public abstract class AbstractReplicationStrategy
      * @return the replication factor
      */
     public abstract ReplicationFactor getReplicationFactor();
+
+    public abstract Set<String> getDatacenters();
 
     public boolean hasTransientReplicas()
     {

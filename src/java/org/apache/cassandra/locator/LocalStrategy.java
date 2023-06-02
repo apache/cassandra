@@ -20,6 +20,9 @@ package org.apache.cassandra.locator;
 import java.util.Collections;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -79,5 +82,11 @@ public class LocalStrategy extends AbstractReplicationStrategy
     {
         // LocalStrategy doesn't expect any options.
         return Collections.emptySet();
+    }
+
+    @Override
+    public Set<String> getDatacenters()
+    {
+        return ImmutableSet.of(snitch.getLocalDatacenter());
     }
 }

@@ -273,6 +273,14 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getSimpleStrategyEnabled(),
                    "SimpleStrategy");
 
+    public static final EnableFlag systemAuthDcRemovalEnabled =
+    new EnableFlag("system_auth_dc_removal",
+                   "Removal of a datacenter from system_auth keyspace replication settings " +
+                   "with live endpoints is a suspicious activity.",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getSystemAuthDcRemovalWarned(),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getSystemAuthDcRemovalEnabled(),
+                   "Removal of a datacenter from system_auth keyspace");
+
     /**
      * Guardrail on the number of restrictions created by a cartesian product of a CQL's {@code IN} query.
      */
@@ -705,6 +713,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setSimpleStrategyEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setSimpleStrategyEnabled(enabled);
+    }
+
+    @Override
+    public boolean getSystemAuthDcRemovalEnabled()
+    {
+        return DEFAULT_CONFIG.getSystemAuthDcRemovalEnabled();
+    }
+
+    @Override
+    public void setSystemAuthDcRemovalEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setSystemAuthDcRemovalEnabled(enabled);
+    }
+
+    @Override
+    public boolean getSystemAuthDcRemovalWarned()
+    {
+        return DEFAULT_CONFIG.getSystemAuthDcRemovalWarned();
+    }
+
+    @Override
+    public void setSystemAuthDcRemovalWarned(boolean warned)
+    {
+        DEFAULT_CONFIG.setSystemAuthDcRemovalWarned(warned);
     }
 
     @Override

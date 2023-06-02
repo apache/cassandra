@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -42,11 +45,15 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.lang.String.format;
+import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_TRANSIENT_CHANGES;
 
@@ -89,11 +96,14 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         newKeyspace.params.validate(keyspaceName, state);
 
         validateNoRangeMovements();
-        validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());
 
-        Keyspaces res = schema.withAddedOrUpdated(newKeyspace);
+        AbstractReplicationStrategy oldStrategy = keyspace.createReplicationStrategy();
+        AbstractReplicationStrategy newStrategy = newKeyspace.createReplicationStrategy();
 
-        return res;
+        validateTransientReplication(oldStrategy, newStrategy);
+        validatePossibleDatacenterRemoval(keyspaceName, oldStrategy, newStrategy);
+
+        return schema.withAddedOrUpdated(newKeyspace);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -135,7 +145,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
                                                              unreachableNotAdministrativelyInactive);
         List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
                                                                                    !Gossiper.instance.getEndpointStateForEndpoint(endpoint).isNormalState())
-                                                               .collect(Collectors.toList());
+                                                               .collect(toList());
         if (!notNormalEndpoints.isEmpty())
         {
             throw new ConfigurationException("Cannot alter RF while some endpoints are not in normal state (no range movements): " + notNormalEndpoints);
@@ -160,7 +170,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (newTrans > 0)
         {
             if (DatabaseDescriptor.getNumTokens() > 1)
-                throw new ConfigurationException(String.format("Transient replication is not supported with vnodes yet"));
+                throw new ConfigurationException("Transient replication is not supported with vnodes yet");
 
             Keyspace ks = Keyspace.open(keyspaceName);
             for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
@@ -193,6 +203,43 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             throw new ConfigurationException("Can only safely increase number of transients one at a time with incremental repair run in between each time");
     }
 
+    private void validatePossibleDatacenterRemoval(String keyspace, AbstractReplicationStrategy oldStrategy, AbstractReplicationStrategy newStrategy)
+    {
+        if (!keyspace.equals(SchemaConstants.AUTH_KEYSPACE_NAME))
+            return;
+
+        if (oldStrategy instanceof SimpleStrategy || newStrategy instanceof SimpleStrategy)
+            return;
+
+        Set<String> oldDCs = oldStrategy.getDatacenters();
+        Set<String> newDCs = newStrategy.getDatacenters();
+
+        Set<String> dcsNotInNewStrategy = Sets.difference(oldDCs, newDCs);
+
+        if (dcsNotInNewStrategy.isEmpty())
+            return;
+
+        Multimap<String, InetAddressAndPort> datacenterEndpoints = StorageService.instance.getTokenMetadata()
+                                                                                          .getDC2AllEndpoints(DatabaseDescriptor.getEndpointSnitch());
+
+        Set<String> invalidDcs = new HashSet<>();
+
+        for (String dc : dcsNotInNewStrategy)
+        {
+            Collection<InetAddressAndPort> endpointsInDc = datacenterEndpoints.get(dc);
+            if (endpointsInDc != null && !endpointsInDc.isEmpty())
+                invalidDcs.add(dc);
+        }
+
+        if (!invalidDcs.isEmpty())
+        {
+            if (!Guardrails.systemAuthDcRemovalEnabled.isEnabled(null))
+                throw new ConfigurationException("Following datacenters have active nodes and must be present in replication options for keyspace " + SchemaConstants.AUTH_KEYSPACE_NAME + ": " + invalidDcs);
+
+            Guardrails.systemAuthDcRemovalEnabled.ensureEnabled(null);
+        }
+    }
+
     @Override
     public AuditLogContext getAuditLogContext()
     {
@@ -201,7 +248,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
     public String toString()
     {
-        return String.format("%s (%s)", getClass().getSimpleName(), keyspaceName);
+        return format("%s (%s)", getClass().getSimpleName(), keyspaceName);
     }
 
     public static final class Raw extends CQLStatement.Raw
