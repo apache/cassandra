@@ -94,6 +94,8 @@ public class VectorPostingsWriter<T>
             writer.writeInt(pair.left);
             writer.writeInt(pair.right);
         }
+
+        // write the position of the beginning of rowid -> ordinals mappings to the end of the file
         writer.writeLong(startOffset);
     }
 }

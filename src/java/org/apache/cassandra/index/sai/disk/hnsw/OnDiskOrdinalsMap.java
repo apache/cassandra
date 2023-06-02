@@ -34,6 +34,7 @@ public class OnDiskOrdinalsMap
     private final long segmentOffset;
     private final long segmentLength;
     private final int size;
+    // the offset where we switch from recording ordinal -> rows, to row -> ordinal
     private final long rowOrdinalOffset;
 
     public OnDiskOrdinalsMap(FileHandle fh, long segmentOffset, long segmentLength)
