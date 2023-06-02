@@ -50,6 +50,8 @@ public final class AggregationQueryPager implements QueryPager
     // The sub-pager, used to retrieve the next sub-page.
     private QueryPager subPager;
 
+    private int fetchedSubPages;
+
     public AggregationQueryPager(QueryPager subPager, DataLimits limits)
     {
         this.subPager = subPager;
@@ -77,6 +79,7 @@ public final class AggregationQueryPager implements QueryPager
     @Override
     public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController)
     {
+        fetchedSubPages = 0;
         if (limits.isGroupByLimit())
             return new GroupByPartitionIterator(pageSize, executionController, nanoTime());
 
@@ -105,6 +108,11 @@ public final class AggregationQueryPager implements QueryPager
     public QueryPager withUpdatedLimit(DataLimits newLimits)
     {
         throw new UnsupportedOperationException();
+    }
+
+    public int getNumberOfSubPages()
+    {
+        return fetchedSubPages;
     }
 
     /**
@@ -287,6 +295,7 @@ public final class AggregationQueryPager implements QueryPager
          */
         private final PartitionIterator fetchSubPage(PageSize subPageSize)
         {
+            fetchedSubPages++;
             return consistency != null ? subPager.fetchPage(subPageSize, consistency, clientState, queryStartNanoTime)
                                        : subPager.fetchPageInternal(subPageSize, executionController);
         }
