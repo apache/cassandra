@@ -75,6 +75,7 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -132,6 +133,7 @@ public final class AbstractTypeGenerators
               TypeSupport.of(UTF8Type.instance, Generators.utf8(0, 1024), stringComparator(UTF8Type.instance)),
               TypeSupport.of(TimestampType.instance, Generators.DATE_GEN),
               TypeSupport.of(SimpleDateType.instance, SourceDSL.integers().between(0, Integer.MAX_VALUE)), // can't use time gen as this is an int, and in Milliseconds... so overflows...
+              TypeSupport.of(TimeType.instance, SourceDSL.longs().between(0, 24L * 60L * 60L * 1_000_000_000L - 1L)),
               // null is desired here as #decompose will call org.apache.cassandra.serializers.EmptySerializer.serialize which ignores the input and returns empty bytes
               TypeSupport.of(EmptyType.instance, rnd -> null, (a, b) -> 0),
               TypeSupport.of(DurationType.instance, CassandraGenerators.duration(), Comparator.comparingInt(Duration::getMonths)
