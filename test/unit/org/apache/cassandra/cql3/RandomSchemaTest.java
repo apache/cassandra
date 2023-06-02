@@ -69,13 +69,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         Gen<Boolean> nulls = SourceDSL.integers().between(1, 100).map(i -> i < 5);
         qt().checkAssert(random -> {
-            TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.builder()
-                                                                         .withoutEmpty()
-                                                                         .withUserTypeKeyspace(KEYSPACE)
-                                                                         .withoutPrimitive(DurationType.instance)
-                                                                         // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
-                                                                         // see CASSANDRA-18530
-                                                                         .withoutPrimitive(DecimalType.instance);
+            TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality().withUserTypeKeyspace(KEYSPACE);
             TableMetadata metadata = new TableMetadataBuilder()
                                      .withKeyspaceName(KEYSPACE)
                                      .withTableKinds(TableMetadata.Kind.REGULAR)
