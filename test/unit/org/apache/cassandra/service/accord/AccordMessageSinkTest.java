@@ -50,7 +50,7 @@ public class AccordMessageSinkTest
         // There was an issue where the reply was the wrong verb
         // see CASSANDRA-18375
         InformOfTxnId info = Mockito.mock(InformOfTxnId.class);
-        Message<InformOfTxnId> req = Message.builder(Verb.ACCORD_INFORM_OF_TXNID_REQ, info).build();
+        Message<InformOfTxnId> req = Message.builder(Verb.ACCORD_INFORM_OF_TXN_REQ, info).build();
         SimpleReply reply = SimpleReply.Ok;
 
         MessageDelivery messaging = Mockito.mock(MessageDelivery.class);
