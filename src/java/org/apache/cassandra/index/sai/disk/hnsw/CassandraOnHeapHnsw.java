@@ -31,6 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -51,6 +54,8 @@ import org.apache.lucene.util.hnsw.NeighborQueue;
 
 public class CassandraOnHeapHnsw<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapHnsw.class);
+
     private final ConcurrentVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final VectorType.VectorSerializer serializer;
@@ -205,13 +210,13 @@ public class CassandraOnHeapHnsw<T>
             metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
             metadataMap.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength, Map.of());
 
-            // we don't care about root/offset/length for vector. segmentId is used in searcher
             Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
             metadataMap.put(IndexComponent.VECTOR, -1, vectorOffset, vectorLength, vectorConfigs);
 
-            System.out.printf("## write vector index termsOffset=%d termsLength=%d\n", termsOffset, termsLength);
-            System.out.printf("## write vector index postingsOffset=%d postingsLength=%d\n", postingsOffset, postingsLength);
-            System.out.printf("## write vector index vectorOffset=%d vectorLength=%d\n", vectorOffset, vectorLength);
+            logger.debug("## write vector index termsOffset={} termsLength={}\n", termsOffset, termsLength);
+            logger.debug("## write vector index postingsOffset={} postingsLength={}\n", postingsOffset, postingsLength);
+            logger.debug("## write vector index vectorOffset={} vectorLength={}\n", vectorOffset, vectorLength);
+
             return metadataMap;
         }
     }
@@ -236,18 +241,6 @@ public class CassandraOnHeapHnsw<T>
         return deletedOrdinals.isEmpty()
                ? toAccept
                : toAccept == null ? new NoDeletedBits() : new NoDeletedIntersectingBits(toAccept);
-    }
-
-    public static class Offsets
-    {
-        public final long termsOffset;
-        public final long postingsOffset;
-
-        public Offsets(long termsOffset, long postingsOffset)
-        {
-            this.termsOffset = termsOffset;
-            this.postingsOffset = postingsOffset;
-        }
     }
 
     private class NoDeletedBits implements Bits

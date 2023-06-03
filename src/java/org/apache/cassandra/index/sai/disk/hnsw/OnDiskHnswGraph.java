@@ -31,7 +31,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
 {
     private final FileHandle fh;
-    private final long maxSize;
+    private final long segmentSize;
     private final int size;
     private final int numLevels;
     private final int entryNode;
@@ -46,7 +46,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
         this.fh = fh;
         try (var reader = fh.createReader())
         {
-            maxSize = segmentOffset + segmentLength;
+            segmentSize = segmentOffset + segmentLength;
             reader.seek(segmentOffset);
 
             size = reader.readInt();
@@ -141,7 +141,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
         if (i < topLevel) {
             nextLevelOffset = levelOffsets[i + 1];
         } else {
-            nextLevelOffset = maxSize;
+            nextLevelOffset = segmentSize;
         }
         return nextLevelOffset - currentLevelOffset;
     }
