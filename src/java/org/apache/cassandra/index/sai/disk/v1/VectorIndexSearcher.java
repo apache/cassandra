@@ -40,9 +40,8 @@ import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.GrowableBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
@@ -123,7 +122,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
-        BitSet bits = new GrowableBitSet(graph.size());
+        SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
         for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
         {
             try
@@ -147,10 +146,10 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     @Override
     public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
-        // materialize the underlying iterator as a bitset, then ask hnsw to search.
-        // the iterator represents keys from the same sstable segment as us,
-        // so we can use row ids to order the results by vector similarity
-        BitSet bits  = new GrowableBitSet(graph.size());
+        // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
+        // are from our own token range so we can use row ids to order the results by vector similarity.
+        var maxSegmentRowId = metadata.segmentedRowId(metadata.maxSSTableRowId);
+        SparseFixedBitSet bits = new SparseFixedBitSet(1 + maxSegmentRowId);
         int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
         int[] bruteForceRows = new int[maxBruteForceRows];
         int n = 0;
@@ -164,11 +163,13 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             iterator.next();
 
             int segmentRowId = metadata.segmentedRowId(sstableRowId);
+            assert segmentRowId >= 0;
             if (n < maxBruteForceRows)
                 bruteForceRows[n] = segmentRowId;
             n++;
 
             int ordinal = graph.getOrdinal(segmentRowId);
+            assert ordinal <= maxSegmentRowId : "ordinal=" + ordinal + ", max=" + maxSegmentRowId; // ordinal count should be <= row count
             if (ordinal >= 0)
             {
                 if (context.shouldInclude(sstableRowId, primaryKeyMap))
@@ -183,6 +184,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             return toPrimaryKeyIterator(results, context);
         }
 
+        // else ask hnsw to perform a search limited to the bits we created
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
