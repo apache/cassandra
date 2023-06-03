@@ -392,10 +392,6 @@ public class DynamicCompositeType extends AbstractCompositeType
             types.add(type);
             values.add(type.decompose(e.getValue()));
         }
-        // inverseMapping is dangerous as the whole alias feature is broken...  we store a header to mark an alias as such
-        // rather than a length, but this header is > Short.MAX_VALUE... aka it gets truncated when we actually store it!
-        // This means alias all look like a type should be written next to it, and can go in bad ways...
-        // To avoid this issue, disable the inverse map, so that all known alias are lost!
         return build(ByteBufferAccessor.instance, types, inverseMapping, values, (byte) 0);
     }
 
