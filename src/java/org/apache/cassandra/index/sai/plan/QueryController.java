@@ -275,6 +275,7 @@ public class QueryController
 
             SSTableContextManager contextManager = StorageAttachedIndexGroup.getIndexGroup(cfs).sstableContextManager();
             SSTableContext sstableContext = contextManager.getContext(sstable);
+            assert sstableContext != null : "sstable context should not be null for " + sstable;
             PrimaryKeyMap primaryKeyMap = sstableContext.primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
             return SSTableRowIdKeyRangeIterator.create(primaryKeyMap, queryContext, sstableRowIdsIterator);
         }
