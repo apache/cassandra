@@ -56,6 +56,7 @@ import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.DateType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DoubleType;
@@ -166,6 +167,7 @@ public final class AbstractTypeGenerators
                                                                                               .add(VectorType.class)
                                                                                               .add(CompositeType.class)
                                                                                               .add(DynamicCompositeType.class)
+                                                                                              .add(CounterColumnType.class)
                                                                                               .build();
 
     private AbstractTypeGenerators()
@@ -179,7 +181,8 @@ public final class AbstractTypeGenerators
         SET, LIST, MAP,
         TUPLE, UDT,
         VECTOR,
-        COMPOSITE, DYNAMIC_COMPOSITE
+        COMPOSITE, DYNAMIC_COMPOSITE,
+        COUNTER
     }
 
     private static final Gen<TypeKind> TYPE_KIND_GEN = SourceDSL.arbitrary().enumValuesWithNoOrder(TypeKind.class);
@@ -204,7 +207,9 @@ public final class AbstractTypeGenerators
                                      .withoutPrimitive(DurationType.instance)
                                      // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
                                      // see CASSANDRA-18530
-                                     .withoutPrimitive(DecimalType.instance);
+                                     .withoutPrimitive(DecimalType.instance)
+                                     // counters are only for top level
+                                     .withoutTypeKinds(TypeKind.COUNTER);
     }
 
     public static class TypeGenBuilder
@@ -396,6 +401,9 @@ public final class AbstractTypeGenerators
 
                 // figure out type to get
                 TypeKind kind = typeKindGen.generate(rnd);
+                // counters are only allowed at the top level
+                while (!atTop && kind == TypeKind.COUNTER)
+                    kind = typeKindGen.generate(rnd);
                 switch (kind)
                 {
                     case PRIMITIVE:
@@ -425,6 +433,8 @@ public final class AbstractTypeGenerators
                         Gen<Byte> aliasGen = Generators.letterOrDigit().map(c -> (byte) c.charValue());
                         // stores alias names by class and not what is actually valid by cql... so only primitive types match!
                         return dynamicCompositeGen(primitiveGen, aliasGen, defaultSizeGen).generate(rnd);
+                    case COUNTER:
+                        return CounterColumnType.instance;
                     default:
                         throw new IllegalArgumentException("Unknown kind: " + kind);
                 }
@@ -884,6 +894,10 @@ public final class AbstractTypeGenerators
                 }
                 return 0;
             });
+        }
+        else if (type instanceof CounterColumnType)
+        {
+            return (TypeSupport<T>) TypeSupport.of(CounterColumnType.instance, SourceDSL.longs().all());
         }
         throw new UnsupportedOperationException("Unsupported type: " + type);
     }

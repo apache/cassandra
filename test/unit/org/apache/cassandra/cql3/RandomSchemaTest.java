@@ -78,6 +78,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                                                                .withUserTypeKeyspace(KEYSPACE)
                                                                                .withMaxDepth(2)
                                                                                .withDefaultSetKey(withoutUnsafeEquality)
+                                                                               .withoutTypeKinds(AbstractTypeGenerators.TypeKind.COUNTER)
                                                                                .build())
                                      .withPartitionColumnsCount(1)
                                      .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)

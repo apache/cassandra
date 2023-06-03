@@ -215,6 +215,7 @@ public class AbstractTypeTest
                                    // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
                                    // see CASSANDRA-18530
                                    .withoutPrimitive(DecimalType.instance)
+                                   .withoutTypeKinds(COUNTER)
                                    .build();
         qt().withShrinkCycles(0).forAll(examples(1, gen)).checkAssert(example -> {
             AbstractType type = example.type;
@@ -266,7 +267,7 @@ public class AbstractTypeTest
                                        // toCQLLiteral is lossy, which causes deserialization to produce different bytes
                                        .withoutPrimitive(DecimalType.instance)
                                        // does not support toJSONString
-                                       .withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE)
+                                       .withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER)
                                        .build();
         qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(es -> {
             AbstractType type = es.type;
@@ -301,7 +302,7 @@ public class AbstractTypeTest
                                                                                                                       UserType.class, t -> ((UserType) t).size(),
                                                                                                                       CompositeType.class, t -> ((CompositeType) t).types.size(),
                                                                                                                       DynamicCompositeType.class, t -> ((DynamicCompositeType) t).size());
-        qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE).build()).checkAssert(type -> {
+        qt().withShrinkCycles(0).forAll(AbstractTypeGenerators.builder().withoutTypeKinds(PRIMITIVE, COUNTER).build()).checkAssert(type -> {
             int expectedSize = complexTypes.containsKey(type.getClass()) ? complexTypes.get(type.getClass()).apply(type) : 1;
             assertThat(type.subTypes()).hasSize(expectedSize);
         });
@@ -479,6 +480,7 @@ public class AbstractTypeTest
     {
         Gen<AbstractType<?>> types = genBuilder()
                                      .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
+                                     .withoutTypeKinds(COUNTER) // counters don't allow ordering
                                      .build();
         qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
