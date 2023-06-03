@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.RandomAccessReader;
 
 public class OnDiskOrdinalsMap
 {
@@ -54,12 +55,19 @@ public class OnDiskOrdinalsMap
         }
     }
 
-    public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
+    public RowIdsView getRowIdsView()
     {
-        Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
+        return new RowIdsView();
+    }
 
-        try (var reader = fh.createReader())
+    public class RowIdsView implements AutoCloseable
+    {
+        RandomAccessReader reader = fh.createReader();
+
+        public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
         {
+            Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
+
             // read index entry
             reader.seek(segmentOffset + 4L + vectorOrdinal * 8L);
             var offset = reader.readLong();
@@ -73,17 +81,30 @@ public class OnDiskOrdinalsMap
             }
             return ordinals;
         }
+
+        @Override
+        public void close()
+        {
+            reader.close();
+        }
     }
 
-    /**
-     * @return order if given row id is found; otherwise return -1
-     */
-    public int getOrdinalForRowId(int rowId) throws IOException
+    public OrdinalsView getOrdinalsView()
     {
-        try (var reader = fh.createReader())
+        return new OrdinalsView();
+    }
+
+    public class OrdinalsView implements AutoCloseable
+    {
+        RandomAccessReader reader = fh.createReader();
+        private final long high = (segmentOffset + segmentLength - 8 - rowOrdinalOffset) / 8;
+
+        /**
+         * @return order if given row id is found; otherwise return -1
+         */
+        public int getOrdinalForRowId(int rowId) throws IOException
         {
             // Compute the offset of the start of the rowId to vectorOrdinal mapping
-            var high = (segmentOffset + segmentLength - 8 - rowOrdinalOffset) / 8;
             long index = DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
                 try
                 {
@@ -102,6 +123,12 @@ public class OnDiskOrdinalsMap
                 return -1;
 
             return reader.readInt();
+        }
+
+        @Override
+        public void close()
+        {
+            reader.close();
         }
     }
 

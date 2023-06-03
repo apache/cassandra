@@ -20,15 +20,14 @@ package org.apache.cassandra.index.sai;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.io.util.CheckedFunction;
 import org.apache.lucene.util.Bits;
 
 /**
@@ -63,23 +62,26 @@ public class SSTableQueryContext
     /**
      * Create a bitset to ignore ordinals corresponding to shadowed primary keys
      */
-    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CheckedFunction<Integer, Integer, IOException> segmentRowIdToOrdinal) throws IOException
+    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraOnDiskHnsw graph) throws IOException
     {
         Set<Integer> ignoredOrdinals = new HashSet<>();
-        for (PrimaryKey primaryKey : queryContext.getShadowedPrimaryKeys())
+        try (var ordinalsView = graph.getOrdinalsView())
         {
-            long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
-            int segmentRowId = metadata.segmentedRowId(sstableRowId);
-            // not in segment yet
-            if (segmentRowId < 0)
-                continue;
-            // end of segment
-            if (segmentRowId > metadata.maxSSTableRowId)
-                break;
+            for (PrimaryKey primaryKey : queryContext.getShadowedPrimaryKeys())
+            {
+                long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
+                int segmentRowId = metadata.segmentedRowId(sstableRowId);
+                // not in segment yet
+                if (segmentRowId < 0)
+                    continue;
+                // end of segment
+                if (segmentRowId > metadata.maxSSTableRowId)
+                    break;
 
-            int ordinal = segmentRowIdToOrdinal.apply(segmentRowId);
-            if (ordinal >= 0)
-                ignoredOrdinals.add(ordinal);
+                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                if (ordinal >= 0)
+                    ignoredOrdinals.add(ordinal);
+            }
         }
 
         return new Bits()

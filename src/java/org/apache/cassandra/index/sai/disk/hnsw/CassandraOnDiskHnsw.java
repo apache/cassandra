@@ -103,36 +103,54 @@ public class CassandraOnDiskHnsw
         }
     }
 
+    private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
+    {
+        private final NeighborQueue queue;
+        private final OnDiskOrdinalsMap.RowIdsView rowIdsView = ordinalsMap.getRowIdsView();
+
+        private PrimitiveIterator.OfInt segmentRowIdIterator = IntStream.empty().iterator();
+
+        public RowIdIterator(NeighborQueue queue)
+        {
+            this.queue = queue;
+        }
+
+        @Override
+        public boolean hasNext() {
+            while (!segmentRowIdIterator.hasNext() && queue.size() > 0) {
+                try
+                {
+                    segmentRowIdIterator = Arrays.stream(rowIdsView.getSegmentRowIdsMatching(queue.pop())).iterator();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+            return segmentRowIdIterator.hasNext();
+        }
+
+        @Override
+        public int nextInt() {
+            if (!hasNext())
+                throw new NoSuchElementException();
+            return segmentRowIdIterator.nextInt();
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            rowIdsView.close();
+        }
+    }
+
     private ReorderingPostingList annRowIdsToPostings(NeighborQueue queue) throws IOException
     {
         int originalSize = queue.size();
-        PrimitiveIterator.OfInt iterator = new PrimitiveIterator.OfInt() {
-            private PrimitiveIterator.OfInt segmentRowIdIterator = IntStream.empty().iterator();
-
-            @Override
-            public boolean hasNext() {
-                while (!segmentRowIdIterator.hasNext() && queue.size() > 0) {
-                    try
-                    {
-                        segmentRowIdIterator = Arrays.stream(ordinalsMap.getSegmentRowIdsMatching(queue.pop())).iterator();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
-                return segmentRowIdIterator.hasNext();
-            }
-
-            @Override
-            public int nextInt() {
-                if (!hasNext())
-                    throw new NoSuchElementException();
-                return segmentRowIdIterator.nextInt();
-            }
-        };
-
-        return new ReorderingPostingList(iterator, originalSize);
+        try (var iterator = new RowIdIterator(queue))
+        {
+            return new ReorderingPostingList(iterator, originalSize);
+        }
     }
 
     public void close()
@@ -141,9 +159,9 @@ public class CassandraOnDiskHnsw
         hnsw.close();
     }
 
-    public int getOrdinal(int segmentRowId) throws IOException
+    public OnDiskOrdinalsMap.OrdinalsView getOrdinalsView() throws IOException
     {
-        return ordinalsMap.getOrdinalForRowId(segmentRowId);
+        return ordinalsMap.getOrdinalsView();
     }
 
     class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoCloseable

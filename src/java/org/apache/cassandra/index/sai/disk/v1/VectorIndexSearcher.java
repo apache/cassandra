@@ -106,7 +106,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     {
         // not restricted
         if (RangeUtil.coversFullRing(keyRange))
-            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph::getOrdinal);
+            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph);
 
         PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
         PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
@@ -117,29 +117,30 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
         // if it covers entire segment, skip bit set
         if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
-            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph::getOrdinal);
+            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph);
 
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
         SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
-        for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
+        try (var ordinalsView = graph.getOrdinalsView())
         {
-            try
+            for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
             {
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
-                int ordinal = graph.getOrdinal(segmentRowId);
+                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                 if (ordinal >= 0)
                 {
                     if (context.shouldInclude(sstableRowId, primaryKeyMap))
                         bits.set(ordinal);
                 }
             }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
         }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         return bits;
     }
 
@@ -153,27 +154,30 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
         int[] bruteForceRows = new int[maxBruteForceRows];
         int n = 0;
-        while (iterator.hasNext())
+        try (var ordinalsView = graph.getOrdinalsView())
         {
-            Long sstableRowId = iterator.peek();
-            // if sstable row id has exceeded current ANN segment, stop
-            if (sstableRowId > metadata.maxSSTableRowId)
-                break;
-
-            iterator.next();
-
-            int segmentRowId = metadata.segmentedRowId(sstableRowId);
-            assert segmentRowId >= 0;
-            if (n < maxBruteForceRows)
-                bruteForceRows[n] = segmentRowId;
-            n++;
-
-            int ordinal = graph.getOrdinal(segmentRowId);
-            assert ordinal <= maxSegmentRowId : "ordinal=" + ordinal + ", max=" + maxSegmentRowId; // ordinal count should be <= row count
-            if (ordinal >= 0)
+            while (iterator.hasNext())
             {
-                if (context.shouldInclude(sstableRowId, primaryKeyMap))
-                    bits.set(ordinal);
+                Long sstableRowId = iterator.peek();
+                // if sstable row id has exceeded current ANN segment, stop
+                if (sstableRowId > metadata.maxSSTableRowId)
+                    break;
+
+                iterator.next();
+
+                int segmentRowId = metadata.segmentedRowId(sstableRowId);
+                assert segmentRowId >= 0;
+                if (n < maxBruteForceRows)
+                    bruteForceRows[n] = segmentRowId;
+                n++;
+
+                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                assert ordinal <= maxSegmentRowId : "ordinal=" + ordinal + ", max=" + maxSegmentRowId; // ordinal count should be <= row count
+                if (ordinal >= 0)
+                {
+                    if (context.shouldInclude(sstableRowId, primaryKeyMap))
+                        bits.set(ordinal);
+                }
             }
         }
 
