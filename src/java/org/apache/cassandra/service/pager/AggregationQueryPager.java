@@ -241,6 +241,8 @@ public final class AggregationQueryPager implements QueryPager
                 {
                     endOfData = true;
                     closed = true;
+                    if (!subPager.isExhausted())
+                        subPager = subPager.withUpdatedLimit(limits.withoutState());
                     return;
                 }
 
