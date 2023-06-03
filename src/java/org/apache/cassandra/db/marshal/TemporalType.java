@@ -19,7 +19,11 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.commons.lang3.mutable.MutableLong;
+
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -70,13 +74,11 @@ public abstract class TemporalType<T> extends AbstractType<T>
      * @param duration the duration to add
      * @return the addition result
      */
-    public ByteBuffer addDuration(ByteBuffer temporal,
-                                  ByteBuffer duration)
+    public ByteBuffer addDuration(Number temporal, Duration duration)
     {
-        long timeInMillis = toTimeInMillis(temporal);
-        Duration d = DurationType.instance.compose(duration);
-        validateDuration(d);
-        return fromTimeInMillis(d.addTo(timeInMillis));
+        long timeInMillis = temporal.longValue();
+        validateDuration(duration);
+        return fromTimeInMillis(duration.addTo(timeInMillis));
     }
 
     /**
@@ -86,13 +88,11 @@ public abstract class TemporalType<T> extends AbstractType<T>
      * @param duration the duration to substract
      * @return the substracion result
      */
-    public ByteBuffer substractDuration(ByteBuffer temporal,
-                                ByteBuffer duration)
+    public ByteBuffer substractDuration(Number temporal, Duration duration)
     {
-        long timeInMillis = toTimeInMillis(temporal);
-        Duration d = DurationType.instance.compose(duration);
-        validateDuration(d);
-        return fromTimeInMillis(d.substractFrom(timeInMillis));
+        long timeInMillis = temporal.longValue();
+        validateDuration(duration);
+        return fromTimeInMillis(duration.substractFrom(timeInMillis));
     }
 
     /**
@@ -101,5 +101,24 @@ public abstract class TemporalType<T> extends AbstractType<T>
      */
     protected void validateDuration(Duration duration)
     {
+    }
+
+    @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return new ArgumentDeserializer()
+        {
+            private final MutableLong wrapper = new MutableLong();
+
+            @Override
+            public Object deserialize(ProtocolVersion protocolVersion, ByteBuffer buffer)
+            {
+                if (buffer == null || (!buffer.hasRemaining() && isEmptyValueMeaningless()))
+                    return null;
+
+                wrapper.setValue(toTimeInMillis(buffer));
+                return wrapper;
+            }
+        };
     }
 }

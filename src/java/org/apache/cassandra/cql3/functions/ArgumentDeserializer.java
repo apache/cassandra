@@ -16,34 +16,28 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3.validation.entities.udfverify;
+package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql3.functions.Arguments;
-import org.apache.cassandra.cql3.functions.JavaUDF;
-import org.apache.cassandra.cql3.functions.UDFContext;
-import org.apache.cassandra.cql3.functions.UDFDataType;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * Used by {@link org.apache.cassandra.cql3.validation.entities.UFVerifierTest}.
+ * Utility used to deserialize function arguments.
  */
-public final class GoodClass extends JavaUDF
+public interface ArgumentDeserializer
 {
-    public GoodClass(UDFDataType returnType, UDFContext udfContext)
-    {
-        super(returnType, udfContext);
-    }
+    /**
+     * An {@link ArgumentDeserializer} that do not deserialize data.
+     */
+    ArgumentDeserializer NOOP_DESERIALIZER = (protocolVersion, buffer) -> buffer;
 
-    @Override
-    protected Object executeAggregateImpl(Object state, Arguments arguments)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected ByteBuffer executeImpl(Arguments arguments)
-    {
-        return null;
-    }
+    /**
+     * Deserializes the specified function argument.
+     *
+     * @param protocolVersion the protocol version
+     * @param buffer the serialized argument
+     * @return the deserialized argument
+     */
+    Object deserialize(ProtocolVersion protocolVersion, ByteBuffer buffer);
 }

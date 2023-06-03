@@ -1150,7 +1150,7 @@ public final class SchemaKeyspace
                     values[i] = argumentTypes.get(i + 1).fromString(valuesAsCQL.get(i));
             }
 
-            mask = ColumnMask.build((ScalarFunction) function, values);
+            mask = new ColumnMask((ScalarFunction) function, values);
         }
 
         return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
