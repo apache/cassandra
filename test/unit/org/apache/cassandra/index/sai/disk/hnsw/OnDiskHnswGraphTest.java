@@ -32,6 +32,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.lucene.util.hnsw.HnswGraph;
@@ -130,6 +131,15 @@ public class OnDiskHnswGraphTest extends SAITester
         return L1;
     }
 
+    private static long writeGraph(ExtendedHnswGraph hnsw, File outputFile) throws IOException
+    {
+        HnswGraphWriter writer = new HnswGraphWriter(hnsw);
+        try (var indexOutputWriter = IndexFileUtils.instance.openOutput(outputFile))
+        {
+            return writer.write(indexOutputWriter);
+        }
+    }
+
     private static OnDiskHnswGraph createOnDiskGraph(File outputFile, int cacheRamBudget) throws IOException
     {
         try (var builder = new FileHandle.Builder(outputFile))
@@ -142,7 +152,7 @@ public class OnDiskHnswGraphTest extends SAITester
     public void testOneLevelGraph() throws IOException {
         var outputPath = testDirectory.resolve("one_level_graph");
         var outputFile = new File(outputPath);
-        new HnswGraphWriter(oneLevelGraph).write(outputFile);
+        writeGraph(oneLevelGraph, outputFile);
         OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(oneLevelGraph, onDiskGraph);
         onDiskGraph.close();
@@ -152,7 +162,7 @@ public class OnDiskHnswGraphTest extends SAITester
     public void testTwoLevelGraph() throws IOException {
         var outputPath = testDirectory.resolve("two_level_graph");
         var outputFile = new File(outputPath);
-        new HnswGraphWriter(twoLevelGraph).write(outputFile);
+        writeGraph(twoLevelGraph, outputFile);
         OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(twoLevelGraph, onDiskGraph);
         onDiskGraph.close();
@@ -162,7 +172,7 @@ public class OnDiskHnswGraphTest extends SAITester
     public void testThreeLevelGraph() throws IOException {
         var outputPath = testDirectory.resolve("three_level_graph");
         var outputFile = new File(outputPath);
-        new HnswGraphWriter(threeLevelGraph).write(outputFile);
+        writeGraph(threeLevelGraph, outputFile);
         OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(threeLevelGraph, onDiskGraph);
         onDiskGraph.close();
@@ -172,7 +182,7 @@ public class OnDiskHnswGraphTest extends SAITester
     public void testCaching() throws IOException {
         // Write the graph to the disk
         File outputFile = new File(testDirectory, "test_graph");
-        new HnswGraphWriter(threeLevelGraph).write(outputFile);
+        writeGraph(threeLevelGraph, outputFile);
 
         var onDiskGraph = createOnDiskGraph(outputFile, 0);
         BiFunction<OnDiskHnswGraph, Integer, Integer> nodeIdBytes = (g, i) -> {
@@ -245,7 +255,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
         logger.debug("writing graph");
         File outputFile = new File(testDirectory, "test_graph");
-        new HnswGraphWriter(graph).write(outputFile);
+        writeGraph(graph, outputFile);
         logger.debug("Graph is " + outputFile.length() + " bytes");
 
         logger.debug("initializing OnDiskHnswGraph");

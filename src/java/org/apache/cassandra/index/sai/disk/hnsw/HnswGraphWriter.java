@@ -61,15 +61,6 @@ public class HnswGraphWriter
         return 4L * (1 + n);
     }
 
-    @VisibleForTesting
-    public long write(File file) throws IOException
-    {
-        try (var indexOutputWriter = IndexFileUtils.instance.openOutput(file))
-        {
-            return write(indexOutputWriter);
-        }
-    }
-
     public long write(IndexOutputWriter indexOutputWriter) throws IOException
     {
         var out = indexOutputWriter.asSequentialWriter();
