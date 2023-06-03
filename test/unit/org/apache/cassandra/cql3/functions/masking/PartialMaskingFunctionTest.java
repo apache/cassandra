@@ -40,11 +40,11 @@ public class PartialMaskingFunctionTest extends MaskingFunctionTester
     @Override
     protected void testMaskingOnColumn(String name, CQL3Type type, Object value) throws Throwable
     {
-        testMaskingOnColumn(PartialMaskingFunction.Type.INNER, name, type, value);
-        testMaskingOnColumn(PartialMaskingFunction.Type.OUTER, name, type, value);
+        testMaskingOnColumn(PartialMaskingFunction.Kind.INNER, name, type, value);
+        testMaskingOnColumn(PartialMaskingFunction.Kind.OUTER, name, type, value);
     }
 
-    protected void testMaskingOnColumn(PartialMaskingFunction.Type masker, String name, CQL3Type type, Object value) throws Throwable
+    protected void testMaskingOnColumn(PartialMaskingFunction.Kind masker, String name, CQL3Type type, Object value) throws Throwable
     {
         String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + masker.name().toLowerCase();
 
@@ -169,9 +169,9 @@ public class PartialMaskingFunctionTest extends MaskingFunctionTester
                                     String innerMaskedValue,
                                     String outerMaskedValue)
     {
-        Assertions.assertThat(PartialMaskingFunction.Type.INNER.mask(unmaskedValue, begin, end, padding))
+        Assertions.assertThat(PartialMaskingFunction.Kind.INNER.mask(unmaskedValue, begin, end, padding))
                   .isIn(innerMaskedValue);
-        Assertions.assertThat(PartialMaskingFunction.Type.OUTER.mask(unmaskedValue, begin, end, padding))
+        Assertions.assertThat(PartialMaskingFunction.Kind.OUTER.mask(unmaskedValue, begin, end, padding))
                   .isIn(outerMaskedValue);
     }
 }

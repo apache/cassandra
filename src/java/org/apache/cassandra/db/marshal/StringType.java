@@ -27,14 +27,8 @@ public abstract class StringType extends AbstractType<String>
         super(comparisonType);
     }
 
-    public ByteBuffer concat(StringType leftType,
-                             ByteBuffer left,
-                             StringType rightType,
-                             ByteBuffer right)
+    public ByteBuffer concat(String left, String right)
     {
-        String leftS = leftType.compose(left);
-        String rightS = rightType.compose(right);
-
-        return decompose(leftS + rightS);
+        return decompose(left + right);
     }
 }

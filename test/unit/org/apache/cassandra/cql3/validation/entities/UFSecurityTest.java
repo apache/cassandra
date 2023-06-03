@@ -27,9 +27,9 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.utils.JavaDriverUtils;
 
 public class UFSecurityTest extends CQLTester
 {
@@ -58,7 +58,7 @@ public class UFSecurityTest extends CQLTester
         }
 
         String[] cfnSources =
-        { "try { Class.forName(\"" + UDHelper.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
+        { "try { Class.forName(\"" + JavaDriverUtils.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
           "try { Class.forName(\"sun.misc.Unsafe\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;" };
         for (String source : cfnSources)
         {

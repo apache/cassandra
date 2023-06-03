@@ -21,8 +21,6 @@ package org.apache.cassandra.cql3.functions;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -296,8 +294,9 @@ public class MathFctsTest
 
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
-        List<ByteBuffer> params = Collections.singletonList(input);
-        return ((ScalarFunction) function).execute(ProtocolVersion.CURRENT, params);
+        Arguments arguments = function.newArguments(ProtocolVersion.CURRENT);
+        arguments.set(0, input);
+        return ((ScalarFunction) function).execute(arguments);
     }
 
     private <T extends Number> void assertFctEquals(NativeFunction fct, T expected, NumberType<T> inputType, T inputValue)

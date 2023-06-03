@@ -19,9 +19,12 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.commons.lang3.mutable.MutableFloat;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.FloatSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -124,87 +127,88 @@ public class FloatType extends NumberType<Float>
     }
 
     @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return new NumberArgumentDeserializer<MutableFloat>(new MutableFloat())
+        {
+            @Override
+            protected void setMutableValue(MutableFloat mutable, ByteBuffer buffer)
+            {
+                mutable.setValue(ByteBufferUtil.toFloat(buffer));
+            }
+        };
+    }
+
+    @Override
     public int valueLengthIfFixed()
     {
         return 4;
     }
 
     @Override
-    protected int toInt(ByteBuffer value)
+    public ByteBuffer add(Number left, Number right)
     {
-        throw new UnsupportedOperationException();
+        return ByteBufferUtil.bytes(left.floatValue() + right.floatValue());
     }
 
     @Override
-    protected float toFloat(ByteBuffer value)
+    public ByteBuffer substract(Number left, Number right)
     {
-        return ByteBufferUtil.toFloat(value);
+        return ByteBufferUtil.bytes(left.floatValue() - right.floatValue());
     }
 
     @Override
-    protected double toDouble(ByteBuffer value)
+    public ByteBuffer multiply(Number left, Number right)
     {
-        return toFloat(value);
-    }
-
-    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes(leftType.toFloat(left) + rightType.toFloat(right));
-    }
-
-    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes(leftType.toFloat(left) - rightType.toFloat(right));
-    }
-
-    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes(leftType.toFloat(left) * rightType.toFloat(right));
-    }
-
-    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes(leftType.toFloat(left) / rightType.toFloat(right));
-    }
-
-    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes(leftType.toFloat(left) % rightType.toFloat(right));
-    }
-
-    public ByteBuffer negate(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes(-toFloat(input));
+        return ByteBufferUtil.bytes(left.floatValue() * right.floatValue());
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input)
+    public ByteBuffer divide(Number left, Number right)
     {
-        return ByteBufferUtil.bytes(Math.abs(toFloat(input)));
+        return ByteBufferUtil.bytes(left.floatValue() / right.floatValue());
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input)
+    public ByteBuffer mod(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((float) Math.exp(toFloat(input)));
+        return ByteBufferUtil.bytes(left.floatValue() % right.floatValue());
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input)
+    public ByteBuffer negate(Number input)
     {
-        return ByteBufferUtil.bytes((float) Math.log(toFloat(input)));
+        return ByteBufferUtil.bytes(-input.floatValue());
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input)
+    public ByteBuffer abs(Number input)
     {
-        return ByteBufferUtil.bytes((float) Math.log10(toFloat(input)));
+        return ByteBufferUtil.bytes(Math.abs(input.floatValue()));
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input)
+    public ByteBuffer exp(Number input)
     {
-        return ByteBufferUtil.bytes((float) Math.round(toFloat(input)));
+        return ByteBufferUtil.bytes((float) Math.exp(input.floatValue()));
+    }
+
+    @Override
+    public ByteBuffer log(Number input)
+    {
+        return ByteBufferUtil.bytes((float) Math.log(input.floatValue()));
+    }
+
+    @Override
+    public ByteBuffer log10(Number input)
+    {
+        return ByteBufferUtil.bytes((float) Math.log10(input.floatValue()));
+    }
+
+    @Override
+    public ByteBuffer round(Number input)
+    {
+        return ByteBufferUtil.bytes((float) Math.round(input.floatValue()));
     }
 
     @Override

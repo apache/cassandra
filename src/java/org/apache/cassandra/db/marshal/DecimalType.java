@@ -29,6 +29,7 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.DecimalSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -43,7 +44,10 @@ public class DecimalType extends NumberType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
 
+    private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
+
     private static final ByteBuffer MASKED_VALUE = instance.decompose(BigDecimal.ZERO);
+
     private static final int MIN_SCALE = 32;
     private static final int MIN_SIGNIFICANT_DIGITS = MIN_SCALE;
     private static final int MAX_SCALE = 1000;
@@ -316,60 +320,59 @@ public class DecimalType extends NumberType<BigDecimal>
     }
 
     @Override
-    protected int toInt(ByteBuffer value)
+    public ArgumentDeserializer getArgumentDeserializer()
     {
-        throw new UnsupportedOperationException();
+        return ARGUMENT_DESERIALIZER;
+    }
+
+    /**
+     * Converts the specified number into a {@link BigDecimal}.
+     *
+     * @param number the value to convert
+     * @return the converted value
+     */
+    protected BigDecimal toBigDecimal(Number number)
+    {
+        if (number instanceof BigDecimal)
+            return (BigDecimal) number;
+
+        if (number instanceof BigInteger)
+            return new BigDecimal((BigInteger) number);
+
+        double d = number.doubleValue();
+
+        if (Double.isNaN(d))
+            throw new NumberFormatException("A NaN cannot be converted into a decimal");
+
+        if (Double.isInfinite(d))
+            throw new NumberFormatException("An infinite number cannot be converted into a decimal");
+
+        return BigDecimal.valueOf(d);
     }
 
     @Override
-    protected float toFloat(ByteBuffer value)
+    public ByteBuffer add(Number left, Number right)
     {
-        throw new UnsupportedOperationException();
+        return decompose(toBigDecimal(left).add(toBigDecimal(right), MAX_PRECISION));
     }
 
     @Override
-    protected long toLong(ByteBuffer value)
+    public ByteBuffer substract(Number left, Number right)
     {
-        throw new UnsupportedOperationException();
+        return decompose(toBigDecimal(left).subtract(toBigDecimal(right), MAX_PRECISION));
     }
 
     @Override
-    protected double toDouble(ByteBuffer value)
+    public ByteBuffer multiply(Number left, Number right)
     {
-        throw new UnsupportedOperationException();
+        return decompose(toBigDecimal(left).multiply(toBigDecimal(right), MAX_PRECISION));
     }
 
     @Override
-    protected BigInteger toBigInteger(ByteBuffer value)
+    public ByteBuffer divide(Number left, Number right)
     {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected BigDecimal toBigDecimal(ByteBuffer value)
-    {
-        return compose(value);
-    }
-
-    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return decompose(leftType.toBigDecimal(left).add(rightType.toBigDecimal(right), MAX_PRECISION));
-    }
-
-    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return decompose(leftType.toBigDecimal(left).subtract(rightType.toBigDecimal(right), MAX_PRECISION));
-    }
-
-    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return decompose(leftType.toBigDecimal(left).multiply(rightType.toBigDecimal(right), MAX_PRECISION));
-    }
-
-    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        BigDecimal leftOperand = leftType.toBigDecimal(left);
-        BigDecimal rightOperand = rightType.toBigDecimal(right);
+        BigDecimal leftOperand = toBigDecimal(left);
+        BigDecimal rightOperand = toBigDecimal(right);
 
         // Predict position of first significant digit in the quotient.
         // Note: it is possible to improve prediction accuracy by comparing first significant digits in operands
@@ -385,24 +388,26 @@ public class DecimalType extends NumberType<BigDecimal>
         return decompose(leftOperand.divide(rightOperand, scale, RoundingMode.HALF_UP).stripTrailingZeros());
     }
 
-    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    @Override
+    public ByteBuffer mod(Number left, Number right)
     {
-        return decompose(leftType.toBigDecimal(left).remainder(rightType.toBigDecimal(right)));
+        return decompose(toBigDecimal(left).remainder(toBigDecimal(right)));
     }
 
-    public ByteBuffer negate(ByteBuffer input)
+    @Override
+    public ByteBuffer negate(Number input)
     {
         return decompose(toBigDecimal(input).negate());
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input)
+    public ByteBuffer abs(Number input)
     {
         return decompose(toBigDecimal(input).abs());
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input)
+    public ByteBuffer exp(Number input)
     {
         return decompose(exp(toBigDecimal(input)));
     }
@@ -416,7 +421,7 @@ public class DecimalType extends NumberType<BigDecimal>
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input)
+    public ByteBuffer log(Number input)
     {
         return decompose(log(toBigDecimal(input)));
     }
@@ -431,7 +436,7 @@ public class DecimalType extends NumberType<BigDecimal>
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input)
+    public ByteBuffer log10(Number input)
     {
         return decompose(log10(toBigDecimal(input)));
     }
@@ -446,7 +451,7 @@ public class DecimalType extends NumberType<BigDecimal>
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input)
+    public ByteBuffer round(Number input)
     {
         return DecimalType.instance.decompose(
         toBigDecimal(input).setScale(0, RoundingMode.HALF_UP));

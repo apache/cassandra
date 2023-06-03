@@ -53,9 +53,15 @@ public class FunctionFactoryTest extends CQLTester
             return new NativeScalarFunction(name.name, argTypes.get(0), argTypes.get(0))
             {
                 @Override
-                public ByteBuffer execute(ProtocolVersion protocol, List<ByteBuffer> parameters)
+                public Arguments newArguments(ProtocolVersion version)
                 {
-                    return parameters.get(0);
+                    return FunctionArguments.newNoopInstance(version, 1);
+                }
+
+                @Override
+                public ByteBuffer execute(Arguments arguments)
+                {
+                    return arguments.containsNulls() ? null : arguments.get(0);
                 }
             };
         }
@@ -73,13 +79,13 @@ public class FunctionFactoryTest extends CQLTester
             return new NativeScalarFunction(name.name, UTF8Type.instance, argTypes.get(0))
             {
                 @Override
-                public ByteBuffer execute(ProtocolVersion protocol, List<ByteBuffer> parameters)
+                public ByteBuffer execute(Arguments arguments)
                 {
-                    ByteBuffer value = parameters.get(0);
-                    if (value == null)
+                    if (arguments.containsNulls())
                         return null;
 
-                    return UTF8Type.instance.decompose(argTypes.get(0).compose(value).toString());
+                    Object value = arguments.get(0);
+                    return UTF8Type.instance.decompose(value.toString());
                 }
             };
         }
