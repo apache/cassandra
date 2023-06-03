@@ -88,22 +88,23 @@ public class OnDiskHnswGraphTest extends SAITester
     }
 
     private void validateGraph(HnswGraph original, OnDiskHnswGraph onDisk) throws IOException {
-        assertThat(onDisk.size()).isEqualTo(original.size());
-        assertThat(onDisk.entryNode()).isEqualTo(original.entryNode());
-        assertThat(onDisk.numLevels()).isEqualTo(original.numLevels());
+        var view = onDisk.getView();
+        assertThat(view.size()).isEqualTo(original.size());
+        assertThat(view.entryNode()).isEqualTo(original.entryNode());
+        assertThat(view.numLevels()).isEqualTo(original.numLevels());
 
         for (int i = 0; i < original.numLevels(); i++) {
             // Check the nodes and neighbors at each level
-            var nodes = assertEqualNodes(original.getNodesOnLevel(i), onDisk.getNodesOnLevel(i));
+            var nodes = assertEqualNodes(original.getNodesOnLevel(i), view.getNodesOnLevel(i));
 
             // For each node, check its neighbors
             for (int j : nodes) {
                 original.seek(i, j);
-                onDisk.seek(i, j);
+                view.seek(i, j);
                 int n1;
                 do
                 {
-                    n1 = onDisk.nextNeighbor();
+                    n1 = view.nextNeighbor();
                     var n2 = original.nextNeighbor();
                     assertThat(n1).isEqualTo(n2);
                 } while (n1 != NO_MORE_DOCS);
@@ -172,7 +173,7 @@ public class OnDiskHnswGraphTest extends SAITester
         BiFunction<OnDiskHnswGraph, Integer, Integer> nodeIdBytes = (g, i) -> {
             try
             {
-                return g.getNodesOnLevel(i).size() * Integer.BYTES;
+                return g.getView().getNodesOnLevel(i).size() * Integer.BYTES;
             }
             catch (IOException e)
             {
@@ -182,7 +183,7 @@ public class OnDiskHnswGraphTest extends SAITester
         BiFunction<OnDiskHnswGraph, Integer, Integer> offsetBytes = (g, i) -> {
             try
             {
-                return g.getNodesOnLevel(i).size() * Long.BYTES;
+                return g.getView().getNodesOnLevel(i).size() * Long.BYTES;
             }
             catch (IOException e)
             {
@@ -238,6 +239,7 @@ public class OnDiskHnswGraphTest extends SAITester
         validateGraph(graph, onDiskGraph);
 
         System.out.println("random queries");
+        var view = onDiskGraph.getView();
         for (int i = 0; i < 1000; i++)
         {
             // pick a random node from a random level in the original graph
@@ -245,10 +247,10 @@ public class OnDiskHnswGraphTest extends SAITester
             var nodes = new ArrayList<>(graph.rawNodesOnLevel(level).keySet());
             int node = nodes.get(ThreadLocalRandom.current().nextInt(nodes.size()));
 
-            onDiskGraph.seek(level, node);
+            view.seek(level, node);
             while (true)
             {
-                int neighbor = onDiskGraph.nextNeighbor();
+                int neighbor = view.nextNeighbor();
                 if (neighbor == NO_MORE_DOCS)
                     break;
             }
