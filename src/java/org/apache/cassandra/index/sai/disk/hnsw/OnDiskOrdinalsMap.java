@@ -31,16 +31,20 @@ public class OnDiskOrdinalsMap
     private static final Logger logger = LoggerFactory.getLogger(OnDiskOrdinalsMap.class);
 
     private final FileHandle fh;
+    private final long segmentOffset;
+    private final long segmentLength;
     private final int size;
     private final long rowOrdinalOffset;
 
-    public OnDiskOrdinalsMap(FileHandle fh)
+    public OnDiskOrdinalsMap(FileHandle fh, long segmentOffset, long segmentLength)
     {
+        this.segmentOffset = segmentOffset;
+        this.segmentLength = segmentLength;
         this.fh = fh;
         try (var reader = fh.createReader())
         {
             this.size = reader.readInt();
-            reader.seek(reader.length() - 8);
+            reader.seek(segmentOffset + segmentLength - 8);
             this.rowOrdinalOffset = reader.readLong();
         }
         catch (IOException e)
@@ -56,7 +60,7 @@ public class OnDiskOrdinalsMap
         try (var reader = fh.createReader())
         {
             // read index entry
-            reader.seek(4L + vectorOrdinal * 8L);
+            reader.seek(segmentOffset + 4L + vectorOrdinal * 8L);
             var offset = reader.readLong();
             // seek to and read ordinals
             reader.seek(offset);
@@ -78,7 +82,7 @@ public class OnDiskOrdinalsMap
         try (var reader = fh.createReader())
         {
             // Compute the offset of the start of the rowId to vectorOrdinal mapping
-            var high = (reader.length() - 8 - rowOrdinalOffset) / 8;
+            var high = (segmentOffset + segmentLength - 8 - rowOrdinalOffset) / 8;
             long index = DiskBinarySearch.searchInt(0, Math.toIntExact(high), rowId, i -> {
                 try
                 {

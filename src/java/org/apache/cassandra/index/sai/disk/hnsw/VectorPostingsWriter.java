@@ -30,13 +30,15 @@ import org.apache.cassandra.utils.Pair;
 
 public class VectorPostingsWriter<T>
 {
-    public void writePostings(SequentialWriter writer,
+    public long writePostings(SequentialWriter writer,
                               ConcurrentVectorValues vectorValues,
                               Map<float[], VectorPostings<T>> postingsMap,
                               Function<T, Integer> postingTransformer) throws IOException
     {
         writeNodeOrdinalToRowIdMapping(writer, vectorValues, postingsMap, postingTransformer);
         writeRowIdToNodeOrdinalMapping(writer, vectorValues, postingsMap, postingTransformer);
+
+        return writer.position();
     }
 
     public void writeNodeOrdinalToRowIdMapping(SequentialWriter writer,
@@ -44,11 +46,13 @@ public class VectorPostingsWriter<T>
                                                Map<float[], VectorPostings<T>> postingsMap,
                                                Function<T, Integer> postingTransformer) throws IOException
     {
+        long segmentOffset = writer.getOnDiskFilePointer();
+
         // total number of vectors
         writer.writeInt(vectorValues.size());
 
         // Write the offsets of the postings for each ordinal
-        var offset = 4L + 8L * vectorValues.size();
+        var offset = segmentOffset + 4L + 8L * vectorValues.size();
         for (var i = 0; i < vectorValues.size(); i++) {
             // (ordinal is implied; don't need to write it)
             writer.writeLong(offset);

@@ -27,7 +27,9 @@ import java.util.stream.IntStream;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -47,12 +49,18 @@ public class CassandraOnDiskHnsw
     private final VectorSimilarityFunction similarityFunction;
     private final VectorCache vectorCache;
 
-    public CassandraOnDiskHnsw(PerIndexFiles indexFiles, IndexContext context) throws IOException
+    public CassandraOnDiskHnsw(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
-        vectorsSupplier = () -> new OnDiskVectors(indexFiles.vectors());
-        ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists());
-        hnsw = new OnDiskHnswGraph(indexFiles.termsData(), CassandraRelevantProperties.SAI_HNSW_OFFSET_CACHE_BYTES.getInt());
+
+        long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
+        vectorsSupplier = () -> new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset);
+
+        SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
+        ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
+
+        SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
+        hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, CassandraRelevantProperties.SAI_HNSW_OFFSET_CACHE_BYTES.getInt());
         try (var vectors = vectorsSupplier.get())
         {
             vectorDimension = vectors.dimension;
@@ -141,15 +149,19 @@ public class CassandraOnDiskHnsw
     class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoCloseable
     {
         private final RandomAccessReader reader;
+        private final long segmentOffset;
         private final int dimension;
         private final int size;
         private final float[] vector;
 
-        public OnDiskVectors(FileHandle fh)
+        public OnDiskVectors(FileHandle fh, long segmentOffset)
         {
             try
             {
                 this.reader = fh.createReader();
+                this.segmentOffset = segmentOffset;
+                reader.seek(segmentOffset);
+
                 this.size = reader.readInt();
                 this.dimension = reader.readInt();
                 this.vector = new float[dimension];
@@ -185,7 +197,7 @@ public class CassandraOnDiskHnsw
 
         void readVector(int i, float[] v) throws IOException
         {
-            reader.readVectorAt(8L + i * dimension * 4L, v);
+            reader.readVectorAt(segmentOffset + 8L + i * dimension * 4L, v);
         }
 
         @Override

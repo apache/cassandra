@@ -62,7 +62,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
                         IndexContext indexContext) throws IOException
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexDescriptor, indexContext);
-        graph = new CassandraOnDiskHnsw(perIndexFiles, indexContext);
+        graph = new CassandraOnDiskHnsw(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
         this.keyFactory = PrimaryKey.factory(indexContext.comparator(), indexContext.indexFeatureSet());
         this.primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
     }

@@ -193,14 +193,7 @@ public abstract class SegmentBuilder
         @Override
         protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
         {
-            graphIndex.writeData(indexDescriptor, indexContext, p -> p);
-            SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
-
-            // we don't care about root/offset/length for vector. segmentId is used in searcher
-            Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
-            metadataMap.put(IndexComponent.VECTOR, 0, 0, 0, vectorConfigs);
-
-            return metadataMap;
+            return graphIndex.writeData(indexDescriptor, indexContext, p -> p);
         }
     }
 

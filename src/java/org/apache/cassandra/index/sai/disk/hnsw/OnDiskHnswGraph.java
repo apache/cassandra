@@ -31,7 +31,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class OnDiskHnswGraph extends HnswGraph
 {
     private final FileHandle fh;
-    private final long fileSize;
+    private final long maxSize;
     private final int size;
     private final int numLevels;
     private final int entryNode;
@@ -42,11 +42,13 @@ public class OnDiskHnswGraph extends HnswGraph
     final CachedLevel[] cachedLevels;
     private final int cacheSizeInBytes;
 
-    public OnDiskHnswGraph(FileHandle fh, int cacheRamBudget) throws IOException {
+    public OnDiskHnswGraph(FileHandle fh, long segmentOffset, long segmentLength, int cacheRamBudget) throws IOException {
         this.fh = fh;
         try (var reader = fh.createReader())
         {
-            fileSize = reader.length();
+            maxSize = segmentOffset + segmentLength;
+            reader.seek(segmentOffset);
+
             size = reader.readInt();
             numLevels = reader.readInt();
             cachedLevels = new CachedLevel[numLevels];
@@ -139,7 +141,7 @@ public class OnDiskHnswGraph extends HnswGraph
         if (i < topLevel) {
             nextLevelOffset = levelOffsets[i + 1];
         } else {
-            nextLevelOffset = fileSize;
+            nextLevelOffset = maxSize;
         }
         return nextLevelOffset - currentLevelOffset;
     }

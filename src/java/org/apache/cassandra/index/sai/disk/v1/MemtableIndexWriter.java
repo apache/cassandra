@@ -215,15 +215,9 @@ public class MemtableIndexWriter implements PerIndexWriter
 
     private void flushVectorIndex(DecoratedKey minKey, DecoratedKey maxKey, long startTime, Stopwatch stopwatch) throws IOException
     {
-        graphIndex.writeData(indexDescriptor, indexContext, rowMapping::get);
+        SegmentMetadata.ComponentMetadataMap metadataMap = graphIndex.writeData(indexDescriptor, indexContext, rowMapping::get);
 
         completeIndexFlush(rowMapping.size(), startTime, stopwatch);
-
-        SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
-
-        // we don't care about root/offset/length for vector. segmentId is used in searcher
-        Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
-        metadataMap.put(IndexComponent.VECTOR, 0, 0, 0, vectorConfigs);
 
         SegmentMetadata metadata = new SegmentMetadata(0,
                                                        rowMapping.size(),

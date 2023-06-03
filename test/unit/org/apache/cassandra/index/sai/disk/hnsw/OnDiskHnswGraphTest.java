@@ -129,7 +129,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
     private static OnDiskHnswGraph createOnDiskGraph(File outputFile, int cacheRamBudget) throws IOException
     {
-        return new OnDiskHnswGraph(new FileHandle.Builder(outputFile).complete(), cacheRamBudget);
+        return new OnDiskHnswGraph(new FileHandle.Builder(outputFile).complete(), 0, outputFile.length(), cacheRamBudget);
     }
 
     @Test

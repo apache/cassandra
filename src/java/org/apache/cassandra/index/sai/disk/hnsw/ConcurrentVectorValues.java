@@ -22,11 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
@@ -71,7 +68,7 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
         return this;
     }
 
-    public void write(SequentialWriter writer) throws IOException
+    public long write(SequentialWriter writer) throws IOException
     {
         writer.writeInt(size());
         writer.writeInt(dimension());
@@ -86,6 +83,8 @@ public class ConcurrentVectorValues implements RandomAccessVectorValues<float[]>
             floatBuffer.rewind();
             writer.write(byteBuffer);
         }
+
+        return writer.position();
     }
 
     public long ramBytesUsed()

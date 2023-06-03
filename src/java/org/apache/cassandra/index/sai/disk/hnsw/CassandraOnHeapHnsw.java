@@ -37,11 +37,14 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -179,14 +182,37 @@ public class CassandraOnHeapHnsw<T>
         return keyQueue;
     }
 
-    public void writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<T, Integer> postingTransformer) throws IOException
+    public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<T, Integer> postingTransformer) throws IOException
     {
-        try (var vectorsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext));
-             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext)))
+        try (var vectorsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext), true);
+             var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
+             var indexOutputWriter = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
         {
-            vectorValues.write(vectorsOutput.asSequentialWriter());
-            new VectorPostingsWriter<T>().writePostings(postingsOutput.asSequentialWriter(), vectorValues, postingsMap, postingTransformer);
-            new HnswGraphWriter(new ExtendedConcurrentHnswGraph(builder.getGraph())).write(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext));
+            long vectorOffset = vectorsOutput.getFilePointer();
+            long vectorPosition = vectorValues.write(vectorsOutput.asSequentialWriter());
+            long vectorLength = vectorPosition - vectorOffset;
+
+            long postingsOffset = postingsOutput.getFilePointer();
+            long postingsPosition = new VectorPostingsWriter<T>().writePostings(postingsOutput.asSequentialWriter(), vectorValues, postingsMap, postingTransformer);
+            long postingsLength = postingsPosition - postingsOffset;
+
+            long termsOffset = indexOutputWriter.getFilePointer();
+            long termsPosition = new HnswGraphWriter(new ExtendedConcurrentHnswGraph(builder.getGraph())).write(indexOutputWriter);
+            long termsLength = termsPosition - termsOffset;
+
+            SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
+
+            metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
+            metadataMap.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength, Map.of());
+
+            // we don't care about root/offset/length for vector. segmentId is used in searcher
+            Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
+            metadataMap.put(IndexComponent.VECTOR, -1, vectorOffset, vectorLength, vectorConfigs);
+
+            System.out.printf("## write vector index termsOffset=%d termsLength=%d\n", termsOffset, termsLength);
+            System.out.printf("## write vector index postingsOffset=%d postingsLength=%d\n", postingsOffset, postingsLength);
+            System.out.printf("## write vector index vectorOffset=%d vectorLength=%d\n", vectorOffset, vectorLength);
+            return metadataMap;
         }
     }
 
@@ -210,6 +236,18 @@ public class CassandraOnHeapHnsw<T>
         return deletedOrdinals.isEmpty()
                ? toAccept
                : toAccept == null ? new NoDeletedBits() : new NoDeletedIntersectingBits(toAccept);
+    }
+
+    public static class Offsets
+    {
+        public final long termsOffset;
+        public final long postingsOffset;
+
+        public Offsets(long termsOffset, long postingsOffset)
+        {
+            this.termsOffset = termsOffset;
+            this.postingsOffset = postingsOffset;
+        }
     }
 
     private class NoDeletedBits implements Bits

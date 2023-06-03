@@ -211,11 +211,6 @@ public class VectorMemtableIndex implements MemtableIndex
         return null;
     }
 
-    public void writeData(IndexDescriptor indexDescriptor, RowMapping rowMapping) throws IOException
-    {
-        graph.writeData(indexDescriptor, indexContext, rowMapping::get);
-    }
-
     private class KeyRangeFilteringBits implements Bits
     {
         private final AbstractBounds<PartitionPosition> keyRange;

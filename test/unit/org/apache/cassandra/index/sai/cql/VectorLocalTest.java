@@ -40,7 +40,6 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.hnsw.ConcurrentVectorValues;
-import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -56,8 +55,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorLocalTest extends SAITester
 {
-    private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
-
     private static Word2Vec word2vec;
 
     @BeforeClass
