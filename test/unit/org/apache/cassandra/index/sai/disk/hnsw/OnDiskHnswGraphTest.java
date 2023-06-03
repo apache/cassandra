@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
@@ -149,33 +150,62 @@ public class OnDiskHnswGraphTest extends SAITester
     }
 
     @Test
-    public void testOneLevelGraph() throws IOException {
-        var outputPath = testDirectory.resolve("one_level_graph");
+    public void testSimpleGraphs() throws IOException {
+        var outputPath = testDirectory.resolve("test_graph");
         var outputFile = new File(outputPath);
-        writeGraph(oneLevelGraph, outputFile);
-        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
-        validateGraph(oneLevelGraph, onDiskGraph);
-        onDiskGraph.close();
+        for (var g : List.of(oneLevelGraph, twoLevelGraph, threeLevelGraph))
+        {
+            writeGraph(g, outputFile);
+            try (var onDiskGraph = createOnDiskGraph(outputFile, 0))
+            {
+                validateGraph(g, onDiskGraph);
+            }
+        }
+    }
+
+    private static class GraphWithOffsets
+    {
+        public final ExtendedHnswGraph hnsw;
+        public final long startOffset;
+        public final long endOffset;
+
+        public GraphWithOffsets(ExtendedHnswGraph hnsw, long startOffset, long endOffset)
+        {
+            this.hnsw = hnsw;
+            this.startOffset = startOffset;
+            this.endOffset = endOffset;
+        }
     }
 
     @Test
-    public void testTwoLevelGraph() throws IOException {
-        var outputPath = testDirectory.resolve("two_level_graph");
+    public void testAppendedGraphs() throws IOException
+    {
+        var outputPath = testDirectory.resolve("test_graph");
         var outputFile = new File(outputPath);
-        writeGraph(twoLevelGraph, outputFile);
-        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
-        validateGraph(twoLevelGraph, onDiskGraph);
-        onDiskGraph.close();
-    }
-
-    @Test
-    public void testThreeLevelGraph() throws IOException {
-        var outputPath = testDirectory.resolve("three_level_graph");
-        var outputFile = new File(outputPath);
-        writeGraph(threeLevelGraph, outputFile);
-        OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
-        validateGraph(threeLevelGraph, onDiskGraph);
-        onDiskGraph.close();
+        List<GraphWithOffsets> graphOffsets;
+        try (var out = IndexFileUtils.instance.openOutput(outputFile))
+        {
+            graphOffsets = List.of(oneLevelGraph, twoLevelGraph, threeLevelGraph)
+                    .stream()
+                    .map(g -> {
+                        try
+                        {
+                            return new GraphWithOffsets(g, out.getFilePointer(), new HnswGraphWriter(g).write(out));
+                        }
+                        catch (IOException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                    }).collect(Collectors.toList());
+        }
+        for (var g: graphOffsets)
+        {
+            try (var builder = new FileHandle.Builder(outputFile);
+                 var onDiskGraph = new OnDiskHnswGraph(builder.complete(), g.startOffset, g.endOffset, 0))
+            {
+                validateGraph(g.hnsw, onDiskGraph);
+            }
+        }
     }
 
     @Test

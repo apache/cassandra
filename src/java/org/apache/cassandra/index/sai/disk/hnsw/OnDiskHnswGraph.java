@@ -28,7 +28,7 @@ import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-public class OnDiskHnswGraph extends HnswGraph
+public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
 {
     private final FileHandle fh;
     private final long maxSize;
