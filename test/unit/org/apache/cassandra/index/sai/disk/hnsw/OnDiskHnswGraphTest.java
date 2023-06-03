@@ -88,26 +88,28 @@ public class OnDiskHnswGraphTest extends SAITester
     }
 
     private void validateGraph(HnswGraph original, OnDiskHnswGraph onDisk) throws IOException {
-        var view = onDisk.getView();
-        assertThat(view.size()).isEqualTo(original.size());
-        assertThat(view.entryNode()).isEqualTo(original.entryNode());
-        assertThat(view.numLevels()).isEqualTo(original.numLevels());
+        try (var view = onDisk.getView())
+        {
+            assertThat(view.size()).isEqualTo(original.size());
+            assertThat(view.entryNode()).isEqualTo(original.entryNode());
+            assertThat(view.numLevels()).isEqualTo(original.numLevels());
 
-        for (int i = 0; i < original.numLevels(); i++) {
-            // Check the nodes and neighbors at each level
-            var nodes = assertEqualNodes(original.getNodesOnLevel(i), view.getNodesOnLevel(i));
+            for (int i = 0; i < original.numLevels(); i++) {
+                // Check the nodes and neighbors at each level
+                var nodes = assertEqualNodes(original.getNodesOnLevel(i), view.getNodesOnLevel(i));
 
-            // For each node, check its neighbors
-            for (int j : nodes) {
-                original.seek(i, j);
-                view.seek(i, j);
-                int n1;
-                do
-                {
-                    n1 = view.nextNeighbor();
-                    var n2 = original.nextNeighbor();
-                    assertThat(n1).isEqualTo(n2);
-                } while (n1 != NO_MORE_DOCS);
+                // For each node, check its neighbors
+                for (int j : nodes) {
+                    original.seek(i, j);
+                    view.seek(i, j);
+                    int n1;
+                    do
+                    {
+                        n1 = view.nextNeighbor();
+                        var n2 = original.nextNeighbor();
+                        assertThat(n1).isEqualTo(n2);
+                    } while (n1 != NO_MORE_DOCS);
+                }
             }
         }
     }
@@ -130,7 +132,10 @@ public class OnDiskHnswGraphTest extends SAITester
 
     private static OnDiskHnswGraph createOnDiskGraph(File outputFile, int cacheRamBudget) throws IOException
     {
-        return new OnDiskHnswGraph(new FileHandle.Builder(outputFile).complete(), 0, outputFile.length(), cacheRamBudget);
+        try (var builder = new FileHandle.Builder(outputFile))
+        {
+            return new OnDiskHnswGraph(builder.complete(), 0, outputFile.length(), cacheRamBudget);
+        }
     }
 
     @Test
@@ -171,9 +176,9 @@ public class OnDiskHnswGraphTest extends SAITester
 
         var onDiskGraph = createOnDiskGraph(outputFile, 0);
         BiFunction<OnDiskHnswGraph, Integer, Integer> nodeIdBytes = (g, i) -> {
-            try
+            try (var v = g.getView())
             {
-                return g.getView().getNodesOnLevel(i).size() * Integer.BYTES;
+                return v.getNodesOnLevel(i).size() * Integer.BYTES;
             }
             catch (IOException e)
             {
@@ -181,9 +186,9 @@ public class OnDiskHnswGraphTest extends SAITester
             }
         };
         BiFunction<OnDiskHnswGraph, Integer, Integer> offsetBytes = (g, i) -> {
-            try
+            try (var v = g.getView())
             {
-                return g.getView().getNodesOnLevel(i).size() * Long.BYTES;
+                return v.getNodesOnLevel(i).size() * Long.BYTES;
             }
             catch (IOException e)
             {
@@ -194,11 +199,14 @@ public class OnDiskHnswGraphTest extends SAITester
 
         // test graph that caches just the offsets of the top level
         int ramBudget = Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 2) + offsetBytes.apply(onDiskGraph, 2));
+        onDiskGraph.close();
+
         onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isFalse();
         assertThat(onDiskGraph.cachedLevels[1]).isNull();
         assertThat(onDiskGraph.getCacheSizeInBytes()).isEqualTo(ramBudget);
+        onDiskGraph.close();
 
         // test graph that caches just the entire top level
         ramBudget = Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 2) + neighborBytes.apply(onDiskGraph, 2));
@@ -210,12 +218,15 @@ public class OnDiskHnswGraphTest extends SAITester
 
         // test graph that caches the entire top level, and offsets from the next
         ramBudget += Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 1) + offsetBytes.apply(onDiskGraph, 1));
+        onDiskGraph.close();
+
         onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[1].containsNeighbors()).isFalse();
         assertThat(onDiskGraph.cachedLevels[0]).isNull();
         assertThat(onDiskGraph.getCacheSizeInBytes()).isEqualTo(ramBudget);
+        onDiskGraph.close();
 
         // test graph that caches the entire structure
         onDiskGraph = createOnDiskGraph(outputFile, 1024);
@@ -223,38 +234,47 @@ public class OnDiskHnswGraphTest extends SAITester
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[1].containsNeighbors()).isTrue();
         assertThat(onDiskGraph.cachedLevels[0].containsNeighbors()).isTrue();
+        onDiskGraph.close();
     }
 
     @Test
     public void testLargeGraph() throws IOException
     {
-        System.out.println("constructing graph");
+        logger.debug("constructing graph");
         var graph = new RandomlyConnectedHnswGraph.Builder().addLevels(10, 1_000_000, 16).build();
-        System.out.println("writing graph");
+
+        logger.debug("writing graph");
         File outputFile = new File(testDirectory, "test_graph");
         new HnswGraphWriter(graph).write(outputFile);
-        System.out.println("Graph is " + outputFile.length() + " bytes");
+        logger.debug("Graph is " + outputFile.length() + " bytes");
+
+        logger.debug("initializing OnDiskHnswGraph");
         OnDiskHnswGraph onDiskGraph = createOnDiskGraph(outputFile, 0);
-        System.out.println("validating graph");
+
+        logger.debug("validating graph");
         validateGraph(graph, onDiskGraph);
 
-        System.out.println("random queries");
-        var view = onDiskGraph.getView();
-        for (int i = 0; i < 1000; i++)
+        logger.debug("random queries");
+        try (var view = onDiskGraph.getView())
         {
-            // pick a random node from a random level in the original graph
-            int level = ThreadLocalRandom.current().nextInt(graph.numLevels());
-            var nodes = new ArrayList<>(graph.rawNodesOnLevel(level).keySet());
-            int node = nodes.get(ThreadLocalRandom.current().nextInt(nodes.size()));
-
-            view.seek(level, node);
-            while (true)
+            for (int i = 0; i < 1000; i++)
             {
-                int neighbor = view.nextNeighbor();
-                if (neighbor == NO_MORE_DOCS)
-                    break;
+                // pick a random node from a random level in the original graph
+                int level = ThreadLocalRandom.current().nextInt(graph.numLevels());
+                var nodes = new ArrayList<>(graph.rawNodesOnLevel(level).keySet());
+                int node = nodes.get(ThreadLocalRandom.current().nextInt(nodes.size()));
+
+                view.seek(level, node);
+                while (true)
+                {
+                    int neighbor = view.nextNeighbor();
+                    if (neighbor == NO_MORE_DOCS)
+                        break;
+                }
             }
         }
+
+        onDiskGraph.close();
     }
 }
 
