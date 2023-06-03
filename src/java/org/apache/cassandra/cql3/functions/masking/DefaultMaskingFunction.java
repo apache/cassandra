@@ -21,11 +21,15 @@ package org.apache.cassandra.cql3.functions.masking;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.functions.Arguments;
+import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.FunctionFactory;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link MaskingFunction} that returns a fixed replacement value for the data type of its single argument.
@@ -40,34 +44,24 @@ public class DefaultMaskingFunction extends MaskingFunction
 {
     public static final String NAME = "default";
 
-    private final Masker masker;
+    AbstractType<?> inputType;
 
-    private <T> DefaultMaskingFunction(FunctionName name, AbstractType<T> inputType)
+    private DefaultMaskingFunction(FunctionName name, AbstractType<?> inputType)
     {
         super(name, inputType, inputType);
-        masker = new Masker(inputType);
+        this.inputType = inputType;
     }
 
     @Override
-    public Masker masker(ByteBuffer... parameters)
+    public Arguments newArguments(ProtocolVersion version)
     {
-        return masker;
+        return FunctionArguments.newNoopInstance(version, 1);
     }
 
-    private static class Masker implements MaskingFunction.Masker
+    @Override
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
     {
-        private final ByteBuffer defaultValue;
-
-        private Masker(AbstractType<?> inputType)
-        {
-            defaultValue = inputType.getMaskedValue();
-        }
-
-        @Override
-        public ByteBuffer mask(ByteBuffer value)
-        {
-            return defaultValue;
-        }
+        return inputType.getMaskedValue();
     }
 
     /** @return a {@link FunctionFactory} to build new {@link DefaultMaskingFunction}s. */

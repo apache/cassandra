@@ -22,6 +22,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -130,7 +131,14 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         throw new IllegalStateException("You shouldn't be validating this.");
     }
 
+    @Override
     public TypeSerializer<ByteBuffer> getSerializer()
+    {
+        throw new UnsupportedOperationException("You can't do this with a local partitioner.");
+    }
+
+    @Override
+    public ArgumentDeserializer getArgumentDeserializer()
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }

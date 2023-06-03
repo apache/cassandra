@@ -43,18 +43,17 @@ public interface ScalarFunction extends Function
     }
 
     /**
-     * Applies this function to the specified parameter.
+     * Applies this function to the specified arguments.
      *
-     * @param protocolVersion protocol version used for parameters and return value
-     * @param parameters the input parameters
-     * @return the result of applying this function to the parameter
-     * @throws InvalidRequestException if this function cannot not be applied to the parameter
+     * @param arguments the input arguments for the function
+     * @return the result of applying this function to the arguments
+     * @throws InvalidRequestException if this function cannot not be applied to the arguments
      */
-    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException;
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException;
 
     /**
-     * Does a partial application of the function. That is, given only some of the parameters of the function provided,
-     * return a new function that only expect the parameters not provided.
+     * Does a partial application of the function. That is, given only some of the arguments of the function provided,
+     * return a new function that only expect the arguments not provided.
      * <p>
      * To take an example, if you consider the function
      * <pre>
@@ -66,21 +65,21 @@ public interface ScalarFunction extends Function
      * </pre>
      * and such that for any value of {@code b} and {@code d}, {@code bar(b, d) == foo(3, b, 'bar', d)}.
      *
-     * @param protocolVersion protocol version used for parameters
-     * @param partialParameters a list of input parameters for the function where some parameters can be {@link #UNRESOLVED}.
-     *                          The input <b>must</b> be of size {@code this.argsType().size()}. For convenience, it is
-     *                          allowed both to pass a list with all parameters being {@link #UNRESOLVED} (the function is
-     *                          then returned directly) and with none of them unresolved (in which case, if the function is pure,
-     *                          it is computed and a dummy no-arg function returning the result is returned).
-     * @return a function corresponding to the partial application of this function to the parameters of
-     * {@code partialParameters} that are not {@link #UNRESOLVED}.
+     * @param protocolVersion protocol version used for arguments
+     * @param partialArguments a list of input arguments for the function where some arguments can be {@link #UNRESOLVED}.
+     *                         The input <b>must</b> be of size {@code this.argsType().size()}. For convenience, it is
+     *                         allowed both to pass a list with all arguments being {@link #UNRESOLVED} (the function is
+     *                         then returned directly) and with none of them unresolved (in which case, if the function is pure,
+     *                         it is computed and a dummy no-arg function returning the result is returned).
+     * @return a function corresponding to the partial application of this function to the arguments of
+     * {@code partialArguments} that are not {@link #UNRESOLVED}.
      */
-    public default ScalarFunction partialApplication(ProtocolVersion protocolVersion, List<ByteBuffer> partialParameters)
+    default ScalarFunction partialApplication(ProtocolVersion protocolVersion, List<ByteBuffer> partialArguments)
     {
         int unresolvedCount = 0;
-        for (ByteBuffer parameter : partialParameters)
+        for (ByteBuffer argument : partialArguments)
         {
-            if (parameter == UNRESOLVED)
+            if (argument == UNRESOLVED)
                 ++unresolvedCount;
         }
 
@@ -88,12 +87,20 @@ public interface ScalarFunction extends Function
             return this;
 
         if (isPure() && unresolvedCount == 0)
-            return new PreComputedScalarFunction(returnType(),
-                                           execute(protocolVersion, partialParameters),
-                                           protocolVersion,
-                                           this,
-                                           partialParameters);
+        {
+            Arguments arguments = newArguments(protocolVersion);
+            for (int i = 0, m = partialArguments.size(); i < m; i++)
+            {
+                arguments.set(i, partialArguments.get(i));
+            }
 
-        return new PartiallyAppliedScalarFunction(this, partialParameters, unresolvedCount);
+            return new PreComputedScalarFunction(returnType(),
+                                                 execute(arguments),
+                                                 protocolVersion,
+                                                 this,
+                                                 partialArguments);
+        }
+
+        return new PartiallyAppliedScalarFunction(this, partialArguments, unresolvedCount);
     }
 }

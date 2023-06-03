@@ -19,7 +19,6 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,13 +126,12 @@ public class CollectionFcts
         return new NativeScalarFunction(name, outputType, inputType)
         {
             @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            public ByteBuffer execute(Arguments arguments)
             {
-                ByteBuffer value = parameters.get(0);
-                if (value == null)
+                if (arguments.containsNulls())
                     return null;
 
-                Map<K, V> map = inputType.compose(value);
+                Map<K, V> map = arguments.get(0);
                 Set<K> keys = map.keySet();
                 return outputType.decompose(keys);
             }
@@ -156,13 +154,12 @@ public class CollectionFcts
         return new NativeScalarFunction(name, outputType, inputType)
         {
             @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            public ByteBuffer execute(Arguments arguments)
             {
-                ByteBuffer value = parameters.get(0);
-                if (value == null)
+                if (arguments.containsNulls())
                     return null;
 
-                Map<K, V> map = inputType.compose(value);
+                Map<K, V> map = arguments.get(0);
                 List<V> values = ImmutableList.copyOf(map.values());
                 return outputType.decompose(values);
             }
@@ -182,13 +179,19 @@ public class CollectionFcts
         return new NativeScalarFunction(name, Int32Type.instance, inputType)
         {
             @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            public Arguments newArguments(ProtocolVersion version)
             {
-                ByteBuffer value = parameters.get(0);
-                if (value == null)
+                return FunctionArguments.newNoopInstance(version, 1);
+            }
+
+            @Override
+            public ByteBuffer execute(Arguments arguments)
+            {
+                if (arguments.containsNulls())
                     return null;
 
-                int size = inputType.size(value);
+
+                int size = inputType.size(arguments.get(0));
                 return Int32Type.instance.decompose(size);
             }
         };
@@ -356,15 +359,26 @@ public class CollectionFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion version, List<ByteBuffer> parameters)
+        public Arguments newArguments(ProtocolVersion version)
         {
-            ByteBuffer value = parameters.get(0);
-            if (value == null)
+            return FunctionArguments.newNoopInstance(version, 1);
+        }
+
+        @Override
+        public ByteBuffer execute(Arguments arguments)
+        {
+            if (arguments.containsNulls())
                 return null;
 
+            Arguments args = aggregateFunction.newArguments(arguments.getProtocolVersion());
             AggregateFunction.Aggregate aggregate = aggregateFunction.newAggregate();
-            inputType.forEach(value, element -> aggregate.addInput(version, Collections.singletonList(element)));
-            return aggregate.compute(version);
+
+            inputType.forEach(arguments.get(0), element -> {
+                args.set(0, element);
+                aggregate.addInput(args);
+            });
+
+            return aggregate.compute(arguments.getProtocolVersion());
         }
     }
 }

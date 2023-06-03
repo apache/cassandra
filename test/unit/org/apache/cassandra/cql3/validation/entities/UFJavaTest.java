@@ -119,12 +119,12 @@ public class UFJavaTest extends CQLTester
     @Test
     public void testJavaFunctionInvalidReturn() throws Throwable
     {
-        assertInvalidMessage("cannot convert from long to Double",
+        assertInvalidMessage("cannot convert from boolean to double",
                              "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".jfir(val double) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS double " +
                              "LANGUAGE JAVA\n" +
-                             "AS 'return 1L;';");
+                             "AS 'return true;';");
     }
 
     @Test

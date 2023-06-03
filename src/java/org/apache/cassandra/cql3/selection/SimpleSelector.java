@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -46,7 +47,7 @@ public final class SimpleSelector extends Selector
             ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
             ColumnMetadata column = metadata.getColumn(columnName);
             int idx = in.readInt();
-            return new SimpleSelector(column, idx, false);
+            return new SimpleSelector(column, idx, false, ProtocolVersion.CURRENT);
         }
     };
 
@@ -86,7 +87,7 @@ public final class SimpleSelector extends Selector
         @Override
         public Selector newInstance(QueryOptions options)
         {
-            return new SimpleSelector(column, idx, useForPostOrdering);
+            return new SimpleSelector(column, idx, useForPostOrdering, options.getProtocolVersion());
         }
 
         @Override
@@ -119,7 +120,7 @@ public final class SimpleSelector extends Selector
 
     public final ColumnMetadata column;
     private final int idx;
-    private final boolean useForPostOrdering;
+    private final ColumnMask.Masker masker;
     private ByteBuffer current;
     private ColumnTimestamps writetimes;
     private ColumnTimestamps ttls;
@@ -146,14 +147,14 @@ public final class SimpleSelector extends Selector
             ttls = input.getTtls(idx);
 
             /*
-            We apply the column mask of the column unless:
+            We apply the column masker of the column unless:
             - The column doesn't have a mask
-            - This selector is for a query with ORDER BY post-ordering, indicated by this.useForPostOrdering
             - The input row is for a user with UNMASK permission, indicated by input.unmask()
+            - Dynamic data masking is globally disabled
              */
-            ColumnMask mask = useForPostOrdering || input.unmask() ? null : column.getMask();
             ByteBuffer value = input.getValue(idx);
-            current = mask == null ? value : mask.mask(input.getProtocolVersion(), value);
+            current = masker == null || input.unmask() || !DatabaseDescriptor.getDynamicDataMaskingEnabled()
+                      ? value : masker.mask(value);
         }
     }
 
@@ -196,12 +197,19 @@ public final class SimpleSelector extends Selector
         return column.name.toString();
     }
 
-    private SimpleSelector(ColumnMetadata column, int idx, boolean useForPostOrdering)
+    private SimpleSelector(ColumnMetadata column, int idx, boolean useForPostOrdering, ProtocolVersion version)
     {
         super(Kind.SIMPLE_SELECTOR);
         this.column = column;
         this.idx = idx;
-        this.useForPostOrdering = useForPostOrdering;
+        /*
+         We apply the column mask of the column unless:
+         - The column doesn't have a mask
+         - This selector is for a query with ORDER BY post-ordering
+          */
+        this.masker = useForPostOrdering || column.getMask() == null
+                      ? null
+                      : column.getMask().masker(version);
     }
 
     @Override
