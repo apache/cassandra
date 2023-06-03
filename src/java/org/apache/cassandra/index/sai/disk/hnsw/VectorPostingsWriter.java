@@ -52,13 +52,15 @@ public class VectorPostingsWriter<T>
         writer.writeInt(vectorValues.size());
 
         // Write the offsets of the postings for each ordinal
-        var offset = segmentOffset + 4L + 8L * vectorValues.size();
+        var offsetsStartAt = segmentOffset + 4L + 8L * vectorValues.size();
+        var nextOffset = offsetsStartAt;
         for (var i = 0; i < vectorValues.size(); i++) {
             // (ordinal is implied; don't need to write it)
-            writer.writeLong(offset);
+            writer.writeLong(nextOffset);
             var postings = postingsMap.get(vectorValues.vectorValue(i));
-            offset += 4 + (postings.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
+            nextOffset += 4 + (postings.size() * 4L); // 4 bytes for size and 4 bytes for each integer in the list
         }
+        assert writer.position() == offsetsStartAt : "writer.position()=" + writer.position() + " offsetsStartAt=" + offsetsStartAt;
 
         // Write postings lists
         for (var i = 0; i < vectorValues.size(); i++) {
@@ -68,6 +70,7 @@ public class VectorPostingsWriter<T>
                 writer.writeInt(postingTransformer.apply(key));
             }
         }
+        assert writer.position() == nextOffset;
     }
 
     public void writeRowIdToNodeOrdinalMapping(SequentialWriter writer,
