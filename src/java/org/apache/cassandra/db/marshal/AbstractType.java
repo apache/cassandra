@@ -289,6 +289,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return isReversed() ? ((ReversedType<T>) this).baseType.unwrap() : this;
     }
 
+    public boolean isList()
+    {
+        return false;
+    }
+
     public boolean isVector()
     {
         return false;

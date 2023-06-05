@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -45,16 +46,12 @@ public abstract class VectorFcts
     private static FunctionFactory similarity_function(String name, VectorSimilarityFunction f)
     {
         return new FunctionFactory(name,
-                                   FunctionParameter.sameAs(1, FunctionParameter.anyType(true)),
-                                   FunctionParameter.sameAs(0, FunctionParameter.anyType(true)))
+                                   FunctionParameter.sameAs(1, FunctionParameter.vector(CQL3Type.Native.FLOAT)),
+                                   FunctionParameter.sameAs(0, FunctionParameter.vector(CQL3Type.Native.FLOAT)))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
-                if (argTypes.size() != 2)
-                    throw new InvalidRequestException(String.format("%s() requires two arguments, but %d given", name, argTypes.size()));
-                if (!argTypes.stream().allMatch(VectorFcts::isFloatVector))
-                    throw new InvalidRequestException("Only float vectors are supported by " + name);
                 // check that all arguments have the same vector dimensions
                 VectorType<Float> firstArgType = (VectorType<Float>) argTypes.get(0);
                 int dimensions = firstArgType.dimension;

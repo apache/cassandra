@@ -25,12 +25,10 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.NumberType;
-import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.lang.String.format;
@@ -169,7 +167,58 @@ public interface FunctionParameter
             @Override
             public String toString()
             {
-                return String.format("sameAs(%s)", parameter.toString());
+                return parameter.toString();
+            }
+        };
+    }
+
+    /**
+     * @return a function parameter definition that accepts values of type {@link VectorType}.
+     */
+    static FunctionParameter vector(CQL3Type type)
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public AbstractType<?> inferType(String keyspace,
+                                             AssignmentTestable arg,
+                                             @Nullable AbstractType<?> receiverType,
+                                             List<AbstractType<?>> inferredTypes)
+            {
+                AbstractType<?> inferred = arg.getCompatibleTypeIfKnown(keyspace);
+                if (inferred != null && arg instanceof Selectable.WithList)
+                {
+                    return VectorType.getInstance(type.getType(), ((Selectable.WithList) arg).getSize());
+                }
+
+                return inferred == null ? receiverType : inferred;
+            }
+
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                if (argType.isVector())
+                {
+                    VectorType<?> vectorType = (VectorType<?>) argType;
+                    if (vectorType.elementType.asCQL3Type() == type)
+                        return;
+                }
+                else if (argType.isList()) // if it's terminal it will be a list
+                {
+                    ListType<?> listType = (ListType<?>) argType;
+                    if (listType.getElementsType().testAssignment(type.getType()) == NOT_ASSIGNABLE)
+                        return;
+                }
+
+                throw new InvalidRequestException(format("Function %s requires a %s vector argument, " +
+                                "but found argument %s of type %s",
+                        name, type, arg, argType.asCQL3Type()));
+            }
+
+            @Override
+            public String toString()
+            {
+                return format("vector<%s, n>", type);
             }
         };
     }

@@ -344,4 +344,9 @@ public class ListType<T> extends CollectionType<List<T>>
     {
         return setOrListToJsonString(buffer, elements, protocolVersion);
     }
+
+    public boolean isList()
+    {
+        return true;
+    }
 }
