@@ -132,15 +132,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement implemen
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
         HashSet<String> clientWarnings = new HashSet<>();
-        int keyspaceCount = Schema.instance.getKeyspaces().size();
-        if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
-        {
-            String msg = String.format("Cluster already contains %d keyspaces. Having a large number of keyspaces will significantly slow down schema dependent cluster operations.",
-                                       keyspaceCount);
-            logger.warn(msg);
-            clientWarnings.add(msg);
-        }
-
         if (attrs.hasProperty("graph_engine"))
         {
             clientWarnings.add("The unsupported graph property 'graph_engine' was ignored.");
