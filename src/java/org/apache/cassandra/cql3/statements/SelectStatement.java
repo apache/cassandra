@@ -47,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -869,11 +870,6 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             cqlPerPartitionLimit = perPartitionLimit;
         }
 
-        // Group by and aggregation queries will always be paged internally to avoid OOM.
-        // If the user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
-        if (!pageSize.isDefined())
-            pageSize = PageSize.inRows(DEFAULT_PAGE_SIZE);
-
         // Aggregation queries work fine on top of the group by paging but to maintain
         // backward compatibility we need to use the old way.
         if (aggregationSpec != null && aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
@@ -883,7 +879,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             return DataLimits.groupByLimits(cqlRowLimit,
                                             cqlPerPartitionLimit,
-                                            pageSize,
+                                            DatabaseDescriptor.getAggregationSubPageSize(),
                                             aggregationSpec);
         }
 
