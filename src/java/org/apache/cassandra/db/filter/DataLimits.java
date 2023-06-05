@@ -19,6 +19,7 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.StringJoiner;
 
 import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.Clustering;
@@ -146,6 +147,13 @@ public abstract class DataLimits
         return false;
     }
 
+    /**
+     * Returns true if the count limit is not reached.
+     * <p/>
+     * Note: currently this method's only usage is for paging, where it is checked after processing a page as a quick
+     * signal that the data for the query is complete - if the count limit is not reached at the end of the page, this
+     * must be because there is no more data to return - that is - the input is exhausted.
+     */
     public boolean isExhausted(Counter counter)
     {
         return counter.counted() < count();
@@ -173,7 +181,7 @@ public abstract class DataLimits
                                               boolean enforceStrictLiveness);
 
     /**
-     * Returns a new {@code Counter} for this limits.
+     * Returns a new {@code Counter} for this limits instance.
      *
      * @param nowInSec the current time in second (to decide what is expired or not).
      * @param assumeLiveData if true, the counter will assume that every row passed is live and won't
@@ -183,7 +191,7 @@ public abstract class DataLimits
      * as 1 valid row.
      * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
      * normally retrieved from {@link org.apache.cassandra.schema.TableMetadata#enforceStrictLiveness()}
-     * @return a new {@code Counter} for this limits.
+     * @return a new {@code Counter} for this limits instance.
      */
     public abstract Counter newCounter(long nowInSec,
                                        boolean assumeLiveData,
@@ -384,36 +392,43 @@ public abstract class DataLimits
             return new CQLLimits(rowLimit, 1, true);
         }
 
+        @Override
         public Kind kind()
         {
             return Kind.CQL_LIMIT;
         }
 
+        @Override
         public boolean isUnlimited()
         {
             return rowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT;
         }
 
+        @Override
         public boolean isDistinct()
         {
             return isDistinct;
         }
 
+        @Override
         public DataLimits forPaging(PageSize pageSize)
         {
             return new CQLLimits(Math.min(rowLimit, pageSize.rows), perPartitionLimit, isDistinct);
         }
 
+        @Override
         public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
             return new CQLPagingLimits(Math.min(rowLimit, pageSize.rows), perPartitionLimit, isDistinct, lastReturnedKey, lastReturnedKeyRemaining);
         }
 
+        @Override
         public DataLimits forShortReadRetry(int toFetch)
         {
             return new CQLLimits(toFetch, perPartitionLimit, isDistinct);
         }
 
+        @Override
         public boolean hasEnoughLiveData(CachedPartition cached, long nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
         {
             // We want the number of row that are currently live. Getting that precise number forces
@@ -440,6 +455,7 @@ public abstract class DataLimits
             }
         }
 
+        @Override
         public Counter newCounter(long nowInSec,
                                   boolean assumeLiveData,
                                   boolean countPartitionsWithOnlyStaticData,
@@ -448,21 +464,25 @@ public abstract class DataLimits
             return new CQLCounter(nowInSec, assumeLiveData, countPartitionsWithOnlyStaticData, enforceStrictLiveness);
         }
 
+        @Override
         public int count()
         {
             return rowLimit;
         }
 
+        @Override
         public int perPartitionCount()
         {
             return perPartitionLimit;
         }
 
+        @Override
         public DataLimits withoutState()
         {
             return this;
         }
 
+        @Override
         public float estimateTotalResults(ColumnFamilyStore cfs)
         {
             // TODO: we should start storing stats on the number of rows (instead of the number of cells, which
@@ -522,34 +542,47 @@ public abstract class DataLimits
                     stopInPartition();
             }
 
+            @Override
             public int counted()
             {
                 return rowsCounted;
             }
 
+            @Override
             public int countedInCurrentPartition()
             {
                 return rowsInCurrentPartition;
             }
 
+            @Override
             public int rowsCounted()
             {
                 return rowsCounted;
             }
 
+            @Override
             public int rowsCountedInCurrentPartition()
             {
                 return rowsInCurrentPartition;
             }
 
+            @Override
             public boolean isDone()
             {
                 return rowsCounted >= rowLimit;
             }
 
+            @Override
             public boolean isDoneForPartition()
             {
                 return isDone() || rowsInCurrentPartition >= perPartitionLimit;
+            }
+
+            @Override
+            public String toString()
+            {
+                return String.format("%s(rows=%s/%s, partition-rows=%s/%s)", this.getClass().getName(),
+                                     rowsCounted(), rowLimit, rowsCountedInCurrentPartition(), perPartitionLimit);
             }
         }
 
@@ -642,6 +675,16 @@ public abstract class DataLimits
                 }
             }
         }
+
+        @Override
+        public String toString()
+        {
+            return new StringJoiner(", ", CQLPagingLimits.class.getSimpleName() + "[", "]")
+                   .add("super=" + super.toString())
+                   .add("lastReturnedKey=" + (lastReturnedKey != null ? ByteBufferUtil.bytesToHex(lastReturnedKey) : null))
+                   .add("lastReturnedKeyRemaining=" + lastReturnedKeyRemaining)
+                   .toString();
+        }
     }
 
     /**
@@ -705,11 +748,13 @@ public abstract class DataLimits
             return true;
         }
 
+        @Override
         public boolean isUnlimited()
         {
             return groupLimit == NO_LIMIT && groupPerPartitionLimit == NO_LIMIT && rowLimit == NO_LIMIT;
         }
 
+        @Override
         public DataLimits forShortReadRetry(int toFetch)
         {
             return new CQLLimits(toFetch);
@@ -1056,6 +1101,13 @@ public abstract class DataLimits
 
                 super.onClose();
             }
+
+            @Override
+            public String toString()
+            {
+                return String.format("%s(rows=%s/%s, partition-rows=%s/%s, groups=%s/%s, partition-groups=%s/%s)", this.getClass().getName(),
+                                     rowsCounted(), rowLimit, rowsCountedInCurrentPartition(), perPartitionLimit, groupCounted, groupLimit, groupInCurrentPartition, groupPerPartitionLimit);
+            }
         }
     }
 
@@ -1143,6 +1195,16 @@ public abstract class DataLimits
                     super.applyToPartition(partitionKey, staticRow);
                 }
             }
+        }
+
+        @Override
+        public String toString()
+        {
+            return new StringJoiner(", ", CQLGroupByPagingLimits.class.getSimpleName() + "[", "]")
+                   .add("super=" + super.toString())
+                   .add("lastReturnedKey=" + (lastReturnedKey != null ? ByteBufferUtil.bytesToHex(lastReturnedKey) : null))
+                   .add("lastReturnedKeyRemaining=" + lastReturnedKeyRemaining)
+                   .toString();
         }
     }
 
