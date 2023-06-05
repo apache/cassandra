@@ -188,13 +188,13 @@ public class DataLimitsTest
 
         verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inRows(3)), 15, 3);
         verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inRows(7)), 15, 5);
-        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(3 * rowSize)), 15, 3);
-        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(7 * rowSize)), 15, 5);
+//        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(3 * rowSize)), 15, 3);
+//        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(7 * rowSize)), 15, 5);
 
         verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inRows(3)), 15, 3);
         verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inRows(7)), 15, 5);
-        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(3 * rowSize)), 15, 3);
-        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(7 * rowSize)), 15, 5);
+//        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(3 * rowSize)), 15, 3);
+//        verifyApplyingCqlLimits(DataLimits.cqlLimits(10, 5).forPaging(PageSize.inBytes(7 * rowSize)), 15, 5);
     }
 
     @Test

@@ -401,12 +401,12 @@ public abstract class DataLimits
 
         public DataLimits forPaging(PageSize pageSize)
         {
-            return new CQLLimits(pageSize.rows, perPartitionLimit, isDistinct);
+            return new CQLLimits(Math.min(rowLimit, pageSize.rows), perPartitionLimit, isDistinct);
         }
 
         public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            return new CQLPagingLimits(pageSize.rows, perPartitionLimit, isDistinct, lastReturnedKey, lastReturnedKeyRemaining);
+            return new CQLPagingLimits(Math.min(rowLimit, pageSize.rows), perPartitionLimit, isDistinct, lastReturnedKey, lastReturnedKeyRemaining);
         }
 
         public DataLimits forShortReadRetry(int toFetch)
@@ -727,7 +727,7 @@ public abstract class DataLimits
         @Override
         public DataLimits forPaging(PageSize pageSize)
         {
-            return new CQLGroupByLimits(pageSize.rows,
+            return new CQLGroupByLimits(Math.min(groupLimit, pageSize.rows),
                                         groupPerPartitionLimit,
                                         rowLimit,
                                         groupBySpec,
@@ -737,7 +737,7 @@ public abstract class DataLimits
         @Override
         public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            return new CQLGroupByPagingLimits(pageSize.rows,
+            return new CQLGroupByPagingLimits(Math.min(groupLimit, pageSize.rows),
                                               groupPerPartitionLimit,
                                               rowLimit,
                                               groupBySpec,
@@ -749,7 +749,7 @@ public abstract class DataLimits
         @Override
         public DataLimits forGroupByInternalPaging(GroupingState state)
         {
-            return new CQLGroupByLimits(rowLimit,
+            return new CQLGroupByLimits(groupLimit,
                                         groupPerPartitionLimit,
                                         rowLimit,
                                         groupBySpec,
