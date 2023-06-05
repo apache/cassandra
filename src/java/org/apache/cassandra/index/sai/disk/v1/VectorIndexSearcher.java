@@ -164,6 +164,9 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
                     break;
 
                 iterator.next();
+                // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
+                if (sstableRowId < metadata.minSSTableRowId)
+                    continue;
 
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
                 assert segmentRowId >= 0;
