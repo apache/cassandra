@@ -74,6 +74,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -123,10 +124,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SEARCH_CON
 import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_STORAGE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_DIR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_PORT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYSTEM;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
@@ -222,6 +223,8 @@ public class DatabaseDescriptor
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
+
+    private static PageSize aggregationSubPageSize;
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -967,6 +970,11 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        if (conf.aggregation_subpage_size.toBytes() <= 0)
+            throw new ConfigurationException("aggregation_subpage_size must be > 0");
+
+        setAggregationSubPageSize(new PageSize(10000, conf.aggregation_subpage_size.toBytes()));
     }
 
     @VisibleForTesting
@@ -4751,4 +4759,15 @@ public class DatabaseDescriptor
         else
             return conf.storage_compatibility_mode;
     }
+
+    public static PageSize getAggregationSubPageSize()
+    {
+        return aggregationSubPageSize;
+    }
+
+    public static void setAggregationSubPageSize(PageSize pageSize)
+    {
+        aggregationSubPageSize = pageSize;
+    }
+
 }

@@ -777,6 +777,8 @@ public class Config
      */
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
+    public volatile DataStorageSpec.IntBytesBound aggregation_subpage_size = new DataStorageSpec.IntBytesBound(2, DataStorageSpec.DataStorageUnit.MEBIBYTES);
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
