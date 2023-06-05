@@ -70,6 +70,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.index.sai.utils.RangeIntersectionIterator.INTERSECTION_CLAUSE_LIMIT;
+
 public class QueryController
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryController.class);
@@ -354,7 +356,7 @@ public class QueryController
             builder = RangeIntersectionIterator.<T>builder(subIterators.size(), subIterators.size());
         else
             // Otherwise, pick 2 most selective indexes for better performance
-            builder = RangeIntersectionIterator.<T>builder();
+            builder = RangeIntersectionIterator.<T>builder(INTERSECTION_CLAUSE_LIMIT);
 
         return builder.add(subIterators).build();
     }

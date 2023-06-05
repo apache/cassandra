@@ -66,7 +66,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
 
-    private static final String INVALID_LIMIT_MESSAGE = "requires specifying LIMIT that is not greater than 1000";
+    private static final String INVALID_LIMIT_MESSAGE = "Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than 1000";
 
     private static final double MIN_RECALL = 0.8;
 
@@ -262,8 +262,13 @@ public class VectorDistributedTest extends TestBaseImpl
 
             float[] queryVector = randomVector();
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            double recall = getRecall(resultVectors, queryVector, expected);
-            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            if (expected.isEmpty())
+                assertThat(resultVectors).isEmpty();
+            else
+            {
+                double recall = getRecall(resultVectors, queryVector, expected);
+                assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            }
         }
 
         cluster.forEach(n -> n.flush(KEYSPACE));
@@ -285,8 +290,13 @@ public class VectorDistributedTest extends TestBaseImpl
 
             float[] queryVector = randomVector();
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            double recall = getRecall(resultVectors, queryVector, expected);
-            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            if (expected.isEmpty())
+                assertThat(resultVectors).isEmpty();
+            else
+            {
+                double recall = getRecall(resultVectors, queryVector, expected);
+                assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            }
         }
     }
 

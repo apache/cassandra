@@ -302,8 +302,13 @@ public class VectorLocalTest extends SAITester
             float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
 
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
-            double recall = recallMatch(expected, resultVectors, expected.size());
-            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            if (expected.isEmpty())
+                assertThat(resultVectors).isEmpty();
+            else
+            {
+                double recall = recallMatch(expected, resultVectors, expected.size());
+                assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            }
         }
     }
 

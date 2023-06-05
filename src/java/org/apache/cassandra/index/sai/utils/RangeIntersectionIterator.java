@@ -42,7 +42,7 @@ public class RangeIntersectionIterator<T extends Comparable<T>> extends RangeIte
 
     // The cassandra.sai.intersection.clause.limit (default: 2) controls the maximum number of range iterator that
     // will be used in the final intersection of a query operation.
-    private static final int INTERSECTION_CLAUSE_LIMIT = Integer.getInteger("cassandra.sai.intersection.clause.limit", 2);
+    public static final int INTERSECTION_CLAUSE_LIMIT = Integer.getInteger("cassandra.sai.intersection.clause.limit", 2);
 
     static
     {
@@ -154,7 +154,7 @@ public class RangeIntersectionIterator<T extends Comparable<T>> extends RangeIte
 
     public static <T extends Comparable<T>> Builder<T> builder()
     {
-        return builder(INTERSECTION_CLAUSE_LIMIT);
+        return builder(Integer.MAX_VALUE);
     }
 
     public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>

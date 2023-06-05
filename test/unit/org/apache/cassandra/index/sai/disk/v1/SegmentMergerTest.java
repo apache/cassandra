@@ -86,7 +86,7 @@ public class SegmentMergerTest extends SAITester
         }
         flush();
 
-        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' with options =  {'enable_segment_compaction': true}");
         waitForIndexQueryable();
 
         // All we are interested in is that before the segment compaction there were more than 1 segment created
@@ -137,7 +137,7 @@ public class SegmentMergerTest extends SAITester
         }
         flush();
 
-        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' with options =  {'enable_segment_compaction': true}");
         waitForIndexQueryable();
 
         // All we are interested in is that before the segment compaction there were more than 1 segment created

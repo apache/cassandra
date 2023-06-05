@@ -68,13 +68,13 @@ import static org.junit.Assert.fail;
 public class SegmentFlushTest
 {
     private static long segmentRowIdOffset;
-    private static int posting1;
-    private static int posting2;
+    private static int minSegmentRowId;
+    private static int maxSegmentRowId;
     private static PrimaryKey minKey;
     private static PrimaryKey maxKey;
     private static ByteBuffer minTerm;
     private static ByteBuffer maxTerm;
-    private static int numRows;
+    private static int numRowsPerSegment;
 
     @BeforeClass
     public static void init()
@@ -92,11 +92,11 @@ public class SegmentFlushTest
     public void testFlushBetweenRowIds() throws Exception
     {
         // exceeds max rowId per segment
-        testFlushBetweenRowIds(0, Integer.MAX_VALUE, 1);
-        testFlushBetweenRowIds(0, Long.MAX_VALUE - 1, 1);
-        testFlushBetweenRowIds(0, SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1, 1);
-        testFlushBetweenRowIds(Integer.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Integer.MAX_VALUE - 1, 1);
-        testFlushBetweenRowIds(Long.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Long.MAX_VALUE - 1, 1);
+        testFlushBetweenRowIds(0, Integer.MAX_VALUE, 2);
+        testFlushBetweenRowIds(0, Long.MAX_VALUE - 1, 2);
+        testFlushBetweenRowIds(0, SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1, 2);
+        testFlushBetweenRowIds(Integer.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Integer.MAX_VALUE, 2);
+        testFlushBetweenRowIds(Long.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Long.MAX_VALUE, 2);
     }
 
     @Test
@@ -150,18 +150,35 @@ public class SegmentFlushTest
         List<SegmentMetadata> segmentMetadatas = SegmentMetadata.load(source, indexDescriptor.primaryKeyFactory);
         assertEquals(segments, segmentMetadatas.size());
 
-        // verify segment metadata
+        // verify 1st segment metadata: if there are 2 segments, key2 will be in second segment
         SegmentMetadata segmentMetadata = segmentMetadatas.get(0);
-        segmentRowIdOffset = 0;
-        posting1 = 0;
-        posting2 = (int) (sstableRowId2 - segmentRowIdOffset);
+        segmentRowIdOffset = sstableRowId1; // segmentRowIdOffset is the first sstable row id
+        minSegmentRowId = 0;
+        maxSegmentRowId = segments == 1 ? (int) (sstableRowId2 - segmentRowIdOffset) : 0;
         minKey = SAITester.TEST_FACTORY.createTokenOnly(key1.getToken());
-        maxKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+        maxKey = SAITester.TEST_FACTORY.createTokenOnly(segments == 1 ? key2.getToken() : key1.getToken());
         minTerm = term1;
-        maxTerm = term2;
-        numRows = 2;
+        maxTerm = segments == 1 ? term2 : term1;
+        numRowsPerSegment = segments == 1 ? 2 : 1;
         verifySegmentMetadata(segmentMetadata);
         verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
+
+        // verify 2nd segment
+        if (segments > 1)
+        {
+            segmentRowIdOffset = sstableRowId2;
+            minSegmentRowId = 0;
+            maxSegmentRowId = 0;
+            minKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+            maxKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+            minTerm = term2;
+            maxTerm = term2;
+            numRowsPerSegment = 1;
+
+            segmentMetadata = segmentMetadatas.get(1);
+            verifySegmentMetadata(segmentMetadata);
+            verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
+        }
     }
 
     private void verifyStringIndex(IndexDescriptor indexDescriptor, IndexContext indexContext, SegmentMetadata segmentMetadata) throws IOException
@@ -181,11 +198,11 @@ public class SegmentFlushTest
             assertEquals(minTerm, iterator.getMinTerm());
             assertEquals(maxTerm, iterator.getMaxTerm());
 
-            verifyTermPostings(iterator, minTerm, posting1, posting1);
+            verifyTermPostings(iterator, minTerm, minSegmentRowId, minSegmentRowId);
 
-            if (numRows > 1)
+            if (numRowsPerSegment > 1)
             {
-                verifyTermPostings(iterator, maxTerm, posting2, posting2);
+                verifyTermPostings(iterator, maxTerm, maxSegmentRowId, maxSegmentRowId);
             }
 
             assertFalse(iterator.hasNext());
@@ -208,7 +225,7 @@ public class SegmentFlushTest
         assertEquals(maxKey, segmentMetadata.maxKey);
         assertEquals(minTerm, segmentMetadata.minTerm);
         assertEquals(maxTerm, segmentMetadata.maxTerm);
-        assertEquals(numRows, segmentMetadata.numRows);
+        assertEquals(numRowsPerSegment, segmentMetadata.numRows);
     }
 
     private Row createRow(ColumnMetadata column, ByteBuffer value)
