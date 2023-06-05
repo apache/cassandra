@@ -6304,32 +6304,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
-    public int getTableCountWarnThreshold()
-    {
-        return DatabaseDescriptor.tableCountWarnThreshold();
-    }
-
-    public void setTableCountWarnThreshold(int value)
-    {
-        if (value < 0)
-            throw new IllegalStateException("Table count warn threshold should be positive, not "+value);
-        logger.info("Changing table count warn threshold from {} to {}", getTableCountWarnThreshold(), value);
-        DatabaseDescriptor.setTableCountWarnThreshold(value);
-    }
-
-    public int getKeyspaceCountWarnThreshold()
-    {
-        return DatabaseDescriptor.keyspaceCountWarnThreshold();
-    }
-
-    public void setKeyspaceCountWarnThreshold(int value)
-    {
-        if (value < 0)
-            throw new IllegalStateException("Keyspace count warn threshold should be positive, not "+value);
-        logger.info("Changing keyspace count warn threshold from {} to {}", getKeyspaceCountWarnThreshold(), value);
-        DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
-    }
-
     public Long getRepairRpcTimeout()
     {
         return DatabaseDescriptor.getRepairRpcTimeout(MILLISECONDS);
