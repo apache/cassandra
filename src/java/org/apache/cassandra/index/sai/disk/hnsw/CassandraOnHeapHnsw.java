@@ -31,9 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -54,8 +51,6 @@ import org.apache.lucene.util.hnsw.NeighborQueue;
 
 public class CassandraOnHeapHnsw<T>
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapHnsw.class);
-
     private final ConcurrentVectorValues vectorValues;
     private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final VectorType.VectorSerializer serializer;
@@ -212,10 +207,6 @@ public class CassandraOnHeapHnsw<T>
 
             Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
             metadataMap.put(IndexComponent.VECTOR, -1, vectorOffset, vectorLength, vectorConfigs);
-
-            logger.debug("## write vector index termsOffset={} termsLength={}\n", termsOffset, termsLength);
-            logger.debug("## write vector index postingsOffset={} postingsLength={}\n", postingsOffset, postingsLength);
-            logger.debug("## write vector index vectorOffset={} vectorLength={}\n", vectorOffset, vectorLength);
 
             return metadataMap;
         }
