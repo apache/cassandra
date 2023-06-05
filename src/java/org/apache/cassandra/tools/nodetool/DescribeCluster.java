@@ -119,7 +119,7 @@ public class DescribeCluster extends NodeToolCmd
             for (InetAddressAndPort endpoint : hostToTokens.keySet())
             {
                 totalNodes++;
-                if (unreachableNodes.contains(endpoint.toString()))
+                if (unreachableNodes.contains(endpoint.getHostAddressAndPort()))
                     downNodes++;
             }
             out.print(" #Nodes: " + totalNodes);
