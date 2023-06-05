@@ -236,6 +236,11 @@ public class TypeParser
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
+    public static String stringifyVectorParameters(AbstractType<?> type, boolean ignoreFreezing, int dimension)
+    {
+        return "(" + type.toString(ignoreFreezing) + " , " + dimension + ")";
+    }
+
     public Vector getVectorParameters()
     {
         if (isEOS())
