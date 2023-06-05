@@ -114,19 +114,19 @@ public class Component
         }
 
         @VisibleForTesting
-        public static Type fromRepresentation(String repr, SSTableFormat.Type formatType)
+        public static Type fromRepresentation(String repr, SSTableFormat<?, ?> format)
         {
             for (Type type : Type.all)
             {
-                if (type.repr != null && Pattern.matches(type.repr, repr) && type.formatClass.isAssignableFrom(formatType.info.getClass()))
+                if (type.repr != null && Pattern.matches(type.repr, repr) && type.formatClass.isAssignableFrom(format.getClass()))
                     return type;
             }
             return Types.CUSTOM;
         }
 
-        public static Component createComponent(String repr, SSTableFormat.Type formatType)
+        public static Component createComponent(String repr, SSTableFormat<?, ?> format)
         {
-            Type type = fromRepresentation(repr, formatType);
+            Type type = fromRepresentation(repr, format);
             if (type.singleton != null)
                 return type.singleton;
             else
@@ -199,9 +199,9 @@ public class Component
      * @return the component corresponding to {@code name}. Note that this always return a component as an unrecognized
      * name is parsed into a CUSTOM component.
      */
-    public static Component parse(String name, SSTableFormat.Type formatType)
+    public static Component parse(String name, SSTableFormat<?, ?> format)
     {
-        return Type.createComponent(name, formatType);
+        return Type.createComponent(name, format);
     }
 
     public static Iterable<Component> getSingletonsFor(SSTableFormat<?, ?> format)
@@ -216,7 +216,7 @@ public class Component
 
     public boolean isValidFor(Descriptor descriptor)
     {
-        return type.formatClass.isAssignableFrom(descriptor.formatType.info.getClass());
+        return type.formatClass.isAssignableFrom(descriptor.version.format.getClass());
     }
 
     @Override

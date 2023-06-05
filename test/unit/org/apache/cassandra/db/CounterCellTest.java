@@ -118,7 +118,7 @@ public class CounterCellTest
         return BufferCell.live(cDef, ts, context.context);
     }
 
-    private Cell<?> createDeleted(ColumnFamilyStore cfs, ByteBuffer colName, long ts, int localDeletionTime)
+    private Cell<?> createDeleted(ColumnFamilyStore cfs, ByteBuffer colName, long ts, long localDeletionTime)
     {
         ColumnMetadata cDef = cfs.metadata().getColumn(colName);
         return BufferCell.tombstone(cDef, ts, localDeletionTime);
@@ -177,7 +177,7 @@ public class CounterCellTest
         assertEquals(reconciled.timestamp(), 7L);
 
         // Confirm no deletion time
-        assert reconciled.localDeletionTime() == Integer.MAX_VALUE;
+        assert reconciled.localDeletionTime() == Cell.NO_DELETION_TIME;
 
         Cell<?> deleted = createDeleted(cfs, col, 8, 8);
         reconciled = Cells.reconcile(reconciled, deleted);

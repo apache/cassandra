@@ -34,6 +34,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.CachedPartition;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -48,18 +49,20 @@ import static org.junit.Assert.assertEquals;
  */
 public class RangeCommandsTest extends CQLTester
 {
+
+    static WithProperties properties;
     private static final int MAX_CONCURRENCY_FACTOR = 4;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        MAX_CONCURRENT_RANGE_REQUESTS.setInt(MAX_CONCURRENCY_FACTOR);
+        properties = new WithProperties().set(MAX_CONCURRENT_RANGE_REQUESTS, MAX_CONCURRENCY_FACTOR);
     }
 
     @AfterClass
     public static void cleanup()
     {
-        MAX_CONCURRENT_RANGE_REQUESTS.clearValue();
+        properties.close();
     }
 
     @Test
@@ -235,13 +238,13 @@ public class RangeCommandsTest extends CQLTester
         }
 
         @Override
-        public boolean hasEnoughLiveData(CachedPartition cached, int nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
+        public boolean hasEnoughLiveData(CachedPartition cached, long nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
         {
             return wrapped.hasEnoughLiveData(cached, nowInSec, countPartitionsWithOnlyStaticData, enforceStrictLiveness);
         }
 
         @Override
-        public Counter newCounter(int nowInSec, boolean assumeLiveData, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
+        public Counter newCounter(long nowInSec, boolean assumeLiveData, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
         {
             return wrapped.newCounter(nowInSec, assumeLiveData, countPartitionsWithOnlyStaticData, enforceStrictLiveness);
         }

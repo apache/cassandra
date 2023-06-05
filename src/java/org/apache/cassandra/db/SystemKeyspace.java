@@ -1302,7 +1302,7 @@ public final class SystemKeyspace
     /**
      * Load the current paxos state for the table and key
      */
-    public static PaxosState.Snapshot loadPaxosState(DecoratedKey partitionKey, TableMetadata metadata, int nowInSec)
+    public static PaxosState.Snapshot loadPaxosState(DecoratedKey partitionKey, TableMetadata metadata, long nowInSec)
     {
         String cql = "SELECT * FROM system." + PAXOS + " WHERE row_key = ? AND cf_id = ?";
         List<Row> results = QueryProcessor.executeInternalRawWithNow(nowInSec, cql, partitionKey.getKey(), metadata.id.asUUID()).get(partitionKey);
@@ -1383,9 +1383,9 @@ public final class SystemKeyspace
     {
         if (proposal instanceof AcceptedWithTTL)
         {
-            int localDeletionTime = ((Commit.AcceptedWithTTL) proposal).localDeletionTime;
+            long localDeletionTime = ((Commit.AcceptedWithTTL) proposal).localDeletionTime;
             int ttlInSec = legacyPaxosTtlSec(proposal.update.metadata());
-            int nowInSec = localDeletionTime - ttlInSec;
+            long nowInSec = localDeletionTime - ttlInSec;
             String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = ?, proposal = ?, proposal_version = ? WHERE row_key = ? AND cf_id = ?";
             executeInternalWithNowInSec(cql,
                                         nowInSec,
@@ -1416,9 +1416,9 @@ public final class SystemKeyspace
         // even though that's really just an optimization  since SP.beginAndRepairPaxos will exclude accepted proposal older than the mrc.
         if (commit instanceof Commit.CommittedWithTTL)
         {
-            int localDeletionTime = ((Commit.CommittedWithTTL) commit).localDeletionTime;
+            long localDeletionTime = ((Commit.CommittedWithTTL) commit).localDeletionTime;
             int ttlInSec = legacyPaxosTtlSec(commit.update.metadata());
-            int nowInSec = localDeletionTime - ttlInSec;
+            long nowInSec = localDeletionTime - ttlInSec;
             String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, proposal_version = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
             executeInternalWithNowInSec(cql,
                             nowInSec,
@@ -1550,10 +1550,10 @@ public final class SystemKeyspace
     public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(LegacySizeEstimates, UTF8Type.instance.decompose(keyspace), LegacySizeEstimates.regularAndStaticColumns(), estimates.size());
         // delete all previous values with a single range tombstone.
-        update.add(new RangeTombstone(Slice.make(LegacySizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
+        update.add(new RangeTombstone(Slice.make(LegacySizeEstimates.comparator, table), DeletionTime.build(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
@@ -1575,11 +1575,11 @@ public final class SystemKeyspace
     public static void updateTableEstimates(String keyspace, String table, String type, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(TableEstimates, UTF8Type.instance.decompose(keyspace), TableEstimates.regularAndStaticColumns(), estimates.size());
 
         // delete all previous values with a single range tombstone.
-        update.add(new RangeTombstone(Slice.make(TableEstimates.comparator, table, type), new DeletionTime(timestamp - 1, nowInSec)));
+        update.add(new RangeTombstone(Slice.make(TableEstimates.comparator, table, type), DeletionTime.build(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())

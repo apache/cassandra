@@ -59,7 +59,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  * (long) position (64 bit long, vint encoded)
  *  (int) serialized size of data that follows (32 bit int, vint encoded)
  * -- following for indexed entries only (so serialized size > 0)
- *  (int) DeletionTime.localDeletionTime
+ *  (int) int/Uint DeletionTime.localDeletionTime (uint if version >= "oa" (5.0))
  * (long) DeletionTime.markedForDeletionAt
  *  (int) number of IndexInfo objects (32 bit int, vint encoded)
  *    (*) serialized IndexInfo objects, see below
@@ -137,6 +137,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class RowIndexEntry extends AbstractRowIndexEntry
 {
+    private static final BigFormat FORMAT = BigFormat.getInstance();
     private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
 
     // constants for type of row-index-entry as serialized for saved-cache
@@ -169,7 +170,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     @Override
     public boolean isIndexed()
     {
-        return columnsIndexCount() > 1;
+        return blockCount() > 1;
     }
 
     public boolean indexOnHeap()
@@ -184,7 +185,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     }
 
     @Override
-    public int columnsIndexCount()
+    public int blockCount()
     {
         return 0;
     }
@@ -192,7 +193,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     @Override
     public BigFormat getSSTableFormat()
     {
-        return BigFormat.getInstance();
+        return FORMAT;
     }
 
     @Override
@@ -216,7 +217,8 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                                                   DeletionTime deletionTime, long headerLength, int columnIndexCount,
                                                   int indexedPartSize,
                                                   List<IndexInfo> indexSamples, int[] offsets,
-                                                  ISerializer<IndexInfo> idxInfoSerializer)
+                                                  ISerializer<IndexInfo> idxInfoSerializer,
+                                                  Version version)
     {
         // If the "partition building code" in BigTableWriter.append() via ColumnIndex returns a list
         // of IndexInfo objects, which is the case if the serialized size is less than
@@ -225,14 +227,14 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         if (indexSamples != null && indexSamples.size() > 1)
             return new IndexedEntry(dataFilePosition, deletionTime, headerLength,
                                     indexSamples.toArray(new IndexInfo[indexSamples.size()]), offsets,
-                                    indexedPartSize, idxInfoSerializer);
+                                    indexedPartSize, idxInfoSerializer, version);
         // Here we have to decide whether we have serialized IndexInfo objects that exceeds
         // Config.column_index_cache_size (not exceeding case covered above).
         // Such a "big" indexed-entry is represented as a shallow one.
         if (columnIndexCount > 1)
             return new ShallowIndexedEntry(dataFilePosition, indexFilePosition,
                                            deletionTime, headerLength, columnIndexCount,
-                                           indexedPartSize, idxInfoSerializer);
+                                           indexedPartSize, idxInfoSerializer, version);
         // Last case is that there are no index samples.
         return new RowIndexEntry(dataFilePosition);
     }
@@ -309,15 +311,15 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                 case CACHE_NOT_INDEXED:
                     return new RowIndexEntry(position);
                 case CACHE_INDEXED:
-                    return new IndexedEntry(position, in, idxInfoSerializer);
+                    return new IndexedEntry(position, in, idxInfoSerializer, version);
                 case CACHE_INDEXED_SHALLOW:
-                    return new ShallowIndexedEntry(position, in, idxInfoSerializer);
+                    return new ShallowIndexedEntry(position, in, idxInfoSerializer, version);
                 default:
                     throw new AssertionError();
             }
         }
 
-        public static void skipForCache(DataInputPlus in) throws IOException
+        public static void skipForCache(DataInputPlus in, Version version) throws IOException
         {
             in.readUnsignedVInt();
             switch (in.readByte())
@@ -325,10 +327,10 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                 case CACHE_NOT_INDEXED:
                     break;
                 case CACHE_INDEXED:
-                    IndexedEntry.skipForCache(in);
+                    IndexedEntry.skipForCache(in, version);
                     break;
                 case CACHE_INDEXED_SHALLOW:
-                    ShallowIndexedEntry.skipForCache(in);
+                    ShallowIndexedEntry.skipForCache(in, version);
                     break;
                 default:
                     assert false;
@@ -348,17 +350,17 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             else
             {
                 long headerLength = in.readUnsignedVInt();
-                DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
+                DeletionTime deletionTime = DeletionTime.getSerializer(version).deserialize(in);
                 int columnsIndexCount = in.readUnsignedVInt32();
 
                 checkSize(columnsIndexCount, size);
 
-                int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount);
+                int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount, version);
 
                 if (size <= DatabaseDescriptor.getColumnIndexCacheSize())
                 {
                     return new IndexedEntry(position, in, deletionTime, headerLength, columnsIndexCount,
-                                            idxInfoSerializer, indexedPartSize);
+                                            idxInfoSerializer, indexedPartSize, version);
                 }
                 else
                 {
@@ -367,7 +369,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                     return new ShallowIndexedEntry(position,
                                                    indexFilePosition,
                                                    deletionTime, headerLength, columnsIndexCount,
-                                                   indexedPartSize, idxInfoSerializer);
+                                                   indexedPartSize, idxInfoSerializer, version);
                 }
             }
         }
@@ -454,10 +456,11 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         }
     }
 
-    private static int serializedSize(DeletionTime deletionTime, long headerLength, int columnIndexCount)
+    private static int serializedSize(DeletionTime deletionTime, long headerLength, int columnIndexCount, Version version)
     {
+        int dlt = (int) DeletionTime.getSerializer(version).serializedSize(deletionTime); 
         return TypeSizes.sizeofUnsignedVInt(headerLength)
-               + (int) DeletionTime.serializer.serializedSize(deletionTime)
+               + dlt
                + TypeSizes.sizeofUnsignedVInt(columnIndexCount);
     }
 
@@ -484,7 +487,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
         static
         {
-            BASE_SIZE = ObjectSizes.measure(new IndexedEntry(0, DeletionTime.LIVE, 0, null, null, 0, null));
+            BASE_SIZE = ObjectSizes.measure(new IndexedEntry(0, DeletionTime.LIVE, 0, null, null, 0, null, BigFormat.getInstance().getLatestVersion()));
         }
 
         private final DeletionTime deletionTime;
@@ -495,10 +498,12 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         private final int indexedPartSize;
         @Unmetered
         private final ISerializer<IndexInfo> idxInfoSerializer;
+        
+        private final Version version;
 
         private IndexedEntry(long dataFilePosition, DeletionTime deletionTime, long headerLength,
                              IndexInfo[] columnsIndex, int[] offsets,
-                             int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer)
+                             int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer, Version version)
         {
             super(dataFilePosition);
 
@@ -509,11 +514,12 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             this.offsets = offsets;
             this.indexedPartSize = indexedPartSize;
             this.idxInfoSerializer = idxInfoSerializer;
+            this.version = version;
         }
 
         private IndexedEntry(long dataFilePosition, DataInputPlus in,
                              DeletionTime deletionTime, long headerLength, int columnIndexCount,
-                             IndexInfo.Serializer idxInfoSerializer, int indexedPartSize) throws IOException
+                             IndexInfo.Serializer idxInfoSerializer, int indexedPartSize, Version version) throws IOException
         {
             super(dataFilePosition);
 
@@ -532,18 +538,21 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             this.indexedPartSize = indexedPartSize;
 
             this.idxInfoSerializer = idxInfoSerializer;
+            this.version = version;
         }
 
         /**
          * Constructor called from {@link Serializer#deserializeForCache(org.apache.cassandra.io.util.DataInputPlus)}.
          */
-        private IndexedEntry(long dataFilePosition, DataInputPlus in, ISerializer<IndexInfo> idxInfoSerializer) throws IOException
+        private IndexedEntry(long dataFilePosition, DataInputPlus in, ISerializer<IndexInfo> idxInfoSerializer, Version version) throws IOException
         {
             super(dataFilePosition);
 
             this.headerLength = in.readUnsignedVInt();
-            this.deletionTime = DeletionTime.serializer.deserialize(in);
+            this.version = version;
+            this.deletionTime = DeletionTime.getSerializer(version).deserialize(in);
             int columnsIndexCount = in.readUnsignedVInt32();
+
 
             TrackedDataInputPlus trackedIn = new TrackedDataInputPlus(in);
 
@@ -565,7 +574,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         }
 
         @Override
-        public int columnsIndexCount()
+        public int blockCount()
         {
             return columnsIndex.length;
         }
@@ -579,7 +588,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         @Override
         public IndexInfoRetriever openWithIndex(FileHandle indexFile)
         {
-            indexEntrySizeHistogram.update(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
+            indexEntrySizeHistogram.update(serializedSize(deletionTime, headerLength, columnsIndex.length, version) + indexedPartSize);
             indexInfoCountHistogram.update(columnsIndex.length);
             return new IndexInfoRetriever()
             {
@@ -618,11 +627,13 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
             out.writeUnsignedVInt(position);
 
-            out.writeUnsignedVInt32(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
+            out.writeUnsignedVInt32(serializedSize(deletionTime, headerLength, columnsIndex.length, version) + indexedPartSize);
 
             out.writeUnsignedVInt(headerLength);
-            DeletionTime.serializer.serialize(deletionTime, out);
+
+            DeletionTime.getSerializer(version).serialize(deletionTime, out);
             out.writeUnsignedVInt32(columnsIndex.length);
+            
             for (IndexInfo info : columnsIndex)
                 idxInfoSerializer.serialize(info, out);
             for (int offset : offsets)
@@ -636,17 +647,17 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             out.writeByte(CACHE_INDEXED);
 
             out.writeUnsignedVInt(headerLength);
-            DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt32(columnsIndexCount());
+            DeletionTime.getSerializer(version).serialize(deletionTime, out);
+            out.writeUnsignedVInt32(blockCount());
 
             for (IndexInfo indexInfo : columnsIndex)
                 idxInfoSerializer.serialize(indexInfo, out);
         }
 
-        static void skipForCache(DataInputPlus in) throws IOException
+        static void skipForCache(DataInputPlus in, Version version) throws IOException
         {
             in.readUnsignedVInt();
-            DeletionTime.serializer.skip(in);
+            DeletionTime.getSerializer(version).skip(in);
             in.readUnsignedVInt();
 
             in.readUnsignedVInt();
@@ -663,7 +674,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
         static
         {
-            BASE_SIZE = ObjectSizes.measure(new ShallowIndexedEntry(0, 0, DeletionTime.LIVE, 0, 10, 0, null));
+            BASE_SIZE = ObjectSizes.measure(new ShallowIndexedEntry(0, 0, DeletionTime.LIVE, 0, 10, 0, null, BigFormat.getInstance().getLatestVersion()));
         }
 
         private final long indexFilePosition;
@@ -677,14 +688,15 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         @Unmetered
         private final ISerializer<IndexInfo> idxInfoSerializer;
         private final int fieldsSerializedSize;
+        private final Version version;
 
         /**
-         * See {@link #create(long, long, DeletionTime, long, int, int, List, int[], ISerializer)} for a description
+         * See {@link #create(long, long, DeletionTime, long, int, int, List, int[], ISerializer, Version)} for a description
          * of the parameters.
          */
         private ShallowIndexedEntry(long dataFilePosition, long indexFilePosition,
                                     DeletionTime deletionTime, long headerLength, int columnIndexCount,
-                                    int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer)
+                                    int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer, Version version)
         {
             super(dataFilePosition);
 
@@ -698,33 +710,36 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             this.indexedPartSize = indexedPartSize;
             this.idxInfoSerializer = idxInfoSerializer;
 
-            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnIndexCount);
+            this.version = version;
+            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnIndexCount, this.version);
             this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.INT_SIZE;
         }
 
         /**
          * Constructor for key-cache deserialization
          */
-        private ShallowIndexedEntry(long dataFilePosition, DataInputPlus in, IndexInfo.Serializer idxInfoSerializer) throws IOException
+        private ShallowIndexedEntry(long dataFilePosition, DataInputPlus in, IndexInfo.Serializer idxInfoSerializer, Version version) throws IOException
         {
             super(dataFilePosition);
 
             this.indexFilePosition = in.readUnsignedVInt();
 
             this.headerLength = in.readUnsignedVInt();
-            this.deletionTime = DeletionTime.serializer.deserialize(in);
+            this.version = version;
+
+            this.deletionTime = DeletionTime.getSerializer(version).deserialize(in);
             this.columnsIndexCount = in.readUnsignedVInt32();
 
             this.indexedPartSize = in.readUnsignedVInt32();
 
             this.idxInfoSerializer = idxInfoSerializer;
 
-            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnsIndexCount);
+            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnsIndexCount, this.version);
             this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.INT_SIZE;
         }
 
         @Override
-        public int columnsIndexCount()
+        public int blockCount()
         {
             return columnsIndexCount;
         }
@@ -762,7 +777,8 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             out.writeUnsignedVInt32(fieldsSerializedSize + indexInfo.limit());
 
             out.writeUnsignedVInt(headerLength);
-            DeletionTime.serializer.serialize(deletionTime, out);
+
+            DeletionTime.getSerializer(version).serialize(deletionTime, out);
             out.writeUnsignedVInt32(columnsIndexCount);
 
             out.write(indexInfo);
@@ -777,18 +793,18 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             out.writeUnsignedVInt(indexFilePosition);
 
             out.writeUnsignedVInt(headerLength);
-            DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt32(columnsIndexCount);
 
+            DeletionTime.getSerializer(version).serialize(deletionTime, out);
+            out.writeUnsignedVInt32(columnsIndexCount);
             out.writeUnsignedVInt32(indexedPartSize);
         }
 
-        static void skipForCache(DataInputPlus in) throws IOException
+        static void skipForCache(DataInputPlus in, Version version) throws IOException
         {
             in.readUnsignedVInt();
 
             in.readUnsignedVInt();
-            DeletionTime.serializer.skip(in);
+            DeletionTime.getSerializer(version).skip(in);
             in.readUnsignedVInt();
 
             in.readUnsignedVInt();

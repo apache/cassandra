@@ -1083,7 +1083,7 @@ public class CustomIndexTest extends CQLTester
 
         public Indexer indexerFor(final DecoratedKey key,
                                   RegularAndStaticColumns columns,
-                                  int nowInSec,
+                                  long nowInSec,
                                   WriteContext ctx,
                                   IndexTransaction.Type transactionType)
         {

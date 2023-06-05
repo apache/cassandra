@@ -160,6 +160,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSA
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCassandraInetAddressAndPort;
@@ -177,6 +178,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private volatile boolean initialized = false;
     private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
+    private IsolatedJmx isolatedJmx;
 
     @Deprecated
     Instance(IInstanceConfig config, ClassLoader classLoader)
@@ -603,6 +605,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                                                                                     config.networkTopology(), config.broadcastAddress());
                 DistributedTestSnitch.assign(config.networkTopology());
 
+                if (config.has(JMX))
+                    startJmx();
+
                 DatabaseDescriptor.daemonInitialization();
                 LoggingSupportFactory.getLoggingSupport().onStartup();
 
@@ -723,6 +728,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     StorageService.instance.setNormalModeUnsafe();
                     Gossiper.instance.register(StorageService.instance);
                     StorageService.instance.startSnapshotManager();
+                    StorageService.instance.completeInitialization();
                 }
 
                 // Populate tokenMetadata for the second time,
@@ -757,6 +763,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
 
         initialized = true;
+    }
+
+    private void startJmx()
+    {
+        this.isolatedJmx = new IsolatedJmx(this, inInstancelogger);
+        isolatedJmx.startJmx();
+    }
+
+    private void stopJmx() throws IllegalAccessException, NoSuchFieldException, InterruptedException
+    {
+        if (config.has(JMX))
+        {
+            isolatedJmx.stopJmx();
+        }
     }
 
     // Update the messaging versions for all instances
@@ -900,6 +920,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
+            
+            error = parallelRun(error, executor, this::stopJmx);
 
             // Make sure any shutdown hooks registered for DeleteOnExit are released to prevent
             // references to the instance class loaders from being held

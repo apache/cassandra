@@ -209,7 +209,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         {
             case LEGACY:
                 return asComparableBytesLegacy(accessor, data);
-            case OSS42:
+            case OSS50:
                 return asComparableBytesNew(accessor, data, version);
             default:
                 throw new AssertionError();
@@ -255,7 +255,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
     {
-        assert version == ByteComparable.Version.OSS42; // Reverse translation is not supported for the legacy version.
+        assert version == ByteComparable.Version.OSS50; // Reverse translation is not supported for the legacy version.
         if (comparableBytes == null)
             return accessor.empty();
 

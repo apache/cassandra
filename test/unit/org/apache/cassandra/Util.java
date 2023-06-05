@@ -115,7 +115,6 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -309,7 +308,7 @@ public class Util
             assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
 
-    public static Future<?> compactAll(ColumnFamilyStore cfs, int gcBefore)
+    public static Future<?> compactAll(ColumnFamilyStore cfs, long gcBefore)
     {
         List<Descriptor> descriptors = new ArrayList<>();
         for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -319,7 +318,7 @@ public class Util
 
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
-        int gcBefore = cfs.gcBefore(FBUtilities.nowInSeconds());
+        long gcBefore = cfs.gcBefore(FBUtilities.nowInSeconds());
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore))
         {
             for (AbstractCompactionTask task : tasks)
@@ -1260,6 +1259,6 @@ public class Util
 
     public static RuntimeException testMustBeImplementedForSSTableFormat()
     {
-        return new UnsupportedOperationException("Test must be implemented for sstable format " + SSTableFormat.Type.current().info.getClass().getName());
+        return new UnsupportedOperationException("Test must be implemented for sstable format " + DatabaseDescriptor.getSelectedSSTableFormat().getClass().getName());
     }
 }

@@ -41,7 +41,6 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
-	dh_python3
 
 	# Copy in the jar and symlink to something stable
 	dh_install build/apache-cassandra-$(VERSION).jar \

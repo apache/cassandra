@@ -165,7 +165,7 @@ public class PartitionImplementationTest
             while (!delTimes.add(delTime));
 
             int start = rand.nextInt(KEY_RANGE);
-            DeletionTime dt = new DeletionTime(delTime, delTime);
+            DeletionTime dt = DeletionTime.build(delTime, delTime);
             RangeTombstoneMarker open = RangeTombstoneBoundMarker.inclusiveOpen(false, clustering(start), dt);
             int end = start + rand.nextInt((KEY_RANGE - start) / 4 + 1);
             RangeTombstoneMarker close = RangeTombstoneBoundMarker.inclusiveClose(false, clustering(end), dt);

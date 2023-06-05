@@ -51,6 +51,7 @@ import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CounterMutation implements IMutation
@@ -271,7 +272,7 @@ public class CounterMutation implements IMutation
                 builder.select(mark.column(), mark.path());
         }
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names.build(), false);
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, key(), builder.build(), filter);
         PeekingIterator<PartitionUpdate.CounterMark> markIter = Iterators.peekingIterator(marks.iterator());
@@ -334,6 +335,7 @@ public class CounterMutation implements IMutation
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize50;
 
     public int serializedSize(int version)
     {
@@ -351,6 +353,10 @@ public class CounterMutation implements IMutation
                 if (serializedSize40 == 0)
                     serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_50:
+                if (serializedSize50 == 0)
+                    serializedSize50 = (int) serializer.serializedSize(this, VERSION_50);
+                return serializedSize50;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }

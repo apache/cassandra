@@ -45,7 +45,7 @@ public abstract class AbstractMemtable implements Memtable
     // The smallest timestamp for all partitions stored in this memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
     // The smallest local deletion time for all partitions in this memtable
-    protected AtomicInteger minLocalDeletionTime = new AtomicInteger(Integer.MAX_VALUE);
+    protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -81,7 +81,7 @@ public abstract class AbstractMemtable implements Memtable
         return minTimestamp.get() != EncodingStats.NO_STATS.minTimestamp ? minTimestamp.get() : NO_MIN_TIMESTAMP;
     }
 
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return minLocalDeletionTime.get();
     }

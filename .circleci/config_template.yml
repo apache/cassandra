@@ -135,6 +135,7 @@ default_env_vars: &default_env_vars
     # REPEATED_ANT_TEST_TARGET: test-cdc
     # REPEATED_ANT_TEST_TARGET: test-compression
     # REPEATED_ANT_TEST_TARGET: test-trie
+    # REPEATED_ANT_TEST_TARGET: test-oa
     # REPEATED_ANT_TEST_TARGET: test-system-keyspace-directory
     REPEATED_ANT_TEST_TARGET: testsome
     # The name of JUnit class to be run multiple times, for example:
@@ -257,6 +258,22 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j8_unit_tests
           - j8_build
+    - j8_utests_oa:
+        requires:
+          - start_j8_unit_tests
+          - j8_build
+    - start_j8_utests_oa_repeat:
+        type: approval
+    - j8_utests_oa_repeat:
+        requires:
+          - start_j8_utests_oa_repeat
+          - j8_build
+    - start_j11_utests_oa_repeat:
+        type: approval
+    - j11_utests_oa_repeat:
+        requires:
+          - start_j11_utests_oa_repeat
+          - j8_build
     - start_j8_unit_tests_repeat:
         type: approval
     - j8_unit_tests_repeat:
@@ -351,6 +368,10 @@ j8_separate_jobs: &j8_separate_jobs
     - start_j11_unit_tests:
         type: approval
     - j11_unit_tests:
+        requires:
+          - start_j11_unit_tests
+          - j8_build
+    - j11_utests_oa:
         requires:
           - start_j11_unit_tests
           - j8_build
@@ -798,6 +819,15 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - j8_unit_tests:
         requires:
           - j8_build
+    - j8_utests_oa:
+        requires:
+          - j8_build
+    - j8_utests_oa_repeat:
+        requires:
+          - j8_build
+    - j11_utests_oa_repeat:
+        requires:
+          - j8_build
     - j8_unit_tests_repeat:
         requires:
           - j8_build
@@ -845,6 +875,9 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - j8_build
     # Java 11 unit tests
     - j11_unit_tests:
+        requires:
+          - j8_build
+    - j11_utests_oa:
         requires:
           - j8_build
     - j11_unit_tests_repeat:
@@ -1164,6 +1197,16 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_unit_tests
           - j11_build
+    - j11_utests_oa:
+        requires:
+          - start_j11_unit_tests
+          - j11_build
+    - start_j11_utests_oa_repeat:
+        type: approval
+    - j11_utests_oa_repeat:
+        requires:
+          - start_j11_utests_oa_repeat
+          - j11_build
     - start_j11_unit_tests_repeat:
         type: approval
     - j11_unit_tests_repeat:
@@ -1423,6 +1466,12 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_unit_tests:
         requires:
           - j11_build
+    - j11_utests_oa:
+        requires:
+          - j11_build
+    - j11_utests_oa_repeat:
+        requires:
+          - j11_build
     - j11_unit_tests_repeat:
         requires:
           - j11_build
@@ -1678,6 +1727,16 @@ jobs:
       - log_environment
       - run_parallel_junit_tests
 
+  j8_utests_oa:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: "testclasslist-oa"
+
   j8_simulator_dtests:
     <<: *j8_small_executor
     steps:
@@ -1771,6 +1830,16 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests
+
+  j11_utests_oa:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: "testclasslist-oa"
 
   j8_cqlshlib_tests:
     <<: *j8_small_executor
@@ -2454,6 +2523,22 @@ jobs:
           at: /home/cassandra
       - log_environment
       - run_utests_trie_repeat
+      
+  j8_utests_oa_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_oa_repeat
+
+  j11_utests_oa_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_oa_repeat
 
   j8_utests_system_keyspace_directory_repeat:
     <<: *j8_repeated_utest_executor
@@ -3194,6 +3279,14 @@ commands:
           tests: ${REPEATED_UTESTS}
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          
+  run_utests_oa_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-oa
+          tests: ${REPEATED_UTESTS}
+          count: ${REPEATED_UTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
   run_utests_system_keyspace_directory_repeat:
     steps:
@@ -3316,6 +3409,8 @@ commands:
               testtag="system_keyspace_directory"
             elif [[ $target == "test-trie" ]]; then
               testtag="trie"
+            elif [[ $target == "test-oa" ]]; then
+              testtag="oa"
             fi
 
             # Run each test class as many times as requested.
@@ -3337,6 +3432,7 @@ commands:
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
                       $target == "test-trie" || \
+                      $target == "test-oa" || \
                       $target == "test-system-keyspace-directory" || \
                       $target == "fqltool-test" || \
                       $target == "long-test" || \
@@ -3464,6 +3560,7 @@ commands:
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
                       $target == "test-trie" || \
+                      $target == "test-oa" || \
                       $target == "test-system-keyspace-directory" || \
                       $target == "fqltool-test" || \
                       $target == "long-test" || \

@@ -43,9 +43,9 @@ public class MigrationCoordinatorTest extends TestBaseImpl
     @Before
     public void setUp()
     {
-        REPLACE_ADDRESS.clearValue();
-        CONSISTENT_RANGE_MOVEMENT.clearValue();
-        IGNORED_SCHEMA_CHECK_VERSIONS.clearValue();
+        REPLACE_ADDRESS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        CONSISTENT_RANGE_MOVEMENT.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        IGNORED_SCHEMA_CHECK_VERSIONS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
     /**
      * We shouldn't wait on versions only available from a node being replaced

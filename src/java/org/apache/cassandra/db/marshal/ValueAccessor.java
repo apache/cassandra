@@ -65,7 +65,7 @@ public interface ValueAccessor<V>
      */
     public interface ObjectFactory<V>
     {
-        Cell<V> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, V value, CellPath path);
+        Cell<V> cell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, V value, CellPath path);
         Clustering<V> clustering(V... values);
         Clustering<V> clustering();
         Clustering<V> staticClustering();

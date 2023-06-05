@@ -29,6 +29,7 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 
@@ -200,6 +201,8 @@ public enum CassandraRelevantProperties
     DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", convertToString(TimeUnit.MINUTES.toMillis(5))),
     DROP_OVERSIZED_READ_REPAIR_MUTATIONS("cassandra.drop_oversized_readrepair_mutations"),
     DTEST_API_LOG_TOPOLOGY("cassandra.dtest.api.log.topology"),
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
     ENABLE_DC_LOCAL_COMMIT("cassandra.enable_dc_local_commit", "true"),
     /**
      * Whether {@link org.apache.cassandra.db.ConsistencyLevel#NODE_LOCAL} should be allowed.
@@ -263,6 +266,11 @@ public enum CassandraRelevantProperties
      */
     JAVA_LIBRARY_PATH("java.library.path"),
     /**
+     * Controls the distributed garbage collector lease time for JMX objects.
+     * Should only be set by in-jvm dtests.
+     */
+    JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST("java.rmi.dgc.leaseValue"),
+    /**
      * The value of this property represents the host name string
      * that should be associated with remote stubs for locally created remote objects,
      * in order to allow clients to invoke methods on the remote object.
@@ -280,6 +288,14 @@ public enum CassandraRelevantProperties
     /** Java Virtual Machine implementation name */
     JAVA_VM_NAME("java.vm.name"),
     JOIN_RING("cassandra.join_ring", "true"),
+    /**
+     * {@link StorageCompatibilityMode} mode sets how the node will behave, sstable or messaging versions to use etc according to a yaml setting. 
+     * But many tests don't load the config hence we need to force it otherwise they would run always under the default. Config is null for junits 
+     * that don't load the config. Get from env var that CI/build.xml sets.
+     *
+     * This is a dev/CI only property. Do not use otherwise.
+     */
+    JUNIT_STORAGE_COMPATIBILITY_MODE("cassandra.junit_storage_compatibility_mode", StorageCompatibilityMode.CASSANDRA_4.toString()),
     /** startup checks properties */
     LIBJEMALLOC("cassandra.libjemalloc"),
     /** Line separator ("\n" on UNIX). */
@@ -421,6 +437,11 @@ public enum CassandraRelevantProperties
     /** Platform word size sun.arch.data.model. Examples: "32", "64", "unknown"*/
     SUN_ARCH_DATA_MODEL("sun.arch.data.model"),
     SUN_JAVA_COMMAND("sun.java.command", ""),
+    /**
+     * Controls the JMX server threadpool keap-alive time.
+     * Should only be set by in-jvm dtests.
+     */
+    SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME("sun.rmi.transport.tcp.threadKeepAliveTime"),
     SUN_STDERR_ENCODING("sun.stderr.encoding"),
     SUN_STDOUT_ENCODING("sun.stdout.encoding"),
     SUPERUSER_SETUP_DELAY_MS("cassandra.superuser_setup_delay_ms", "10000"),

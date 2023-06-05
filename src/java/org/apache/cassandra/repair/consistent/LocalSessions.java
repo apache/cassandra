@@ -411,17 +411,17 @@ public class LocalSessions
         return started;
     }
 
-    private static boolean shouldCheckStatus(LocalSession session, int now)
+    private static boolean shouldCheckStatus(LocalSession session, long now)
     {
         return !session.isCompleted() && (now > session.getLastUpdate() + CHECK_STATUS_TIMEOUT);
     }
 
-    private static boolean shouldFail(LocalSession session, int now)
+    private static boolean shouldFail(LocalSession session, long now)
     {
         return !session.isCompleted() && (now > session.getLastUpdate() + AUTO_FAIL_TIMEOUT);
     }
 
-    private static boolean shouldDelete(LocalSession session, int now)
+    private static boolean shouldDelete(LocalSession session, long now)
     {
         return session.isCompleted() && (now > session.getLastUpdate() + AUTO_DELETE_TIMEOUT);
     }
@@ -443,7 +443,7 @@ public class LocalSessions
         {
             synchronized (session)
             {
-                int now = FBUtilities.nowInSeconds();
+                long now = FBUtilities.nowInSeconds();
                 if (shouldFail(session, now))
                 {
                     logger.warn("Auto failing timed out repair session {}", session);
@@ -672,7 +672,7 @@ public class LocalSessions
         builder.withRanges(prs.getRanges());
         builder.withParticipants(peers);
 
-        int now = FBUtilities.nowInSeconds();
+        long now = FBUtilities.nowInSeconds();
         builder.withStartedAt(now);
         builder.withLastUpdate(now);
 

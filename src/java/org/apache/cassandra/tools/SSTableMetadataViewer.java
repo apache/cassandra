@@ -87,7 +87,7 @@ public class SSTableMetadataViewer
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.toolInitialization();
     }
 
     boolean color;
@@ -327,7 +327,7 @@ public class SSTableMetadataViewer
         }
 
         field("SSTable", descriptor);
-        if (scan && descriptor.version.getVersion().compareTo("ma") >= 0)
+        if (scan && descriptor.version.version.compareTo("ma") >= 0)
         {
             printScannedOverview(descriptor, stats);
         }

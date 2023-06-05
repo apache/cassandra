@@ -57,12 +57,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.sstable.format.SortedTableVerifier.RangeOwnHelper;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
@@ -119,7 +119,7 @@ public class VerifyTest
     {
         CompressionParams compressionParameters = CompressionParams.snappy(32768);
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setColumnIndexSize(0);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(0);
 
         loadSchema();
         createKeyspace(KEYSPACE,
@@ -552,21 +552,25 @@ public class VerifyTest
     @Test
     public void testVerifyIndex() throws IOException
     {
-        Assume.assumeTrue(BigFormat.isDefault());
-        testBrokenComponentHelper(Components.PRIMARY_INDEX);
+        if (BigFormat.isSelected())
+            testBrokenComponentHelper(BigFormat.Components.PRIMARY_INDEX);
+        else if (BtiFormat.isSelected())
+            testBrokenComponentHelper(BtiFormat.Components.PARTITION_INDEX);
+        else
+            throw Util.testMustBeImplementedForSSTableFormat();
     }
 
     @Test
     public void testVerifyBf() throws IOException
     {
-        Assume.assumeTrue(SSTableReaderWithFilter.class.isAssignableFrom(SSTableFormat.Type.current().info.getReaderFactory().getReaderClass()));
+        Assume.assumeTrue(SSTableReaderWithFilter.class.isAssignableFrom(DatabaseDescriptor.getSelectedSSTableFormat().getReaderFactory().getReaderClass()));
         testBrokenComponentHelper(Components.FILTER);
     }
 
     @Test
     public void testVerifyIndexSummary() throws IOException
     {
-        Assume.assumeTrue(BigFormat.isDefault());
+        Assume.assumeTrue(BigFormat.isSelected());
         testBrokenComponentHelper(Components.SUMMARY);
     }
 

@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
@@ -333,13 +335,12 @@ public class PaxosRepair2Test extends TestBaseImpl
     @Test
     public void paxosAutoRepair() throws Throwable
     {
-        AUTO_REPAIR_FREQUENCY_SECONDS.setInt(1);
-        DISABLE_PAXOS_AUTO_REPAIRS.setBoolean(true);
-        try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
+        try (WithProperties properties = new WithProperties().set(AUTO_REPAIR_FREQUENCY_SECONDS, 1).set(DISABLE_PAXOS_AUTO_REPAIRS, true);
+             Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
                                                              .set("paxos_repair_enabled", true)
-                                                             .set("truncate_request_timeout_in_ms", 1000L)))
-        )
+                                                             .set("truncate_request_timeout_in_ms", 1000L)));
+             )
         {
             cluster.forEach(i -> {
                 Assert.assertFalse(CassandraRelevantProperties.CLOCK_GLOBAL.isPresent());
@@ -372,18 +373,13 @@ public class PaxosRepair2Test extends TestBaseImpl
             for (int i=0; i<20; i++)
             {
                 if (!cluster.get(1).callsOnInstance(() -> PaxosState.uncommittedTracker().hasInflightAutoRepairs()).call()
-                 && !cluster.get(2).callsOnInstance(() -> PaxosState.uncommittedTracker().hasInflightAutoRepairs()).call())
+                    && !cluster.get(2).callsOnInstance(() -> PaxosState.uncommittedTracker().hasInflightAutoRepairs()).call())
                     break;
                 logger.info("Waiting for auto repairs to finish...");
                 Thread.sleep(1000);
             }
             assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
             assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
-        }
-        finally
-        {
-            AUTO_REPAIR_FREQUENCY_SECONDS.clearValue();
-            DISABLE_PAXOS_AUTO_REPAIRS.clearValue();
         }
     }
 
@@ -509,7 +505,7 @@ public class PaxosRepair2Test extends TestBaseImpl
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (400, 2, 2) IF NOT EXISTS", ConsistencyLevel.QUORUM);
 
                 // expire the cache entries
-                int nowInSec = FBUtilities.nowInSeconds();
+                long nowInSec = FBUtilities.nowInSeconds();
                 cluster.get(1).runOnInstance(() -> {
                     TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
                     DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));

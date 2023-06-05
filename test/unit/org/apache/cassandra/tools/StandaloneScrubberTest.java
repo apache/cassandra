@@ -66,7 +66,7 @@ public class StandaloneScrubberTest extends OfflineToolUtils
                        " -m,--manifest-check            only check and repair the leveled manifest, without actually scrubbing the sstables\n" + 
                        " -n,--no-validate               do not validate columns using column validator\n" + 
                        " -r,--reinsert-overflowed-ttl   Rewrites rows with overflowed expiration date affected by CASSANDRA-14092 with the\n" + 
-                       "                                maximum supported expiration date of 2038-01-19T03:14:06+00:00. The rows are rewritten with the original timestamp\n" + 
+                       "                                maximum supported expiration date of 2038-01-19T03:14:06+00:00. The rows are rewritten with the original timestamp\n" +
                        "                                incremented by one millisecond to override/supersede any potential tombstone that may have been generated during\n" + 
                        "                                compaction of the affected rows.\n" + 
                        " -s,--skip-corrupted            skip corrupt rows in counter tables\n" + 

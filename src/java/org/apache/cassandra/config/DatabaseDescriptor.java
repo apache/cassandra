@@ -33,12 +33,12 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -50,9 +50,10 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -61,6 +62,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
@@ -83,6 +85,7 @@ import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -100,6 +103,7 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
@@ -206,15 +210,18 @@ public class DatabaseDescriptor
 
     public static volatile boolean allowUnlimitedConcurrentValidations = ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getBoolean();
 
-    /** The configuration for guardrails. */
+    /**
+     * The configuration for guardrails.
+     */
     private static GuardrailsOptions guardrails;
     private static StartupChecksOptions startupChecksOptions;
 
-    private static Map<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories;
+    private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
+    private static SSTableFormat<?, ?> selectedSSTableFormat;
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
-                                       ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
-                                       : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
+                                                                                                           ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
+                                                                                                           : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -595,7 +602,8 @@ public class DatabaseDescriptor
                                              false);
         }
 
-        checkValidForByteConversion(conf.column_index_size, "column_index_size");
+        if (conf.column_index_size != null)
+            checkValidForByteConversion(conf.column_index_size, "column_index_size");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
@@ -1370,78 +1378,95 @@ public class DatabaseDescriptor
         paritionerName = partitioner.getClass().getCanonicalName();
     }
 
-    @VisibleForTesting
-    public static Map<String, Supplier<SSTableFormat<?, ?>>> loadSSTableFormatFactories(List<ParameterizedClass> configuredFormats)
+    private static void validateSSTableFormatFactories(Iterable<SSTableFormat.Factory> factories)
     {
-        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories = ImmutableMap.builderWithExpectedSize(configuredFormats.size());
-        Set<String> names = new HashSet<>(configuredFormats.size());
-        Set<Integer> ids = new HashSet<>(configuredFormats.size());
-
-        for (ParameterizedClass formatConfig : configuredFormats)
+        Map<String, SSTableFormat.Factory> factoryByName = new HashMap<>();
+        for (SSTableFormat.Factory factory : factories)
         {
-            assert formatConfig.parameters != null;
-            Map<String, String> params = new HashMap<>(formatConfig.parameters);
+            if (factory.name() == null)
+                throw new ConfigurationException(String.format("SSTable format name in %s cannot be null", factory.getClass().getCanonicalName()));
 
-            String name = params.get(Config.SSTABLE_FORMAT_NAME);
-            if (name == null)
-                throw new ConfigurationException("Missing 'name' parameter in sstable format configuration for " + formatConfig.class_name);
-            if (!name.matches("^[a-z]+$"))
-                throw new ConfigurationException("'name' parameter in sstable format configuration for " + formatConfig.class_name + " must be non-empty, lower-case letters only string");
-            if (names.contains(name))
-                throw new ConfigurationException("Name '" + name + "' of sstable format " + formatConfig.class_name + " is already defined for another sstable format");
-            params.remove(Config.SSTABLE_FORMAT_NAME);
+            if (!factory.name().matches("^[a-z]+$"))
+                throw new ConfigurationException(String.format("SSTable format name for %s must be non-empty, lower-case letters only string", factory.getClass().getCanonicalName()));
 
-            String idString = params.get(Config.SSTABLE_FORMAT_ID);
-            if (idString == null)
-                throw new ConfigurationException("Missing 'id' parameter in sstable format configuration for " + formatConfig.class_name);
-            int id;
-            try
-            {
-                id = Integer.parseInt(idString);
-            }
-            catch (RuntimeException ex)
-            {
-                throw new ConfigurationException("'id' parameter in sstable format configuration for " + formatConfig.class_name + " must be an integer");
-            }
-            if (id < 0 || id > 127)
-                throw new ConfigurationException("'id' parameter in sstable format configuration for " + formatConfig.class_name + " must be within bounds [0..127] range");
-            if (ids.contains(id))
-                throw new ConfigurationException("ID '" + id + "' of sstable format " + formatConfig.class_name + " is already defined for another sstable format");
-            params.remove(Config.SSTABLE_FORMAT_ID);
-
-            Supplier<SSTableFormat<?, ?>> factory = () -> {
-                Class<SSTableFormat<?, ?>> cls = FBUtilities.classForName(formatConfig.class_name, "sstable format");
-                if (!SSTableFormat.class.isAssignableFrom(cls))
-                    throw new ConfigurationException(String.format("Class %s for sstable format %s does not implement %s", formatConfig.class_name, name, SSTableFormat.class.getName()));
-
-                SSTableFormat<?, ?> sstableFormat = FBUtilities.instanceOrConstruct(cls.getName(), "sstable format");
-                sstableFormat.setup(id, name, params);
-                return sstableFormat;
-            };
-            sstableFormatFactories.put(name, factory);
-            names.add(name);
-            ids.add(id);
+            SSTableFormat.Factory prev = factoryByName.put(factory.name(), factory);
+            if (prev != null)
+                throw new ConfigurationException(String.format("Multiple sstable format implementations with the same name %s: %s and %s", factory.name(), factory.getClass().getCanonicalName(), prev.getClass().getCanonicalName()));
         }
+    }
 
-        return sstableFormatFactories.build();
+    private static ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> validateAndMatchSSTableFormatOptions(Iterable<SSTableFormat.Factory> factories, Map<String, Map<String, String>> options)
+    {
+        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> providersBuilder = ImmutableMap.builder();
+        if (options == null)
+            options = ImmutableMap.of();
+        for (SSTableFormat.Factory factory : factories)
+        {
+            Map<String, String> formatOptions = options.getOrDefault(factory.name(), ImmutableMap.of());
+            providersBuilder.put(factory.name(), () -> factory.getInstance(ImmutableMap.copyOf(formatOptions)));
+        }
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = providersBuilder.build();
+        if (options != null)
+        {
+            Sets.SetView<String> unknownFormatNames = Sets.difference(options.keySet(), providers.keySet());
+            if (!unknownFormatNames.isEmpty())
+                throw new ConfigurationException(String.format("Configuration contains options of unknown sstable formats: %s", unknownFormatNames));
+        }
+        return providers;
+    }
+
+    private static SSTableFormat<?, ?> getAndValidateWriteFormat(Map<String, SSTableFormat<?, ?>> sstableFormats, String selectedFormatName)
+    {
+        SSTableFormat<?, ?> selectedFormat;
+        if (StringUtils.isBlank(selectedFormatName))
+            selectedFormatName = BigFormat.NAME;
+        selectedFormat = sstableFormats.get(selectedFormatName);
+        if (selectedFormat == null)
+            throw new ConfigurationException(String.format("Selected sstable format '%s' is not available.", selectedFormatName));
+
+        return selectedFormat;
     }
 
     private static void applySSTableFormats()
     {
-        if (sstableFormatFactories != null)
-            logger.warn("Reinitializing SSTableFactories - this should happen only in tests");
+        ServiceLoader<SSTableFormat.Factory> loader = ServiceLoader.load(SSTableFormat.Factory.class, DatabaseDescriptor.class.getClassLoader());
+        List<SSTableFormat.Factory> factories = Iterables.toList(loader);
+        if (factories.isEmpty())
+            factories = ImmutableList.of(new BigFormat.BigFormatFactory());
+        applySSTableFormats(factories, conf.sstable);
+    }
 
-        sstableFormatFactories = loadSSTableFormatFactories(conf.sstable_formats);
+    private static void applySSTableFormats(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableFormatsConfig)
+    {
+        if (sstableFormats != null)
+            return;
 
-        Iterable<SSTableFormat.Type> types = SSTableFormat.Type.values(); // make sure we know where those types get initialized
-        types.forEach(t -> t.info.allComponents()); // make sure to reach all supported components for a type so that we know all of them are registered
-        logger.info("Supported sstable formats are: {}", Lists.newArrayList(types).stream().map(f -> f.name + " -> " + f.info.getClass().getName() + " with singleton components: " + f.info.allComponents()).collect(Collectors.joining(", ")));
+        validateSSTableFormatFactories(factories);
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableFormatsConfig.format);
+
+        ImmutableMap.Builder<String, SSTableFormat<?, ?>> sstableFormatsBuilder = ImmutableMap.builder();
+        providers.forEach((name, provider) -> {
+            try
+            {
+                sstableFormatsBuilder.put(name, provider.get());
+            }
+            catch (RuntimeException | Error ex)
+            {
+                throw new ConfigurationException(String.format("Failed to instantiate sstable format '%s'", name), ex);
+            }
+        });
+        sstableFormats = sstableFormatsBuilder.build();
+
+        selectedSSTableFormat = getAndValidateWriteFormat(sstableFormats, sstableFormatsConfig.selected_format);
+
+        sstableFormats.values().forEach(SSTableFormat::allComponents); // make sure to reach all supported components for a type so that we know all of them are registered
+        logger.info("Supported sstable formats are: {}", sstableFormats.values().stream().map(f -> f.name() + " -> " + f.getClass().getName() + " with singleton components: " + f.allComponents()).collect(Collectors.joining(", ")));
     }
 
     /**
      * Computes the sum of the 2 specified positive values returning {@code Long.MAX_VALUE} if the sum overflow.
      *
-     * @param left the left operand
+     * @param left  the left operand
      * @param right the right operand
      * @return the sum of the 2 specified positive values of {@code Long.MAX_VALUE} if the sum overflow.
      */
@@ -1758,19 +1783,19 @@ public class DatabaseDescriptor
         newFailureDetector = () -> createFailureDetector("FailureDetector");
     }
 
-    public static int getColumnIndexSize()
+    public static int getColumnIndexSize(int defaultValue)
     {
-        return conf.column_index_size.toBytes();
+        return conf.column_index_size != null ? conf.column_index_size.toBytes() : defaultValue;
     }
 
     public static int getColumnIndexSizeInKiB()
     {
-        return conf.column_index_size.toKibibytes();
+        return conf.column_index_size != null ? conf.column_index_size.toKibibytes() : -1;
     }
 
-    public static void setColumnIndexSize(int val)
+    public static void setColumnIndexSizeInKiB(int val)
     {
-        conf.column_index_size =  createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size");
+        conf.column_index_size = val != -1 ? createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size") : null;
     }
 
     public static int getColumnIndexCacheSize()
@@ -2148,13 +2173,19 @@ public class DatabaseDescriptor
         conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
-    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }
+    @Deprecated
+    public static long getCompactionLargePartitionWarningThreshold()
+    {
+        return conf.compaction_large_partition_warning_threshold.toBytesInLong();
+    }
 
+    @Deprecated
     public static int getCompactionTombstoneWarningThreshold()
     {
         return conf.compaction_tombstone_warning_threshold;
     }
 
+    @Deprecated
     public static void setCompactionTombstoneWarningThreshold(int count)
     {
         conf.compaction_tombstone_warning_threshold = count;
@@ -3917,6 +3948,11 @@ public class DatabaseDescriptor
         return  conf.full_query_logging_options;
     }
 
+    public static void setFullQueryLogOptions(FullQueryLoggerOptions options)
+    {
+        conf.full_query_logging_options = options;
+    }
+
     public static boolean getBlockForPeersInRemoteDatacenters()
     {
         return conf.block_for_peers_in_remote_dcs;
@@ -4702,9 +4738,22 @@ public class DatabaseDescriptor
         conf.client_request_size_metrics_enabled = enabled;
     }
 
-    public static Map<String, Supplier<SSTableFormat<?, ?>>> getSSTableFormatFactories()
+    @VisibleForTesting
+    public static void resetSSTableFormats(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig config)
     {
-        return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
+        sstableFormats = null;
+        selectedSSTableFormat = null;
+        applySSTableFormats(factories, config);
+    }
+
+    public static ImmutableMap<String, SSTableFormat<?, ?>> getSSTableFormats()
+    {
+        return Objects.requireNonNull(sstableFormats, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    public static SSTableFormat<?, ?> getSelectedSSTableFormat()
+    {
+        return Objects.requireNonNull(selectedSSTableFormat, "Forgot to initialize DatabaseDescriptor?");
     }
 
     public static boolean getDynamicDataMaskingEnabled()
@@ -4726,5 +4775,14 @@ public class DatabaseDescriptor
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
+    }
+
+    public static StorageCompatibilityMode getStorageCompatibilityMode()
+    {
+        // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
+        if (conf == null)
+            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
+        else
+            return conf.storage_compatibility_mode;
     }
 }

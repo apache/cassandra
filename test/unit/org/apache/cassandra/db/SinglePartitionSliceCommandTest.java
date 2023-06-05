@@ -350,7 +350,7 @@ public class SinglePartitionSliceCommandTest
             // ignored but nowInSeconds is retrieved from it and used for the DeletionTime.  It shows the difference between the
             // time at which the record was marked for deletion and the time at which it truly happened.
             final long timestamp = FBUtilities.timestampMicros();
-            final int nowInSec = FBUtilities.nowInSeconds();
+            final long nowInSec = FBUtilities.nowInSeconds();
 
             QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
                                                                   timestamp,
@@ -418,7 +418,7 @@ public class SinglePartitionSliceCommandTest
             // time at which the record was marked for deletion and the time at which it truly happened.
 
             final long timestamp = FBUtilities.timestampMicros();
-            final int nowInSec = FBUtilities.nowInSeconds();
+            final long nowInSec = FBUtilities.nowInSeconds();
 
             QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
                                                                   timestamp,
@@ -552,7 +552,7 @@ public class SinglePartitionSliceCommandTest
 
         long nowMillis = System.currentTimeMillis();
         Slice slice = Slice.make(Clustering.make(bb(2), bb(3)), Clustering.make(bb(10), bb(10)));
-        RangeTombstone rt = new RangeTombstone(slice, new DeletionTime(TimeUnit.MILLISECONDS.toMicros(nowMillis),
+        RangeTombstone rt = new RangeTombstone(slice, DeletionTime.build(TimeUnit.MILLISECONDS.toMicros(nowMillis),
                                                                        Ints.checkedCast(TimeUnit.MILLISECONDS.toSeconds(nowMillis))));
 
         PartitionUpdate.Builder builder = new PartitionUpdate.Builder(metadata, bb(100), metadata.regularAndStaticColumns(), 1);

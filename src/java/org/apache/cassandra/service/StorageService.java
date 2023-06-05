@@ -149,8 +149,7 @@ import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
@@ -481,7 +480,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
 
-        sstablesTracker = new SSTablesGlobalTracker(SSTableFormat.Type.current());
+        sstablesTracker = new SSTablesGlobalTracker(DatabaseDescriptor.getSelectedSSTableFormat());
     }
 
     private void registerMBeans()
@@ -988,7 +987,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         completeInitialization();
     }
 
-    private void completeInitialization()
+    @VisibleForTesting
+    public void completeInitialization()
     {
         if (!initialized)
             registerMBeans();
@@ -1148,7 +1148,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!(notification instanceof SSTablesVersionsInUseChangeNotification))
                     return;
 
-                Set<VersionAndType> versions = ((SSTablesVersionsInUseChangeNotification)notification).versionsInUse;
+                Set<Version> versions = ((SSTablesVersionsInUseChangeNotification)notification).versionsInUse;
                 logger.debug("Updating local sstables version in Gossip to {}", versions);
 
                 Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
@@ -1412,16 +1412,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
     {
-        // check ongoing rebuild
-        if (!isRebuilding.compareAndSet(false, true))
+        try
         {
-            throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
-        }
+            // check ongoing rebuild
+            if (!isRebuilding.compareAndSet(false, true))
+            {
+                throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
+            }
 
-        // fail if source DC is local and --exclude-local-dc is set
-        if (sourceDc != null && sourceDc.equals(DatabaseDescriptor.getLocalDataCenter()) && excludeLocalDatacenterNodes)
+            // fail if source DC is local and --exclude-local-dc is set
+            if (sourceDc != null && sourceDc.equals(DatabaseDescriptor.getLocalDataCenter()) && excludeLocalDatacenterNodes)
+            {
+                throw new IllegalArgumentException("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set");
+            }
+
+            if (sourceDc != null)
+            {
+                TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
+                Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
+                if (!availableDCs.contains(sourceDc))
+                {
+                    throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                                     sourceDc, String.join(",", availableDCs)));
+                }
+            }
+        }
+        catch (Throwable ex)
         {
-            throw new IllegalArgumentException("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set");
+            isRebuilding.set(false);
+            throw ex;
         }
 
         try
@@ -6512,7 +6531,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKiB);
+            DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKiB);
         }
         catch (ConfigurationException e)
         {
@@ -6526,7 +6545,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKB);
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 
@@ -6714,7 +6733,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
                                Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException
     {
-        final AuditLogOptions options = new AuditLogOptions.Builder(DatabaseDescriptor.getAuditLoggingOptions())
+        AuditLogOptions auditOptions = DatabaseDescriptor.getAuditLoggingOptions();
+        if (archiveCommand != null && !auditOptions.allow_nodetool_archive_command)
+            throw new ConfigurationException("Can't enable audit log archiving via nodetool unless audit_logging_options.allow_nodetool_archive_command is set to true");
+
+        final AuditLogOptions options = new AuditLogOptions.Builder(auditOptions)
                                         .withEnabled(true)
                                         .withLogger(loggerName, parameters)
                                         .withIncludedKeyspaces(includedKeyspaces)
@@ -6817,6 +6840,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         blocking = blocking != null ? blocking : fqlOptions.block;
         maxQueueWeight = maxQueueWeight != Integer.MIN_VALUE ? maxQueueWeight : fqlOptions.max_queue_weight;
         maxLogSize = maxLogSize != Long.MIN_VALUE ? maxLogSize : fqlOptions.max_log_size;
+        if (archiveCommand != null && !fqlOptions.allow_nodetool_archive_command)
+            throw new ConfigurationException("Can't enable full query log archiving via nodetool unless full_query_logging_options.allow_nodetool_archive_command is set to true");
         archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
@@ -6924,6 +6949,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
     }
 
+    @Override
     public void setCompactionTombstoneWarningThreshold(int count)
     {
         if (count < 0)
@@ -6932,6 +6958,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setCompactionTombstoneWarningThreshold(count);
     }
 
+    @Override
     public int getCompactionTombstoneWarningThreshold()
     {
         return DatabaseDescriptor.getCompactionTombstoneWarningThreshold();

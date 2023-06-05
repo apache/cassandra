@@ -403,6 +403,8 @@ prepared_statements_cache_size:
 # NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
 #
 # Default value is empty to make it "auto" (min(5% of Heap (in MiB), 100MiB)). Set to 0 to disable key cache.
+#
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Min unit: MiB
 key_cache_size:
 
@@ -414,12 +416,14 @@ key_cache_size:
 # terms of I/O for the key cache. Row cache saving is much more expensive and
 # has limited use.
 #
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Default is 14400 or 4 hours.
 # Min unit: s
 key_cache_save_period: 4h
 
 # Number of keys from the key cache to save
 # Disabled by default, meaning all keys are going to be saved
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # key_cache_keys_to_save: 100
 
 # Row cache implementation class name. Available implementations:
@@ -960,18 +964,31 @@ auto_snapshot: true
 # taking and clearing snapshots
 snapshot_links_per_second: 0
 
+# The sstable formats configuration. SSTable formats implementations are
+# loaded using the service loader mechanism. In this section, one can select
+# the format for created sstables and pass additional parameters for the formats
+# available on the classpath.
+# The default format is "big", the legacy SSTable format in use since Cassandra 3.0.
+# Cassandra versions 5.0 and later also support the trie-indexed "bti" format,
+# which offers better performance.
+#sstable:
+#  selected_format: big
+
 # Granularity of the collation index of rows within a partition.
-# Increase if your rows are large, or if you have a very large
-# number of rows per partition.  The competing goals are these:
+# Applies to both BIG and BTI SSTable formats. In both formats,
+# a smaller granularity results in faster lookup of rows within
+# a partition, but a bigger index file size.
+# Using smaller granularities with the BIG format is not recommended
+# because bigger collation indexes cannot be cached efficiently
+# or at all if they become sufficiently large. Further, if
+# large rows, or a very large number of rows per partition are
+# present, it is recommended to increase the index granularity
+# or switch to the BTI SSTable format.
 #
-# - a smaller granularity means more index entries are generated
-#   and looking up rows withing the partition by collation column
-#   is faster
-# - but, Cassandra will keep the collation index in memory for hot
-#   rows (as part of the key cache), so a larger granularity means
-#   you can cache more hot rows
+# Leave undefined to use a default suitable for the SSTable format
+# in use (64 KiB for BIG, 16KiB for BTI).
 # Min unit: KiB
-column_index_size: 64KiB
+# column_index_size: 4KiB
 
 # Per sstable indexed key cache entries (the collation index in memory
 # mentioned above) exceeding this size will not be held on heap.
@@ -980,6 +997,8 @@ column_index_size: 64KiB
 #
 # Note that this size refers to the size of the
 # serialized index information and not the size of the partition.
+#
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Min unit: KiB
 column_index_cache_size: 2KiB
 
@@ -1541,10 +1560,12 @@ batch_size_fail_threshold: 50KiB
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
 
-# Log a warning when compacting partitions larger than this value
+# Log a warning when compacting partitions larger than this value.
+# As of Cassandra 5.0, this property is deprecated in favour of partition_size_warn_threshold.
 compaction_large_partition_warning_threshold: 100MiB
 
-# Log a warning when writing more tombstones than this value to a partition
+# Log a warning when writing more tombstones than this value to a partition.
+# As of Cassandra 5.0, this property is deprecated in favour of partition_tombstones_warn_threshold.
 compaction_tombstone_warning_threshold: 100000
 
 # GC Pauses greater than 200 ms will be logged at INFO level
@@ -1623,6 +1644,8 @@ audit_logging_options:
   # max_log_size: 17179869184 # 16 GiB
   ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
   # archive_command:
+  ## note that enabling this allows anyone with JMX/nodetool access to run local shell commands as the user running cassandra
+  # allow_nodetool_archive_command: false
   # max_archive_retries: 10
 
 # validate tombstones on reads and compaction
@@ -1767,6 +1790,13 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
 #
+# Guardrail to bound user-provided timestamps within a given range. Default is infinite (denoted by null).
+# Accepted values are durations of the form 12h, 24h, etc.
+# maximum_timestamp_warn_threshold:
+# maximum_timestamp_fail_threshold:
+# minimum_timestamp_warn_threshold:
+# minimum_timestamp_fail_threshold:
+#
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
 #
@@ -1803,6 +1833,24 @@ drop_compact_storage_enabled: false
 # Guardrail to warn about or reject write consistency levels. By default, all consistency levels are allowed.
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
+#
+# Guardrail to warn or fail when writing partitions larger than threshold, expressed as 100MiB, 1GiB, etc.
+# The guardrail is only checked when writing sstables (flush and compaction), and exceeding the fail threshold on that
+# moment will only log an error message, without interrupting the operation.
+# This operates on a per-sstable basis, so it won't detect a large partition if it is spread across multiple sstables.
+# The warning threshold replaces the deprecated config property compaction_large_partition_warning_threshold.
+# The two thresholds default to null to disable.
+# partition_size_warn_threshold:
+# partition_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing partitions with more tombstones than threshold.
+# The guardrail is only checked when writing sstables (flush and compaction), and exceeding the fail threshold on that
+# moment will only log an error message, without interrupting the operation.
+# This operates on a per-sstable basis, so it won't detect a large partition if it is spread across multiple sstables.
+# The warning threshold replaces the deprecated config property compaction_tombstone_warning_threshold.
+# The two thresholds default to -1 to disable.
+# partition_tombstones_warn_threshold: -1
+# partition_tombstones_fail_threshold: -1
 #
 # Guardrail to warn or fail when writing column values larger than threshold.
 # This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
@@ -1928,14 +1976,29 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
-# Supported sstable formats
-# This is a list of elements consisting of class_name and parameters, where class_name should point to the class
-# implementing org.apache.cassandra.io.sstable.format.SSTableFormat. Parameters must include unique 'id' integer
-# which is used in some serialization to denote the format type in a compact way (such as local key cache); and 'name'
-# which will be used to recognize the format type - in particular that name will be used in sstable file names and in
-# stream headers so the name has to be the same for the same format across all the nodes in the cluster.
-sstable_formats:
-  - class_name: org.apache.cassandra.io.sstable.format.big.BigFormat
-    parameters:
-      id: 0
-      name: big
+# This property indicates with what Cassandra major version the storage format will be compatible with.
+#
+# The chosen storage compatiblity mode will determine the versions of the written sstables, commitlogs, hints,
+# etc. Those storage elements will use the higher minor versions of the major version that corresponds to the
+# Cassandra version we want to stay compatible with. For example, if we want to stay compatible with Cassandra 4.0
+# or 4.1, the value of this property should be 4, and that will make us use 'nc' sstables.
+#
+# This will also determine if certain features depending on newer formats are available. For example, extended TTLs
+# up to 2106 depend on the sstable, commitlog, hints and messaging versions that were introduced by Cassandra 5.0,
+# so that feature won't be available if this property is set to CASSANDRA_4. See upgrade guides for details. Currently 
+# the only supported major is CASSANDRA_4.
+#
+# Possible values are in the StorageCompatibilityMode.java file accessible online. At the time of writing these are:
+# - CASSANDRA_4: Stays compatible with the 4.x line in features, formats and component versions.
+# - UPGRADING:   The cluster monitors nodes versions during this interim stage. _This has a cost_ but ensures any new features, 
+#                formats, versions, etc are enabled safely.
+# - NONE:        Start with all the new features and formats enabled.
+#
+# A typical upgrade would be:
+# - Do a rolling upgrade starting all nodes in CASSANDRA_Y compatibility mode.
+# - Once the new binary is rendered stable do a rolling restart with UPGRADING. The cluster will enable new features in a safe way 
+#   until all nodes are started in UPGRADING, then all new features are enabled.
+# - Do a rolling restart with all nodes starting with NONE. This sheds the extra cost of checking nodes versions and ensures 
+#   a stable cluster. If a node from a previous version was started by accident we won't any longer toggle behaviors as when UPGRADING.
+#
+storage_compatibility_mode: CASSANDRA_4
