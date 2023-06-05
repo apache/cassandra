@@ -45,6 +45,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     private final boolean enforceStrictLiveness;
 
     private int remaining;
+    private int remainingBytes;
 
     // This is the last key we've been reading from (or can still be reading within). This the key for
     // which remainingInPartition makes sense: if we're starting another key, we should reset remainingInPartition
@@ -62,6 +63,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         this.enforceStrictLiveness = query.metadata().enforceStrictLiveness();
 
         this.remaining = limits.count();
+        this.remainingBytes = limits.bytes();
         this.remainingInPartition = limits.perPartitionCount();
     }
 
@@ -75,7 +77,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         if (isExhausted())
             return EmptyIterators.partition();
 
-        pageSize = PageSize.inRows(Math.min(pageSize.rows, remaining));
+        pageSize = pageSize.min(remaining, remainingBytes);
         Pager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
@@ -91,7 +93,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         if (isExhausted())
             return EmptyIterators.partition();
 
-        pageSize = PageSize.inRows(Math.min(pageSize.rows, remaining));
+        pageSize = pageSize.min(remaining, remainingBytes);
         RowPager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
@@ -107,7 +109,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         if (isExhausted())
             return EmptyIterators.unfilteredPartition(metadata);
 
-        pageSize = PageSize.inRows(Math.min(pageSize.rows, remaining));
+        pageSize = pageSize.min(remaining, remainingBytes);
         UnfilteredPager pager = new UnfilteredPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
@@ -194,6 +196,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             recordLast(lastKey, lastRow);
 
             remaining -= counter.counted();
+            remainingBytes -= counter.bytesCounted();
             // If the clustering of the last row returned is a static one, it means that the partition was only
             // containing data within the static columns. If the clustering of the last row returned is empty
             // it means that there is only one row per partition. Therefore, in both cases there are no data remaining
@@ -244,12 +247,17 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     public boolean isExhausted()
     {
-        return exhausted || remaining == 0 || ((this instanceof SinglePartitionPager) && remainingInPartition == 0);
+        return exhausted || remaining == 0 || remainingBytes <= 0 || ((this instanceof SinglePartitionPager) && remainingInPartition == 0);
     }
 
     public int maxRemaining()
     {
         return remaining;
+    }
+
+    public int maxRemainingBytes()
+    {
+        return remainingBytes;
     }
 
     protected int remainingInPartition()

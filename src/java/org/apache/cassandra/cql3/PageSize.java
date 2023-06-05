@@ -95,4 +95,14 @@ public class PageSize
                .add("bytes=" + bytes)
                .toString();
     }
+
+    public PageSize min(int rows, int bytes)
+    {
+        return new PageSize(Math.min(this.rows, rows), Math.min(this.bytes, bytes));
+    }
+
+    public PageSize minus(int rows, int bytes)
+    {
+        return new PageSize(this.rows - rows, this.bytes - bytes);
+    }
 }
