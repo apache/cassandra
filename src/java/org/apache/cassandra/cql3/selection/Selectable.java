@@ -155,7 +155,7 @@ public interface Selectable extends AssignmentTestable
          */
         private static final ColumnIdentifier bindMarkerNameInSelection = new ColumnIdentifier("[selection]", true);
 
-        private final Term.Raw rawTerm;
+        public final Term.Raw rawTerm; // FIXME make private
 
         public WithTerm(Term.Raw rawTerm)
         {
@@ -742,6 +742,13 @@ public interface Selectable extends AssignmentTestable
                     throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
                                          this);
                 validateType(cfm, type);
+            }
+
+            // FIXME
+            if (type.isVector())
+            {
+                Term term = type.fromJSONObject(toString());
+                return TermSelector.newFactory(toString(), term, type);
             }
 
             ListType<?> listType = (ListType<?>) type;

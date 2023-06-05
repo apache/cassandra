@@ -293,7 +293,13 @@ public abstract class Constants
         @Override
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            CQL3Type receiverType = receiver.type.asCQL3Type();
+            return testAssignment(receiver.type);
+        }
+
+        // FIXME
+        public TestResult testAssignment(AbstractType<?> abstractType)
+        {
+            CQL3Type receiverType = abstractType.asCQL3Type();
             if (receiverType.isCollection() || receiverType.isUDT())
                 return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 

@@ -29,12 +29,15 @@ import java.util.stream.StreamSupport;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -86,6 +89,16 @@ public abstract class Lists
     public static AssignmentTestable.TestResult testListAssignment(ColumnSpecification receiver,
                                                                    List<? extends AssignmentTestable> elements)
     {
+        // FIXME I profoundly apologize for this
+        if (receiver.type.isVector())
+        {
+            if (((VectorType) receiver.type).dimension != elements.size())
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+            return elements.stream().allMatch(Lists::isFloatIsh)
+                   ? AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE
+                   : AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+        }
+
         if (!(receiver.type instanceof ListType))
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 
@@ -95,6 +108,17 @@ public abstract class Lists
 
         ColumnSpecification valueSpec = valueSpecOf(receiver);
         return AssignmentTestable.TestResult.testAll(receiver.ksName, valueSpec, elements);
+    }
+
+    private static boolean isFloatIsh(AssignmentTestable e)
+    {
+        if (!(e instanceof Selectable.WithTerm))
+            return false;
+        var swt = (Selectable.WithTerm) e;
+        if (!(swt.rawTerm instanceof Constants.Literal))
+            return false;
+        var lt = (Constants.Literal) swt.rawTerm;
+        return lt.testAssignment(FloatType.instance) != AssignmentTestable.TestResult.NOT_ASSIGNABLE;
     }
 
     /**

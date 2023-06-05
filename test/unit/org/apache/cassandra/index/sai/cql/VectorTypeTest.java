@@ -350,4 +350,22 @@ public class VectorTypeTest extends SAITester
         execute("SELECT similarity_cosine(?, (vector<float, 2>) ?) FROM %s WHERE pk=0", q, q);
         execute("SELECT similarity_cosine((vector<float, 2>) ?, (vector<float, 2>) ?) FROM %s WHERE pk=0", q, q);
     }
+
+    @Test
+    public void castedStringFloatVectorFunctions() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        execute("SELECT similarity_cosine(value, (vector<float, 2>) [1.0, 1.0]) FROM %s WHERE pk=0");
+    }
+
+    @Test
+    public void inferedStringFloatVectorFunctions() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        execute("SELECT similarity_cosine(value, [1.0, 1.0]) FROM %s WHERE pk=0");
+    }
 }
