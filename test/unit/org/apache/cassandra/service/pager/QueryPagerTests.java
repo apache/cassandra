@@ -91,8 +91,8 @@ public abstract class QueryPagerTests
     public static final long nowInSec = FBUtilities.nowInSeconds();
     public static List<String> tokenOrderedKeys;
 
-    static final int ONE_CLUSTERING_ROW_BYTES = 39;
-    static final int TWO_CLUSTERINGS_ROW_BYTES = 43;
+    static final int ONE_CLUSTERING_ROW_BYTES = 43;
+    static final int TWO_CLUSTERINGS_ROW_BYTES = 47;
 
     static PageSize pageSizeInRows(int n)
     {
