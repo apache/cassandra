@@ -18,14 +18,10 @@
 
 package org.apache.cassandra.db.marshal;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -110,17 +106,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
 
     public static VectorType<?> getInstance(TypeParser parser)
     {
-        Map<String, String> map = parser.getKeyValueParameters();
-        String type;
-        try
-        {
-            type = new String(Base64.getDecoder().decode(map.get("type")), "utf-8");
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new AssertionError("utf-8 is not in the jvm?", e);
-        }
-        return new VectorType<>(TypeParser.parse(type).freeze(), Integer.parseInt(map.get("dimension")));
+        TypeParser.Vector v = parser.getVectorParameters();
+        return new VectorType<>(v.type.freeze(), v.dimension);
     }
 
     @Override
@@ -325,8 +312,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     @Override
     public String toString(boolean ignoreFreezing)
     {
-        return getClass().getName() + TypeParser.stringifyTKeyValueParameters(ImmutableMap.of("dimension", Integer.toString(dimension),
-                                                                                              "type", Base64.getEncoder().encodeToString(elementType.toString(ignoreFreezing).getBytes(StandardCharsets.UTF_8))));
+        return getClass().getName() + "(" + elementType.toString(ignoreFreezing) + " , " + dimension + ")";
     }
 
     private void check(List<?> values)

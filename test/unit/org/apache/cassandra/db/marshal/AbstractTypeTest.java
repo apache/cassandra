@@ -369,7 +369,10 @@ public class AbstractTypeTest
 
     private static void cqlTypeSerde(Function<AbstractType<?>, String> cqlFunc)
     {
-        qt().withShrinkCycles(0).forAll(genBuilder().withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality()).build()).checkAssert(type -> {
+        Gen<AbstractType<?>> gen = genBuilder()
+                                   .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
+                                   .build();
+        qt().withShrinkCycles(0).forAll(gen).checkAssert(type -> {
             // to -> from cql
             String cqlType = cqlFunc.apply(type);
             // just easier to read this way...
