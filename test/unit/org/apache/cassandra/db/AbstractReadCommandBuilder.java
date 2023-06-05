@@ -256,7 +256,7 @@ public abstract class AbstractReadCommandBuilder<T extends ReadQuery>
         {
             limits = DataLimits.groupByLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
                                               perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit,
-                                              subPageSize.rows,
+                                              subPageSize,
                                               aggregationSpecification);
         }
         else

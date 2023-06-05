@@ -519,6 +519,7 @@ public class BTreeRow extends AbstractRow
 
     public int dataSize()
     {
+        // TODO can the datasize be cached to optimize for several calls? that is, is Row immutable?
         int dataSize = clustering.dataSize()
                      + primaryKeyLivenessInfo.dataSize()
                      + deletion.dataSize();
