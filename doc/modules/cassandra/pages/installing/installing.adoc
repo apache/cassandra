@@ -32,8 +32,7 @@ verify that you have the correct version of java installed, type
 Full support is effective Cassandra 4.0.2 version (https://issues.apache.org/jira/browse/CASSANDRA-16894[CASSANDRA-16894])
 For more information, see
 https://github.com/apache/cassandra/blob/trunk/NEWS.txt[NEWS.txt].
-* For using cqlsh, the latest version of
-Python 3.6+ or Python 2.7 (support deprecated). To verify
+* For using cqlsh, the latest version of Python 3.6+. To verify
 that you have the correct version of Python installed, type
 `python --version`.
 
