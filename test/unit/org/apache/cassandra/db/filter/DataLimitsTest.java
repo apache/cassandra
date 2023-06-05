@@ -89,7 +89,7 @@ public class DataLimitsTest
     DataLimits cqlLimitsForPagingInBytes = cqlLimits.forPaging(PageSize.inBytes(13));
     DataLimits cqlLimitsForPagingInRowsWithLastRow = cqlLimits.forPaging(PageSize.inRows(13), lastReturnedKey, 5);
     DataLimits cqlLimitsForPagingInBytesWithLastRow = cqlLimits.forPaging(PageSize.inBytes(13), lastReturnedKey, 5);
-    DataLimits groupByLimits = DataLimits.groupByLimits(19, 17, NO_LIMIT, AggregationSpecification.AGGREGATE_EVERYTHING);
+    DataLimits groupByLimits = DataLimits.groupByLimits(19, 17, PageSize.NONE, AggregationSpecification.AGGREGATE_EVERYTHING);
     DataLimits groupByLimitsForPagingInRows = groupByLimits.forPaging(PageSize.inRows(13));
     DataLimits groupByLimitsForPagingInBytes = groupByLimits.forPaging(PageSize.inBytes(13));
     DataLimits groupByLimitsForPagingInRowsWithLastRow = groupByLimits.forPaging(PageSize.inRows(13), lastReturnedKey, 5);

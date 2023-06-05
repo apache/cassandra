@@ -256,6 +256,11 @@ public class RangeCommandsTest extends CQLTester
             return wrapped.count();
         }
 
+        public int bytes()
+        {
+            return wrapped.bytes();
+        }
+
         @Override
         public int perPartitionCount()
         {

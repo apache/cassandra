@@ -378,13 +378,14 @@ public abstract class QueryPagerTests
         Row firstRow = firstPartition.right.get(0);
         Row lastRow = lastPartition.right.get(lastPartition.right.size() - 1);
 
-        assertThat(string(firstRow.clustering().bufferAt(0))).isEqualTo(firstName);
-        assertThat(string(lastRow.clustering().bufferAt(0))).isEqualTo(lastName);
-
         int rows = queryResults.stream().mapToInt(p -> p.right.size()).sum();
         assertThat(rows).isEqualTo(expectedRows);
 
         assertThat(pages).isEqualTo(expectedPages);
+
+        assertThat(string(firstRow.clustering().bufferAt(0))).isEqualTo(firstName);
+        assertThat(string(lastRow.clustering().bufferAt(0))).isEqualTo(lastName);
+
     }
 
     private void mergeTo(TableMetadata metadata, List<Pair<DecoratedKey, List<Row>>> target, List<Pair<DecoratedKey, List<Row>>> source)
