@@ -75,6 +75,11 @@ public interface QueryPager
             return 0;
         }
 
+        public int maxRemainingBytes()
+        {
+            return 0;
+        }
+
         public PagingState state()
         {
             return null;
@@ -83,6 +88,11 @@ public interface QueryPager
         public QueryPager withUpdatedLimit(DataLimits newLimits)
         {
             throw new UnsupportedOperationException();
+        }
+
+        public DataLimits.Counter getLastCounter()
+        {
+            return null;
         }
     };
 
@@ -95,7 +105,7 @@ public interface QueryPager
      * {@code consistency} is a serial consistency.
      * @return the page of result.
      */
-    public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
+    PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Starts a new read operation.
@@ -106,7 +116,7 @@ public interface QueryPager
      *
      * @return a newly started order group for this {@code QueryPager}.
      */
-    public ReadExecutionController executionController();
+    ReadExecutionController executionController();
 
     /**
      * Fetches the next page internally (in other, this does a local query).
@@ -115,7 +125,7 @@ public interface QueryPager
      * @param executionController the {@code ReadExecutionController} protecting the read.
      * @return the page of result.
      */
-    public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
+    PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Whether or not this pager is exhausted, i.e. whether or not a call to
@@ -123,7 +133,7 @@ public interface QueryPager
      *
      * @return whether the pager is exhausted.
      */
-    public boolean isExhausted();
+    boolean isExhausted();
 
     /**
      * The maximum number of cells/CQL3 row that we may still have to return.
@@ -131,7 +141,15 @@ public interface QueryPager
      * returned (note that it's not how many we *will* return, just the upper
      * limit on it).
      */
-    public int maxRemaining();
+    int maxRemaining();
+
+    /**
+     * The maximum number of bytes that we may still have to return. It is expected
+     * that the initial value is decreased as we go through the rows so that if
+     * this pager is wrapped by another pager, it can be used to calculate the number
+     * of processed data.
+     */
+    int maxRemainingBytes();
 
     /**
      * Get the current state of the pager. The state can allow to restart the
@@ -140,7 +158,7 @@ public interface QueryPager
      * @return the current paging state. Will return null if paging is at the
      * beginning. If the pager is exhausted, the result is undefined.
      */
-    public PagingState state();
+    PagingState state();
 
     /**
      * Creates a new <code>QueryPager</code> that use the new limits.
@@ -148,5 +166,10 @@ public interface QueryPager
      * @param newLimits the new limits
      * @return a new <code>QueryPager</code> that use the new limits
      */
-    public QueryPager withUpdatedLimit(DataLimits newLimits);
+    QueryPager withUpdatedLimit(DataLimits newLimits);
+
+    /**
+     * Returns the last counter used by this pager.
+     */
+    DataLimits.Counter getLastCounter();
 }

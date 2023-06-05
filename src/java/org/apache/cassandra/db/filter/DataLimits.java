@@ -374,6 +374,11 @@ public abstract class DataLimits
         {
             super.onClose();
         }
+
+        public GroupingState recreateGroupingStateFor(ByteBuffer lastPartitionKey, Clustering<?> lastClustering)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**
@@ -975,6 +980,7 @@ public abstract class DataLimits
                 // not have been counted yet. Due to that we need to guess, based on the state, if the previous group
                 // is still open.
                 hasUnfinishedGroup = state.hasClustering();
+                maxRowSize = state.bytes();
             }
 
             @Override
@@ -1089,7 +1095,7 @@ public abstract class DataLimits
             @Override
             public int bytesCounted()
             {
-                return bytesCounted;
+                return groupBytesCounted;
             }
 
             @Override
@@ -1162,6 +1168,14 @@ public abstract class DataLimits
             }
 
             @Override
+            public GroupingState recreateGroupingStateFor(ByteBuffer lastPartitionKey, Clustering<?> lastClustering)
+            {
+                return lastPartitionKey == null && lastClustering == null && maxRowSize == 0
+                       ? GroupingState.EMPTY_STATE
+                       : new GroupingState(lastPartitionKey, lastClustering, maxRowSize);
+            }
+
+            @Override
             public void onClose()
             {
                 // Groups are only counted when the end of the group is reached.
@@ -1183,9 +1197,9 @@ public abstract class DataLimits
             public String toString()
             {
                 return String.format("%s(bytes=%s/%s, rows=%s/%s, partition-rows=%s/%s, groups=%s/%s, group-bytes=%s/%s, partition-groups=%s/%s)", this.getClass().getName(),
-                                     bytesCounted(), bytesLimit,
-                                     rowsCounted(), rowLimit,
-                                     rowsCountedInCurrentPartition(), perPartitionLimit,
+                                     bytesCounted, bytesLimit,
+                                     rowsCounted, rowLimit,
+                                     rowsCountedInCurrentPartition, perPartitionLimit,
                                      groupCounted, groupLimit,
                                      groupBytesCounted, groupBytesLimit,
                                      groupInCurrentPartition, groupPerPartitionLimit);

@@ -43,7 +43,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
         if (state != null)
         {
             lastReturned = state.rowMark;
-            restoreState(query.partitionKey(), state.remaining, state.remainingInPartition);
+            restoreState(query.partitionKey(), state.remaining, query.limits().bytes(), state.remainingInPartition);
         }
     }
 
@@ -51,11 +51,12 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
                                  ProtocolVersion protocolVersion,
                                  PagingState.RowMark rowMark,
                                  int remaining,
+                                 int remainingBytes,
                                  int remainingInPartition)
     {
         super(query, protocolVersion);
         this.lastReturned = rowMark;
-        restoreState(query.partitionKey(), remaining, remainingInPartition);
+        restoreState(query.partitionKey(), remaining, remainingBytes, remainingInPartition);
     }
 
     @Override
@@ -65,6 +66,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
                                         protocolVersion,
                                         lastReturned,
                                         maxRemaining(),
+                                        maxRemainingBytes(),
                                         remainingInPartition());
     }
 

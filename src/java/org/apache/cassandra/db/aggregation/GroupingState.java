@@ -25,6 +25,7 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -45,7 +46,7 @@ public final class GroupingState
 {
     public static final GroupingState.Serializer serializer = new Serializer();
 
-    public static final GroupingState EMPTY_STATE = new GroupingState(null, null);
+    public static final GroupingState EMPTY_STATE = new GroupingState(null, null, 0);
 
     /**
      * The last row partition key.
@@ -57,10 +58,13 @@ public final class GroupingState
      */
     final Clustering<?> clustering;
 
-    public GroupingState(ByteBuffer partitionKey, Clustering<?> clustering)
+    final int bytes;
+
+    public GroupingState(ByteBuffer partitionKey, Clustering<?> clustering, int bytes)
     {
         this.partitionKey = partitionKey;
         this.clustering = clustering;
+        this.bytes = bytes;
     }
 
     /**
@@ -81,6 +85,11 @@ public final class GroupingState
     public Clustering<?> clustering()
     {
         return clustering;
+    }
+
+    public int bytes()
+    {
+        return bytes;
     }
 
     /**
@@ -107,6 +116,8 @@ public final class GroupingState
                 if (hasClustering)
                     Clustering.serializer.serialize(state.clustering, out, version, comparator.subtypes());
             }
+            if (version >= MessagingService.VERSION_50)
+                out.writeInt(state.bytes);
         }
 
         public GroupingState deserialize(DataInputPlus in, int version, ClusteringComparator comparator) throws IOException
@@ -119,7 +130,9 @@ public final class GroupingState
             if (in.readBoolean())
                 clustering = Clustering.serializer.deserialize(in, version, comparator.subtypes());
 
-            return new GroupingState(partitionKey, clustering);
+            int bytes = version >= MessagingService.VERSION_50 ? in.readInt() : 0;
+
+            return new GroupingState(partitionKey, clustering, bytes);
         }
 
         public long serializedSize(GroupingState state, int version, ClusteringComparator comparator)
@@ -136,6 +149,10 @@ public final class GroupingState
                     size += Clustering.serializer.serializedSize(state.clustering, version, comparator.subtypes());
                 }
             }
+
+            if (version >= MessagingService.VERSION_50)
+                size += TypeSizes.sizeof(state.bytes);
+
             return size;
         }
     }

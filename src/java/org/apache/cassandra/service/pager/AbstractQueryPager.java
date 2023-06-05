@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service.pager;
 
+import java.util.function.Supplier;
+
 import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -55,6 +57,8 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
     private boolean exhausted;
 
+    private Supplier<DataLimits.Counter> counterSupplier;
+
     protected AbstractQueryPager(T query, ProtocolVersion protocolVersion)
     {
         this.query = query;
@@ -78,14 +82,16 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             return EmptyIterators.partition();
 
         pageSize = pageSize.min(remaining, remainingBytes);
-        Pager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
+        RowPager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
         ReadQuery readQuery = nextPageReadQuery(pageSize);
         if (readQuery == null)
         {
             exhausted = true;
             return EmptyIterators.partition();
         }
-        return Transformation.apply(readQuery.execute(consistency, clientState, queryStartNanoTime), pager);
+        PartitionIterator it = Transformation.apply(readQuery.execute(consistency, clientState, queryStartNanoTime), pager);
+        counterSupplier = () -> pager.counter;
+        return it;
     }
 
     public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController)
@@ -101,7 +107,9 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             exhausted = true;
             return EmptyIterators.partition();
         }
-        return Transformation.apply(readQuery.executeInternal(executionController), pager);
+        PartitionIterator it = Transformation.apply(readQuery.executeInternal(executionController), pager);
+        counterSupplier = () -> pager.counter;
+        return it;
     }
 
     public UnfilteredPartitionIterator fetchPageUnfiltered(TableMetadata metadata, PageSize pageSize, ReadExecutionController executionController)
@@ -115,9 +123,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         if (readQuery == null)
         {
             exhausted = true;
-            return EmptyIterators.unfilteredPartition(metadata);
+            UnfilteredPartitionIterator it = EmptyIterators.unfilteredPartition(metadata);
+            counterSupplier = () -> pager.counter;
+            return it;
         }
-        return Transformation.apply(readQuery.executeLocally(executionController), pager);
+        UnfilteredPartitionIterator it = Transformation.apply(readQuery.executeLocally(executionController), pager);
+        counterSupplier = () -> pager.counter;
+        return it;
     }
 
     private class UnfilteredPager extends Pager<Unfiltered>
@@ -238,10 +250,11 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         }
     }
 
-    protected void restoreState(DecoratedKey lastKey, int remaining, int remainingInPartition)
+    protected void restoreState(DecoratedKey lastKey, int remaining, int remainingBytes, int remainingInPartition)
     {
         this.lastKey = lastKey;
         this.remaining = remaining;
+        this.remainingBytes = remainingBytes;
         this.remainingInPartition = remainingInPartition;
     }
 
@@ -258,6 +271,12 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     public int maxRemainingBytes()
     {
         return remainingBytes;
+    }
+
+    @Override
+    public DataLimits.Counter getLastCounter()
+    {
+        return counterSupplier.get();
     }
 
     protected int remainingInPartition()

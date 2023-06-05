@@ -50,6 +50,7 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
@@ -68,6 +69,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.data.Offset;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,16 +91,21 @@ public abstract class QueryPagerTests
     public static final long nowInSec = FBUtilities.nowInSeconds();
     public static List<String> tokenOrderedKeys;
 
-    static final int ROW_SIZE_IN_BYTES = 39;
+    static final int ONE_CLUSTERING_ROW_BYTES = 39;
+    static final int TWO_CLUSTERINGS_ROW_BYTES = 43;
 
-    PageSize pageSizeInRows(int n)
+    static PageSize pageSizeInRows(int n)
     {
         return PageSize.inRows(n);
     }
 
-    PageSize pageSizeInBytes(int n)
+    static PageSize pageSizeInBytesForOneClustering(int n)
     {
-        return PageSize.inBytes(ROW_SIZE_IN_BYTES * n);
+        return PageSize.inBytes(ONE_CLUSTERING_ROW_BYTES * n);
+    }
+    static PageSize pageSizeInBytesForTwoClusterings(int n)
+    {
+        return PageSize.inBytes(TWO_CLUSTERINGS_ROW_BYTES * n);
     }
 
     public ProtocolVersion protocolVersion = ProtocolVersion.CURRENT;
@@ -313,7 +320,13 @@ public abstract class QueryPagerTests
         return PageSize.NONE;
     }
 
+
     QueryPager checkNextPage(QueryPager pager, ReadQuery command, boolean testPagingState, PageSize pageSize, int expectedRows, Consumer<List<FilteredPartition>> assertion)
+    {
+        return checkNextPage(pager, command, testPagingState, pageSize, expectedRows, 1, assertion);
+    }
+
+    final QueryPager checkNextPage(QueryPager pager, ReadQuery command, boolean testPagingState, PageSize pageSize, int expectedRows, int expectedSubPages, Consumer<List<FilteredPartition>> assertion)
     {
         logger.info("Checking next page: pageSize={}, subPageSize={}, expectedRows={}, state={}", pageSize, getSubPageSize(), expectedRows, pagerStateToString(pager, command.metadata()));
         if (pager == null)
@@ -332,9 +345,11 @@ public abstract class QueryPagerTests
 
         if (getSubPageSize().isDefined() && pager instanceof AggregationQueryPager)
         {
+            int allowedOffsetPerSubQuery =  1;
+            if (command instanceof SinglePartitionReadQuery.Group<?>)
+                allowedOffsetPerSubQuery = ((SinglePartitionReadQuery.Group<?>) command).queries.size();
             logger.info("Fetched a page of groups in {} sub-pages", ((AggregationQueryPager) pager).getNumberOfSubPages());
-            int expectedSubPages = expectedRows / getSubPageSize().rows;
-            assertThat(((AggregationQueryPager) pager).getNumberOfSubPages()).isEqualTo(expectedSubPages);
+            assertThat(((AggregationQueryPager) pager).getNumberOfSubPages()).isCloseTo(expectedSubPages, Offset.offset(allowedOffsetPerSubQuery));
         }
 
         return pager;
