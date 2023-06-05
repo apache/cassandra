@@ -66,29 +66,29 @@ public abstract class PartitionsPagerTests extends QueryPagerTests
     @Test
     public void partitionsSliceQueryWithPagingInBytesTest()
     {
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, false, this::pageSizeInBytes);
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, true, this::pageSizeInBytes);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, false, QueryPagerTests::pageSizeInBytesForOneClustering);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, true, QueryPagerTests::pageSizeInBytesForOneClustering);
     }
 
     @Test
     public void partitionsNamesQueryWithPagingInBytesTest()
     {
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, false, this::pageSizeInBytes);
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, true, this::pageSizeInBytes);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, false, QueryPagerTests::pageSizeInBytesForOneClustering);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, true, QueryPagerTests::pageSizeInBytesForOneClustering);
     }
 
     @Test
     public void partitionsSliceQueryWithPagingInRowsTest()
     {
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, false, this::pageSizeInRows);
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, true, this::pageSizeInRows);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, false, QueryPagerTests::pageSizeInRows);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsSliceQuery, true, QueryPagerTests::pageSizeInRows);
     }
 
     @Test
     public void partitionsNamesQueryWithPagingInRowsTest()
     {
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, false, this::pageSizeInRows);
-        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, true, this::pageSizeInRows);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, false, QueryPagerTests::pageSizeInRows);
+        partitionsQueryWithPagingInRowsTest(this::makePartitionsNamesQuery, true, QueryPagerTests::pageSizeInRows);
     }
 
     /**

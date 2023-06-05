@@ -99,6 +99,13 @@ public final class AggregationQueryPager implements QueryPager
     }
 
     @Override
+    public int maxRemainingBytes()
+    {
+        assert (limits.bytes() - getLastCounter().bytesCounted()) == subPager.maxRemainingBytes();
+        return subPager.maxRemainingBytes();
+    }
+
+    @Override
     public PagingState state()
     {
         return subPager.state();
@@ -113,6 +120,12 @@ public final class AggregationQueryPager implements QueryPager
     public int getNumberOfSubPages()
     {
         return fetchedSubPages;
+    }
+
+    @Override
+    public DataLimits.Counter getLastCounter()
+    {
+        return subPager.getLastCounter();
     }
 
     /**
@@ -167,6 +180,7 @@ public final class AggregationQueryPager implements QueryPager
          * The initial amount of row remaining
          */
         private int initialMaxRemaining;
+        private int initialMaxRemainingBytes;
 
         private long queryStartNanoTime;
 
@@ -228,6 +242,7 @@ public final class AggregationQueryPager implements QueryPager
             if (partitionIterator == null)
             {
                 initialMaxRemaining = subPager.maxRemaining();
+                initialMaxRemainingBytes = subPager.maxRemainingBytes();
                 partitionIterator = fetchSubPage(pageSize);
             }
 
@@ -236,8 +251,9 @@ public final class AggregationQueryPager implements QueryPager
                 partitionIterator.close();
 
                 int counted = initialMaxRemaining - subPager.maxRemaining();
+                int countedBytes = initialMaxRemainingBytes - subPager.maxRemainingBytes();
 
-                if (isDone(pageSize, counted) || subPager.isExhausted())
+                if (isDone(pageSize, counted, countedBytes) || subPager.isExhausted())
                 {
                     endOfData = true;
                     closed = true;
@@ -246,16 +262,16 @@ public final class AggregationQueryPager implements QueryPager
                     return;
                 }
 
-                subPager = updatePagerLimit(subPager, limits, lastPartitionKey, lastClustering);
-                partitionIterator = fetchSubPage(computeSubPageSize(pageSize, counted));
+                subPager = updatePagerLimit(subPager, limits, lastPartitionKey, lastClustering, subPager.getLastCounter());
+                partitionIterator = fetchSubPage(computeSubPageSize(pageSize, counted, countedBytes));
             }
 
             next = partitionIterator.next();
         }
 
-        protected boolean isDone(PageSize pageSize, int counted)
+        protected boolean isDone(PageSize pageSize, int counted, int countedBytes)
         {
-            return counted == pageSize.rows;
+            return counted == pageSize.rows || countedBytes >= pageSize.bytes;
         }
 
         /**
@@ -270,9 +286,10 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering<?> lastClustering)
+                                              Clustering<?> lastClustering,
+                                              DataLimits.Counter lastCounter)
         {
-            GroupingState state = new GroupingState(lastPartitionKey, lastClustering);
+            GroupingState state = lastCounter.recreateGroupingStateFor(lastPartitionKey, lastClustering);
             DataLimits newLimits = limits.forGroupByInternalPaging(state);
             return pager.withUpdatedLimit(newLimits);
         }
@@ -280,13 +297,14 @@ public final class AggregationQueryPager implements QueryPager
         /**
          * Computes the size of the next sub-page to retrieve.
          *
-         * @param pageSize the top-level page size
-         * @param counted the number of result returned so far by the previous sub-pages
+         * @param pageSize     the top-level page size
+         * @param counted      the number of result returned so far by the previous sub-pages
+         * @param countedBytes
          * @return the size of the next sub-page to retrieve
          */
-        protected PageSize computeSubPageSize(PageSize pageSize, int counted)
+        protected PageSize computeSubPageSize(PageSize pageSize, int counted, int countedBytes)
         {
-            return PageSize.inRows(pageSize.rows - counted);
+            return pageSize.minus(counted, countedBytes);
         }
 
         /**
@@ -428,19 +446,20 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering<?> lastClustering)
+                                              Clustering<?> lastClustering,
+                                              DataLimits.Counter lastCounter)
         {
             return pager;
         }
 
         @Override
-        protected boolean isDone(PageSize pageSize, int counted)
+        protected boolean isDone(PageSize pageSize, int counted, int countedBytes)
         {
             return false;
         }
 
         @Override
-        protected PageSize computeSubPageSize(PageSize pageSize, int counted)
+        protected PageSize computeSubPageSize(PageSize pageSize, int counted, int countedBytes)
         {
             return pageSize;
         }

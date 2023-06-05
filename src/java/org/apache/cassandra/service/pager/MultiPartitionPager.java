@@ -119,6 +119,12 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                                           current);
     }
 
+    @Override
+    public DataLimits.Counter getLastCounter()
+    {
+        return pagers[Math.min(pagers.length - 1, current)].getLastCounter();
+    }
+
     public PagingState state()
     {
         // Sets current to the first non-exhausted pager
@@ -243,5 +249,11 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     public int maxRemaining()
     {
         return remaining;
+    }
+
+    @Override
+    public int maxRemainingBytes()
+    {
+        return remainingBytes;
     }
 }

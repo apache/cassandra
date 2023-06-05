@@ -126,29 +126,29 @@ public class SinglePartitionPagerTest extends QueryPagerTests
     @Test
     public void sliceQueryWithPagingInRowsTest()
     {
-        queryWithPagingTest(false, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), this::pageSizeInRows);
-        queryWithPagingTest(true, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), this::pageSizeInRows);
+        queryWithPagingTest(false, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), QueryPagerTests::pageSizeInRows);
+        queryWithPagingTest(true, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), QueryPagerTests::pageSizeInRows);
     }
 
     @Test
     public void namesQueryWithPagingInRowsTest()
     {
-        queryWithPagingTest(false, this::makeNamesQuery, this::pageSizeInRows);
-        queryWithPagingTest(true, this::makeNamesQuery, this::pageSizeInRows);
+        queryWithPagingTest(false, this::makeNamesQuery, QueryPagerTests::pageSizeInRows);
+        queryWithPagingTest(true, this::makeNamesQuery, QueryPagerTests::pageSizeInRows);
     }
 
     @Test
     public void sliceQueryWithPagingInBytesTest()
     {
-        queryWithPagingTest(false, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), this::pageSizeInBytes);
-        queryWithPagingTest(true, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), this::pageSizeInBytes);
+        queryWithPagingTest(false, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), QueryPagerTests::pageSizeInBytesForOneClustering);
+        queryWithPagingTest(true, (limit, perPartitionLimit) -> makeSliceQuery(limit, perPartitionLimit, false), QueryPagerTests::pageSizeInBytesForOneClustering);
     }
 
     @Test
     public void namesQueryWithPagingInBytesTest()
     {
-        queryWithPagingTest(false, this::makeNamesQuery, this::pageSizeInBytes);
-        queryWithPagingTest(true, this::makeNamesQuery, this::pageSizeInBytes);
+        queryWithPagingTest(false, this::makeNamesQuery, QueryPagerTests::pageSizeInBytesForOneClustering);
+        queryWithPagingTest(true, this::makeNamesQuery, QueryPagerTests::pageSizeInBytesForOneClustering);
     }
 
     public void queryWithPagingTest(boolean testPagingState, BiFunction<Integer, Integer, ReadCommand> cmdSupplier, IntFunction<PageSize> pageSizeSupplier)
