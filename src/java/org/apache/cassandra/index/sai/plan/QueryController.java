@@ -49,11 +49,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.SSTableContextManager;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.CheckpointingIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.SSTableRowIdKeyRangeIterator;
@@ -229,14 +226,14 @@ public class QueryController
                                                                                                      Collectors.mapping(pair -> pair.right, Collectors.toList())));
         try
         {
-
             List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
                                                                                  .stream()
                                                                                  .map(e -> {
                                                                                      RangeIterator<Long> it = createRowIdIterator(op, e.getValue(), defer, annExpressionInHybridSearch != null);
                                                                                      if (annExpressionInHybridSearch != null)
                                                                                          return reorderAndLimitBySSTableRowIds(it, e.getKey(), annExpressionInHybridSearch);
-                                                                                     return convertToPrimaryKeyIterator(e.getKey(), it);
+                                                                                     var pkFactory = e.getValue().iterator().next().index.getSSTableContext().primaryKeyMapFactory;
+                                                                                     return convertToPrimaryKeyIterator(pkFactory, it);
                                                                                  })
                                                                                  .collect(Collectors.toList());
 
@@ -268,17 +265,14 @@ public class QueryController
         }
     }
 
-    private RangeIterator<PrimaryKey> convertToPrimaryKeyIterator(SSTableReader sstable, RangeIterator<Long> sstableRowIdsIterator)
+    private RangeIterator<PrimaryKey> convertToPrimaryKeyIterator(PrimaryKeyMap.Factory pkFactory, RangeIterator<Long> sstableRowIdsIterator)
     {
         try
         {
             if (sstableRowIdsIterator.getCount() <= 0)
                 return RangeIterator.emptyKeys();
 
-            SSTableContextManager contextManager = StorageAttachedIndexGroup.getIndexGroup(cfs).sstableContextManager();
-            SSTableContext sstableContext = contextManager.getContext(sstable);
-            assert sstableContext != null : "sstable context should not be null for " + sstable;
-            PrimaryKeyMap primaryKeyMap = sstableContext.primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
+            PrimaryKeyMap primaryKeyMap = pkFactory.newPerSSTablePrimaryKeyMap();
             return SSTableRowIdKeyRangeIterator.create(primaryKeyMap, queryContext, sstableRowIdsIterator);
         }
         catch (IOException e)
@@ -294,8 +288,9 @@ public class QueryController
 
     private RangeIterator<PrimaryKey> reorderAndLimitBySSTableRowIds(RangeIterator<Long> original, SSTableReader sstable, Expression expression)
     {
-        var index = expression.context.getView().getIndexes()
-                                      .stream().filter(i -> i.getSSTable() == sstable).findFirst().orElseThrow();
+        var indexes = expression.context.getView().getIndexes();
+        assert indexes.size() == 1 : "only one index is expected in ANN expression, found " + indexes.size() + " in " + expression;
+        var index = indexes.iterator().next();
         var sstContext = queryContext.getSSTableQueryContext(index.getSSTable());
         try
         {
