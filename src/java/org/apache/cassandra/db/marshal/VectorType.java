@@ -461,6 +461,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
         @Override
         public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
         {
+            if (accessor.isEmpty(input))
+                return;
             int offset = 0;
             int elementSize = elementType.valueLengthIfFixed();
             for (int i = 0; i < dimension; i++)
@@ -595,6 +597,8 @@ public final class VectorType<T> extends AbstractType<List<T>>
         @Override
         public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
         {
+            if (accessor.isEmpty(input))
+                return;
             int offset = 0;
             for (int i = 0; i < dimension; i++)
             {

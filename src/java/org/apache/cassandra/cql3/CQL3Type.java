@@ -537,7 +537,7 @@ public interface CQL3Type
         @Override
         public String toCQLLiteral(ByteBuffer buffer)
         {
-            if (buffer == null)
+            if (type.isNull(buffer))
                 return "null";
             buffer = buffer.duplicate();
             CQL3Type elementType = type.elementType.asCQL3Type();
