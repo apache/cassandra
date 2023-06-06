@@ -122,7 +122,10 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     @Override
     public DataLimits.Counter getLastCounter()
     {
-        return pagers[Math.min(pagers.length - 1, current)].getLastCounter();
+        DataLimits.Counter lastCounter = null;
+        for (int i = Math.min(pagers.length - 1, current); i >= 0 && lastCounter == null; i--)
+            lastCounter = pagers[i].getLastCounter();
+        return lastCounter;
     }
 
     public PagingState state()

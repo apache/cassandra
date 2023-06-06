@@ -276,6 +276,8 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
     @Override
     public DataLimits.Counter getLastCounter()
     {
+        if (counterSupplier == null)
+            return null;
         return counterSupplier.get();
     }
 
