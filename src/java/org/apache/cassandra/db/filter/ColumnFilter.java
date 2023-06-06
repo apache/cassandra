@@ -152,6 +152,27 @@ public abstract class ColumnFilter
             {
                 return queried;
             }
+        },
+
+        /**
+         * Fetch only the columns that have are part of the fetched set that has been requested.
+         *
+         * <p>This strategy is only used to deal with schema propagation delay that caused the replica to have more
+         * columns than the coordinator.</p>
+         */
+        REQUESTED_FETCHED_COLUMNS
+        {
+            @Override
+            boolean fetchesAllColumns(boolean isStatic)
+            {
+                return false;
+            }
+
+            @Override
+            RegularAndStaticColumns getFetchedColumns(TableMetadata metadata, RegularAndStaticColumns queried)
+            {
+                throw new UnsupportedOperationException();
+            }
         };
 
         /**
@@ -613,9 +634,6 @@ public abstract class ColumnFilter
 
     /**
      * {@code ColumnFilter} sub-class for wildcard queries.
-     *
-     * <p>The class does not rely on TableMetadata and expects a fix set of columns to prevent issues
-     * with Schema race propagation. See CASSANDRA-15899.</p>
      */
     public static class WildCardColumnFilter extends ColumnFilter
     {
@@ -731,9 +749,6 @@ public abstract class ColumnFilter
 
     /**
      * {@code ColumnFilter} sub-class for queries with selected columns.
-     *
-     * <p>The class  does not rely on TableMetadata and expect a fix set of fetched columns to prevent issues
-     * with Schema race propagation. See CASSANDRA-15899.</p>
      */
     public static class SelectionColumnFilter extends ColumnFilter
     {
@@ -745,7 +760,7 @@ public abstract class ColumnFilter
         private final RegularAndStaticColumns queried;
 
         /**
-         * The columns that need to be fetched to be able
+         * The columns that need to be fetched to be able to ensure that a row exists.
          */
         private final RegularAndStaticColumns fetched;
 
@@ -1014,11 +1029,19 @@ public abstract class ColumnFilter
             RegularAndStaticColumns fetched = null;
             RegularAndStaticColumns queried = null;
 
+            // Due to schema change propagation delays, it is possible that the replica receiving the query has more
+            // columns than the coordinator. Those columns need to be ignored when returning the results as it will
+            // otherwise trigger some errors on the coordinator side that is not aware of them.
+            boolean hasNoExtraStaticColumns = true;
+            boolean hasNoExtraRegularColumns = true;
+
             if (isFetchAll)
             {
                 if (version >= MessagingService.VERSION_3014)
                 {
                     fetched = deserializeRegularAndStaticColumns(in, metadata);
+                    hasNoExtraRegularColumns = fetched.regulars.containsAll(metadata.regularColumns());
+                    hasNoExtraStaticColumns = fetched.statics.containsAll(metadata.staticColumns());
                 }
                 else
                 {
@@ -1043,26 +1066,48 @@ public abstract class ColumnFilter
                 // is assumed that all columns are queried.
                 if (!hasQueried || isUpgradingFromVersionLowerThan34())
                 {
-                    return new WildCardColumnFilter(fetched);
+                    return hasNoExtraStaticColumns && hasNoExtraRegularColumns ? new WildCardColumnFilter(fetched)
+                                                                               : new SelectionColumnFilter(FetchingStrategy.REQUESTED_FETCHED_COLUMNS, fetched, fetched, subSelections);
                 }
 
-                // pre CASSANDRA-12768 (4.0-) all static columns should be fetched along with all regular columns.
-                if (isUpgradingFromVersionLowerThan40())
-                {
-                    return new SelectionColumnFilter(FetchingStrategy.ALL_COLUMNS, queried, fetched, subSelections);
-                }
+                FetchingStrategy strategy = fetchAllStrategy(isFetchAllStatics, hasNoExtraStaticColumns, hasNoExtraRegularColumns);
 
-                // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
-                // for some queries
-                if (!isFetchAllStatics || isUpgradingFromVersionLowerThan40RC2())
-                {
-                    return new SelectionColumnFilter(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, queried, fetched, subSelections);
-                }
-
-                return new SelectionColumnFilter(FetchingStrategy.ALL_COLUMNS, queried, fetched, subSelections);
+                return new SelectionColumnFilter(strategy, queried, fetched, subSelections);
             }
 
             return new SelectionColumnFilter(FetchingStrategy.ONLY_QUERIED_COLUMNS, queried, queried, subSelections);
+        }
+
+        /**
+         * Returns the {@code FetchingStrategy} that should be used to perform the query, when all columns should be fetched',
+         * based on the other node versions, the schema and if all static columns need to be fetched.
+         *
+         * @param isFetchAllStatics {@code true} if all the static columns need to be fetched, {@code false} otherwise.
+         * @param hasNoExtraStaticColumns {@code true} if this node has more regular columns than the coordinator, {@code false} otherwise.
+         * @param hasNoExtraRegularColumns {@code true} if this node has more static columns than the coordinator, {@code false} otherwise.
+         * @return the fetching strategy to use for a fetch all query
+         */
+        private FetchingStrategy fetchAllStrategy(boolean isFetchAllStatics,
+                                                  boolean hasNoExtraStaticColumns,
+                                                  boolean hasNoExtraRegularColumns)
+        {
+            // pre CASSANDRA-12768 (4.0-) all static columns should be fetched along with all regular columns.
+            if (isUpgradingFromVersionLowerThan40())
+            {
+                return hasNoExtraStaticColumns && hasNoExtraRegularColumns ? FetchingStrategy.ALL_COLUMNS
+                                                                           : FetchingStrategy.REQUESTED_FETCHED_COLUMNS;
+            }
+
+            // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
+            // for some queries
+            if (!isFetchAllStatics || isUpgradingFromVersionLowerThan40RC2())
+            {
+                return hasNoExtraRegularColumns ? FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS
+                                                : FetchingStrategy.REQUESTED_FETCHED_COLUMNS;
+            }
+
+            return hasNoExtraStaticColumns && hasNoExtraRegularColumns ? FetchingStrategy.ALL_COLUMNS
+                                                                       : FetchingStrategy.REQUESTED_FETCHED_COLUMNS;
         }
 
         private RegularAndStaticColumns deserializeRegularAndStaticColumns(DataInputPlus in,
