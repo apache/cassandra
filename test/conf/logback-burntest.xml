@@ -59,7 +59,7 @@
   <logger name="org.apache.hadoop" level="WARN"/>
   <logger name="io.netty.handler.ssl.SslHandler" level="WARN"/>
 
-  <root level="DEBUG">
+  <root level="INFO">
     <appender-ref ref="ASYNCFILE" />
     <appender-ref ref="STDOUT" />
   </root>
