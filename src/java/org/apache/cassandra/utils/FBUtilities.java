@@ -480,9 +480,9 @@ public class FBUtilities
         return currentTimeMillis() * 1000;
     }
 
-    public static int nowInSeconds()
+    public static long nowInSeconds()
     {
-        return (int) (currentTimeMillis() / 1000);
+        return currentTimeMillis() / 1000l;
     }
 
     public static Instant now()

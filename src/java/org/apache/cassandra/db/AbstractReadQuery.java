@@ -32,13 +32,13 @@ import org.apache.cassandra.schema.TableMetadata;
 abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
 {
     private final TableMetadata metadata;
-    private final int nowInSec;
+    private final long nowInSec;
 
     private final ColumnFilter columnFilter;
     private final RowFilter rowFilter;
     private final DataLimits limits;
 
-    protected AbstractReadQuery(TableMetadata metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
+    protected AbstractReadQuery(TableMetadata metadata, long nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
     {
         this.metadata = metadata;
         this.nowInSec = nowInSec;
@@ -72,7 +72,7 @@ abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
     }
 
     @Override
-    public int nowInSec()
+    public long nowInSec()
     {
         return nowInSec;
     }

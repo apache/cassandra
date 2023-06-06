@@ -32,6 +32,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.Threshold;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.PartitionSerializationException;
@@ -213,6 +214,8 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
 
         long endPosition = dataWriter.position();
         long rowSize = endPosition - partitionWriter.getInitialPosition();
+        guardPartitionThreshold(Guardrails.partitionSize, key, rowSize);
+        guardPartitionThreshold(Guardrails.partitionTombstones, key, metadataCollector.totalTombstones);
         maybeLogLargePartitionWarning(key, rowSize);
         maybeLogManyTombstonesWarning(key, metadataCollector.totalTombstones);
         metadataCollector.addPartitionSizeInBytes(rowSize);
@@ -324,6 +327,20 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         return dataFile;
     }
 
+    private void guardPartitionThreshold(Threshold guardrail, DecoratedKey key, long size)
+    {
+        if (guardrail.triggersOn(size, null))
+        {
+            String message = String.format("%s.%s:%s on sstable %s",
+                                           metadata.keyspace,
+                                           metadata.name,
+                                           metadata().partitionKeyType.getString(key.getKey()),
+                                           getFilename());
+            guardrail.guard(size, message, true, null);
+        }
+    }
+
+    @Deprecated
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
     {
         if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
@@ -333,6 +350,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         }
     }
 
+    @Deprecated
     private void maybeLogManyTombstonesWarning(DecoratedKey key, int tombstoneCount)
     {
         if (tombstoneCount > DatabaseDescriptor.getCompactionTombstoneWarningThreshold())

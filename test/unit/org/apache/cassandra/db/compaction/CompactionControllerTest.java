@@ -164,7 +164,7 @@ public class CompactionControllerTest extends SchemaLoader
         Set<SSTableReader> overlapping = Sets.difference(Sets.newHashSet(cfs.getLiveSSTables()), compacting);
 
         // the first sstable should be expired because the overlapping sstable is newer and the gc period is later
-        int gcBefore = (int) (System.currentTimeMillis() / 1000) + 5;
+        long gcBefore = (System.currentTimeMillis() / 1000) + 5;
         Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(cfs, compacting, overlapping, gcBefore);
         assertNotNull(expired);
         assertEquals(1, expired.size());

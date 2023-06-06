@@ -27,20 +27,23 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 
 public class PEMJKSSslContextFactoryConfigTest
 {
+    static WithProperties properties;
+
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        CASSANDRA_CONFIG.setString("cassandra-pem-jks-sslcontextfactory.yaml");
+        properties = new WithProperties().set(CASSANDRA_CONFIG, "cassandra-pem-jks-sslcontextfactory.yaml");
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor() {
-        CASSANDRA_CONFIG.clearValue();
+        properties.close();
     }
 
     @Test

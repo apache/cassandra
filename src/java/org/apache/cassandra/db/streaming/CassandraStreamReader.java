@@ -195,6 +195,7 @@ public class CassandraStreamReader implements IStreamReader
         private SSTableSimpleIterator iterator;
         private Row staticRow;
         private IOException exception;
+        private Version version;
 
         public StreamDeserializer(TableMetadata metadata, DataInputPlus in, Version version, SerializationHeader header) throws IOException
         {
@@ -202,12 +203,13 @@ public class CassandraStreamReader implements IStreamReader
             this.in = in;
             this.helper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
+            this.version = version;
         }
 
         public StreamDeserializer newPartition() throws IOException
         {
             key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
-            partitionLevelDeletion = DeletionTime.serializer.deserialize(in);
+            partitionLevelDeletion = DeletionTime.getSerializer(version).deserialize(in);
             iterator = SSTableSimpleIterator.create(metadata, in, header, helper, partitionLevelDeletion);
             staticRow = iterator.readStaticRow();
             return this;

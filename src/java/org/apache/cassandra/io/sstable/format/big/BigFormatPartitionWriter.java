@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,6 +45,9 @@ import org.apache.cassandra.io.util.SequentialWriter;
  */
 public class BigFormatPartitionWriter extends SortedTablePartitionWriter
 {
+    @VisibleForTesting
+    public static final int DEFAULT_GRANULARITY = 64 * 1024;
+
     // used, if the row-index-entry reaches config column_index_cache_size
     private DataOutputBuffer buffer;
     // used to track the size of the serialized size of row-index-entry (unused for buffer)
@@ -66,7 +70,7 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
                              Version version,
                              ISerializer<IndexInfo> indexInfoSerializer)
     {
-        this(header, writer, version, indexInfoSerializer, DatabaseDescriptor.getColumnIndexCacheSize(), DatabaseDescriptor.getColumnIndexSize());
+        this(header, writer, version, indexInfoSerializer, DatabaseDescriptor.getColumnIndexCacheSize(), DatabaseDescriptor.getColumnIndexSize(DEFAULT_GRANULARITY));
     }
 
     BigFormatPartitionWriter(SerializationHeader header,

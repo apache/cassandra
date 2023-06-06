@@ -70,7 +70,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                       int digestVersion,
                                       boolean acceptsTransient,
                                       TableMetadata metadata,
-                                      int nowInSec,
+                                      long nowInSec,
                                       ColumnFilter columnFilter,
                                       RowFilter rowFilter,
                                       DataLimits limits,
@@ -88,7 +88,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                     int digestVersion,
                                                     boolean acceptsTransient,
                                                     TableMetadata metadata,
-                                                    int nowInSec,
+                                                    long nowInSec,
                                                     ColumnFilter columnFilter,
                                                     RowFilter rowFilter,
                                                     DataLimits limits,
@@ -124,7 +124,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     public static PartitionRangeReadCommand create(TableMetadata metadata,
-                                                   int nowInSec,
+                                                   long nowInSec,
                                                    ColumnFilter columnFilter,
                                                    RowFilter rowFilter,
                                                    DataLimits limits,
@@ -151,7 +151,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
      *
      * @return a newly created read command that queries everything in the table.
      */
-    public static PartitionRangeReadCommand allDataRead(TableMetadata metadata, int nowInSec)
+    public static PartitionRangeReadCommand allDataRead(TableMetadata metadata, long nowInSec)
     {
         return create(false,
                       0,
@@ -524,7 +524,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                        int digestVersion,
                                        boolean acceptsTransient,
                                        TableMetadata metadata,
-                                       int nowInSec,
+                                       long nowInSec,
                                        ColumnFilter columnFilter,
                                        RowFilter rowFilter,
                                        DataLimits limits,
@@ -542,7 +542,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                       int digestVersion,
                                                       boolean acceptsTransient,
                                                       TableMetadata metadata,
-                                                      int nowInSec,
+                                                      long nowInSec,
                                                       ColumnFilter columnFilter,
                                                       RowFilter rowFilter,
                                                       DataLimits limits,

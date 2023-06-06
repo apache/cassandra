@@ -338,11 +338,11 @@ public class TopPartitionTracker implements Closeable
     public static class TombstoneCounter extends Transformation<UnfilteredRowIterator>
     {
         private final TopPartitionTracker.Collector collector;
-        private final int nowInSec;
+        private final long nowInSec;
         private long tombstoneCount = 0;
         private DecoratedKey key = null;
 
-        public TombstoneCounter(TopPartitionTracker.Collector collector, int nowInSec)
+        public TombstoneCounter(TopPartitionTracker.Collector collector, long nowInSec)
         {
             this.collector = collector;
             this.nowInSec = nowInSec;

@@ -51,7 +51,7 @@ public class RowTest
     private static final String KEYSPACE1 = "RowTest";
     private static final String CF_STANDARD1 = "Standard1";
 
-    private int nowInSeconds;
+    private long nowInSeconds;
     private DecoratedKey dk;
     private ColumnFamilyStore cfs;
     private TableMetadata metadata;
@@ -101,23 +101,23 @@ public class RowTest
 
         try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.build().unfilteredIterator(), update2.build().unfilteredIterator())))
         {
-            Object[][] expected = new Object[][]{ { "1", "11", 123l, 123 },
-                                                  { "111", "112", 1230l, 123 },
-                                                  { "2", "24", 123l, 123 },
-                                                  { "3", "31", 1230l, 123 },
-                                                  { "4", "41", 123l, 1230 },
-                                                  { "5", "51", 123l, 1230 } };
+            Object[][] expected = new Object[][]{ { "1", "11", 123l, 123l },
+                                                  { "111", "112", 1230l, 123l },
+                                                  { "2", "24", 123l, 123l },
+                                                  { "3", "31", 1230l, 123l },
+                                                  { "4", "41", 123l, 1230l },
+                                                  { "5", "51", 123l, 1230l } };
             int i = 0;
             while (merged.hasNext())
             {
                 RangeTombstoneBoundMarker openMarker = (RangeTombstoneBoundMarker)merged.next();
                 ClusteringBound<?> openBound = openMarker.clustering();
-                DeletionTime openDeletion = new DeletionTime(openMarker.deletionTime().markedForDeleteAt(),
+                DeletionTime openDeletion = DeletionTime.build(openMarker.deletionTime().markedForDeleteAt(),
                                                                    openMarker.deletionTime().localDeletionTime());
 
                 RangeTombstoneBoundMarker closeMarker = (RangeTombstoneBoundMarker)merged.next();
                 ClusteringBound<?> closeBound = closeMarker.clustering();
-                DeletionTime closeDeletion = new DeletionTime(closeMarker.deletionTime().markedForDeleteAt(),
+                DeletionTime closeDeletion = DeletionTime.build(closeMarker.deletionTime().markedForDeleteAt(),
                                                                     closeMarker.deletionTime().localDeletionTime());
 
                 assertEquals(openDeletion, closeDeletion);
@@ -204,10 +204,10 @@ public class RowTest
         assertEquals(expected[3], deletionTime.localDeletionTime());
     }
 
-    public void writeRangeTombstone(PartitionUpdate.Builder update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
+    public void writeRangeTombstone(PartitionUpdate.Builder update, Object start, Object end, long markedForDeleteAt, long localDeletionTime)
     {
         ClusteringComparator comparator = cfs.getComparator();
-        update.add(new RangeTombstone(Slice.make(comparator.make(start), comparator.make(end)), new DeletionTime(markedForDeleteAt, localDeletionTime)));
+        update.add(new RangeTombstone(Slice.make(comparator.make(start), comparator.make(end)), DeletionTime.build(markedForDeleteAt, localDeletionTime)));
     }
 
     private void writeSimpleCellValue(Row.Builder builder,

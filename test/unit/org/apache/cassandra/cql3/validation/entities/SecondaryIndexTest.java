@@ -1586,7 +1586,7 @@ public class SecondaryIndexTest extends CQLTester
         createIndex("CREATE INDEX ON %s(k1)");
 
         execute("UPDATE %s USING TTL 1 SET v = 3 WHERE k1 = 1 AND k2 = 2");
-        Thread.sleep(1000);
+        Thread.sleep(1500);
 
         assertEmpty(execute("SELECT * FROM %s WHERE k1 = 1"));
 

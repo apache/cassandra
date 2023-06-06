@@ -987,7 +987,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         completeInitialization();
     }
 
-    private void completeInitialization()
+    @VisibleForTesting
+    public void completeInitialization()
     {
         if (!initialized)
             registerMBeans();
@@ -6530,7 +6531,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKiB);
+            DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKiB);
         }
         catch (ConfigurationException e)
         {
@@ -6544,7 +6545,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKB);
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 
@@ -6732,7 +6733,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                String includedUsers, String excludedUsers, Integer maxArchiveRetries, Boolean block, String rollCycle,
                                Long maxLogSize, Integer maxQueueWeight, String archiveCommand) throws IllegalStateException
     {
-        final AuditLogOptions options = new AuditLogOptions.Builder(DatabaseDescriptor.getAuditLoggingOptions())
+        AuditLogOptions auditOptions = DatabaseDescriptor.getAuditLoggingOptions();
+        if (archiveCommand != null && !auditOptions.allow_nodetool_archive_command)
+            throw new ConfigurationException("Can't enable audit log archiving via nodetool unless audit_logging_options.allow_nodetool_archive_command is set to true");
+
+        final AuditLogOptions options = new AuditLogOptions.Builder(auditOptions)
                                         .withEnabled(true)
                                         .withLogger(loggerName, parameters)
                                         .withIncludedKeyspaces(includedKeyspaces)
@@ -6835,6 +6840,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         blocking = blocking != null ? blocking : fqlOptions.block;
         maxQueueWeight = maxQueueWeight != Integer.MIN_VALUE ? maxQueueWeight : fqlOptions.max_queue_weight;
         maxLogSize = maxLogSize != Long.MIN_VALUE ? maxLogSize : fqlOptions.max_log_size;
+        if (archiveCommand != null && !fqlOptions.allow_nodetool_archive_command)
+            throw new ConfigurationException("Can't enable full query log archiving via nodetool unless full_query_logging_options.allow_nodetool_archive_command is set to true");
         archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
@@ -6942,6 +6949,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
     }
 
+    @Override
     public void setCompactionTombstoneWarningThreshold(int count)
     {
         if (count < 0)
@@ -6950,6 +6958,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setCompactionTombstoneWarningThreshold(count);
     }
 
+    @Override
     public int getCompactionTombstoneWarningThreshold()
     {
         return DatabaseDescriptor.getCompactionTombstoneWarningThreshold();

@@ -108,7 +108,7 @@ public class RangeTombstoneTest
             cmdBuilder.includeRow(i);
 
         Partition partition = Util.getOnlyPartitionUnfiltered(cmdBuilder.build());
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
 
         for (int i : live)
             assertTrue("Row " + i + " should be live",
@@ -233,7 +233,7 @@ public class RangeTombstoneTest
         cfs.truncateBlocking();
         String key = "rt_times";
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata(), Util.dk(key), 1000, nowInSec)).apply();
         Util.flush(cfs);
 
@@ -255,15 +255,15 @@ public class RangeTombstoneTest
         UpdateBuilder.create(cfs.metadata(), key).withTimestamp(999).newRow(5).add("val", 5).apply();
 
         key = "rt_times2";
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata(), Util.dk(key), 1000, nowInSec)).apply();
         Util.flush(cfs);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
+        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Long.MAX_VALUE);
         cfs.forceMajorCompaction();
         sstable = cfs.getLiveSSTables().iterator().next();
-        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
+        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Long.MAX_VALUE);
     }
 
     @Test
@@ -274,7 +274,7 @@ public class RangeTombstoneTest
         cfs.truncateBlocking();
         String key = "rt_times";
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         new RowUpdateBuilder(cfs.metadata(), nowInSec, 1000L, key).addRangeTombstone(1, 2).build().apply();
         Util.flush(cfs);
 
@@ -296,19 +296,19 @@ public class RangeTombstoneTest
         UpdateBuilder.create(cfs.metadata(), key).withTimestamp(999).newRow(5).add("val", 5).apply();
 
         key = "rt_times2";
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata(), Util.dk(key), 1000, nowInSec)).apply();
         Util.flush(cfs);
 
         Util.flush(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
+        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Long.MAX_VALUE);
         cfs.forceMajorCompaction();
         sstable = cfs.getLiveSSTables().iterator().next();
-        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
+        assertTimes(sstable.getSSTableMetadata(), 999, 1000, Long.MAX_VALUE);
     }
 
-    private void assertTimes(StatsMetadata metadata, long min, long max, int localDeletionTime)
+    private void assertTimes(StatsMetadata metadata, long min, long max, long localDeletionTime)
     {
         assertEquals(min, metadata.minTimestamp);
         assertEquals(max, metadata.maxTimestamp);
@@ -408,7 +408,7 @@ public class RangeTombstoneTest
         Util.flush(cfs);
 
         Partition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
 
         for (int i = 0; i < 5; i++)
             assertTrue("Row " + i + " should be live",

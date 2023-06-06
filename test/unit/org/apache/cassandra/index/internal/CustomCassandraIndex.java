@@ -274,7 +274,7 @@ public class CustomCassandraIndex implements Index
         throw new UnsupportedOperationException("KEYS indexes do not use a specialized index entry format");
     }
 
-    public boolean isStale(Row row, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row row, ByteBuffer indexValue, long nowInSec)
     {
         if (row == null)
             return true;
@@ -288,7 +288,7 @@ public class CustomCassandraIndex implements Index
 
     public Indexer indexerFor(final DecoratedKey key,
                               final RegularAndStaticColumns columns,
-                              final int nowInSec,
+                              final long nowInSec,
                               final WriteContext ctx,
                               final IndexTransaction.Type transactionType)
     {
@@ -473,14 +473,14 @@ public class CustomCassandraIndex implements Index
                         Clustering<?> clustering,
                         Cell<?> cell,
                         WriteContext ctx,
-                        int nowInSec)
+                        long nowInSec)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey,
                                                                clustering,
                                                                cell));
         doDelete(valueKey,
                  buildIndexClustering(rowKey, clustering, cell),
-                 new DeletionTime(cell.timestamp(), nowInSec),
+                 DeletionTime.build(cell.timestamp(), nowInSec),
                  ctx);
     }
 

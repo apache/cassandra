@@ -51,7 +51,7 @@ public class HintWriteTTLTest
     private static int TTL = 500;
     private static int GC_GRACE = 84600;
 
-    private static Hint makeHint(TableMetadata tbm, int key, int creationTime, int gcgs)
+    private static Hint makeHint(TableMetadata tbm, int key, long creationTime, int gcgs)
     {
         PartitionUpdate update = PartitionUpdate.fullPartitionDelete(tbm,
                                                                      ByteBufferUtil.bytes(key),
@@ -91,7 +91,7 @@ public class HintWriteTTLTest
         TableMetadata tbm = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", "ks").gcGraceSeconds(GC_GRACE).build();
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1), tbm);
 
-        int nowInSeconds = FBUtilities.nowInSeconds();
+        long nowInSeconds = FBUtilities.nowInSeconds();
         liveHint = makeHint(tbm, 1, nowInSeconds, GC_GRACE);
         ttldHint = makeHint(tbm, 2, nowInSeconds - (TTL + 1), GC_GRACE);
 
@@ -108,7 +108,7 @@ public class HintWriteTTLTest
         }
     }
 
-    private static long s2m(int seconds)
+    private static long s2m(long seconds)
     {
         return TimeUnit.SECONDS.toMillis(seconds);
     }

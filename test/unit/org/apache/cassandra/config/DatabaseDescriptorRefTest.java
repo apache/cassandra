@@ -345,6 +345,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter$Builder",
+    "org.apache.cassandra.io.sstable.format.SortedTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableWriter",
     "org.apache.cassandra.io.sstable.format.SSTableWriter$Builder",
     "org.apache.cassandra.io.sstable.format.SortedTableWriter",
@@ -405,6 +406,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
     "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
+    "org.apache.cassandra.utils.StorageCompatibilityMode"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

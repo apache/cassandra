@@ -68,18 +68,18 @@ public class CompactionController extends AbstractCompactionController
     private final long minTimestamp;
     final Map<SSTableReader, FileDataInput> openDataFiles = new HashMap<>();
 
-    protected CompactionController(ColumnFamilyStore cfs, int maxValue)
+    protected CompactionController(ColumnFamilyStore cfs, long maxValue)
     {
         this(cfs, null, maxValue);
     }
 
-    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore)
+    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, long gcBefore)
     {
         this(cfs, compacting, gcBefore, null,
              cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
     }
 
-    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
+    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, long gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
         super(cfs, gcBefore, tombstoneOption);
         this.compacting = compacting;
@@ -157,7 +157,7 @@ public class CompactionController extends AbstractCompactionController
     public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore,
                                                              Iterable<SSTableReader> compacting,
                                                              Iterable<SSTableReader> overlapping,
-                                                             int gcBefore,
+                                                             long gcBefore,
                                                              boolean ignoreOverlaps)
     {
         logger.trace("Checking droppable sstables in {}", cfStore);
@@ -233,7 +233,7 @@ public class CompactionController extends AbstractCompactionController
     public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore,
                                                              Iterable<SSTableReader> compacting,
                                                              Iterable<SSTableReader> overlapping,
-                                                             int gcBefore)
+                                                             long gcBefore)
     {
         return getFullyExpiredSSTables(cfStore, compacting, overlapping, gcBefore, false);
     }

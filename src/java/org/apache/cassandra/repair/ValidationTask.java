@@ -37,12 +37,12 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
 {
     private final RepairJobDesc desc;
     private final InetAddressAndPort endpoint;
-    private final int nowInSec;
+    private final long nowInSec;
     private final PreviewKind previewKind;
     
     private boolean active = true;
 
-    public ValidationTask(RepairJobDesc desc, InetAddressAndPort endpoint, int nowInSec, PreviewKind previewKind)
+    public ValidationTask(RepairJobDesc desc, InetAddressAndPort endpoint, long nowInSec, PreviewKind previewKind)
     {
         this.desc = desc;
         this.endpoint = endpoint;

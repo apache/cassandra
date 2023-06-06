@@ -53,7 +53,7 @@ public final class Guardrails implements GuardrailsMBean
     private static final GuardrailsOptions DEFAULT_CONFIG = DatabaseDescriptor.getGuardrailsConfig();
 
     @VisibleForTesting
-    static final Guardrails instance = new Guardrails();
+    public static final Guardrails instance = new Guardrails();
 
     /**
      * Guardrail on the total number of user keyspaces.
@@ -310,6 +310,30 @@ public final class Guardrails implements GuardrailsMBean
                  state -> Collections.emptySet(),
                  state -> CONFIG_PROVIDER.getOrCreate(state).getWriteConsistencyLevelsDisallowed(),
                  "write consistency levels");
+
+    /**
+     * Guardrail on the size of a partition.
+     */
+    public static final MaxThreshold partitionSize =
+    new MaxThreshold("partition_size",
+                     "Too large partitions can cause performance problems.",
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getPartitionSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getPartitionSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                             format("Partition %s has size %s, this exceeds the %s threshold of %s.",
+                                    what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the number of rows of a partition.
+     */
+    public static final MaxThreshold partitionTombstones =
+    new MaxThreshold("partition_tombstones",
+                     "Partitions with too many tombstones can cause performance problems.",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionTombstonesWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getPartitionTombstonesFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                             format("Partition %s has %s tombstones, this exceeds the %s threshold of %s.",
+                                    what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
      * Guardrail on the size of a collection.
@@ -789,6 +813,44 @@ public final class Guardrails implements GuardrailsMBean
     public void setPartitionKeysInSelectThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setPartitionKeysInSelectThreshold(warn, fail);
+    }
+
+    @Override
+    @Nullable
+    public String getPartitionSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getPartitionSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getPartitionSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getPartitionSizeFailThreshold());
+    }
+
+    @Override
+    public void setPartitionSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setPartitionSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    public long getPartitionTombstonesWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionTombstonesWarnThreshold();
+    }
+
+    @Override
+    public long getPartitionTombstonesFailThreshold()
+    {
+        return DEFAULT_CONFIG.getPartitionTombstonesFailThreshold();
+    }
+
+    @Override
+    public void setPartitionTombstonesThreshold(long warn, long fail)
+    {
+        DEFAULT_CONFIG.setPartitionTombstonesThreshold(warn, fail);
     }
 
     @Override

@@ -88,7 +88,7 @@ public interface DataOutputPlus extends DataOutput
      * @param bytes - the number of bytes the register occupies. Valid values are between 1 and 8 inclusive.
      * @throws IOException
      */
-    default void writeBytes(long register, int bytes) throws IOException
+    default void writeMostSignificantBytes(long register, int bytes) throws IOException
     {
         switch (bytes)
         {
@@ -150,5 +150,41 @@ public interface DataOutputPlus extends DataOutput
     default boolean hasPosition()
     {
         return false;
+    }
+
+    // The methods below support page-aware layout for writing. These would only be implemented if position() is
+    // also supported.
+
+    /**
+     * Returns the number of bytes that a page can take at maximum.
+     */
+    default int maxBytesInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Pad this page with 0s to move on to the next.
+     */
+    default void padToPageBoundary() throws IOException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns how many bytes are left in the page.
+     */
+    default int bytesLeftInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the next padded position. This is either the current position (if already padded), or the start of next
+     * page.
+     */
+    default long paddedPosition()
+    {
+        throw new UnsupportedOperationException();
     }
 }

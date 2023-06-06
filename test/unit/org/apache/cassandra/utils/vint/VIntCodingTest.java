@@ -18,17 +18,18 @@
 */
 package org.apache.cassandra.utils.vint;
 
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 
-import com.google.common.primitives.UnsignedInteger;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.utils.CassandraUInt;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -197,7 +198,7 @@ public class VIntCodingTest
     }
 
     static int[] roundtripTestValues =  new int[] {
-            UnsignedInteger.MAX_VALUE.intValue(),
+            CassandraUInt.MAX_VALUE_UINT,
             Integer.MAX_VALUE + 1,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE - 1,

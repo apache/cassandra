@@ -37,6 +37,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -172,18 +173,13 @@ public class ShadowRoundTest
                 }, 1);
 
 
-        AUTO_BOOTSTRAP.setBoolean(false);
-        try
+        try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
             StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         }
         catch (Exception e)
         {
             assertEquals("Unable to gossip with any peers", e.getMessage());
-        }
-        finally
-        {
-            AUTO_BOOTSTRAP.clearValue();
         }
     }
 
@@ -213,14 +209,9 @@ public class ShadowRoundTest
                 }, 1);
 
 
-        AUTO_BOOTSTRAP.setBoolean(false);
-        try
+        try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
             StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
-        }
-        finally
-        {
-            AUTO_BOOTSTRAP.clearValue();
         }
     }
 

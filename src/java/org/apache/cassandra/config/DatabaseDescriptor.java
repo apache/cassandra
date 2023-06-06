@@ -108,6 +108,7 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static java.util.Optional.ofNullable;
@@ -610,7 +611,8 @@ public class DatabaseDescriptor
                                              false);
         }
 
-        checkValidForByteConversion(conf.column_index_size, "column_index_size");
+        if (conf.column_index_size != null)
+            checkValidForByteConversion(conf.column_index_size, "column_index_size");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
@@ -1773,19 +1775,19 @@ public class DatabaseDescriptor
         newFailureDetector = () -> createFailureDetector("FailureDetector");
     }
 
-    public static int getColumnIndexSize()
+    public static int getColumnIndexSize(int defaultValue)
     {
-        return conf.column_index_size.toBytes();
+        return conf.column_index_size != null ? conf.column_index_size.toBytes() : defaultValue;
     }
 
     public static int getColumnIndexSizeInKiB()
     {
-        return conf.column_index_size.toKibibytes();
+        return conf.column_index_size != null ? conf.column_index_size.toKibibytes() : -1;
     }
 
-    public static void setColumnIndexSize(int val)
+    public static void setColumnIndexSizeInKiB(int val)
     {
-        conf.column_index_size =  createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size");
+        conf.column_index_size = val != -1 ? createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size") : null;
     }
 
     public static int getColumnIndexCacheSize()
@@ -2153,13 +2155,19 @@ public class DatabaseDescriptor
         setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
-    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }
+    @Deprecated
+    public static long getCompactionLargePartitionWarningThreshold()
+    {
+        return conf.compaction_large_partition_warning_threshold.toBytesInLong();
+    }
 
+    @Deprecated
     public static int getCompactionTombstoneWarningThreshold()
     {
         return conf.compaction_tombstone_warning_threshold;
     }
 
+    @Deprecated
     public static void setCompactionTombstoneWarningThreshold(int count)
     {
         conf.compaction_tombstone_warning_threshold = count;
@@ -3908,6 +3916,11 @@ public class DatabaseDescriptor
         return  conf.full_query_logging_options;
     }
 
+    public static void setFullQueryLogOptions(FullQueryLoggerOptions options)
+    {
+        conf.full_query_logging_options = options;
+    }
+
     public static boolean getBlockForPeersInRemoteDatacenters()
     {
         return conf.block_for_peers_in_remote_dcs;
@@ -4730,6 +4743,15 @@ public class DatabaseDescriptor
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
+    }
+
+    public static StorageCompatibilityMode getStorageCompatibilityMode()
+    {
+        // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
+        if (conf == null)
+            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
+        else
+            return conf.storage_compatibility_mode;
     }
 
     public static void visit(PropertyVisitor visitor)

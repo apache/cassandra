@@ -25,8 +25,10 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 import org.apache.cassandra.utils.memory.Cloner;
 
@@ -42,8 +44,15 @@ import org.apache.cassandra.utils.memory.Cloner;
 public abstract class Cell<V> extends ColumnData
 {
     public static final int NO_TTL = 0;
-    public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
-    public static final int MAX_DELETION_TIME = Integer.MAX_VALUE - 1;
+    public static final long NO_DELETION_TIME = Long.MAX_VALUE;
+    public static final int NO_DELETION_TIME_UNSIGNED_INTEGER = CassandraUInt.MAX_VALUE_UINT;
+    public static final long MAX_DELETION_TIME = CassandraUInt.MAX_VALUE_LONG - 2;
+    public static final int MAX_DELETION_TIME_UNSIGNED_INTEGER = CassandraUInt.fromLong(MAX_DELETION_TIME);
+
+    // Since C14227 we only support Uints, negative ldts (corruption, overflow) get converted to this
+    public static final long INVALID_DELETION_TIME = CassandraUInt.MAX_VALUE_LONG - 1;
+    // Do not use. Only for legacy ser/deser pre CASSANDRA-14227 and backwards compatible CAP policies
+    public static final int MAX_DELETION_TIME_2038_LEGACY_CAP = Integer.MAX_VALUE - 1;
 
     public final static Comparator<Cell<?>> comparator = (c1, c2) ->
     {
@@ -59,7 +68,7 @@ public abstract class Cell<V> extends ColumnData
 
     public interface Factory<V>
     {
-        Cell<V> create(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, V value, CellPath path);
+        Cell<V> create(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, V value, CellPath path);
     }
 
     protected Cell(ColumnMetadata column)
@@ -67,8 +76,29 @@ public abstract class Cell<V> extends ColumnData
         super(column);
     }
 
+    public static int deletionTimeLongToUnsignedInteger(long deletionTime)
+    {
+        return deletionTime == NO_DELETION_TIME ? NO_DELETION_TIME_UNSIGNED_INTEGER : CassandraUInt.fromLong(deletionTime);
+    }
+
+    public static long deletionTimeUnsignedIntegerToLong(int deletionTimeUnsignedInteger)
+    {
+        return deletionTimeUnsignedInteger == NO_DELETION_TIME_UNSIGNED_INTEGER ? NO_DELETION_TIME : CassandraUInt.toLong(deletionTimeUnsignedInteger);
+    }
+
+    public static long getVersionedMaxDeletiontionTime()
+    {
+        if (DatabaseDescriptor.getStorageCompatibilityMode().disabled())
+            // The whole cluster is 2016, we're out of the 2038/2106 mixed cluster scenario. Shortcut to avoid the 'minClusterVersion' volatile read
+            return Cell.MAX_DELETION_TIME;
+        else
+            return MessagingService.instance().versions.minClusterVersion >= MessagingService.VERSION_50
+                   ? Cell.MAX_DELETION_TIME
+                   : Cell.MAX_DELETION_TIME_2038_LEGACY_CAP;
+    }
+
     /**
-     * Whether the cell is a counter cell or not.
+     * Whether the cell is a counter cell or not.CassandraUInt
      *
      * @return whether the cell is a counter cell or not.
      */
@@ -108,7 +138,10 @@ public abstract class Cell<V> extends ColumnData
      * @return the cell local deletion time, or {@code NO_DELETION_TIME} if the cell is neither
      * a tombstone nor an expiring one.
      */
-    public abstract int localDeletionTime();
+    public long localDeletionTime()
+    {
+        return deletionTimeUnsignedIntegerToLong(localDeletionTimeAsUnsignedInt());
+    }
 
     /**
      * Whether the cell is a tombstone or not.
@@ -135,7 +168,7 @@ public abstract class Cell<V> extends ColumnData
      * decide if an expiring cell is expired or live.
      * @return whether the cell is live or not at {@code nowInSec}.
      */
-    public abstract boolean isLive(int nowInSec);
+    public abstract boolean isLive(long nowInSec);
 
     /**
      * For cells belonging to complex types (non-frozen collection and UDT), the
@@ -149,7 +182,7 @@ public abstract class Cell<V> extends ColumnData
 
     public abstract Cell<?> withUpdatedValue(ByteBuffer newValue);
 
-    public abstract Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
+    public abstract Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime);
 
     /**
      * Used to apply the same optimization as in {@link Cell.Serializer#deserialize} when
@@ -172,11 +205,13 @@ public abstract class Cell<V> extends ColumnData
 
     @Override
     // Overrides super type to provide a more precise return type.
-    public abstract Cell<?> purge(DeletionPurger purger, int nowInSec);
+    public abstract Cell<?> purge(DeletionPurger purger, long nowInSec);
 
     @Override
     // Overrides super type to provide a more precise return type.
     public abstract Cell<?> purgeDataOlderThan(long timestamp);
+    
+    protected abstract int localDeletionTimeAsUnsignedInt();
 
     /**
      * The serialization format for cell is:
@@ -255,7 +290,7 @@ public abstract class Cell<V> extends ColumnData
 
             long timestamp = useRowTimestamp ? rowLiveness.timestamp() : header.readTimestamp(in);
 
-            int localDeletionTime = useRowTTL
+            long localDeletionTime = useRowTTL
                                     ? rowLiveness.localExpirationTime()
                                     : (isDeleted || isExpiring ? header.readLocalDeletionTime(in) : NO_DELETION_TIME);
 
@@ -281,6 +316,11 @@ public abstract class Cell<V> extends ColumnData
                         value = helper.maybeClearCounterValue(value, accessor);
                 }
             }
+
+            if (localDeletionTime < 0)
+                localDeletionTime = helper.version < MessagingService.VERSION_50
+                                    ? INVALID_DELETION_TIME
+                                    : deletionTimeUnsignedIntegerToLong((int) localDeletionTime);
 
             return accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
         }

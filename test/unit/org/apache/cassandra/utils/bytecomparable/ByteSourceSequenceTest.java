@@ -56,7 +56,7 @@ public class ByteSourceSequenceTest
     @Parameterized.Parameters(name = "version={0}")
     public static Iterable<ByteComparable.Version> versions()
     {
-        return ImmutableList.of(ByteComparable.Version.OSS42);
+        return ImmutableList.of(ByteComparable.Version.OSS50);
     }
 
     private final ByteComparable.Version version;

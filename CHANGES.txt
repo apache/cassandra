@@ -1,4 +1,12 @@
 5.0
+ * Remove dependency on pytz library for setting CQLSH timezones on Python version >= 3.9 (CASSANDRA-17433)
+ * Extend maximum expiration date (CASSANDRA-14227)
+ * Add guardrail for partition tombstones and deprecate compaction_tombstone_warning_threshold (CASSANDRA-17194)
+ * Print header and statistics for cassandra-stress output with arbitrary frequency (CASSANDRA-12972)
+ * CEP-25: Trie-indexed SSTable format (CASSANDRA-18398)
+ * Make cassandra-stress able to read all credentials from a file (CASSANDRA-18544)
+ * Add guardrail for partition size and deprecate compaction_large_partition_warning_threshold (CASSANDRA-18500)
+ * Add HISTORY command for CQLSH (CASSANDRA-15046)
  * Fix sstable formats configuration (CASSANDRA-18441)
  * Add guardrail to bound timestamps (CASSANDRA-18352)
  * Add keyspace_name column to system_views.clients (CASSANDRA-18525)
@@ -139,6 +147,16 @@ Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
 
 
+4.1.3
+Merged from 4.0: 
+ * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
+ * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
+Merged from 3.11:
+Merged from 3.0:
+ * Suppress CVE-2023-2976 (CASSANDRA-18562)
+ * Remove dh_python use in Debian packaging (CASSANDRA-18558)
+
+
 4.1.2
  * NPE when deserializing malformed collections from client (CASSANDRA-18505)
  * Allow keystore and trustrore passwords to be nullable (CASSANDRA-18124)
@@ -148,6 +166,9 @@ Merged from 4.0:
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
 Merged from 4.0:
+ * Improve nodetool enable{audit,fullquery}log (CASSANDRA-18550)
+ * Report network cache info in nodetool (CASSANDRa-18400)
+ * Partial compaction can resurrect deleted data (CASSANDRA-18507)
  * Allow internal address to change with reconnecting snitches (CASSANDRA-16718)
  * Fix quoting in toCqlString methods of UDTs and aggregates (CASSANDRA-17918)
  * Improve 'Not enough space for compaction' logging messages (CASSANDRA-18260)
