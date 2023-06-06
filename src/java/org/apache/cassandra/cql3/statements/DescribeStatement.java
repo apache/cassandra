@@ -19,7 +19,14 @@ package org.apache.cassandra.cql3.statements;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,7 +36,13 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.marshal.ListType;
@@ -41,7 +54,12 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
@@ -144,7 +162,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
 
         // The paging implemented here uses some arbitray row number as the partition-key for paging,
         // which is used to skip/limit the result from the Java Stream. This works good enough for
-        // reasonably sized schemas. Even a 'DESCRIBE SCHEMA' for an abnormally schema with 10000 tables
+        // reasonably sized schemas. Even a 'DESCRIBE SCHEMA' for an abnormal schema with 10000 tables
         // completes within a few seconds. This seems good enough for now. Once Cassandra actually supports
         // more than a few hundred tables, the implementation here should be reconsidered.
         //
@@ -157,25 +175,36 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         //
 
         long offset = getOffset(pagingState, schemaVersion);
-        int pageSize = options.getPageSize();
+        PageSize pageSize = PageSize.inRows(options.getPageSize());
 
         Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
 
         if (offset > 0L)
             stream = stream.skip(offset);
-        if (pageSize > 0)
-            stream = stream.limit(pageSize);
 
-        List<List<ByteBuffer>> rows = stream.map(e -> toRow(e, includeInternalDetails))
-                                            .collect(Collectors.toList());
+        Iterator<List<ByteBuffer>> rowsIter = stream.map(e -> toRow(e, includeInternalDetails)).iterator();
+        List<List<ByteBuffer>> rows = new ArrayList<>(Math.min(pageSize.rows, 256));
+        int countedRows = 0;
+        int countedBytes = 0;
+        boolean hasMorePages = false;
+        while (rowsIter.hasNext())
+        {
+            List<ByteBuffer> row = rowsIter.next();
+            countedBytes += row.stream().mapToInt(ByteBuffer::remaining).sum();
+            countedRows++;
+            if (countedBytes > pageSize.bytes || countedRows > pageSize.rows)
+            {
+                hasMorePages = true;
+                break;
+            }
+            rows.add(row);
+        }
 
         ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata(state.getClientState()));
         ResultSet result = new ResultSet(resultMetadata, rows);
 
-        if (pageSize > 0 && rows.size() == pageSize)
-        {
-            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
-        }
+        if (pageSize.isDefined() && hasMorePages)
+            result.metadata.setHasMorePages(getPagingState(offset + rows.size(), schemaVersion));
 
         return new ResultMessage.Rows(result);
     }
