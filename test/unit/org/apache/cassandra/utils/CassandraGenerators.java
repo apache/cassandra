@@ -375,40 +375,21 @@ public final class CassandraGenerators
     {
         AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
         Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
-        for (int i = 0; it.hasNext(); i++)
-        {
-            ColumnMetadata col = it.next();
-            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, valueDomainGen);
-        }
         int partitionColumns = metadata.partitionKeyColumns().size();
         int clusteringColumns = metadata.clusteringColumns().size();
         int primaryKeyColumns = partitionColumns + clusteringColumns;
+        for (int i = 0; it.hasNext(); i++)
+        {
+            ColumnMetadata col = it.next();
+            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
+            if (i >= partitionColumns && i < primaryKeyColumns)
+                // clustering doesn't allow null...
+                types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
+        }
         return rnd -> {
             ByteBuffer[] row = new ByteBuffer[types.length];
             for (int i = 0; i < row.length; i++)
-            {
-                AbstractTypeGenerators.TypeSupport<?> support = types[i];
-                ValueDomain domain = valueDomainGen == null || i < partitionColumns ? ValueDomain.NORMAL : valueDomainGen.generate(rnd);
-                ByteBuffer value;
-                switch (domain)
-                {
-                    case NULL:
-                        value = null;
-                        // clustering doesn't allow null...
-                        if (i < primaryKeyColumns)
-                            value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                        break;
-                    case EMPTY_BYTES:
-                        value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                        break;
-                    case NORMAL:
-                        value = support.bytesGen().generate(rnd);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown domain: " + domain);
-                }
-                row[i] = value;
-            }
+                row[i] = types[i].bytesGen().generate(rnd);
             return row;
         };
     }

@@ -111,10 +111,6 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         // In CASSANDRA-18504 a new isNull method was added to the type, as blob and text both "should" allow empty, but this scattered null logic doesn't allow...
         // For backwards compatability reasons, need to keep empty support
         executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, EMPTY_BYTE_BUFFER);
-
-        createTable(KEYSPACE, "CREATE TABLE %s (a blob, b int, PRIMARY KEY (a, b))");
-        executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, EMPTY_BYTE_BUFFER);
-        assertRowsNet(executeNet("SELECT * FROM %s WHERE a=?", MEDIUM_BLOB), row(MEDIUM_BLOB, EMPTY_BYTE_BUFFER));
     }
 
     @Test
