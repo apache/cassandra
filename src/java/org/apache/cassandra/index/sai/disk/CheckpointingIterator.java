@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk;
 
 import java.util.Collection;
 
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,14 +35,17 @@ public class CheckpointingIterator<T extends Comparable<T>> extends RangeIterato
 
     private final QueryContext context;
     private final RangeIterator<T> union;
-    private final Collection<SSTableIndex> referencedIndexes;
+    private final Iterable<SSTableIndex> referencedIndexes;
 
-    public CheckpointingIterator(RangeIterator<T> wrapped, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    public CheckpointingIterator(RangeIterator<T> wrapped, Collection<SSTableIndex> referencedIndexes, Collection<SSTableIndex> referencedAnnIndexesInHybridSearch, QueryContext queryContext)
     {
         super(wrapped.getMinimum(), wrapped.getMaximum(), wrapped.getCount());
 
         this.union = wrapped;
-        this.referencedIndexes = referencedIndexes;
+        if (referencedAnnIndexesInHybridSearch != null)
+            this.referencedIndexes = Iterables.concat(referencedIndexes, referencedAnnIndexesInHybridSearch);
+        else
+            this.referencedIndexes = referencedIndexes;
         this.context = queryContext;
     }
 
@@ -73,7 +77,6 @@ public class CheckpointingIterator<T extends Comparable<T>> extends RangeIterato
     {
         FileUtils.closeQuietly(union);
         referencedIndexes.forEach(CheckpointingIterator::releaseQuietly);
-        referencedIndexes.clear();
     }
 
     private static void releaseQuietly(SSTableIndex index)
