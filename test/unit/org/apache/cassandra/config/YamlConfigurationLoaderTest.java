@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
@@ -409,6 +410,11 @@ public class YamlConfigurationLoaderTest
 
     private static Config load(String path)
     {
+        return load(path, Config.class, Config::new);
+    }
+
+    public static <T> T load(String path, Class<T> clazz, Supplier<T> factory)
+    {
         URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource(path);
         if (url == null)
         {
@@ -421,6 +427,6 @@ public class YamlConfigurationLoaderTest
                 throw new AssertionError(e);
             }
         }
-        return new YamlConfigurationLoader().loadConfig(url);
+        return new YamlConfigurationLoader().loadConfig(url, clazz, factory);
     }
 }

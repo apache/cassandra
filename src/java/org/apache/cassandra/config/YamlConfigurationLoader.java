@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -127,6 +128,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     public Config loadConfig(URL url) throws ConfigurationException
     {
+        return loadConfig(url, Config.class, Config::new);
+    }
+
+    @VisibleForTesting
+    public <T> T loadConfig(URL url, Class<T> root, Supplier<T> factory) throws ConfigurationException
+    {
         try
         {
             logger.debug("Loading settings from {}", url);
@@ -141,11 +148,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+            Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(root);
             verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker();
-            Yaml yaml = YamlFactory.instance.newYamlInstance(new ConfigWithValidationConstructor(Config.class, Yaml.class.getClassLoader()), propertiesChecker);
-            Config result = loadConfig(yaml, configBytes);
+            Yaml yaml = YamlFactory.instance.newYamlInstance(new ConfigWithValidationConstructor(root, Yaml.class.getClassLoader()), propertiesChecker);
+            T result = loadConfig(yaml, configBytes, root, factory);
             propertiesChecker.check();
             maybeAddSystemProperties(result);
             return result;
@@ -396,12 +403,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    private static Config loadConfig(Yaml yaml, byte[] configBytes)
+    private static <T> T loadConfig(Yaml yaml, byte[] configBytes, Class<T> root, Supplier<T> factory)
     {
-        Config config = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
+        T config = yaml.loadAs(new ByteArrayInputStream(configBytes), root);
         // If the configuration file is empty yaml will return null. In this case we should use the default
         // configuration to avoid hitting a NPE at a later stage.
-        return config == null ? new Config() : config;
+        return config == null ? factory.get() : config;
     }
 
     /**

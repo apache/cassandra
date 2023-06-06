@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -28,6 +29,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class ValidatedPropertyLoaderTest
 {
     private static final Loader LOADER = Properties.validatedPropertyLoader();
+    private static volatile String lastSeenPropertyNotInYaml = null;
+
+    @After
+    public void reset()
+    {
+        lastSeenPropertyNotInYaml = null;
+    }
 
     @Test
     public void testListenablePropertyMethodPattern() throws Exception
@@ -110,6 +118,25 @@ public class ValidatedPropertyLoaderTest
         assertThat(conf.test_property).isEqualTo(10);
     }
 
+    @Test
+    public void testLoadCustomConfig() throws Exception
+    {
+        TestConfig conf = YamlConfigurationLoaderTest.load("test/conf/test-configuraiton.yaml", TestConfig.class, TestConfig::new);
+
+        assertThat(conf.test_property).isEqualTo(10);
+        assertThat(conf.test_string_property).isEqualTo("test_string_property_value");
+        assertThat(conf.nested_test_config.good_string_to_go_with).isEqualTo("less 10");
+        assertThat(lastSeenPropertyNotInYaml).isEqualTo("test_property_not_in_yaml");
+    }
+
+    /**
+     * This method is used to validate the test_property_not_in_yaml field in the TestConfig class.
+     */
+    public static void validatePropertyNotInYaml(String value)
+    {
+        lastSeenPropertyNotInYaml = value;
+    }
+
     public static class TestConfig
     {
         @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "validateTestProperty1Arguments")
@@ -119,6 +146,9 @@ public class ValidatedPropertyLoaderTest
 
         @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$TestConfig", useClassMethod = "handleTestStringProperty")
         public String test_string_property = null;
+
+        @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest", useClassMethod = "validatePropertyNotInYaml")
+        public String test_property_not_in_yaml = "test_property_not_in_yaml";
 
         public NestedTestConfig nested_test_config = new NestedTestConfig();
 
@@ -157,12 +187,12 @@ public class ValidatedPropertyLoaderTest
     public static class NestedTestConfig
     {
         @ValidatedBy(useClass = "org.apache.cassandra.config.ValidatedPropertyLoaderTest$NestedTestConfig", useClassMethod = "validateTestProperty1Arguments")
-        public String good_string_to_go_with = "good_string_to_go_with";
+        public String good_string_to_go_with = "default value";
 
         public static void validateTestProperty1Arguments(String value)
         {
             if (value.length() > 10)
-                throw new ConfigurationException("String value must be greater than 10 characters");
+                throw new ConfigurationException("String value must be greater than 10 characters, but was " + value.length() + " characters long");
         }
     }
 }
