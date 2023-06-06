@@ -311,6 +311,9 @@ delete_repeated_jobs()
     delete_job "$1" "j17_dtests_large_repeat"
     delete_job "$1" "j17_dtests_large_vnode_repeat"
   fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
+      delete_job "$1" "j11_upgrade_dtests_repeat"
+  fi
   if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
     delete_job "$1" "j11_repeated_ant_test"
     delete_job "$1" "j17_repeated_ant_test"

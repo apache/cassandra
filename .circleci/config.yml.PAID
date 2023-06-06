@@ -11028,12 +11028,6 @@ workflows:
         requires:
         - start_j11_upgrade_dtests
         - j11_build
-    - start_j11_upgrade_dtests_repeat:
-        type: approval
-    - j11_upgrade_dtests_repeat:
-        requires:
-        - start_j11_upgrade_dtests_repeat
-        - j11_build
   java11_pre-commit_tests:
     jobs:
     - start_pre-commit_tests:
@@ -11170,10 +11164,6 @@ workflows:
     - start_j11_upgrade_dtests:
         type: approval
     - j11_upgrade_dtests:
-        requires:
-        - j11_build
-        - start_j11_upgrade_dtests
-    - j11_upgrade_dtests_repeat:
         requires:
         - j11_build
         - start_j11_upgrade_dtests
