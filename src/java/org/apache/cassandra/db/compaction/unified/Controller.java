@@ -18,6 +18,7 @@ package org.apache.cassandra.db.compaction.unified;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,12 +45,16 @@ import org.apache.cassandra.db.compaction.CompactionRealm;
 import org.apache.cassandra.db.compaction.CompactionStrategy;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileWriter;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -202,6 +207,8 @@ public abstract class Controller
     protected final long expiredSSTableCheckFrequency;
     protected final boolean ignoreOverlapsInExpirationCheck;
     protected final boolean l0ShardsEnabled;
+    protected String keyspaceName;
+    protected String tableName;
 
     protected final int baseShardCount;
 
@@ -219,6 +226,7 @@ public abstract class Controller
                int numShards,
                long minSstableSizeMB,
                long flushSizeOverrideMB,
+               long currentFlushSize,
                double maxSpaceOverhead,
                int maxSSTablesToCompact,
                long expiredSSTableCheckFrequency,
@@ -236,7 +244,7 @@ public abstract class Controller
         this.shardSizeMB = (int) Math.ceil((double) dataSetSizeMB / numShards);
         this.minSstableSizeMB = minSstableSizeMB;
         this.flushSizeOverrideMB = flushSizeOverrideMB;
-        this.currentFlushSize = flushSizeOverrideMB << 20;
+        this.currentFlushSize = currentFlushSize;
         this.expiredSSTableCheckFrequency = TimeUnit.MILLISECONDS.convert(expiredSSTableCheckFrequency, TimeUnit.SECONDS);
         this.baseShardCount = baseShardCount;
         this.targetSSTableSizeMin = targetSStableSize * Math.sqrt(0.5);
@@ -270,6 +278,38 @@ public abstract class Controller
         this.ignoreOverlapsInExpirationCheck = ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION && ignoreOverlapsInExpirationCheck;
         this.l0ShardsEnabled = l0ShardsEnabled;
     }
+
+    public static File getControllerConfigPath(String keyspaceName, String tableName)
+    {
+        String fileName = keyspaceName + '.' + tableName + '-' + "controller-config.JSON";
+        return new File(DatabaseDescriptor.getMetadataDirectory(), fileName);
+    }
+
+    public static void storeOptions(String keyspaceName, String tableName, int[] scalingParameters, long flushSizeBytes)
+    {
+        File f = getControllerConfigPath(keyspaceName, tableName);
+        try(FileWriter fileWriter = new FileWriter(f, File.WriteMode.OVERWRITE);)
+        {
+            JSONArray jsonArray = new JSONArray();
+            JSONObject jsonObject = new JSONObject();
+            for (int i = 0; i < scalingParameters.length; i++)
+            {
+                jsonArray.add(scalingParameters[i]);
+            }
+            jsonObject.put("scaling_parameters", jsonArray);
+            jsonObject.put("current_flush_size", flushSizeBytes);
+            fileWriter.write(jsonObject.toString());
+            fileWriter.flush();
+
+            logger.debug(String.format("Writing current scaling parameters and flush size to file %s: %s", f.toPath().toString(), jsonObject));
+        }
+        catch(IOException e)
+        {
+            logger.warn("Unable to save current scaling parameters and flush size. Current controller configuration will be lost if a node restarts: ", e);
+        }
+    }
+
+    public abstract void storeControllerConfig();
 
     @VisibleForTesting
     public Environment getEnv()
@@ -616,7 +656,7 @@ public abstract class Controller
         return calculator.getWriteCostForQueries(writeAmplification(length, scalingParameter));
     }
 
-    public static Controller fromOptions(CompactionRealm realm, Map<String, String> options)
+    public static Controller fromOptions(CompactionRealm realm, Map<String, String> options, String keyspaceName, String tableName)
     {
         boolean adaptive = options.containsKey(ADAPTIVE_OPTION) ? Boolean.parseBoolean(options.get(ADAPTIVE_OPTION)) : DEFAULT_ADAPTIVE;
         long dataSetSizeMb = (options.containsKey(DATASET_SIZE_OPTION_GB) ? Long.parseLong(options.get(DATASET_SIZE_OPTION_GB)) : DEFAULT_DATASET_SIZE_GB) << 10;
@@ -687,6 +727,8 @@ public abstract class Controller
                                                 baseShardCount,
                                                 targetSStableSize,
                                                 overlapInclusionMethod,
+                                                keyspaceName,
+                                                tableName,
                                                 options)
                : StaticController.fromOptions(env,
                                               survivalFactors,
@@ -702,6 +744,8 @@ public abstract class Controller
                                               baseShardCount,
                                               targetSStableSize,
                                               overlapInclusionMethod,
+                                              keyspaceName,
+                                              tableName,
                                               options);
     }
 
