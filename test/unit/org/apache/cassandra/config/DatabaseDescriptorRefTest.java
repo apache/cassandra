@@ -120,8 +120,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.DurationSpec$IntMillisecondsBound",
     "org.apache.cassandra.config.DurationSpec$IntMinutesBound",
     "org.apache.cassandra.config.DurationSpec$IntSecondsBound",
-    "org.apache.cassandra.config.DurationSpec$LongMillisecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongMicrosecondsBound",
+    "org.apache.cassandra.config.DurationSpec$LongMillisecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongNanosecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongSecondsBound",
     "org.apache.cassandra.config.EncryptionOptions",
@@ -147,6 +147,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
+    "org.apache.cassandra.cql3.PageSize",
     "org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement",
     "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement",
     "org.apache.cassandra.db.ConsistencyLevel",
@@ -214,9 +215,9 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter$Builder",
-    "org.apache.cassandra.io.sstable.format.SortedTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableWriter",
     "org.apache.cassandra.io.sstable.format.SSTableWriter$Builder",
+    "org.apache.cassandra.io.sstable.format.SortedTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SortedTableWriter",
     "org.apache.cassandra.io.sstable.format.SortedTableWriter$Builder",
     "org.apache.cassandra.io.sstable.format.Version",
@@ -265,12 +266,12 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",
     "org.apache.cassandra.utils.Pair",
+    "org.apache.cassandra.utils.StorageCompatibilityMode",
     "org.apache.cassandra.utils.binlog.BinLogOptions",
     "org.apache.cassandra.utils.concurrent.RefCounted",
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
     "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
-    "org.apache.cassandra.utils.StorageCompatibilityMode"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));
