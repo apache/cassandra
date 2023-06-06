@@ -28,7 +28,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
-public class InsertOversizedRecordsTest extends CQLTester
+import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+public class InsertInvalidateSizedRecordsTest extends CQLTester
 {
     private static final ByteBuffer LARGE_BLOB = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1);
     private static final ByteBuffer MEDIUM_BLOB = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT / 2 + 10);
@@ -44,6 +46,14 @@ public class InsertOversizedRecordsTest extends CQLTester
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a) VALUES (?)", LARGE_BLOB))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key length of " + LARGE_BLOB.remaining() + " is longer than maximum of 65535");
+
+        // null / empty checks
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a) VALUES (?)", new Object[] {null}))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Invalid null value in condition for column a");
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a) VALUES (?)", EMPTY_BYTE_BUFFER))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Key may not be empty");
     }
 
     @Test
@@ -51,14 +61,34 @@ public class InsertOversizedRecordsTest extends CQLTester
     {
         createTable(KEYSPACE, "CREATE TABLE %s (a blob, b blob, PRIMARY KEY ((a, b)))");
         // sum of columns is too large
-        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", ByteBufferUtil.EMPTY_BYTE_BUFFER, MEDIUM_BLOB))
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, MEDIUM_BLOB))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key length of " + (compositeElementCost(MEDIUM_BLOB.remaining()) * 2) + " is longer than maximum of 65535");
 
         // single column is too large
-        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", ByteBufferUtil.EMPTY_BYTE_BUFFER, LARGE_BLOB))
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, LARGE_BLOB))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key length of " + LARGE_BLOB.remaining() + " is longer than maximum of 65535");
+
+        // null / empty checks
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {null, null}))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Invalid null value in condition for column a");
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {MEDIUM_BLOB, null}))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Invalid null value in condition for column b");
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {null, MEDIUM_BLOB}))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Invalid null value in condition for column a");
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", EMPTY_BYTE_BUFFER, EMPTY_BYTE_BUFFER))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Key may not be empty");
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, EMPTY_BYTE_BUFFER))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Key may not be empty");
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", EMPTY_BYTE_BUFFER, MEDIUM_BLOB))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Key may not be empty");
     }
 
     @Test
