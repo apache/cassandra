@@ -1424,6 +1424,8 @@ public class DatabaseDescriptor
         if (selectedFormat == null)
             throw new ConfigurationException(String.format("Selected sstable format '%s' is not available.", selectedFormatName));
 
+        getStorageCompatibilityMode().validateSstableFormat(selectedFormat);
+
         return selectedFormat;
     }
 
