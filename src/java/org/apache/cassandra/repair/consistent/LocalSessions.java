@@ -352,7 +352,7 @@ public class LocalSessions
     {
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), PageSize.inRows(1000));
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), PageSize.inRows(1000), null);
         Map<TimeUUID, LocalSession> loadedSessions = new HashMap<>();
         Map<TableId, List<RepairedState.Level>> initialLevels = new HashMap<>();
         for (UntypedResultSet.Row row : rows)

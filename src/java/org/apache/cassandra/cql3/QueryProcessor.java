@@ -30,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -567,7 +569,7 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
-    public static UntypedResultSet executeInternalWithPaging(String query, PageSize pageSize, Object... values)
+    public static UntypedResultSet executeInternalWithPaging(String query, PageSize pageSize, @Nullable Runnable onNextPageListener, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         if (!(prepared.statement instanceof SelectStatement))
@@ -576,7 +578,7 @@ public class QueryProcessor implements QueryHandler
         SelectStatement select = (SelectStatement)prepared.statement;
         long nowInSec = FBUtilities.nowInSeconds();
         QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
-        return UntypedResultSet.create(select, pager, pageSize);
+        return UntypedResultSet.create(select, pager, pageSize, onNextPageListener);
     }
 
     /**
