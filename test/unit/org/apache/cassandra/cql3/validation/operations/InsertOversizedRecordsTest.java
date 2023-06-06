@@ -24,6 +24,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
@@ -50,12 +51,12 @@ public class InsertOversizedRecordsTest extends CQLTester
     {
         createTable(KEYSPACE, "CREATE TABLE %s (a blob, b blob, PRIMARY KEY ((a, b)))");
         // sum of columns is too large
-        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, MEDIUM_BLOB))
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", ByteBufferUtil.EMPTY_BYTE_BUFFER, MEDIUM_BLOB))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key length of " + (compositeElementCost(MEDIUM_BLOB.remaining()) * 2) + " is longer than maximum of 65535");
 
         // single column is too large
-        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, LARGE_BLOB))
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", ByteBufferUtil.EMPTY_BYTE_BUFFER, LARGE_BLOB))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key length of " + LARGE_BLOB.remaining() + " is longer than maximum of 65535");
     }

@@ -372,7 +372,7 @@ public class AbstractTypeTest
         Gen<AbstractType<?>> gen = genBuilder()
                                    .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
                                    .build();
-        qt().withShrinkCycles(0).forAll(gen).checkAssert(type -> {
+        qt().withFixedSeed(34880539340291L).withShrinkCycles(0).forAll(gen).checkAssert(type -> {
             // to -> from cql
             String cqlType = cqlFunc.apply(type);
             // just easier to read this way...

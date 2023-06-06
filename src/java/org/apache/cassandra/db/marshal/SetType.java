@@ -118,9 +118,15 @@ public class SetType<T> extends CollectionType<Set<T>>
     public AbstractType<?> freeze()
     {
         if (isMultiCell)
-            return getInstance(this.elements.freeze(), false);
+            return getInstance(this.elements, false);
         else
             return this;
+    }
+
+    @Override
+    public AbstractType<?> unfreeze()
+    {
+        return isMultiCell ? this : getInstance(this.elements, true);
     }
 
     @Override

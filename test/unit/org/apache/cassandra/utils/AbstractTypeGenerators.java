@@ -475,10 +475,10 @@ public final class AbstractTypeGenerators
     {
         return rnd -> {
             int dimention = dimentionGen.generate(rnd);
-            AbstractType<?> element = typeGen.generate(rnd);
+            AbstractType<?> element = typeGen.generate(rnd).unfreeze();
             // empty type not supported
             while (element == EmptyType.instance)
-                element = typeGen.generate(rnd);
+                element = typeGen.generate(rnd).unfreeze();
             return VectorType.getInstance(element, dimention);
         };
     }
@@ -519,7 +519,7 @@ public final class AbstractTypeGenerators
                 byte alias = aliasGen.generate(rnd);
                 while (aliases.containsKey(alias))
                     alias = aliasGen.generate(rnd);
-                aliases.put(alias, typeGen.generate(rnd));
+                aliases.put(alias, typeGen.generate(rnd).unfreeze());
             }
             return DynamicCompositeType.getInstance(aliases);
         };
@@ -538,7 +538,15 @@ public final class AbstractTypeGenerators
 
     public static Gen<SetType<?>> setTypeGen(Gen<AbstractType<?>> typeGen, Gen<Boolean> multiCell)
     {
-        return rnd -> SetType.getInstance(typeGen.generate(rnd).freeze(), multiCell.generate(rnd));
+        return rnd -> {
+            boolean isMultiCell = multiCell.generate(rnd);
+            AbstractType<?> element = typeGen.generate(rnd);
+            if (isMultiCell)
+                element = element.freeze();
+            else
+                element = element.unfreeze();
+            return SetType.getInstance(element, isMultiCell);
+        };
     }
 
     @SuppressWarnings("unused")
@@ -554,7 +562,13 @@ public final class AbstractTypeGenerators
 
     public static Gen<ListType<?>> listTypeGen(Gen<AbstractType<?>> typeGen, Gen<Boolean> multiCell)
     {
-        return rnd -> ListType.getInstance(typeGen.generate(rnd).freeze(), multiCell.generate(rnd));
+        return rnd -> {
+            boolean isMultiCell = multiCell.generate(rnd);
+            AbstractType<?> element = typeGen.generate(rnd);
+            if (!isMultiCell)
+                element = element.unfreeze();
+            return ListType.getInstance(element, isMultiCell);
+        };
     }
 
     @SuppressWarnings("unused")
@@ -575,7 +589,22 @@ public final class AbstractTypeGenerators
 
     public static Gen<MapType<?, ?>> mapTypeGen(Gen<AbstractType<?>> keyGen, Gen<AbstractType<?>> valueGen, Gen<Boolean> multiCell)
     {
-        return rnd -> MapType.getInstance(keyGen.generate(rnd).freeze(), valueGen.generate(rnd).freeze(), multiCell.generate(rnd));
+        return rnd -> {
+            boolean isMultiCell = multiCell.generate(rnd);
+            AbstractType<?> key = keyGen.generate(rnd);
+            AbstractType<?> value = valueGen.generate(rnd);
+            if (isMultiCell)
+            {
+                key = key.freeze();
+                value = value.freeze();
+            }
+            else
+            {
+                key = key.unfreeze();
+                value = value.unfreeze();
+            }
+            return MapType.getInstance(key.freeze(), value.freeze(), isMultiCell);
+        };
     }
 
     public static Gen<TupleType> tupleTypeGen()
@@ -594,7 +623,7 @@ public final class AbstractTypeGenerators
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> elements = new ArrayList<>(numElements);
             for (int i = 0; i < numElements; i++)
-                elements.add(elementGen.generate(rnd));
+                elements.add(elementGen.generate(rnd).unfreeze());
             return new TupleType(elements);
         };
     }
@@ -639,7 +668,10 @@ public final class AbstractTypeGenerators
             // UDTs don't allow duplicate names, so make sure all names are unique
             for (int i = 0; i < numElements; i++)
             {
-                fieldTypes.add(elementGen.generate(rnd).freeze());
+                AbstractType<?> element = elementGen.generate(rnd);
+                if (!multiCell)
+                    element = element.unfreeze();
+                fieldTypes.add(element);
                 fieldNames.add(distinctNameGen.generate(rnd));
             }
             return new UserType(ks, name, new ArrayList<>(fieldNames), fieldTypes, multiCell);
