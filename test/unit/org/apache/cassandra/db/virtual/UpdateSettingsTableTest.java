@@ -83,24 +83,11 @@ public class UpdateSettingsTableTest extends CQLTester
             doUpdateSettingAndRevertBack(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME), propertyName);
     }
 
-    @Test
+    @Test(expected = InvalidQueryException.class)
     public void testUpdateRepairSessionSpaceToNull() throws Throwable
     {
-        String nonDefaultValue = new DataStorageSpec.IntMebibytesBound(10L, MEBIBYTES).toString();
-        assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                 nonDefaultValue, ConfigFields.REPAIR_SESSION_SPACE));
-        assertEquals(nonDefaultValue, SettingsTable.getPropertyAsString(ConfigFields.REPAIR_SESSION_SPACE));
-        // Try to use null as a value.
-        String expectedIfNullGiven = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toString();
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                  null, ConfigFields.REPAIR_SESSION_SPACE));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.REPAIR_SESSION_SPACE),
-                      new Object[]{ ConfigFields.REPAIR_SESSION_SPACE, expectedIfNullGiven });
-        String sessionSpace = SettingsTable.getPropertyAsString(ConfigFields.REPAIR_SESSION_SPACE);
-        assertNotNull(sessionSpace);
-        assertEquals(expectedIfNullGiven, sessionSpace);
-        assertNotNull(DatabaseDescriptor.getRawConfig().repair_session_space);
-        assertEquals(expectedIfNullGiven, DatabaseDescriptor.getRawConfig().repair_session_space.toString());
     }
 
     @Test

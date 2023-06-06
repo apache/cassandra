@@ -31,6 +31,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
@@ -68,23 +69,18 @@ final class SettingsTable extends AbstractMutableVirtualTable
     }
 
     @Override
-    protected void applyColumnDeletion(AbstractMutableVirtualTable.ColumnValues partitionKey, AbstractMutableVirtualTable.ColumnValues clusteringColumns, String columnName)
-    {
-        String name = partitionKey.value(0);
-        String key = getKeyAndWarn(name);
-        runExceptionally(() -> setPropertyFromString(key, null),
-                         t -> invalidRequest("Invalid delete request. Cause: %s", t.getMessage()));
-    }
-
-    @Override
     protected void applyColumnUpdate(AbstractMutableVirtualTable.ColumnValues partitionKey,
                                      AbstractMutableVirtualTable.ColumnValues clusteringColumns,
                                      Optional<AbstractMutableVirtualTable.ColumnValue> columnValue)
     {
         String name = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        runExceptionally(() -> setPropertyFromString(getKeyAndWarn(name), value),
-                         t -> invalidRequest("Invalid update request '%s'. Cause: %s", name, t.getMessage()));
+        if (value == null)
+            throw new InvalidRequestException("Setting the value to null is equivalent to the deletion operation. " +
+                                              "Column deletion is not supported by table vts.settings");
+        else
+            runExceptionally(() -> setPropertyFromString(getKeyAndWarn(name), value),
+                             t -> invalidRequest("Invalid update request '%s'. Cause: %s", name, t.getMessage()));
     }
 
     @Override
