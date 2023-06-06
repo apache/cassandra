@@ -39,7 +39,6 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 
-import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.apache.cassandra.db.virtual.SettingsTable.propertyToStringConverter;
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;

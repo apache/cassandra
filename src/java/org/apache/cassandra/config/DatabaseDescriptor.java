@@ -173,7 +173,7 @@ public class DatabaseDescriptor
      */
     static final DurationSpec.LongMillisecondsBound LOWEST_ACCEPTED_TIMEOUT = new DurationSpec.LongMillisecondsBound(10L);
 
-    public static final int SPACE_UPPER_BOUND_MB = (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576));
+    private static final int SPACE_UPPER_BOUND_MB = (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576));
 
     private static Supplier<IFailureDetector> newFailureDetector;
     private static IEndpointSnitch snitch;
