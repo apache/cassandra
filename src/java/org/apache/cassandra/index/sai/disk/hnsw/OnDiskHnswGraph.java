@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.util.hnsw.HnswGraph;
@@ -163,23 +164,25 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
     }
 
     /** return an HnswGraph that can be safely querried concurrently */
-    public OnDiskView getView()
+    public OnDiskView getView(QueryContext queryContext)
     {
-        return new OnDiskView(fh.createReader());
+        return new OnDiskView(fh.createReader(), queryContext);
     }
 
     public class OnDiskView extends HnswGraph implements AutoCloseable
     {
         private final RandomAccessReader reader;
+        private final QueryContext queryContext;
         private int currentNeighborCount;
         private int currentNeighborsRead;
         private long currentCachedLevelNode = -1;
         private int[] currentCachedNeighbors;
 
-        public OnDiskView(RandomAccessReader reader)
+        public OnDiskView(RandomAccessReader reader, QueryContext queryContext)
         {
             super();
             this.reader = reader;
+            this.queryContext = queryContext;
         }
 
         @Override
@@ -191,6 +194,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                 return;
             }
 
+            queryContext.hnswNodesAccessed++;
             currentCachedLevelNode = -1;
             currentCachedNeighbors = null;
             currentNeighborsRead = 0;
@@ -204,6 +208,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                     currentCachedNeighbors = cachedLevel.neighborsFor(target);
                     currentCachedLevelNode = levelNodeOf(level, target);
                     currentNeighborCount = currentCachedNeighbors.length;
+                    queryContext.hnswNodeCacheHits++;
                     return;
                 }
 

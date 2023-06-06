@@ -32,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.util.File;
@@ -90,7 +91,7 @@ public class OnDiskHnswGraphTest extends SAITester
     }
 
     private void validateGraph(HnswGraph original, OnDiskHnswGraph onDisk) throws IOException {
-        try (var view = onDisk.getView())
+        try (var view = onDisk.getView(new QueryContext()))
         {
             assertThat(view.size()).isEqualTo(original.size());
             assertThat(view.entryNode()).isEqualTo(original.entryNode());
@@ -216,7 +217,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
         var onDiskGraph = createOnDiskGraph(outputFile, 0);
         BiFunction<OnDiskHnswGraph, Integer, Integer> nodeIdBytes = (g, i) -> {
-            try (var v = g.getView())
+            try (var v = g.getView(new QueryContext()))
             {
                 return v.getNodesOnLevel(i).size() * Integer.BYTES;
             }
@@ -226,7 +227,7 @@ public class OnDiskHnswGraphTest extends SAITester
             }
         };
         BiFunction<OnDiskHnswGraph, Integer, Integer> offsetBytes = (g, i) -> {
-            try (var v = g.getView())
+            try (var v = g.getView(new QueryContext()))
             {
                 return v.getNodesOnLevel(i).size() * Long.BYTES;
             }
@@ -295,7 +296,7 @@ public class OnDiskHnswGraphTest extends SAITester
         validateGraph(graph, onDiskGraph);
 
         logger.debug("random queries");
-        try (var view = onDiskGraph.getView())
+        try (var view = onDiskGraph.getView(new QueryContext()))
         {
             for (int i = 0; i < 1000; i++)
             {
