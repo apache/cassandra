@@ -54,7 +54,7 @@ public abstract class ViewAbstractParameterizedTest extends ViewAbstractTest
     }
 
     @Override
-    protected com.datastax.driver.core.ResultSet executeNet(String query, Object... values) throws Throwable
+    protected com.datastax.driver.core.ResultSet executeNet(String query, Object... values)
     {
         return executeNet(version, query, values);
     }

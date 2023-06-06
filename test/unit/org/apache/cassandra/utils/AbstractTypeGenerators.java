@@ -691,9 +691,11 @@ public final class AbstractTypeGenerators
         return getTypeSupport(type, VERY_SMALL_POSITIVE_SIZE_GEN);
     }
 
-    public static <T> TypeSupport<T> getTypeSupportWithNulls(AbstractType<T> type, Gen<Boolean> nulls)
+    public enum ValueDomain { NULL, EMPTY_BYTES, NORMAL }
+
+    public static <T> TypeSupport<T> getTypeSupportWithNulls(AbstractType<T> type, @Nullable Gen<ValueDomain> valueDomainGen)
     {
-        return getTypeSupport(type, VERY_SMALL_POSITIVE_SIZE_GEN, nulls);
+        return getTypeSupport(type, VERY_SMALL_POSITIVE_SIZE_GEN, valueDomainGen);
     }
 
     public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, Gen<Integer> sizeGen)
@@ -704,7 +706,7 @@ public final class AbstractTypeGenerators
     /**
      * For a type, create generators for data that matches that type
      */
-    public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, Gen<Integer> sizeGen, @Nullable Gen<Boolean> nulls)
+    public static <T> TypeSupport<T> getTypeSupport(AbstractType<T> type, Gen<Integer> sizeGen, @Nullable Gen<ValueDomain> valueDomainGen)
     {
         Objects.requireNonNull(sizeGen, "sizeGen");
         // this doesn't affect the data, only sort order, so drop it
@@ -719,7 +721,7 @@ public final class AbstractTypeGenerators
         {
             // T = Set<A> so can not use T here
             SetType<Object> setType = (SetType<Object>) type;
-            TypeSupport<Object> elementSupport = getTypeSupport(setType.getElementsType(), sizeGen, nulls);
+            TypeSupport<Object> elementSupport = getTypeSupport(setType.getElementsType(), sizeGen, valueDomainGen);
             Comparator<Object> elComparator = elementSupport.valueComparator;
             Comparator<List<Object>> setComparator = listComparator(elComparator);
             Comparator<Set<Object>> comparator = (Set<Object> a, Set<Object> b) -> {
@@ -755,7 +757,7 @@ public final class AbstractTypeGenerators
         {
             // T = List<A> so can not use T here
             ListType<Object> listType = (ListType<Object>) type;
-            TypeSupport<Object> elementSupport = getTypeSupport(listType.getElementsType(), sizeGen, nulls);
+            TypeSupport<Object> elementSupport = getTypeSupport(listType.getElementsType(), sizeGen, valueDomainGen);
             @SuppressWarnings("unchecked")
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(listType, rnd -> {
                 int size = sizeGen.generate(rnd);
@@ -770,9 +772,9 @@ public final class AbstractTypeGenerators
         {
             // T = Map<A, B> so can not use T here
             MapType<Object, Object> mapType = (MapType<Object, Object>) type;
-            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, nulls);
+            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, valueDomainGen);
             Comparator<Object> keyType = keySupport.valueComparator;
-            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, nulls);
+            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, valueDomainGen);
             Comparator<Object> valueType = valueSupport.valueComparator;
             Comparator<Map<Object, Object>> comparator = (Map<Object, Object> a, Map<Object, Object> b) -> {
                 List<Object> ak = new ArrayList<>(a.keySet());
@@ -828,13 +830,13 @@ public final class AbstractTypeGenerators
                 List<Object> bv = IntStream.range(0, bbb.length).mapToObj(i -> tupleType.type(i).compose(bbb[i])).collect(Collectors.toList());
                 return listCompar.compare(av, bv);
             };
-            TypeSupport<ByteBuffer> support = TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, nulls), comparator);
+            TypeSupport<ByteBuffer> support = TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, valueDomainGen), comparator);
             return (TypeSupport<T>) support;
         }
         else if (type instanceof VectorType)
         {
             VectorType<Object> vectorType = (VectorType<Object>) type;
-            TypeSupport<Object> elementSupport = getTypeSupport(vectorType.elementType, sizeGen, nulls);
+            TypeSupport<Object> elementSupport = getTypeSupport(vectorType.elementType, sizeGen, valueDomainGen);
             return (TypeSupport<T>) TypeSupport.of(vectorType, rnd -> {
                 List<Object> list = new ArrayList<>(vectorType.dimension);
                 for (int i = 0; i < vectorType.dimension; i++)
@@ -1156,13 +1158,13 @@ public final class AbstractTypeGenerators
     private static final class TupleGen implements Gen<ByteBuffer>
     {
         private final List<TypeSupport<Object>> elementsSupport;
-        private final @Nullable Gen<Boolean> nulls;
+        private final @Nullable Gen<ValueDomain> valueDomainGen;
 
         @SuppressWarnings("unchecked")
-        private TupleGen(TupleType tupleType, Gen<Integer> sizeGen, @Nullable Gen<Boolean> nulls)
+        private TupleGen(TupleType tupleType, Gen<Integer> sizeGen, @Nullable Gen<ValueDomain> valueDomainGen)
         {
-            this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, nulls)).collect(Collectors.toList());
-            this.nulls = nulls;
+            this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, valueDomainGen)).collect(Collectors.toList());
+            this.valueDomainGen = valueDomainGen;
         }
 
         public ByteBuffer generate(RandomnessSource rnd)
@@ -1172,7 +1174,23 @@ public final class AbstractTypeGenerators
             for (int i = 0; i < eSupport.size(); i++)
             {
                 TypeSupport<Object> support = eSupport.get(i);
-                elements[i] = nulls != null && nulls.generate(rnd) ? null : support.type.decompose(support.valueGen.generate(rnd));
+                ValueDomain domain = valueDomainGen == null ? ValueDomain.NORMAL : valueDomainGen.generate(rnd);
+                ByteBuffer value;
+                switch (domain)
+                {
+                    case NULL:
+                        value = null;
+                        break;
+                    case EMPTY_BYTES:
+                        value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                        break;
+                    case NORMAL:
+                        value = support.type.decompose(support.valueGen.generate(rnd));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown domain: " + domain);
+                }
+                elements[i] = value;
             }
             return TupleType.buildValue(elements);
         }

@@ -76,6 +76,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.Generate;
@@ -370,25 +371,43 @@ public final class CassandraGenerators
         };
     }
 
-    public static Gen<ByteBuffer[]> data(TableMetadata metadata, @Nullable Gen<Boolean> nulls)
+    public static Gen<ByteBuffer[]> data(TableMetadata metadata, @Nullable Gen<ValueDomain> valueDomainGen)
     {
         AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
         Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
         for (int i = 0; it.hasNext(); i++)
         {
             ColumnMetadata col = it.next();
-            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, nulls);
+            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, valueDomainGen);
         }
-        int primaryKeyColumns = metadata.partitionKeyColumns().size() + metadata.clusteringColumns().size();
+        int partitionColumns = metadata.partitionKeyColumns().size();
+        int clusteringColumns = metadata.clusteringColumns().size();
+        int primaryKeyColumns = partitionColumns + clusteringColumns;
         return rnd -> {
             ByteBuffer[] row = new ByteBuffer[types.length];
             for (int i = 0; i < row.length; i++)
             {
                 AbstractTypeGenerators.TypeSupport<?> support = types[i];
-                if (nulls != null && i >= primaryKeyColumns && nulls.generate(rnd))
-                    row[i] = null;
-                else
-                    row[i] = support.bytesGen().generate(rnd);
+                ValueDomain domain = valueDomainGen == null || i < partitionColumns ? ValueDomain.NORMAL : valueDomainGen.generate(rnd);
+                ByteBuffer value;
+                switch (domain)
+                {
+                    case NULL:
+                        value = null;
+                        // clustering doesn't allow null...
+                        if (i < primaryKeyColumns)
+                            value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                        break;
+                    case EMPTY_BYTES:
+                        value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                        break;
+                    case NORMAL:
+                        value = support.bytesGen().generate(rnd);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown domain: " + domain);
+                }
+                row[i] = value;
             }
             return row;
         };

@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
@@ -98,6 +97,24 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, LARGE_BLOB))
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Key length of " + LARGE_BLOB.remaining() + " is longer than maximum of 65535");
+
+        // null / empty checks
+        Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, null))
+                  .hasRootCauseInstanceOf(InvalidQueryException.class)
+                  .hasRootCauseMessage("Invalid null value in condition for column b");
+
+        // org.apache.cassandra.db.MultiCBuilder.OneClusteringBuilder.addElementToAll defines "null" differently than most of the code;
+        // most of the code defines null as:
+        //   value == null || accessor.isEmpty(value)
+        // but the code defines null as
+        //   value == null
+        // In CASSANDRA-18504 a new isNull method was added to the type, as blob and text both "should" allow empty, but this scattered null logic doesn't allow...
+        // For backwards compatability reasons, need to keep empty support
+        executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, EMPTY_BYTE_BUFFER);
+
+        createTable(KEYSPACE, "CREATE TABLE %s (a blob, b int, PRIMARY KEY (a, b))");
+        executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, EMPTY_BYTE_BUFFER);
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE a=?", MEDIUM_BLOB), row(MEDIUM_BLOB, EMPTY_BYTE_BUFFER));
     }
 
     @Test

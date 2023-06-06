@@ -65,7 +65,8 @@ public class RandomSchemaTest extends CQLTester.InMemory
     @Test
     public void test()
     {
-        Gen<Boolean> nulls = SourceDSL.integers().between(1, 100).map(i -> i < 5);
+        // in accord branch there is a much cleaner api for this pattern...
+        Gen<AbstractTypeGenerators.ValueDomain> domainGen = SourceDSL.integers().between(1, 100).map(i -> i < 2 ? AbstractTypeGenerators.ValueDomain.NULL : i < 4 ? AbstractTypeGenerators.ValueDomain.EMPTY_BYTES : AbstractTypeGenerators.ValueDomain.NORMAL);
         qt().checkAssert(random -> {
             TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality().withUserTypeKeyspace(KEYSPACE);
             TableMetadata metadata = new TableMetadataBuilder()
@@ -92,7 +93,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
             createTable = createTable.replaceAll("org.apache.cassandra.db.marshal.", "");
             createTable(KEYSPACE, createTable);
 
-            Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, nulls);
+            Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, domainGen);
             String insertStmt = insertStmt(metadata);
             int primaryColumnCount = primaryColumnCount(metadata);
             String selectStmt = selectStmt(metadata);
@@ -124,7 +125,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                     {
                         assert it.hasNext();
                         ColumnMetadata meta = it.next();
-                        literals.add(meta.type.asCQL3Type().toCQLLiteral(expected[idx]));
+                        literals.add(!expected[idx].hasRemaining() ? "empty" : meta.type.asCQL3Type().toCQLLiteral(expected[idx]));
                     }
                     AssertionError error = new AssertionError(String.format("Failure at attempt %d with schema\n%s\nfor values %s", i, createTable, literals), t);
                     throw error;
