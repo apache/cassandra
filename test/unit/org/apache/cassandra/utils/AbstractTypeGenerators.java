@@ -672,6 +672,10 @@ public final class AbstractTypeGenerators
                 AbstractType<?> element = elementGen.generate(rnd);
                 if (!multiCell)
                     element = element.unfreeze();
+                else
+                    // as defined by CreateTable
+                    element = element.freeze();
+                // a UDT cannot contain a non-frozen UDT; as defined by CreateType
                 if (element.isUDT())
                     element = element.freeze();
                 fieldTypes.add(element);
@@ -1243,7 +1247,7 @@ public final class AbstractTypeGenerators
 
         public TypeSupport<T> withValueDomain(@Nullable Gen<ValueDomain> valueDomainGen)
         {
-            if (valueDomainGen == null || type == ByteType.instance)
+            if (valueDomainGen == null || type == ByteType.instance || type == SimpleDateType.instance)
                 return this;
             Gen<ByteBuffer> gen = rnd -> {
                 ValueDomain domain = valueDomainGen.generate(rnd);
