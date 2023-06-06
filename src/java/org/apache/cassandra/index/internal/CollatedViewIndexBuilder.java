@@ -20,7 +20,7 @@ package org.apache.cassandra.index.internal;
 import java.util.Collection;
 import java.util.Set;
 
-import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -70,7 +70,6 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
     {
         try
         {
-            PageSize pageSize = cfs.indexManager.calculateIndexingPageSize();
             RegularAndStaticColumns targetPartitionColumns = extractIndexedColumns();
             
             while (iter.hasNext())
@@ -78,7 +77,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
                 if (isStopRequested())
                     throw new CompactionInterruptedException(getCompactionInfo());
                 DecoratedKey key = iter.next();
-                cfs.indexManager.indexPartition(key, indexers, pageSize, targetPartitionColumns);
+                cfs.indexManager.indexPartition(key, indexers, DatabaseDescriptor.getSecondaryIndexRebuildPageSize(), targetPartitionColumns);
             }
         }
         finally
