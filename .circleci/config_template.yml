@@ -224,9 +224,9 @@ j8_repeated_dtest_executor: &j8_repeated_dtest_executor
     name: java8-executor
   parallelism: 4
 
-j8_repeated_upgrade_dtest_executor: &j8_repeated_upgrade_dtest_executor
+j11_repeated_upgrade_dtest_executor: &j11_repeated_upgrade_dtest_executor
   executor:
-    name: java8-executor
+    name: java11-executor
   parallelism: 4
 
 j11_repeated_jvm_upgrade_dtest_executor: &j11_repeated_jvm_upgrade_dtest_executor
@@ -651,13 +651,6 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j11_dtests_large_vnode_repeat
           - j8_build
-    # Java 8 upgrade tests
-    - start_upgrade_dtests:
-        type: approval
-    - j8_upgrade_dtests:
-        requires:
-          - start_upgrade_dtests
-          - j8_build
     # Java 8 cqlsh dtests
     - start_j8_cqlsh_tests:
         type: approval
@@ -782,13 +775,6 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j11_dtests_vnode_repeat
           - j8_build
-    # Repeated Python upgrade dtest
-    - start_j8_upgrade_dtests_repeat:
-        type: approval
-    - j8_upgrade_dtests_repeat:
-        requires:
-            - start_j8_upgrade_dtests_repeat
-            - j8_build
 
 j8_pre-commit_jobs: &j8_pre-commit_jobs
   jobs:
@@ -1073,17 +1059,6 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - start_j11_dtests_large
           - j8_build
-    # Java 8 upgrade tests (on request)
-    - start_upgrade_dtests:
-        type: approval
-    - j8_upgrade_dtests:
-        requires:
-          - j8_build
-          - start_upgrade_dtests
-    - j8_upgrade_dtests_repeat:
-        requires:
-          - j8_build
-          - start_upgrade_dtests
     # Java 8 cqlsh dtests
     - j8_cqlsh_dtests_py3:
         requires:
@@ -1424,6 +1399,13 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_jvm_upgrade_dtests_repeat
           - j11_dtest_jars_build
+    # Java 11 upgrade tests
+    - start_j11_upgrade_dtests:
+        type: approval
+    - j11_upgrade_dtests:
+        requires:
+          - start_j11_upgrade_dtests
+          - j11_build
     # Java 11 repeated utest
     - start_j11_repeated_ant_test:
         type: approval
@@ -1443,6 +1425,13 @@ j11_separate_jobs: &j11_separate_jobs
     - j11_dtests_vnode_repeat:
         requires:
           - start_j11_dtests_vnode_repeat
+          - j11_build
+    # Repeated Python upgrade dtest
+    - start_j11_upgrade_dtests_repeat:
+        type: approval
+    - j11_upgrade_dtests_repeat:
+        requires:
+          - start_j11_upgrade_dtests_repeat
           - j11_build
 
 j11_pre-commit_jobs: &j11_pre-commit_jobs
@@ -1646,6 +1635,17 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_jvm_upgrade_dtests_repeat:
         requires:
           - j11_dtest_jars_build
+    # Java 11 upgrade tests (on request)
+    - start_j11_upgrade_dtests:
+        type: approval
+    - j11_upgrade_dtests:
+        requires:
+          - j11_build
+          - start_j11_upgrade_dtests
+    - j11_upgrade_dtests_repeat:
+        requires:
+          - j11_build
+          - start_j11_upgrade_dtests
 
 workflows:
     version: 2
@@ -2086,18 +2086,18 @@ jobs:
         file_tag: j11_without_vnodes
         pytest_extra_args: '--skip-resource-intensive-tests'
 
-  j8_upgrade_dtests:
-    <<: *j8_par_executor
+  j11_upgrade_dtests:
+    <<: *j11_par_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - clone_dtest
       - create_venv
       - create_dtest_containers:
-          file_tag: j8_upgradetests_without_vnodes
+          file_tag: j11_upgradetests_without_vnodes
           run_dtests_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
       - run_dtests:
-          file_tag: j8_upgradetests_without_vnodes
+          file_tag: j11_upgradetests_without_vnodes
           pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
 
   j8_cqlsh_dtests_py3_vnode:
@@ -2838,8 +2838,8 @@ jobs:
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
           extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
 
-  j8_upgrade_dtests_repeat:
-    <<: *j8_repeated_upgrade_dtest_executor
+  j11_upgrade_dtests_repeat:
+    <<: *j11_repeated_upgrade_dtest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
