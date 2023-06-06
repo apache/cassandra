@@ -128,6 +128,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
+        // create a bitset of ordinals corresponding to the rows in the given key range
         SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
         try (var ordinalsView = graph.getOrdinalsView())
         {

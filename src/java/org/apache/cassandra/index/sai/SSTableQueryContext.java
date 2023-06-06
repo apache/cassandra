@@ -64,7 +64,7 @@ public class SSTableQueryContext
      */
     public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraOnDiskHnsw graph) throws IOException
     {
-        Set<Integer> ignoredOrdinals = new HashSet<>();
+        Set<Integer> ignoredOrdinals = null;
         try (var ordinalsView = graph.getOrdinalsView())
         {
             for (PrimaryKey primaryKey : queryContext.getShadowedPrimaryKeys())
@@ -80,23 +80,41 @@ public class SSTableQueryContext
 
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                 if (ordinal >= 0)
+                {
+                    if (ignoredOrdinals == null)
+                        ignoredOrdinals = new HashSet<>();
                     ignoredOrdinals.add(ordinal);
+                }
             }
         }
 
-        return new Bits()
-        {
-            @Override
-            public boolean get(int index)
-            {
-                return !ignoredOrdinals.contains(index);
-            }
+        if (ignoredOrdinals == null)
+            return null;
 
-            @Override
-            public int length()
-            {
-                return 1 + metadata.segmentedRowId(metadata.maxSSTableRowId);
-            }
-        };
+        return new IgnoringBits(ignoredOrdinals, metadata);
+    }
+
+    private static class IgnoringBits implements Bits
+    {
+        private final Set<Integer> ignoredOrdinals;
+        private final int length;
+
+        public IgnoringBits(Set<Integer> ignoredOrdinals, SegmentMetadata metadata)
+        {
+            this.ignoredOrdinals = ignoredOrdinals;
+            this.length = 1 + metadata.segmentedRowId(metadata.maxSSTableRowId);
+        }
+
+        @Override
+        public boolean get(int index)
+        {
+            return !ignoredOrdinals.contains(index);
+        }
+
+        @Override
+        public int length()
+        {
+            return length;
+        }
     }
 }
