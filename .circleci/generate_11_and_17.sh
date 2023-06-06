@@ -57,10 +57,14 @@ print_help()
   echo "                   -e REPEATED_SIMULATOR_DTESTS_COUNT=500"
   echo "                   -e REPEATED_JVM_DTESTS=org.apache.cassandra.distributed.test.PagingTest"
   echo "                   -e REPEATED_JVM_DTESTS_COUNT=500"
+  echo "                   -e REPEATED_JVM_UPGRADE_DTESTS=org.apache.cassandra.distributed.upgrade.GroupByTest"
+  echo "                   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500"
   echo "                   -e REPEATED_DTESTS=cdc_test.py cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
   echo "                   -e REPEATED_DTESTS_COUNT=500"
   echo "                   -e REPEATED_LARGE_DTESTS=replace_address_test.py::TestReplaceAddress::test_replace_stopped_node"
   echo "                   -e REPEATED_LARGE_DTESTS=100"
+  echo "                   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py upgrade_tests/paging_test.py"
+  echo "                   -e REPEATED_UPGRADE_DTESTS_COUNT=25"
   echo "                   -e REPEATED_ANT_TEST_TARGET=testsome"
   echo "                   -e REPEATED_ANT_TEST_CLASS=org.apache.cassandra.cql3.ViewTest"
   echo "                   -e REPEATED_ANT_TEST_METHODS=testCompoundPartitionKey,testStaticTable"
@@ -130,10 +134,14 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_SIMULATOR_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_JVM_DTESTS" ] &&
        [ "$key" != "REPEATED_JVM_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS" ]  &&
+       [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS_COUNT" ]  &&
        [ "$key" != "REPEATED_DTESTS" ] &&
        [ "$key" != "REPEATED_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_LARGE_DTESTS" ] &&
        [ "$key" != "REPEATED_LARGE_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_UPGRADE_DTESTS" ] &&
+       [ "$key" != "REPEATED_UPGRADE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_ANT_TEST_TARGET" ] &&
        [ "$key" != "REPEATED_ANT_TEST_CLASS" ] &&
        [ "$key" != "REPEATED_ANT_TEST_METHODS" ] &&
@@ -228,6 +236,7 @@ if $detect_changed_tests; then
   add_diff_tests "REPEATED_UTESTS_FQLTOOL" "tools/fqltool/test/unit/" "org.apache.cassandra.fqltool"
   add_diff_tests "REPEATED_SIMULATOR_DTESTS" "test/simulator/test/" "org.apache.cassandra.simulator.test"
   add_diff_tests "REPEATED_JVM_DTESTS" "test/distributed/" "org.apache.cassandra.distributed.test"
+  add_diff_tests "REPEATED_JVM_UPGRADE_DTESTS" "test/distributed/" "org.apache.cassandra.distributed.upgrade"
 fi
 
 # replace environment variables
@@ -299,6 +308,10 @@ delete_repeated_jobs()
     delete_job "$1" "j17_jvm_dtests_repeat"
     delete_job "$1" "j17_jvm_dtests_vnode_repeat"
   fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
+      delete_job "$1" "start_jvm_upgrade_dtests_repeat"
+      delete_job "$1" "j11_jvm_upgrade_dtests_repeat"
+  fi
   if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
     delete_job "$1" "j11_dtests_repeat"
     delete_job "$1" "j11_dtests_vnode_repeat"
@@ -312,6 +325,9 @@ delete_repeated_jobs()
     delete_job "$1" "j11_dtests_large_vnode_repeat"
     delete_job "$1" "j17_dtests_large_repeat"
     delete_job "$1" "j17_dtests_large_vnode_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
+      delete_job "$1" "j11_upgrade_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
     delete_job "$1" "j11_repeated_ant_test"
