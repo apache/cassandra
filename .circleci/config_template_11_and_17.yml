@@ -95,6 +95,14 @@ default_env_vars: &default_env_vars
     # The number of times that new, modified or manually specified JVM dtests should be run.
     REPEATED_JVM_DTESTS_COUNT: 500
 
+    # Comma-separated list of tests that should be included in the repeated run for JVM upgrade dtests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_JVM_UPGRADE_DTESTS: org.apache.cassandra.distributed.upgrade.GroupByTest
+    # REPEATED_JVM_UPGRADE_DTESTS: org.apache.cassandra.distributed.upgrade.GroupByTest#testReads
+    REPEATED_JVM_UPGRADE_DTESTS:
+    # The number of times that new, modified or manually specified JVM upgrade dtests should be run.
+    REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
+
     # Comma-separated list of Python dtests that should be repeatedly run, for example:
     # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py
     # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke
@@ -112,6 +120,14 @@ default_env_vars: &default_env_vars
     REPEATED_LARGE_DTESTS:
     # The number of times that the manually specified Python large dtests should be run.
     REPEATED_LARGE_DTESTS_COUNT: 100
+
+    # Comma-separated list of Python dtests that should be repeatedly run, for example:
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py::TestCQLNodes2RF1_Upgrade_current_4_0_x_To_indev_4_0_x
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py,upgrade_tests/paging_test.py
+    REPEATED_UPGRADE_DTESTS:
+    # The number of times that the manually specified Python upgrade dtests should be run.
+    REPEATED_UPGRADE_DTESTS_COUNT: 25
 
     # The Ant test target to run, for example:
     # REPEATED_ANT_TEST_TARGET: testsome
@@ -199,6 +215,11 @@ j17_seq_executor: &j17_seq_executor
     #exec_resource_class: xlarge
   parallelism: 1 # sequential, single container tests: no parallelism benefits
 
+j11_repeated_jvm_upgrade_dtest_executor: &j11_repeated_jvm_upgrade_dtest_executor
+  executor:
+    name: java11-executor
+  parallelism: 4
+
 j11_repeated_utest_executor: &j11_repeated_utest_executor
   executor:
     name: java11-executor
@@ -217,6 +238,11 @@ j17_repeated_utest_executor: &j17_repeated_utest_executor
 j17_repeated_dtest_executor: &j17_repeated_dtest_executor
   executor:
     name: java17-executor
+  parallelism: 4
+
+j11_repeated_upgrade_dtest_executor: &j11_repeated_upgrade_dtest_executor
+  executor:
+    name: java11-executor
   parallelism: 4
 
 j11_separate_jobs: &j11_separate_jobs
@@ -525,6 +551,25 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j17_utests_system_keyspace_directory_repeat
           - j11_build
+    # Java upgrade tests
+    - start_j11_dtest_jars_build:
+        type: approval
+    - j11_dtest_jars_build:
+        requires:
+          - j11_build
+          - start_j11_dtest_jars_build
+    - start_jvm_upgrade_dtests:
+        type: approval
+    - j11_jvm_upgrade_dtests:
+        requires:
+          - start_jvm_upgrade_dtests
+          - j11_dtest_jars_build
+    - start_jvm_upgrade_dtests_repeat:
+        type: approval
+    - j11_jvm_upgrade_dtests_repeat:
+        requires:
+          - start_jvm_upgrade_dtests_repeat
+          - j11_dtest_jars_build
     # Python DTests
     - start_j11_dtests:
         type: approval
@@ -710,6 +755,13 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j17_cqlsh_tests_offheap
           - j11_build
+    # Java 11 upgrade tests
+    - start_j11_upgrade_dtests:
+        type: approval
+    - j11_upgrade_dtests:
+        requires:
+          - start_j11_upgrade_dtests
+          - j11_build
     # Java 11 repeated utest
     - start_j11_repeated_ant_test:
         type: approval
@@ -749,6 +801,13 @@ j11_separate_jobs: &j11_separate_jobs
     - j17_dtests_vnode_repeat:
         requires:
           - start_j17_dtests_vnode_repeat
+          - j11_build
+    # Repeated Python upgrade dtest
+    - start_j11_upgrade_dtests_repeat:
+        type: approval
+    - j11_upgrade_dtests_repeat:
+        requires:
+          - start_j11_upgrade_dtests_repeat
           - j11_build
 
 j11_pre-commit_jobs: &j11_pre-commit_jobs
@@ -951,6 +1010,19 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - start_utests_system_keyspace_directory
           - j11_build
+    # Java upgrade tests
+    - start_jvm_upgrade_dtests:
+        type: approval
+    - j11_dtest_jars_build:
+        requires:
+          - j11_build
+          - start_jvm_upgrade_dtests
+    - j11_jvm_upgrade_dtests:
+        requires:
+          - j11_dtest_jars_build
+    - j11_jvm_upgrade_dtests_repeat:
+        requires:
+          - j11_dtest_jars_build
     # Python DTests
     - j11_dtests:
         requires:
@@ -1102,6 +1174,17 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - start_j17_cqlsh-dtests-offheap
           - j11_build
+    # Java 11 upgrade tests (on request)
+    - start_j11_upgrade_dtests:
+        type: approval
+    - j11_upgrade_dtests:
+        requires:
+          - j11_build
+          - start_j11_upgrade_dtests
+    - j11_upgrade_dtests_repeat:
+        requires:
+          - j11_build
+          - start_j11_upgrade_dtests
 
 j17_separate_jobs: &j17_separate_jobs
   jobs:
@@ -1569,6 +1652,7 @@ executors:
       <<: *default_env_vars
       JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+      CASSANDRA_USE_JDK11: true
 
   java17-executor:
     parameters:
@@ -1682,6 +1766,19 @@ jobs:
       - create_junit_containers:
           classlistprefix: distributed
           extra_filters: "| grep -v upgrade"
+      - log_environment
+      - run_parallel_junit_tests:
+          classlistprefix: distributed
+          target: "testclasslist"
+
+  j11_jvm_upgrade_dtests:
+    <<: *j11_medium_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers:
+          classlistprefix: distributed
+          extra_filters: "| grep upgrade"
       - log_environment
       - run_parallel_junit_tests:
           classlistprefix: distributed
@@ -1962,6 +2059,20 @@ jobs:
     - run_dtests:
         file_tag: j17_without_vnodes
         pytest_extra_args: '--skip-resource-intensive-tests'
+
+  j11_upgrade_dtests:
+    <<: *j11_par_executor
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - clone_dtest
+    - create_venv
+    - create_dtest_containers:
+        file_tag: j11_upgradetests_without_vnodes
+        run_dtests_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
+    - run_dtests:
+        file_tag: j11_upgradetests_without_vnodes
+        pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
 
   j11_cqlsh_dtests_py3_vnode:
     <<: *j11_par_executor
@@ -2469,6 +2580,14 @@ jobs:
       - log_environment
       - run_utests_stress_repeat
 
+  j11_jvm_upgrade_dtests_repeat:
+    <<: *j11_repeated_jvm_upgrade_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_jvm_upgrade_dtests_repeat
+
   j11_jvm_dtests_repeat:
     <<: *j11_repeated_utest_executor
     steps:
@@ -2685,6 +2804,20 @@ jobs:
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
           extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
 
+  j11_upgrade_dtests_repeat:
+    <<: *j11_repeated_upgrade_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_UPGRADE_DTESTS}
+          vnodes: "false"
+          upgrade: "true"
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          count: ${REPEATED_UPGRADE_DTESTS_COUNT}
+
 commands:
   log_environment:
     steps:
@@ -2756,7 +2889,7 @@ commands:
           cd ~/cassandra
           mkdir ~/dtest_jars
           git remote add apache https://github.com/apache/cassandra.git
-          for branch in cassandra-2.2 cassandra-3.0 cassandra-3.11 cassandra-4.0 cassandra-4.1 trunk; do
+          for branch in cassandra-4.0 cassandra-4.1 trunk; do
             # check out the correct cassandra version:
             git remote set-branches --add apache '$branch'
             git fetch --depth 1 apache $branch
@@ -3179,6 +3312,15 @@ commands:
           tests: ${REPEATED_JVM_DTESTS}
           count: ${REPEATED_JVM_DTESTS_COUNT}
           vnodes: true
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
+  run_jvm_upgrade_dtests_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-jvm-dtest-some
+          tests: ${REPEATED_JVM_UPGRADE_DTESTS}
+          count: ${REPEATED_JVM_UPGRADE_DTESTS_COUNT}
+          vnodes: false
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
   run_repeated_utests:
