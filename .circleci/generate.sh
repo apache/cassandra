@@ -302,7 +302,7 @@ delete_repeated_jobs()
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
     delete_job "$1" "start_jvm_upgrade_dtests_repeat"
-    delete_job "$1" "j8_jvm_upgrade_dtests_repeat"
+    delete_job "$1" "j11_jvm_upgrade_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
     delete_job "$1" "j8_dtests_repeat"
