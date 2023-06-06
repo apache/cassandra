@@ -189,7 +189,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         }
 
         // if we have a small number of results then let TopK processor do exact NN computation
-        if (n <= maxBruteForceRows)
+        if (n < bruteForceRows.length)
         {
             var results = new ReorderingPostingList(Arrays.stream(bruteForceRows, 0, n).iterator(), n);
             return toPrimaryKeyIterator(results, context);
