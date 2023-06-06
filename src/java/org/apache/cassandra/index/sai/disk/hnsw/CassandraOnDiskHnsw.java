@@ -41,7 +41,7 @@ import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
-public class CassandraOnDiskHnsw
+public class CassandraOnDiskHnsw implements AutoCloseable
 {
     private final int vectorDimension;
     private final Function<QueryContext, OnDiskVectors> vectorsSupplier;
