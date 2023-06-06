@@ -160,11 +160,12 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     /**
-     * The metadata source of configuration properties. It is used to access the configuration class instance loaded
-     * from the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
-     * by calling {@link #toolInitialization()}, {@link #daemonInitialization()} or {@link #clientInitialization()}.
+     * The metadata source for configuration properties. It is used to access the instance of the configuration
+     * class loaded to the {@link #conf} which is usually initialized by calling {@link #toolInitialization()},
+     * {@link #daemonInitialization()} or {@link #clientInitialization()}.
      */
-    private static Map<String, ? extends Property> confValueAccessors;
+    private static final Map<String, ? extends Property> confValueAccessors =
+        ImmutableMap.copyOf(withReplacementsLoader(validatedPropertyLoader()).flatten(Config.class));
     private static Config conf;
 
     /**
@@ -434,7 +435,6 @@ public class DatabaseDescriptor
     private static void setConfig(Supplier<Config> config)
     {
         conf = config.get();
-        confValueAccessors = ImmutableMap.copyOf(withReplacementsLoader(validatedPropertyLoader()).flatten(Config.class));
     }
 
     private static void applyAll() throws ConfigurationException
