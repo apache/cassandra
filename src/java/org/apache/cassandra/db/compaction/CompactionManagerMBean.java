@@ -167,7 +167,7 @@ public interface CompactionManagerMBean
     public void setMaxConcurrentAutoUpgradeTasks(int value);
 
     /**
-     *  Get the compaction rate
+     * Get the compaction rate
      */
     public double getCompactionRate();
 }
