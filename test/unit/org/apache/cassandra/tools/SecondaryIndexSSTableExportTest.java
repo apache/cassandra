@@ -28,29 +28,29 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.JsonUtils;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SecondaryIndexSSTableExportTest extends CQLTester
 {
-    private static final ObjectMapper mapper = new ObjectMapper();
     private static final TypeReference<List<Map<String, Object>>> jacksonListOfMapsType = new TypeReference<List<Map<String, Object>>>() {};
 
     @BeforeClass
     public static void beforeClass()
     {
-        System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
     @AfterClass
     public static void afterClass()
     {
-        System.clearProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST);   
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
     }
 
     @Test
@@ -138,7 +138,7 @@ public class SecondaryIndexSSTableExportTest extends CQLTester
             {
                 String file = sst.getFilename();
                 ToolRunner.ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, file);
-                List<Map<String, Object>> parsed = mapper.readValue(tool.getStdout(), jacksonListOfMapsType);
+                List<Map<String, Object>> parsed = JsonUtils.JSON_OBJECT_MAPPER.readValue(tool.getStdout(), jacksonListOfMapsType);
                 assertNotNull(tool.getStdout(), parsed.get(0).get("partition"));
                 assertNotNull(tool.getStdout(), parsed.get(0).get("rows"));
             }
