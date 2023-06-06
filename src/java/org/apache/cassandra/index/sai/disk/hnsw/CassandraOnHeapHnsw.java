@@ -27,7 +27,6 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -46,6 +45,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 
@@ -116,36 +116,26 @@ public class CassandraOnHeapHnsw<T>
 
         var vector = serializer.deserializeFloatArray(term);
         var bytesUsed = new AtomicLong();
-        var newVector = new AtomicBoolean();
-        // if the vector is already in the graph, all that happens is that the postings list is updated
-        // otherwise, we add the vector in this order:
-        // 1. to the vectorValues
-        // 2. to the postingsMap
-        // 3. to the graph
-        // This way, concurrent searches of the graph won't see the vector until it's visible
-        // in the other structures as well.
         var postings = postingsMap.computeIfAbsent(vector, v -> {
             var bytes = RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
             var ordinal = nextOrdinal.getAndIncrement();
             bytes += vectorValues.add(ordinal, vector);
+            try
+            {
+                bytes += builder.addGraphNode(ordinal, vectorValues);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
             bytes += VectorPostings.emptyBytesUsed();
             bytesUsed.addAndGet(bytes);
-            newVector.set(true);
             return new VectorPostings<>(ordinal);
         });
         if (postings.add(key))
         {
             bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
             deletedOrdinals.remove(postings.getOrdinal());
-        } else if (newVector.get()) {
-            try
-            {
-                bytesUsed.addAndGet(builder.addGraphNode(postings.getOrdinal(), vectorValues));
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
         }
 
         return bytesUsed.get();
@@ -189,14 +179,14 @@ public class CassandraOnHeapHnsw<T>
         NeighborQueue queue;
         try
         {
-            queue = HnswGraphSearcher.searchConcurrent(queryVector,
-                                                       limit,
-                                                       vectorValues,
-                                                       VectorEncoding.FLOAT32,
-                                                       similarityFunction,
-                                                       builder.getGraph(),
-                                                       bitsForQuery(toAccept),
-                                                       visitedLimit);
+            queue = HnswGraphSearcher.search(queryVector,
+                                             limit,
+                                             vectorValues,
+                                             VectorEncoding.FLOAT32,
+                                             similarityFunction,
+                                             builder.getGraph(),
+                                             bitsForQuery(toAccept),
+                                             visitedLimit);
         }
         catch (IOException e)
         {
