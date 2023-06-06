@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,6 +40,9 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getPropertyType;
+import static org.junit.Assert.assertTrue;
+
 public class SettingsTableTest extends CQLTester
 {
     public static final String KS_NAME = "vts";
@@ -49,7 +54,7 @@ public class SettingsTableTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        DatabaseDescriptor.visit((key, type, ro) -> settingsTableKeys.add(key));
+        settingsTableKeys.addAll(DatabaseDescriptor.getAllProperties());
         settingsTableKeys.addAll(SettingsTable.BACKWARDS_COMPATABLE_NAMES.keySet());
     }
 
@@ -76,7 +81,7 @@ public class SettingsTableTest extends CQLTester
         for (Row r : result)
         {
             String name = r.getString("name");
-            String expectedValue = DatabaseDescriptor.getStringProperty(SettingsTable.getKeyAndWarn(name));
+            String expectedValue = SettingsTable.getPropertyAsString(SettingsTable.getKeyAndWarn(name));
             Assert.assertEquals("Unexpected result for key: " + name, expectedValue, r.getString("value"));
             unprocessedKeys.remove(name);
         }
@@ -86,10 +91,11 @@ public class SettingsTableTest extends CQLTester
     @Test
     public void testSelectPartition() throws Throwable
     {
-        DatabaseDescriptor.visit((key, type, ro) -> {
+        for (String key : DatabaseDescriptor.getAllProperties())
+        {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
-            assertRowsNet(executeNet(q), new Object[] { key, DatabaseDescriptor.getStringProperty(key) });
-        });
+            assertRowsNet(executeNet(q), new Object[]{ key, SettingsTable.getPropertyAsString(key) });
+        }
     }
 
     @Test
@@ -286,5 +292,41 @@ public class SettingsTableTest extends CQLTester
         check(pre + "iv_length", "16");
         config.transparent_data_encryption_options.iv_length = 7;
         check(pre + "iv_length", "7");
+    }
+
+    @Test
+    public void testCompareYamlRepresentWithPropertyToString()
+    {
+        List<String> properties = new ArrayList<>();
+        for (String name : DatabaseDescriptor.getAllProperties())
+        {
+            String propertyValueString = SettingsTable.getPropertyAsString(name);
+            if (propertyValueString == null)
+                return;
+
+            // There are some exceptions where the property value is not the same as the yaml representation
+            // e.g. the property value is a Set but the yaml representation of a Set differs from the toString() of a Set.
+            // toString() of an empty Set is "[]" but the yaml representation of an empty Set is "{}".
+            if (Set.class.equals(getPropertyType(name)) && ((Set<?>) DatabaseDescriptor.getPropertyValue(name)).isEmpty())
+                return;
+
+            String expected = DatabaseDescriptor.getPropertyValue(name).toString();
+            if (!propertyValueString.equals(expected))
+            {
+                String out = String.format("Property '%s' expected:\n %s\n" +
+                                           "Property '%s' actual:\n %s\n",
+                                           name, expected, name, propertyValueString);
+                // Here are some exceptions where the property value is not the same as the yaml representation.
+                if (name.equals("memtable.configurations") ||
+                    name.equals("sstable_formats") ||
+                    name.equals("seed_provider.parameters") ||
+                    name.equals("data_file_directories"))
+                    System.err.println(out);
+                else
+                    properties.add(out);
+            }
+        }
+        assertTrue('\n' + String.join("------------------------------------------------\n", properties),
+                   properties.isEmpty());
     }
 }

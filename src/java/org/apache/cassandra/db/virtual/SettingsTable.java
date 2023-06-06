@@ -18,14 +18,15 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -34,9 +35,11 @@ import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getStringProperty;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPropertyType;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPropertyValue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
+import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 final class SettingsTable extends AbstractMutableVirtualTable
 {
@@ -53,18 +56,15 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
-        Set<String> unprocessed = new HashSet<>(BACKWARDS_COMPATABLE_NAMES.values());
-        DatabaseDescriptor.visit((key, type, ro) -> {
-            if (BACKWARDS_COMPATABLE_NAMES.containsKey(key))
+        for (String name : BACKWARDS_COMPATABLE_NAMES.keySet())
+        {
+            if (DatabaseDescriptor.hasProperty(name))
             {
                 throw new AssertionError(String.format("Name '%s' is present in Config, this adds a conflict as this " +
                                                        "name had a different meaning in the '%s",
-                                                       key, SettingsTable.class.getSimpleName()));
+                                                       name, SettingsTable.class.getSimpleName()));
             }
-            unprocessed.remove(key);
-        });
-        if (!unprocessed.isEmpty())
-            throw new AssertionError("The following keys must be present in the Config: " + unprocessed);
+        }
     }
 
     @Override
@@ -72,7 +72,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String name = partitionKey.value(0);
         String key = getKeyAndWarn(name);
-        runExceptionally(() -> DatabaseDescriptor.setProperty(key, null),
+        runExceptionally(() -> setPropertyFromString(key, null),
                          t -> invalidRequest("Invalid delete request. Cause: %s", t.getMessage()));
     }
 
@@ -83,7 +83,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String name = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        runExceptionally(() -> DatabaseDescriptor.setProperty(getKeyAndWarn(name), value),
+        runExceptionally(() -> setPropertyFromString(getKeyAndWarn(name), value),
                          t -> invalidRequest("Invalid update request '%s'. Cause: %s", name, t.getMessage()));
     }
 
@@ -94,7 +94,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         try
         {
-            Object value = getStringProperty(getKeyAndWarn(name));
+            Object value = getPropertyAsString(getKeyAndWarn(name));
             result.row(name).column(VALUE, value);
         }
         catch (PropertyNotFoundException e)
@@ -108,12 +108,16 @@ final class SettingsTable extends AbstractMutableVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        DatabaseDescriptor.visit((key, type, ro) ->
-                                 result.row(key).column(VALUE, getStringProperty(key)),
-                                 t -> new ConfigurationException(t.getMessage(), false));
+        for (String key : DatabaseDescriptor.getAllProperties())
+        {
+            if (BACKWARDS_COMPATABLE_NAMES.containsKey(key))
+                continue;
+            runExceptionally(() -> result.row(key).column(VALUE, getPropertyAsString(key)),
+                             t -> new ConfigurationException(t.getMessage(), false));
+        }
 
         runExceptionally(() -> BACKWARDS_COMPATABLE_NAMES.forEach((oldName, newName) ->
-                                           result.row(oldName).column(VALUE, getStringProperty(newName))),
+                                           result.row(oldName).column(VALUE, getPropertyAsString(newName))),
                          t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
@@ -124,6 +128,37 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
         return key;
+    }
+
+    public static String getPropertyAsString(String name)
+    {
+        return getPropertyType(name).equals(String.class) ?
+               (String) getPropertyValue(name) :
+               propertyToStringConverter().apply(getPropertyValue(name));
+    }
+
+    public static void setPropertyFromString(String name, String value)
+    {
+        if (value == null)
+            DatabaseDescriptor.setProperty(name, null);
+        else
+        {
+            Class<?> fromType = primitiveToWrapper(getPropertyType(name));
+            Object obj = YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(fromType)
+                                                                     .loadAs(value, fromType);
+            DatabaseDescriptor.setProperty(name, obj);
+        }
+    }
+
+    /**
+     * @return A converter that converts given object to a string.
+     * @param <T> Type to convert from.
+     */
+    public static <T> Function<T, String> propertyToStringConverter()
+    {
+        return obj -> obj == null ? null : YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(Config.class)
+                                                                                       .dump(obj)
+                                                                                       .trim();
     }
 
     /**

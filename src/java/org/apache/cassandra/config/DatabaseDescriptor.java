@@ -30,7 +30,6 @@ import java.nio.file.FileStore;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -49,7 +48,6 @@ import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -111,7 +109,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.yaml.snakeyaml.introspector.Property;
 
-import static java.util.Optional.ofNullable;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
@@ -4754,24 +4751,6 @@ public class DatabaseDescriptor
             return conf.storage_compatibility_mode;
     }
 
-    public static void visit(PropertyVisitor visitor)
-    {
-        visit(visitor, RuntimeException::new);
-    }
-
-    public static void visit(PropertyVisitor visitor, Function<Throwable, ? extends RuntimeException> handler)
-    {
-        try
-        {
-            for (Property property : ofNullable(confValueAccessors).orElse(Collections.emptyMap()).values())
-                visitor.visit(property.getName(), property.getType(), property.getAnnotation(Mutable.class) == null);
-        }
-        catch (Throwable t)
-        {
-            throw handler.apply(t);
-        }
-    }
-
     public static <T> ListenableProperty.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)
     {
         return addPropertyListener(name, clazz, p -> p.addListener(new ListenableProperty.Listener<Config, T>()
@@ -4802,41 +4781,29 @@ public class DatabaseDescriptor
                                                                       Class<T> clazz,
                                                                       Function<ListenableProperty<Config, T>, ListenableProperty.Remover> adder)
     {
-        Property property = ofNullable(confValueAccessors.get(name))
-                            .map(p -> {
-                                // The case when replacement property is used and match the property's name.
-                                if (p instanceof Replacement.ReplacementProperty)
-                                    return ((Replacement.ReplacementProperty) p).delegate();
-                                else
-                                    return p;
-                            })
-                            .orElseThrow(() -> new PropertyNotFoundException(name));
-        if (property.getAnnotation(Mutable.class) == null)
-            throw new ConfigurationException("Unable to add a listener for read-only property: " + property.getName());
+        Property property = getPropertyAccessor(name);
+        // The case when replacement property is used and match the property's name.
+        Property property0 = property instanceof Replacement.ReplacementProperty ?
+                                         ((Replacement.ReplacementProperty) property).delegate() :
+                                         property;
 
-        if (!(property instanceof ListenableProperty))
+        if (isReadOnlyProperty(property0))
+            throw new ConfigurationException("Unable to add a listener for read-only property: " + property0.getName());
+
+        if (!(property0 instanceof ListenableProperty))
             throw new ConfigurationException(String.format("Property '%s' is not listenable.", name));
 
-        if (clazz.equals(property.getType()))
-            return adder.apply((ListenableProperty<Config, T>) property);
+        if (clazz.equals(property0.getType()))
+            return adder.apply((ListenableProperty<Config, T>) property0);
         else
             throw new ConfigurationException(String.format("Listener type '%s' doesn't match the property '%s' type '%s'.",
                                                            clazz.getSimpleName(), name, clazz.getSimpleName()));
     }
 
-    public static Object getProperty(String name)
+    public static Object getPropertyValue(String name)
     {
-        return ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name))
-                                                       .get(conf);
-    }
-
-    public static String getStringProperty(String name)
-    {
-        Property property = ofNullable(confValueAccessors.get(name))
-                            .orElseThrow(() -> new PropertyNotFoundException(name));
-        return property.getType().equals(String.class) ?
-               (String) property.get(conf) :
-               propertyToStringConverter().convertNullable(property.get(conf));
+        Property property = getPropertyAccessor(name);
+        return property.get(conf);
     }
 
     /**
@@ -4850,8 +4817,8 @@ public class DatabaseDescriptor
     {
         try
         {
-            Property property = ofNullable(confValueAccessors.get(name)).orElseThrow(() -> new PropertyNotFoundException(name));
-            if (property.getAnnotation(Mutable.class) == null)
+            Property property = getPropertyAccessor(name);
+            if (isReadOnlyProperty(property))
                 throw new ConfigurationException("Property is read-only: " + property.getName());
 
             if (value == null)
@@ -4860,10 +4827,8 @@ public class DatabaseDescriptor
                 return;
             }
 
-            if (property.getType().isAssignableFrom(value.getClass()))
+            if (primitiveToWrapper(property.getType()).isAssignableFrom(value.getClass()))
                 property.set(conf, value);
-            else if (String.class.equals(value.getClass()))
-                property.set(conf, propertyFromStringConverter(primitiveToWrapper(property.getType())).convert((String) value));
             else
                 throw new ConfigurationException(String.format("Cannot convert value '%s' to type '%s'.",
                                                                value, property.getType().getSimpleName()), false);
@@ -4879,51 +4844,37 @@ public class DatabaseDescriptor
         }
     }
 
-    /**
-     * @return A converter that converts given object to a string.
-     * @param <T> Type to convert from.
-     */
-    public static <T> TypeConverter<T, String> propertyToStringConverter()
+    public static Set<String> getAllProperties()
     {
-        return obj -> YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(Config.class).dump(obj).trim();
+        return confValueAccessors.keySet();
     }
 
-    /**
-     * @param toClass Class to convert to.
-     * @return A converter that converts given string to an object of the given class.
-     * @param <R> Type to convert to.
-     */
-    public static <R> TypeConverter<String, R> propertyFromStringConverter(Class<R> toClass)
+    public static boolean isReadOnlyProperty(String name)
     {
-        return obj -> YamlConfigurationLoader.YamlFactory.instance.newYamlInstance(toClass).loadAs(obj, toClass);
+        return isReadOnlyProperty(getPropertyAccessor(name));
     }
 
-    /**
-     * Visitor for all configuration properties available in {@link #conf} object with their types and mutability.
-     * Use {@link #visit(PropertyVisitor)} to iterate over all properties.
-     */
-    public interface PropertyVisitor
+    private static boolean isReadOnlyProperty(Property property)
     {
-        void visit(String name, Class<?> type, boolean readOnly) throws Throwable;
+        return property.getAnnotation(Mutable.class) == null;
     }
 
-    /**
-     * Type conveter interface that is used to convert configuration values from one type to another.
-     * @param <T> Type to convert from.
-     * @param <R> Type to convert to.
-     */
-    public interface TypeConverter<T, R>
+    public static Class<?> getPropertyType(String name)
     {
-        /**
-         * Converts a value to the target type.
-         * @param value Value to convert.
-         * @return Converted value.
-         */
-        R convert(@Nonnull T value);
+        Property property = getPropertyAccessor(name);
+        return property.getType();
+    }
 
-        default R convertNullable(@Nullable T value)
-        {
-            return value == null ? null : convert(value);
-        }
+    public static boolean hasProperty(String name)
+    {
+        return confValueAccessors.containsKey(name);
+    }
+
+    private static Property getPropertyAccessor(String name)
+    {
+        Property property = confValueAccessors.get(name);
+        if (property == null)
+            throw new PropertyNotFoundException(name);
+        return property;
     }
 }

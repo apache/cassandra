@@ -209,14 +209,6 @@ public abstract class DataRateSpec<T extends DataRateSpec<T>>
         return unit.convert(other.quantity, other.unit) == quantity && other.unit.convert(quantity, unit) == other.quantity;
     }
 
-    @SuppressWarnings("unchecked")
-    public final Class<T> getDeclaringClass()
-    {
-        Class<?> clazz = getClass();
-        Class<?> zuper = clazz.getSuperclass();
-        return zuper == DataRateSpec.class ? (Class<T>) clazz : (Class<T>) zuper;
-    }
-
     @Override
     public String toString()
     {
@@ -228,7 +220,7 @@ public abstract class DataRateSpec<T extends DataRateSpec<T>>
      * If the user sets a different unit, we still validate that converted to bytes per second the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class LongBytesPerSecondBound extends DataRateSpec<LongBytesPerSecondBound>
+    public static final class LongBytesPerSecondBound extends DataRateSpec<LongBytesPerSecondBound>
     {
         /**
          * Creates a {@code DataRateSpec.LongBytesPerSecondBound} of the specified amount.

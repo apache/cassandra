@@ -40,7 +40,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
-import static org.apache.cassandra.config.DatabaseDescriptor.propertyToStringConverter;
+import static org.apache.cassandra.db.virtual.SettingsTable.propertyToStringConverter;
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -60,11 +60,12 @@ public class UpdateSettingsTableTest extends CQLTester
     public static void setUpClass()
     {
         CQLTester.setUpClass();
-        DatabaseDescriptor.visit((key, type, readOnly) -> {
-            propertyTypes.put(key, type);
-            if (!readOnly)
+        for (String key : DatabaseDescriptor.getAllProperties())
+        {
+            propertyTypes.put(key, DatabaseDescriptor.getPropertyType(key));
+            if (!DatabaseDescriptor.isReadOnlyProperty(key))
                 updatableProperties.add(key);
-        });
+        }
     }
 
     @Before
@@ -88,14 +89,14 @@ public class UpdateSettingsTableTest extends CQLTester
         String nonDefaultValue = new DataStorageSpec.IntMebibytesBound(10L, MEBIBYTES).toString();
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                  nonDefaultValue, ConfigFields.REPAIR_SESSION_SPACE));
-        assertEquals(nonDefaultValue, DatabaseDescriptor.getStringProperty(ConfigFields.REPAIR_SESSION_SPACE));
+        assertEquals(nonDefaultValue, SettingsTable.getPropertyAsString(ConfigFields.REPAIR_SESSION_SPACE));
         // Try to use null as a value.
         String expectedIfNullGiven = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toString();
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                  null, ConfigFields.REPAIR_SESSION_SPACE));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.REPAIR_SESSION_SPACE),
                       new Object[]{ ConfigFields.REPAIR_SESSION_SPACE, expectedIfNullGiven });
-        String sessionSpace = DatabaseDescriptor.getStringProperty(ConfigFields.REPAIR_SESSION_SPACE);
+        String sessionSpace = SettingsTable.getPropertyAsString(ConfigFields.REPAIR_SESSION_SPACE);
         assertNotNull(sessionSpace);
         assertEquals(expectedIfNullGiven, sessionSpace);
         assertNotNull(DatabaseDescriptor.getRawConfig().repair_session_space);
@@ -112,7 +113,7 @@ public class UpdateSettingsTableTest extends CQLTester
                                         ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
                                         propertyToStringConverter()
                                         // This is the value for the property that overflows property's limit in bytes bet second.
-                                        .convert(new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND)));
+                                        .apply(new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND)));
         }
         catch (InvalidQueryException ex)
         {
@@ -120,8 +121,8 @@ public class UpdateSettingsTableTest extends CQLTester
         }
         assertNotNull(e);
         assertEquals("Unexpected error: " + e.getMessage(),
-                     "Invalid update request 'stream_throughput_outbound'. Cause: Property " +
-                     "'stream_throughput_outbound' validation failed: Invalid value: '2147483647MiB/s'",
+                     "Invalid update request 'stream_throughput_outbound'. Cause: Property 'stream_throughput_outbound' " +
+                     "validation failed: Invalid value: '2147483647MiB/s' is too large",
                      e.getMessage());
     }
 
@@ -140,9 +141,9 @@ public class UpdateSettingsTableTest extends CQLTester
         // LOGGED BATCH statements with virtual tables are not supported.
         execute("BEGIN UNLOGGED BATCH " +
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
-                              propertyToStringConverter().convert(newCompactionThroughput), ConfigFields.COMPACTION_THROUGHPUT) +
+                              propertyToStringConverter().apply(newCompactionThroughput), ConfigFields.COMPACTION_THROUGHPUT) +
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
-                              propertyToStringConverter().convert(newStreamThroughputOutbound), ConfigFields.STREAM_THROUGHPUT_OUTBOUND) +
+                              propertyToStringConverter().apply(newStreamThroughputOutbound), ConfigFields.STREAM_THROUGHPUT_OUTBOUND) +
                 "APPLY BATCH ");
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.COMPACTION_THROUGHPUT),
                       new Object[]{ ConfigFields.COMPACTION_THROUGHPUT, newCompactionThroughput.toString() });
@@ -152,7 +153,7 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void doUpdateSettingAndRevertBack(String statement, String propertyName) throws Throwable
     {
-        Object oldValue = DatabaseDescriptor.getProperty(propertyName);
+        Object oldValue = DatabaseDescriptor.getPropertyValue(propertyName);
         Object[] testValues = defaultTestValues.get(propertyTypes.get(propertyName));
         assertNotNull(String.format("No test values found for setting '%s' with type '%s'",
                                     propertyName, propertyTypes.get(propertyName)), testValues);
@@ -163,10 +164,10 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        String valueStr = propertyToStringConverter().convertNullable(value);
+        String valueStr = propertyToStringConverter().apply(value);
         assertRowsNet(executeNet(statement, valueStr, propertyName));
-        assertEquals(value, DatabaseDescriptor.getProperty(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, propertyToStringConverter().convertNullable(value) });
+        assertEquals(value, DatabaseDescriptor.getPropertyValue(propertyName));
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, propertyToStringConverter().apply(value) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)
