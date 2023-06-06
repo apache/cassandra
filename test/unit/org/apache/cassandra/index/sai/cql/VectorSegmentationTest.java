@@ -41,7 +41,7 @@ import org.apache.lucene.util.hnsw.NeighborQueue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class VectorSegmentationTest extends SAITester
+public class VectorSegmentationTest extends VectorTester
 {
     private static final int dimension = 100;
 

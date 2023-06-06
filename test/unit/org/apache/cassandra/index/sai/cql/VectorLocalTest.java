@@ -53,7 +53,7 @@ import smile.nlp.embedding.Word2Vec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class VectorLocalTest extends SAITester
+public class VectorLocalTest extends VectorTester
 {
     private static Word2Vec word2vec;
 

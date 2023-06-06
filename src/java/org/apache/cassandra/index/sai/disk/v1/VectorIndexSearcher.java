@@ -53,6 +53,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     private final CassandraOnDiskHnsw graph;
     private final PrimaryKey.Factory keyFactory;
     private final PrimaryKeyMap primaryKeyMap;
+    private int maxBruteForceRows; // not final so test can inject its own setting
 
     VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                         PerIndexFiles perIndexFiles,
@@ -64,6 +65,8 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         graph = new CassandraOnDiskHnsw(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
         this.keyFactory = PrimaryKey.factory(indexContext.comparator(), indexContext.indexFeatureSet());
         this.primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
+
+        maxBruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
     }
 
     @Override
@@ -151,8 +154,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         // are from our own token range so we can use row ids to order the results by vector similarity.
         var maxSegmentRowId = metadata.segmentedRowId(metadata.maxSSTableRowId);
         SparseFixedBitSet bits = new SparseFixedBitSet(1 + maxSegmentRowId);
-        int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
-        int[] bruteForceRows = new int[maxBruteForceRows];
+        int[] bruteForceRows = new int[Math.min(limit, maxBruteForceRows)];
         int n = 0;
         try (var ordinalsView = graph.getOrdinalsView())
         {
@@ -169,8 +171,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
                     continue;
 
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
-                assert segmentRowId >= 0;
-                if (n < maxBruteForceRows)
+                if (n < bruteForceRows.length)
                     bruteForceRows[n] = segmentRowId;
                 n++;
 

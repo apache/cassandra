@@ -18,17 +18,23 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.inject.ActionBuilder;
+import org.apache.cassandra.inject.Expression;
+import org.apache.cassandra.inject.Injection;
+import org.apache.cassandra.inject.Injections;
+import org.apache.cassandra.inject.InvokePointBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class VectorTypeTest extends SAITester
+public class VectorTypeTest extends VectorTester
 {
     @Test
     public void endToEndTest() throws Throwable

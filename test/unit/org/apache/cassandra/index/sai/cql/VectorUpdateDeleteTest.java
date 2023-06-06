@@ -26,7 +26,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsInt;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class VectorUpdateDeleteTest extends SAITester
+public class VectorUpdateDeleteTest extends VectorTester
 {
     @Test
     public void deleteVectorInMemoryTest() throws Throwable

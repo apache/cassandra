@@ -39,7 +39,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class VectorSiftSmallTest extends SAITester
+public class VectorSiftSmallTest extends VectorTester
 {
     @Test
     public void testSiftSmall() throws Throwable
