@@ -225,6 +225,7 @@ public class DatabaseDescriptor
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
 
     private static PageSize aggregationSubPageSize;
+    private static PageSize secondaryIndexRebuildPageSize;
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -973,8 +974,11 @@ public class DatabaseDescriptor
 
         if (conf.aggregation_subpage_size.toBytes() <= 0)
             throw new ConfigurationException("aggregation_subpage_size must be > 0");
-
         setAggregationSubPageSize(new PageSize(10000, conf.aggregation_subpage_size.toBytes()));
+
+        if (conf.secondary_index_rebuild_page_size.toBytes() <= 0)
+            throw new ConfigurationException("secondary_index_rebuild_page_size must be > 0");
+        setSecondaryIndexRebuildPageSize(PageSize.inBytes(conf.secondary_index_rebuild_page_size.toBytes()));
     }
 
     @VisibleForTesting
@@ -4765,9 +4769,19 @@ public class DatabaseDescriptor
         return aggregationSubPageSize;
     }
 
+    public static PageSize getSecondaryIndexRebuildPageSize()
+    {
+        return secondaryIndexRebuildPageSize;
+    }
+
     public static void setAggregationSubPageSize(PageSize pageSize)
     {
         aggregationSubPageSize = pageSize;
+    }
+
+    public static void setSecondaryIndexRebuildPageSize(PageSize pageSize)
+    {
+        secondaryIndexRebuildPageSize = pageSize;
     }
 
 }
