@@ -303,6 +303,11 @@ public abstract class Controller
         return UnifiedCompactionStrategy.thresholdFromScalingParameter(getPreviousScalingParameter(index));
     }
 
+    public int getFlushShards(double density)
+    {
+        return areL0ShardsEnabled() ? getNumShards(density) : 1;
+    }
+
     /**
      * Calculate the number of shards to split the local token space in for the given sstable density.
      * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
@@ -334,9 +339,9 @@ public abstract class Controller
     /**
      * @return whether L0 should use shards
      */
-    public boolean areL0ShardsEnabled()
+    public final boolean areL0ShardsEnabled()
     {
-        return l0ShardsEnabled;
+        return false; // l0ShardsEnabled; FIXME VECTOR-23
     }
 
     /**

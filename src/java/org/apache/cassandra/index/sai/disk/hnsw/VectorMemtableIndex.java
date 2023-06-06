@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 
@@ -39,6 +40,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -171,6 +173,11 @@ public class VectorMemtableIndex implements MemtableIndex
     {
         // REVIEWME where would we need this?
         throw new UnsupportedOperationException();
+    }
+
+    public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<PrimaryKey, Integer> postingTransformer) throws IOException
+    {
+        return graph.writeData(indexDescriptor, indexContext, postingTransformer);
     }
 
     @Override

@@ -19,10 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
@@ -38,7 +36,7 @@ import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PerIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
+import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
@@ -47,10 +45,8 @@ import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.StringHelper;
 
 /**
  * Column index writer that flushes indexed data directly from the corresponding Memtable index, without buffering index
@@ -65,9 +61,6 @@ public class MemtableIndexWriter implements PerIndexWriter
     private final MemtableIndex memtableIndex;
     private final RowMapping rowMapping;
 
-    private final int nowInSec = FBUtilities.nowInSeconds();
-    private final CassandraOnHeapHnsw<PrimaryKey> graphIndex;
-
     public MemtableIndexWriter(MemtableIndex memtableIndex,
                                IndexDescriptor indexDescriptor,
                                IndexContext indexContext,
@@ -79,11 +72,6 @@ public class MemtableIndexWriter implements PerIndexWriter
         this.indexContext = indexContext;
         this.memtableIndex = memtableIndex;
         this.rowMapping = rowMapping;
-
-        if (indexContext.isVector())
-            graphIndex = new CassandraOnHeapHnsw<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
-        else
-            graphIndex = null;
     }
 
     @Override
@@ -98,12 +86,6 @@ public class MemtableIndexWriter implements PerIndexWriter
         // Memtable indexes are flushed directly to disk with the aid of a mapping between primary
         // keys and row IDs in the flushing SSTable. This writer, therefore, does nothing in
         // response to the flushing of individual rows.
-        if (indexContext.isVector())
-        {
-            ByteBuffer value = indexContext.getValueOf(key.partitionKey(), row, nowInSec);
-            if (value != null)
-                graphIndex.add(value, key);
-        }
     }
 
     @Override
@@ -215,7 +197,8 @@ public class MemtableIndexWriter implements PerIndexWriter
 
     private void flushVectorIndex(DecoratedKey minKey, DecoratedKey maxKey, long startTime, Stopwatch stopwatch) throws IOException
     {
-        SegmentMetadata.ComponentMetadataMap metadataMap = graphIndex.writeData(indexDescriptor, indexContext, rowMapping::get);
+        var vectorIndex = (VectorMemtableIndex) memtableIndex;
+        SegmentMetadata.ComponentMetadataMap metadataMap = vectorIndex.writeData(indexDescriptor, indexContext, rowMapping::get);
 
         completeIndexFlush(rowMapping.size(), startTime, stopwatch);
 
