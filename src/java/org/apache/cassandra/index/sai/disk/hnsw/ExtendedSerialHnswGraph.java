@@ -20,68 +20,57 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 
-import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
-import org.apache.lucene.util.hnsw.HnswGraph;
+import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
 
-public class ExtendedConcurrentHnswGraph extends ExtendedHnswGraph
+public class ExtendedSerialHnswGraph extends ExtendedHnswGraph
 {
-    private final ConcurrentOnHeapHnswGraph graph;
-    private final HnswGraph view;
+    private final OnHeapHnswGraph hnsw;
 
-    public ExtendedConcurrentHnswGraph(ConcurrentOnHeapHnswGraph graph)
+    public ExtendedSerialHnswGraph(OnHeapHnswGraph hnsw)
     {
         super();
-        this.graph = graph;
-        this.view = graph.getView();
+        this.hnsw = hnsw;
     }
 
-    // this is not guaranteed to be consistent with the view, but it's only used
-    // when we're writing to disk and there aren't other concurrent operations
     @Override
     public int getNeighborCount(int level, int node)
     {
-        return graph.getNeighbors(level, node).size();
+        return hnsw.getNeighbors(level, node).size();
     }
 
     @Override
     public void seek(int level, int node) throws IOException
     {
-        view.seek(level, node);
+        hnsw.seek(level, node);
     }
 
     @Override
     public int size()
     {
-        return view.size();
+        return hnsw.size();
     }
 
     @Override
     public int nextNeighbor() throws IOException
     {
-        return view.nextNeighbor();
+        return hnsw.nextNeighbor();
     }
 
     @Override
     public int numLevels() throws IOException
     {
-        return view.numLevels();
+        return hnsw.numLevels();
     }
 
     @Override
     public int entryNode() throws IOException
     {
-        return view.entryNode();
+        return hnsw.entryNode();
     }
 
     @Override
     public NodesIterator getNodesOnLevel(int i) throws IOException
     {
-        return view.getNodesOnLevel(i);
-    }
-
-    @Override
-    public long ramBytesUsed()
-    {
-        return graph.ramBytesUsed();
+        return hnsw.getNodesOnLevel(i);
     }
 }

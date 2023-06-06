@@ -20,9 +20,16 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
 public abstract class ExtendedHnswGraph extends HnswGraph
 {
     public abstract int getNeighborCount(int level, int node) throws IOException;
+
+    /** non-test classes should override this */
+    public long ramBytesUsed()
+    {
+        return ObjectSizes.measureDeep(this);
+    }
 }
