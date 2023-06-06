@@ -90,6 +90,10 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         if (replica == null)
         {
+            // it's fine for serverless which unloads stale sstables, SEE VECTOR-30
+            if (command.isTopK())
+                return;
+
             logger.warn("Received a read request from {} for a range that is not owned by the current replica {}.",
                         message.from(),
                         command);
