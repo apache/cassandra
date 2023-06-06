@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
@@ -53,6 +54,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     private final CassandraOnDiskHnsw graph;
     private final PrimaryKey.Factory keyFactory;
     private final PrimaryKeyMap primaryKeyMap;
+    private final VectorType<float[]> type;
     private int maxBruteForceRows; // not final so test can inject its own setting
 
     VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
@@ -65,6 +67,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         graph = new CassandraOnDiskHnsw(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
         this.keyFactory = PrimaryKey.factory(indexContext.comparator(), indexContext.indexFeatureSet());
         this.primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
+        type = (VectorType<float[]>) indexContext.getValidator();
 
         maxBruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
     }
@@ -194,7 +197,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
         // else ask hnsw to perform a search limited to the bits we created
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
+        float[] queryVector = type.getSerializer().deserializeFloatArray(buffer);
         var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE, context.queryContext);
         return toPrimaryKeyIterator(results, context);
     }
