@@ -94,6 +94,11 @@ public class EndpointState
         return applicationState.get().get(key);
     }
 
+    public void removeApplicationState(ApplicationState key)
+    {
+        applicationState.get().remove(key);
+    }
+
     public boolean containsApplicationState(ApplicationState key)
     {
         return applicationState.get().containsKey(key);
@@ -184,17 +189,25 @@ public class EndpointState
         updateTimestamp = nanoTime();
     }
 
+    @VisibleForTesting
+    public void unsafeSetUpdateTimestamp(long value)
+    {
+        updateTimestamp = value;
+    }
+
     public boolean isAlive()
     {
         return isAlive;
     }
 
-    void markAlive()
+    @VisibleForTesting
+    public void markAlive()
     {
         isAlive = true;
     }
 
-    void markDead()
+    @VisibleForTesting
+    public void markDead()
     {
         isAlive = false;
     }

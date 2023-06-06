@@ -17,11 +17,15 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
@@ -31,6 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * A future on the result ({@link StreamState}) of a streaming plan.
@@ -53,6 +58,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
     public final StreamOperation streamOperation;
     private final StreamCoordinator coordinator;
     private final Collection<StreamEventHandler> eventListeners = new ConcurrentLinkedQueue<>();
+    private final long slowEventsLogTimeoutNanos = DatabaseDescriptor.getStreamingSlowEventsLogTimeout().toNanoseconds();
 
     /**
      * Create new StreamResult of given {@code planId} and streamOperation.
@@ -175,7 +181,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
         return planId.hashCode();
     }
 
-    void handleSessionPrepared(StreamSession session)
+    void handleSessionPrepared(StreamSession session, StreamSession.PrepareDirection prepareDirection)
     {
         SessionInfo sessionInfo = session.getSessionInfo();
         logger.info("[Stream #{} ID#{}] Prepare completed. Receiving {} files({}), sending {} files({})",
@@ -185,7 +191,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
                               FBUtilities.prettyPrintMemory(sessionInfo.getTotalSizeToReceive()),
                               sessionInfo.getTotalFilesToSend(),
                               FBUtilities.prettyPrintMemory(sessionInfo.getTotalSizeToSend()));
-        StreamEvent.SessionPreparedEvent event = new StreamEvent.SessionPreparedEvent(planId, sessionInfo);
+        StreamEvent.SessionPreparedEvent event = new StreamEvent.SessionPreparedEvent(planId, sessionInfo, prepareDirection);
         coordinator.addSessionInfo(sessionInfo);
         fireStreamEvent(event);
     }
@@ -208,6 +214,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
     synchronized void fireStreamEvent(StreamEvent event)
     {
         // delegate to listener
+        long startNanos = nanoTime();
         for (StreamEventHandler listener : eventListeners)
         {
             try
@@ -219,6 +226,10 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
                 logger.warn("Unexpected exception in listern while calling handleStreamEvent", t);
             }
         }
+        long totalNanos = nanoTime() - startNanos;
+        if (totalNanos > slowEventsLogTimeoutNanos)
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Handling streaming events took longer than {}; took {}",
+                             () -> new Object[] { Duration.ofNanos(slowEventsLogTimeoutNanos), Duration.ofNanos(totalNanos)});
     }
 
     private synchronized void maybeComplete()
@@ -228,8 +239,16 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
             StreamState finalState = getCurrentState();
             if (finalState.hasFailedSession())
             {
-                logger.warn("[Stream #{}] Stream failed", planId);
-                tryFailure(new StreamException(finalState, "Stream failed"));
+                StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append("Stream failed: ");
+                for (SessionInfo info : finalState.sessions())
+                {
+                    if (info.isFailed())
+                        stringBuilder.append("\nSession peer ").append(info.peer).append(' ').append(info.failureReason);
+                }
+                String message = stringBuilder.toString();
+                logger.warn("[Stream #{}] {}", planId, message);
+                tryFailure(new StreamException(finalState, message));
             }
             else if (finalState.hasAbortedSession())
             {

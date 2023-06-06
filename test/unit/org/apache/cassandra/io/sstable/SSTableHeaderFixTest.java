@@ -33,10 +33,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -60,16 +61,17 @@ import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -99,6 +101,12 @@ public class SSTableHeaderFixTest
     public static Collection<Object[]> parameters()
     {
         return MockSchema.sstableIdGenerators();
+    }
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        Assume.assumeTrue(BigFormat.isSelected());
     }
 
     @Before
@@ -178,7 +186,7 @@ public class SSTableHeaderFixTest
         return new TupleType(Collections.singletonList(UTF8Type.instance));
     }
 
-    private static final Version version = BigFormat.instance.getVersion("mc");
+    private static final Version version = BigFormat.getInstance().getVersion("mc");
 
     private TableMetadata tableMetadata;
     private final Set<String> updatedColumns = new HashSet<>();
@@ -386,7 +394,7 @@ public class SSTableHeaderFixTest
             ColumnMetadata cd = getColDef(col);
             AbstractType<?> dropType = cd.type.expandUserTypes();
             cols.removeRegularOrStaticColumn(ci)
-                .recordColumnDrop(new ColumnMetadata(cd.ksName, cd.cfName, cd.name, dropType, cd.position(), cd.kind), FBUtilities.timestampMicros());
+                .recordColumnDrop(new ColumnMetadata(cd.ksName, cd.cfName, cd.name, dropType, cd.position(), cd.kind, cd.getMask()), FBUtilities.timestampMicros());
         }
         tableMetadata = cols.build();
 
@@ -822,11 +830,11 @@ public class SSTableHeaderFixTest
         try
         {
 
-            Descriptor desc = new Descriptor(version, dir, "ks", "cf", MockSchema.sstableId(generation), SSTableFormat.Type.BIG);
+            Descriptor desc = new Descriptor(version, dir, "ks", "cf", MockSchema.sstableId(generation));
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)
-                assertTrue(new File(desc.filenameFor(component)).createFileIfNotExists());
+                assertTrue(desc.fileFor(component).createFileIfNotExists());
 
             AbstractType<?> partitionKey = headerMetadata.partitionKeyType;
             List<AbstractType<?>> clusteringKey = headerMetadata.clusteringColumns()
@@ -842,7 +850,7 @@ public class SSTableHeaderFixTest
                                                                             .filter(cd -> cd.kind == ColumnMetadata.Kind.REGULAR)
                                                                             .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a));
 
-            File statsFile = new File(desc.filenameFor(Component.STATS));
+            File statsFile = desc.fileFor(Components.STATS);
             SerializationHeader.Component header = SerializationHeader.Component.buildComponentForTools(partitionKey,
                                                                                                         clusteringKey,
                                                                                                         staticColumns,
@@ -855,7 +863,7 @@ public class SSTableHeaderFixTest
                 out.finish();
             }
 
-            return new File(desc.filenameFor(Component.DATA));
+            return desc.fileFor(Components.DATA);
         }
         catch (Exception e)
         {
@@ -988,9 +996,9 @@ public class SSTableHeaderFixTest
 
     private SerializationHeader.Component readHeader(File sstable) throws Exception
     {
-        Descriptor desc = Descriptor.fromFilename(sstable);
+        Descriptor desc = Descriptor.fromFileWithComponent(sstable, false).left;
         return (SerializationHeader.Component) desc.getMetadataSerializer().deserialize(desc, MetadataType.HEADER);
     }
 
-    private static final Component[] requiredComponents = new Component[]{ Component.DATA, Component.FILTER, Component.PRIMARY_INDEX, Component.TOC };
+    private static final Component[] requiredComponents = new Component[]{ Components.DATA, Components.FILTER, Components.PRIMARY_INDEX, Components.TOC };
 }

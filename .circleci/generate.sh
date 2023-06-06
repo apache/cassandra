@@ -19,6 +19,7 @@
 
 BASEDIR=`dirname $0`
 BASE_BRANCH=trunk
+set -e
 
 die ()
 {
@@ -29,13 +30,12 @@ die ()
 
 print_help()
 {
-  echo "Usage: $0 [-l|-m|-h|-f|-e]"
-  echo "   -a Generate the default config.yml using low resources and the three templates"
-  echo "      (config.yml.LOWRES, config.yml.MIDRES and config.yml.HIGHRES). Use this for"
-  echo "      permanent changes in config-2_1.yml that will be committed to the main repo."
-  echo "   -l Generate config.yml using low resources"
-  echo "   -m Generate config.yml using mid resources"
-  echo "   -h Generate config.yml using high resources"
+  echo "Usage: $0 [-f|-p|-a|-e|-i]"
+  echo "   -a Generate the config.yml, config.yml.FREE and config.yml.PAID expanded configuration"
+  echo "      files from the main config_template.yml reusable configuration file."
+  echo "      Use this for permanent changes in config that will be committed to the main repo."
+  echo "   -f Generate config.yml for tests compatible with the CircleCI free tier resources"
+  echo "   -p Generate config.yml for tests compatible with the CircleCI paid tier resources"
   echo "   -e <key=value> Environment variables to be used in the generated config.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git"
@@ -56,6 +56,8 @@ print_help()
   echo "                   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500"
   echo "                   -e REPEATED_DTESTS=cdc_test.py cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
   echo "                   -e REPEATED_DTESTS_COUNT=500"
+  echo "                   -e REPEATED_LARGE_DTESTS=replace_address_test.py::TestReplaceAddress::test_replace_stopped_node"
+  echo "                   -e REPEATED_LARGE_DTESTS=100"
   echo "                   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py upgrade_tests/paging_test.py"
   echo "                   -e REPEATED_UPGRADE_DTESTS_COUNT=25"
   echo "                   -e REPEATED_ANT_TEST_TARGET=testsome"
@@ -64,37 +66,34 @@ print_help()
   echo "                   -e REPEATED_ANT_TEST_VNODES=false"
   echo "                   -e REPEATED_ANT_TEST_COUNT=500"
   echo "                  For the complete list of environment variables, please check the"
-  echo "                  list of examples in config-2_1.yml and/or the documentation."
+  echo "                  list of examples in config_template.yml and/or the documentation."
   echo "                  If you want to specify multiple environment variables simply add"
-  echo "                  multiple -e options. The flags -l/-m/-h should be used when using -e."
-  echo "   -f Stop checking that the environment variables are known"
+  echo "                  multiple -e options. The flags -f/-p should be used when using -e."
+  echo "   -i Ignore unknown environment variables"
 }
 
 all=false
-lowres=false
-midres=false
-highres=false
+free=false
+paid=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-while getopts "e:almhf" opt; do
+while getopts "e:afpi" opt; do
   case $opt in
       a ) all=true
           ;;
-      l ) lowres=true
+      f ) free=true
           ;;
-      m ) midres=true
+      p ) paid=true
           ;;
-      h ) highres=true
-          ;;
-      e ) if (!($has_env_vars)); then
+      e ) if (! ($has_env_vars)); then
             env_vars="$OPTARG"
           else
             env_vars="$env_vars|$OPTARG"
           fi
           has_env_vars=true
           ;;
-      f ) check_env_vars=false
+      i ) check_env_vars=false
           ;;
       \?) die "Invalid option: -$OPTARG"
           ;;
@@ -128,6 +127,8 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS_COUNT" ]  &&
        [ "$key" != "REPEATED_DTESTS" ] &&
        [ "$key" != "REPEATED_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_LARGE_DTESTS" ] &&
+       [ "$key" != "REPEATED_LARGE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_UPGRADE_DTESTS" ] &&
        [ "$key" != "REPEATED_UPGRADE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_ANT_TEST_TARGET" ] &&
@@ -140,59 +141,48 @@ if $has_env_vars && $check_env_vars; then
   done
 fi
 
-if $lowres; then
-  ($all || $midres || $highres) && die "Cannot use option -l with options -a, -m or -h"
-  echo "Generating new config.yml file with low resources from config-2_1.yml"
-  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config.yml.LOWRES.tmp
+if $free; then
+  ($all || $paid) && die "Cannot use option -f with options -a or -p"
+  echo "Generating new config.yml file for free tier from config_template.yml"
+  circleci config process $BASEDIR/config_template.yml > $BASEDIR/config.yml.FREE.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.FREE.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config.yml.FREE.tmp
 
-elif $midres; then
-  ($all || $lowres || $highres) && die "Cannot use option -m with options -a, -l or -h"
-  echo "Generating new config.yml file with middle resources from config-2_1.yml"
-  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
-
-elif $highres; then
-  ($all || $lowres || $midres) && die "Cannot use option -h with options -a, -l or -m"
-  echo "Generating new config.yml file with high resources from config-2_1.yml"
-  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml
-  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
+elif $paid; then
+  ($all || $free) && die "Cannot use option -p with options -a or -f"
+  echo "Generating new config.yml file for paid tier from config_template.yml"
+  patch -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
+  circleci config process $BASEDIR/config_template.yml.PAID > $BASEDIR/config.yml.PAID.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.PAID.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config_template.yml.PAID $BASEDIR/config.yml.PAID.tmp
 
 elif $all; then
-  ($lowres || $midres || $highres || $has_env_vars) && die "Cannot use option -a with options -l, -m, -h or -e"
-  echo "Generating new config.yml file with low resources and LOWRES/MIDRES/HIGHRES templates from config-2_1.yml"
+  ($free || $paid || $has_env_vars) && die "Cannot use option -a with options -f, -p or -e"
+  echo "Generating new default config.yml file for free tier and FREE/PAID templates from config_template.yml."
+  echo "Make sure you commit the newly generated config.yml, config.yml.FREE and config.yml.PAID files"
+  echo "after running this command if you want them to persist."
 
-  # setup lowres
-  circleci config process $BASEDIR/config-2_1.yml > $BASEDIR/config.yml.LOWRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.LOWRES.tmp > $BASEDIR/config.yml.LOWRES
-  rm $BASEDIR/config.yml.LOWRES.tmp
+  # setup config for free tier
+  circleci config process $BASEDIR/config_template.yml > $BASEDIR/config.yml.FREE.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.FREE.tmp > $BASEDIR/config.yml.FREE
+  rm $BASEDIR/config.yml.FREE.tmp
 
-  # setup midres
-  patch -o $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.mid_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MIDRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml.MIDRES
-  rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
+  # setup config for paid tier
+  patch -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
+  circleci config process $BASEDIR/config_template.yml.PAID > $BASEDIR/config.yml.PAID.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.PAID.tmp > $BASEDIR/config.yml.PAID
+  rm $BASEDIR/config_template.yml.PAID $BASEDIR/config.yml.PAID.tmp
 
-  # setup highres
-  patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
-  circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml.HIGHRES
-  rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
+  # copy free tier into config.yml to make sure this gets updated
+  cp $BASEDIR/config.yml.FREE $BASEDIR/config.yml
 
-  # copy lower into config.yml to make sure this gets updated
-  cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
-
-elif (!($has_env_vars)); then
+elif (! ($has_env_vars)); then
   print_help
+  exit 0
 fi
 
 # add new or modified tests to the sets of tests to be repeated
-if (!($all)); then
+if (! ($all)); then
   add_diff_tests ()
   {
     dir="${BASEDIR}/../${2}"
@@ -202,7 +192,8 @@ if (!($all)); then
            | sed -e "s/\\.java//" \
            | sed -e "s,^${2},," \
            | tr  '/' '.' \
-           | grep ${3} )
+           | grep ${3} )\
+           || : # avoid execution interruptions due to grep return codes and set -e
     for test in $tests; do
       echo "  $test"
       has_env_vars=true
@@ -242,58 +233,89 @@ if $has_env_vars; then
   unset IFS
 fi
 
-# define function to remove unneeded jobs
+# Define function to remove unneeded jobs.
+# The first argument is the file name, and the second arguemnt is the job name.
 delete_job()
 {
   delete_yaml_block()
   {
-    sed -Ei.bak "/^    - ${1}/,/^    [^[:space:]]+|^  [^[:space:]]+/{//!d;}" $BASEDIR/config.yml
-    sed -Ei.bak "/^    - ${1}/d" $BASEDIR/config.yml
+    sed -Ei.bak "/^    - ${2}/,/^    [^[:space:]]+|^  [^[:space:]]+/{//!d;}" "$1"
+    sed -Ei.bak "/^    - ${2}/d" "$1"
   }
-  delete_yaml_block "${1}"
-  delete_yaml_block "start_${1}"
+  file="$BASEDIR/$1"
+  delete_yaml_block "$file" "${2}"
+  delete_yaml_block "$file" "start_${2}"
 }
 
-# removed unneeded repeated jobs
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
-  delete_job "j8_unit_tests_repeat"
-  delete_job "j11_unit_tests_repeat"
-  delete_job "utests_compression_repeat"
-  delete_job "utests_trie_repeat"
-  delete_job "utests_system_keyspace_directory_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
-  delete_job "utests_long_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_STRESS=")); then
-  delete_job "utests_stress_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
-  delete_job "utests_fqltool_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
-  delete_job "j8_simulator_dtests_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
-  delete_job "j8_jvm_dtests_repeat"
-  delete_job "j8_jvm_dtests_vnode_repeat"
-  delete_job "j11_jvm_dtests_repeat"
-  delete_job "j11_jvm_dtests_vnode_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
-  delete_job "start_jvm_upgrade_dtests_repeat"
-  delete_job "j8_jvm_upgrade_dtests_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
-  delete_job "j8_dtests_repeat"
-  delete_job "j8_dtests_vnode_repeat"
-  delete_job "j11_dtests_repeat"
-  delete_job "j11_dtests_vnode_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
-  delete_job "j8_upgrade_dtests_repeat"
-fi
-if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
-  delete_job "j8_repeated_ant_test"
-  delete_job "j11_repeated_ant_test"
+# Define function to remove any unneeded repeated jobs.
+# The first and only argument is the file name.
+delete_repeated_jobs()
+{
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
+    delete_job "$1" "j8_unit_tests_repeat"
+    delete_job "$1" "j11_unit_tests_repeat"
+    delete_job "$1" "j8_utests_cdc_repeat"
+    delete_job "$1" "j11_utests_cdc_repeat"
+    delete_job "$1" "j8_utests_compression_repeat"
+    delete_job "$1" "j11_utests_compression_repeat"
+    delete_job "$1" "j8_utests_trie_repeat"
+    delete_job "$1" "j11_utests_trie_repeat"
+    delete_job "$1" "j8_utests_oa_repeat"
+    delete_job "$1" "j11_utests_oa_repeat"
+    delete_job "$1" "j8_utests_system_keyspace_directory_repeat"
+    delete_job "$1" "j11_utests_system_keyspace_directory_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
+    delete_job "$1" "j8_utests_long_repeat"
+    delete_job "$1" "j11_utests_long_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_STRESS=")); then
+    delete_job "$1" "j8_utests_stress_repeat"
+    delete_job "$1" "j11_utests_stress_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
+    delete_job "$1" "j8_utests_fqltool_repeat"
+    delete_job "$1" "j11_utests_fqltool_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
+    delete_job "$1" "j8_simulator_dtests_repeat"
+    delete_job "$1" "j11_simulator_dtests_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
+    delete_job "$1" "j8_jvm_dtests_repeat"
+    delete_job "$1" "j8_jvm_dtests_vnode_repeat"
+    delete_job "$1" "j11_jvm_dtests_repeat"
+    delete_job "$1" "j11_jvm_dtests_vnode_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
+    delete_job "$1" "start_jvm_upgrade_dtests_repeat"
+    delete_job "$1" "j8_jvm_upgrade_dtests_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
+    delete_job "$1" "j8_dtests_repeat"
+    delete_job "$1" "j8_dtests_vnode_repeat"
+    delete_job "$1" "j8_dtests_offheap_repeat"
+    delete_job "$1" "j11_dtests_repeat"
+    delete_job "$1" "j11_dtests_vnode_repeat"
+    delete_job "$1" "j11_dtests_offheap_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_LARGE_DTESTS=")); then
+    delete_job "$1" "j8_dtests_large_repeat"
+    delete_job "$1" "j8_dtests_large_vnode_repeat"
+    delete_job "$1" "j11_dtests_large_repeat"
+    delete_job "$1" "j11_dtests_large_vnode_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
+    delete_job "$1" "j8_upgrade_dtests_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
+    delete_job "$1" "j8_repeated_ant_test"
+    delete_job "$1" "j11_repeated_ant_test"
+  fi
+}
+
+delete_repeated_jobs "config.yml"
+if $all; then
+  delete_repeated_jobs "config.yml.FREE"
+  delete_repeated_jobs "config.yml.PAID"
 fi

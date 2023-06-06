@@ -61,7 +61,6 @@ import io.netty.util.concurrent.ThreadPerTaskExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.SSLFactory;
@@ -73,6 +72,7 @@ import static io.netty.channel.unix.Errors.ERRNO_ECONNRESET_NEGATIVE;
 import static io.netty.channel.unix.Errors.ERROR_ECONNREFUSED_NEGATIVE;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.INTERNODE_EVENT_THREADS;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
 
 /**
@@ -83,7 +83,7 @@ public final class SocketFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(SocketFactory.class);
 
-    private static final int EVENT_THREADS = Integer.getInteger(Config.PROPERTY_PREFIX + "internode-event-threads", FBUtilities.getAvailableProcessors());
+    private static final int EVENT_THREADS = INTERNODE_EVENT_THREADS.getInt(FBUtilities.getAvailableProcessors());
 
     /**
      * The default task queue used by {@code NioEventLoop} and {@code EpollEventLoop} is {@code MpscUnboundedArrayQueue},
@@ -215,7 +215,7 @@ public final class SocketFactory
      * Creates a new {@link SslHandler} from provided SslContext.
      * @param peer enables endpoint verification for remote address when not null
      */
-    static SslHandler newSslHandler(Channel channel, SslContext sslContext, @Nullable InetSocketAddress peer)
+    public static SslHandler newSslHandler(Channel channel, SslContext sslContext, @Nullable InetSocketAddress peer)
     {
         if (peer == null)
             return sslContext.newHandler(channel.alloc());

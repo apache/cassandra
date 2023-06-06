@@ -30,8 +30,10 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.schema.Schema;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_VERSIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -41,11 +43,9 @@ public class MigrationCoordinatorTest extends TestBaseImpl
     @Before
     public void setUp()
     {
-        System.clearProperty("cassandra.replace_address");
-        System.clearProperty("cassandra.consistent.rangemovement");
-
-        System.clearProperty(IGNORED_SCHEMA_CHECK_VERSIONS.getKey());
-        System.clearProperty(IGNORED_SCHEMA_CHECK_VERSIONS.getKey());
+        REPLACE_ADDRESS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        CONSISTENT_RANGE_MOVEMENT.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        IGNORED_SCHEMA_CHECK_VERSIONS.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
     }
     /**
      * We shouldn't wait on versions only available from a node being replaced
@@ -67,7 +67,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
-            System.setProperty("cassandra.replace_address", replacementAddress.getHostAddress());
+            REPLACE_ADDRESS.setString(replacementAddress.getHostAddress());
             cluster.bootstrap(config).startup();
         }
     }
@@ -89,7 +89,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
             IGNORED_SCHEMA_CHECK_ENDPOINTS.setString(ignoredEndpoint.getHostAddress());
-            System.setProperty("cassandra.consistent.rangemovement", "false");
+            CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
             cluster.bootstrap(config).startup();
         }
     }
@@ -116,7 +116,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
             IGNORED_SCHEMA_CHECK_VERSIONS.setString(initialVersion.toString() + ',' + oldVersion);
-            System.setProperty("cassandra.consistent.rangemovement", "false");
+            CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
             cluster.bootstrap(config).startup();
         }
     }

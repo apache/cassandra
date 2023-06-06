@@ -23,10 +23,11 @@ import com.google.common.base.Preconditions;
 
 import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
@@ -42,11 +43,10 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 @SuppressWarnings({ "WeakerAccess", "unused" })
 public class OutboundConnectionSettings
 {
-    private static final String INTRADC_TCP_NODELAY_PROPERTY = Config.PROPERTY_PREFIX + "otc_intradc_tcp_nodelay";
     /**
      * Enabled/disable TCP_NODELAY for intradc connections. Defaults to enabled.
      */
-    private static final boolean INTRADC_TCP_NODELAY = Boolean.parseBoolean(System.getProperty(INTRADC_TCP_NODELAY_PROPERTY, "true"));
+    private static final boolean INTRADC_TCP_NODELAY = CassandraRelevantProperties.OTC_INTRADC_TCP_NODELAY.getBoolean();
 
     public enum Framing
     {
@@ -446,7 +446,9 @@ public class OutboundConnectionSettings
     {
         InetAddressAndPort connectTo = this.connectTo;
         if (connectTo == null)
-            connectTo = SystemKeyspace.getPreferredIP(to);
+            connectTo = Gossiper.instance.getInternalAddressAndPort(to);
+        if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
+            return FBUtilities.getLocalAddressAndPort();
         return connectTo;
     }
 

@@ -79,7 +79,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class QueryProcessor implements QueryHandler
 {
-    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.6");
+    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.7");
 
     // See comments on QueryProcessor #prepare
     public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30 = new CassandraVersion("3.0.26");
@@ -384,12 +384,12 @@ public class QueryProcessor implements QueryHandler
         return makeInternalOptionsWithNowInSec(prepared, FBUtilities.nowInSeconds(), values, cl);
     }
 
-    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values)
+    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, long nowInSec, Object[] values)
     {
         return makeInternalOptionsWithNowInSec(prepared, nowInSec, values, ConsistencyLevel.ONE);
     }
 
-    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values, ConsistencyLevel cl)
+    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, long nowInSec, Object[] values, ConsistencyLevel cl)
     {
         if (prepared.getBindVariables().size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.getBindVariables().size(), values.length));
@@ -454,7 +454,7 @@ public class QueryProcessor implements QueryHandler
     public static Future<UntypedResultSet> executeAsync(InetAddressAndPort address, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         QueryOptions options = makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values);
         if (prepared.statement instanceof SelectStatement)
         {
@@ -483,7 +483,7 @@ public class QueryProcessor implements QueryHandler
                                                                                       .map(m -> MessagingService.instance().<ReadResponse>sendWithResult(m, address))
                                                                                       .collect(Collectors.toList()));
 
-            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), null);
+            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);
             return future.map(list -> {
                 int i = 0;
                 for (Message<ReadResponse> m : list)
@@ -512,7 +512,7 @@ public class QueryProcessor implements QueryHandler
         return execute(query, cl, internalQueryState(), values);
     }
 
-    public static UntypedResultSet executeInternalWithNowInSec(String query, int nowInSec, Object... values)
+    public static UntypedResultSet executeInternalWithNowInSec(String query, long nowInSec, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         ResultMessage result = prepared.statement.executeLocally(internalQueryState(), makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values));
@@ -547,7 +547,7 @@ public class QueryProcessor implements QueryHandler
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
         return UntypedResultSet.create(select, pager, pageSize);
     }
@@ -566,7 +566,7 @@ public class QueryProcessor implements QueryHandler
      * <p>This method ensure that the statement will not be cached in the prepared statement cache.</p>
      */
     @VisibleForTesting
-    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(int nowInSec, long timestamp, String query, Object... values)
+    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(long nowInSec, long timestamp, String query, Object... values)
     {
         QueryState queryState = new QueryState(InternalStateInstance.INSTANCE.clientState, timestamp, nowInSec);
         return executeOnceInternal(queryState, query, values);
@@ -588,7 +588,7 @@ public class QueryProcessor implements QueryHandler
      * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
      * cases.
      */
-    public static UntypedResultSet executeInternalWithNow(int nowInSec, long queryStartNanoTime, String query, Object... values)
+    public static UntypedResultSet executeInternalWithNow(long nowInSec, long queryStartNanoTime, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
@@ -603,7 +603,7 @@ public class QueryProcessor implements QueryHandler
      * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
      * cases.
      */
-    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(int nowInSec, String query, Object... values)
+    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(long nowInSec, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
@@ -611,17 +611,19 @@ public class QueryProcessor implements QueryHandler
         return select.executeRawInternal(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), internalQueryState().getClientState(), nowInSec);
     }
 
+    @VisibleForTesting
     public static UntypedResultSet resultify(String query, RowIterator partition)
     {
         return resultify(query, PartitionIterators.singletonIterator(partition));
     }
 
+    @VisibleForTesting
     public static UntypedResultSet resultify(String query, PartitionIterator partitions)
     {
         try (PartitionIterator iter = partitions)
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null);
-            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds());
+            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds(), true);
             return UntypedResultSet.create(cqlRows);
         }
     }
@@ -756,7 +758,8 @@ public class QueryProcessor implements QueryHandler
             return null;
 
         checkTrue(queryString.equals(existing.rawCQLStatement),
-                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+                  "MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'",
+                  existing.rawCQLStatement);
 
         return createResultMessage(statementId, existing);
     }
@@ -1021,7 +1024,7 @@ public class QueryProcessor implements QueryHandler
         {
             // in case there are other overloads, we have to remove all overloads since argument type
             // matching may change (due to type casting)
-            if (Schema.instance.getKeyspaceMetadata(ksName).functions.get(new FunctionName(ksName, functionName)).size() > 1)
+            if (Schema.instance.getKeyspaceMetadata(ksName).userFunctions.get(new FunctionName(ksName, functionName)).size() > 1)
                 removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 

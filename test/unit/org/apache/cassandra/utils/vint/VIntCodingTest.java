@@ -18,19 +18,21 @@
 */
 package org.apache.cassandra.utils.vint;
 
-import java.io.ByteArrayInputStream;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 
 import org.junit.Test;
 
-import org.junit.Assert;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.utils.CassandraUInt;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class VIntCodingTest
 {
@@ -48,21 +50,21 @@ public class VIntCodingTest
             assertEncodedAtExpectedSize((1L << 7 * size) - 1, size);
             assertEncodedAtExpectedSize(1L << 7 * size, size + 1);
         }
-        Assert.assertEquals(9, VIntCoding.computeUnsignedVIntSize(Long.MAX_VALUE));
+        assertEquals(9, VIntCoding.computeUnsignedVIntSize(Long.MAX_VALUE));
     }
 
     private void assertEncodedAtExpectedSize(long value, int expectedSize) throws Exception
     {
-        Assert.assertEquals(expectedSize, VIntCoding.computeUnsignedVIntSize(value));
+        assertEquals(expectedSize, VIntCoding.computeUnsignedVIntSize(value));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         WrappedDataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos);
         VIntCoding.writeUnsignedVInt(value, out);
         out.flush();
-        Assert.assertEquals( expectedSize, baos.toByteArray().length);
+        assertEquals( expectedSize, baos.toByteArray().length);
 
         DataOutputBuffer dob = new DataOutputBuffer();
         dob.writeUnsignedVInt(value);
-        Assert.assertEquals( expectedSize, dob.buffer().remaining());
+        assertEquals( expectedSize, dob.buffer().remaining());
         dob.close();
     }
 
@@ -70,7 +72,7 @@ public class VIntCodingTest
     public void testReadExtraBytesCount()
     {
         for (int i = 1 ; i < 8 ; i++)
-            Assert.assertEquals(i, VIntCoding.numberOfExtraBytesToRead((byte) ((0xFF << (8 - i)) & 0xFF)));
+            assertEquals(i, VIntCoding.numberOfExtraBytesToRead((byte) ((0xFF << (8 - i)) & 0xFF)));
     }
 
     /*
@@ -82,13 +84,13 @@ public class VIntCodingTest
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         WrappedDataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos);
-        VIntCoding.writeUnsignedVInt(biggestOneByte, out);
+        VIntCoding.writeUnsignedVInt32(biggestOneByte, out);
         out.flush();
-        Assert.assertEquals( 1, baos.toByteArray().length);
+        assertEquals( 1, baos.toByteArray().length);
 
         DataOutputBuffer dob = new DataOutputBuffer();
-        dob.writeUnsignedVInt(biggestOneByte);
-        Assert.assertEquals( 1, dob.buffer().remaining());
+        dob.writeUnsignedVInt32(biggestOneByte);
+        assertEquals( 1, dob.buffer().remaining());
         dob.close();
     }
 
@@ -98,9 +100,9 @@ public class VIntCodingTest
         int i = -1231238694;
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            VIntCoding.writeUnsignedVInt(i, out);
+            VIntCoding.writeUnsignedVInt32(i, out);
             long result = VIntCoding.getUnsignedVInt(out.buffer(), 0);
-            Assert.assertEquals(i, result);
+            assertEquals(i, result);
         }
     }
 
@@ -110,15 +112,14 @@ public class VIntCodingTest
         for (int i = 0; i < VIntCoding.MAX_SIZE - 1; i++)
         {
             long val = LONGS[i];
-            Assert.assertEquals(i + 1, VIntCoding.computeUnsignedVIntSize(val));
+            assertEquals(i + 1, VIntCoding.computeUnsignedVIntSize(val));
             try (DataOutputBuffer out = new DataOutputBuffer())
             {
                 VIntCoding.writeUnsignedVInt(val, out);
                 // read as ByteBuffer
-                Assert.assertEquals(val, VIntCoding.getUnsignedVInt(out.buffer(), 0));
+                assertEquals(val, VIntCoding.getUnsignedVInt(out.buffer(), 0));
                 // read as DataInput
-                InputStream is = new ByteArrayInputStream(out.toByteArray());
-                Assert.assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+                assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(out.toByteArray())));
             }
         }
     }
@@ -129,18 +130,17 @@ public class VIntCodingTest
         for (int i = 0; i < VIntCoding.MAX_SIZE - 1; i++)
         {
             long val = LONGS[i];
-            Assert.assertEquals(i + 1, VIntCoding.computeUnsignedVIntSize(val));
+            assertEquals(i + 1, VIntCoding.computeUnsignedVIntSize(val));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             try (WrappedDataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos))
             {
                 VIntCoding.writeUnsignedVInt(val, out);
                 out.flush();
-                Assert.assertEquals( i + 1, baos.toByteArray().length);
+                assertEquals( i + 1, baos.toByteArray().length);
                 // read as ByteBuffer
-                Assert.assertEquals(val, VIntCoding.getUnsignedVInt(ByteBuffer.wrap(baos.toByteArray()), 0));
+                assertEquals(val, VIntCoding.getUnsignedVInt(ByteBuffer.wrap(baos.toByteArray()), 0));
                 // read as DataInput
-                InputStream is = new ByteArrayInputStream(baos.toByteArray());
-                Assert.assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+                assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(baos.toByteArray())));
             }
         }
     }
@@ -151,14 +151,111 @@ public class VIntCodingTest
         for (int i = 0; i < VIntCoding.MAX_SIZE - 1; i++)
         {
             long val = LONGS[i];
-            Assert.assertEquals(i + 1, VIntCoding.computeUnsignedVIntSize(val));
+            assertEquals(i + 1, VIntCoding.computeUnsignedVIntSize(val));
             ByteBuffer bb = ByteBuffer.allocate(VIntCoding.MAX_SIZE);
             VIntCoding.writeUnsignedVInt(val, bb);
             // read as ByteBuffer
-            Assert.assertEquals(val, VIntCoding.getUnsignedVInt(bb, 0));
+            assertEquals(val, VIntCoding.getUnsignedVInt(bb, 0));
             // read as DataInput
-            InputStream is = new ByteArrayInputStream(bb.array());
-            Assert.assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+            assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(bb.array())));
+        }
+    }
+
+    @Test
+    public void testWriteUnsignedVIntBBLessThan8Bytes() throws IOException
+    {
+        long val = 10201L;
+        assertEquals(2, VIntCoding.computeUnsignedVIntSize(val));
+        ByteBuffer bb = ByteBuffer.allocate(2);
+        VIntCoding.writeUnsignedVInt(val, bb);
+        // read as ByteBuffer
+        assertEquals(val, VIntCoding.getUnsignedVInt(bb, 0));
+        // read as DataInput
+        assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(bb.array())));
+    }
+
+    @Test
+    public void testWriteUnsignedVIntBBHasLessThan8BytesLeft()
+    {
+        long val = 10201L;
+        assertEquals(2, VIntCoding.computeUnsignedVIntSize(val));
+        ByteBuffer bb = ByteBuffer.allocate(3);
+        bb.position(1);
+        VIntCoding.writeUnsignedVInt(val, bb);
+        // read as ByteBuffer
+        assertEquals(val, VIntCoding.getUnsignedVInt(bb, 1));
+    }
+
+    @Test
+    public void testWriteUnsignedVIntBBDoesNotHaveEnoughSpaceOverflows()
+    {
+        ByteBuffer bb = ByteBuffer.allocate(3);
+        try
+        {
+            VIntCoding.writeUnsignedVInt(52057592037927932L, bb);
+            fail();
+        } catch (BufferOverflowException e) {}
+    }
+
+    static int[] roundtripTestValues =  new int[] {
+            CassandraUInt.MAX_VALUE_UINT,
+            Integer.MAX_VALUE + 1,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE - 1,
+            Integer.MIN_VALUE,
+            Integer.MIN_VALUE + 1,
+            Integer.MIN_VALUE - 1,
+            0,
+            -1,
+            1
+    };
+
+    @Test
+    public void testRoundtripUnsignedVInt32() throws Throwable
+    {
+        for (int value : roundtripTestValues)
+            testRoundtripUnsignedVInt32(value);
+    }
+
+    private static void testRoundtripUnsignedVInt32(int value) throws Throwable
+    {
+        ByteBuffer bb = ByteBuffer.allocate(9);
+        VIntCoding.writeUnsignedVInt32(value, bb);
+        bb.flip();
+        assertEquals(value, VIntCoding.getUnsignedVInt32(bb, 0));
+
+        try (DataOutputBuffer dob = new DataOutputBuffer())
+        {
+            dob.writeUnsignedVInt32(value);
+            try (DataInputBuffer dib = new DataInputBuffer(dob.buffer(), false))
+            {
+                assertEquals(value, dib.readUnsignedVInt32());
+            }
+        }
+    }
+
+    @Test
+    public void testRoundtripVInt32() throws Throwable
+    {
+        for (int value : roundtripTestValues)
+            testRoundtripVInt32(value);
+    }
+
+    private static void testRoundtripVInt32(int value) throws Throwable
+    {
+        ByteBuffer bb = ByteBuffer.allocate(9);
+
+        VIntCoding.writeVInt32(value, bb);
+        bb.flip();
+        assertEquals(value, VIntCoding.getVInt32(bb, 0));
+
+        try (DataOutputBuffer dob = new DataOutputBuffer())
+        {
+            dob.writeVInt32(value);
+            try (DataInputBuffer dib = new DataInputBuffer(dob.buffer(), false))
+            {
+                assertEquals(value, dib.readVInt32());
+            }
         }
     }
 }

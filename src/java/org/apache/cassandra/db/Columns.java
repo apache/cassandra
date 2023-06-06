@@ -18,17 +18,15 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.nio.ByteBuffer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -36,12 +34,14 @@ import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.BTreeRemoval;
+import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 
 /**
  * An immutable and sorted list of (non-PK) columns for a given table.
@@ -61,7 +61,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
-                           ColumnMetadata.Kind.STATIC);
+                           ColumnMetadata.Kind.STATIC,
+                           null);
 
     public static final ColumnMetadata FIRST_COMPLEX_REGULAR =
         new ColumnMetadata("",
@@ -69,7 +70,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
-                           ColumnMetadata.Kind.REGULAR);
+                           ColumnMetadata.Kind.REGULAR,
+                           null);
 
     private final Object[] columns;
     private final int complexIdx; // Index of the first complex column
@@ -456,7 +458,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     {
         public void serialize(Columns columns, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt(columns.size());
+            out.writeUnsignedVInt32(columns.size());
             for (ColumnMetadata column : columns)
                 ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
         }
@@ -471,7 +473,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
 
         public Columns deserialize(DataInputPlus in, TableMetadata metadata) throws IOException
         {
-            int length = (int)in.readUnsignedVInt();
+            int length = in.readUnsignedVInt32();
             try (BTree.FastBuilder<ColumnMetadata> builder = BTree.fastBuilder())
             {
                 for (int i = 0; i < length; i++)
@@ -516,7 +518,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             int supersetCount = superset.size();
             if (columnCount == supersetCount)
             {
-                out.writeUnsignedVInt(0);
+                out.writeUnsignedVInt32(0);
             }
             else if (supersetCount < 64)
             {
@@ -609,7 +611,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         private void serializeLargeSubset(Collection<ColumnMetadata> columns, int columnCount, Columns superset, int supersetCount, DataOutputPlus out) throws IOException
         {
             // write flag indicating we're in lengthy mode
-            out.writeUnsignedVInt(supersetCount - columnCount);
+            out.writeUnsignedVInt32(supersetCount - columnCount);
             BTreeSearchIterator<ColumnMetadata, ColumnMetadata> iter = superset.iterator();
             if (columnCount < supersetCount / 2)
             {
@@ -618,7 +620,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                 {
                     if (iter.next(column) == null)
                         throw new IllegalStateException();
-                    out.writeUnsignedVInt(iter.indexOfCurrent());
+                    out.writeUnsignedVInt32(iter.indexOfCurrent());
                 }
             }
             else
@@ -631,10 +633,10 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                         throw new IllegalStateException();
                     int cur = iter.indexOfCurrent();
                     while (++prev != cur)
-                        out.writeUnsignedVInt(prev);
+                        out.writeUnsignedVInt32(prev);
                 }
                 while (++prev != supersetCount)
-                    out.writeUnsignedVInt(prev);
+                    out.writeUnsignedVInt32(prev);
             }
         }
 
@@ -650,7 +652,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                 {
                     for (int i = 0 ; i < columnCount ; i++)
                     {
-                        int idx = (int) in.readUnsignedVInt();
+                        int idx = in.readUnsignedVInt32();
                         builder.add(BTree.findByIndex(superset.columns, idx));
                     }
                 }
@@ -661,7 +663,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     int skipped = 0;
                     while (true)
                     {
-                        int nextMissingIndex = skipped < delta ? (int)in.readUnsignedVInt() : supersetCount;
+                        int nextMissingIndex = skipped < delta ? in.readUnsignedVInt32() : supersetCount;
                         while (idx < nextMissingIndex)
                         {
                             ColumnMetadata def = iter.next();

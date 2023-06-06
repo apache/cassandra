@@ -40,6 +40,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.LogResult;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -48,6 +49,8 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
 import org.assertj.core.api.Assertions;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_QUERY_HANDLER_CLASS;
 
 /**
  * This class is rather impelemntation specific.  It is possible that changes made will cause this tests to fail,
@@ -68,13 +71,15 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
     @Test
     public void dispatcherErrorDoesNotLock() throws IOException
     {
-        System.setProperty("cassandra.custom_query_handler_class", AlwaysRejectErrorQueryHandler.class.getName());
-        try (Cluster cluster = Cluster.build(1)
+        try (WithProperties properties = new WithProperties().set(CUSTOM_QUERY_HANDLER_CLASS, AlwaysRejectErrorQueryHandler.class.getName());
+             Cluster cluster = Cluster.build(1)
                                       .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                        .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1")))
-                                      )
-                                      .start())
+                                                        .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1"))))
+                                      .start();
+
+        )
         {
+
             try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).build().connect(false))
             {
                 client.execute("SELECT * FROM system.peers", ConsistencyLevel.ONE);
@@ -91,10 +96,6 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
             Assertions.assertThat(matches.getResult()).hasSize(1);
             matches = logs.grep("Unexpected exception during request");
             Assertions.assertThat(matches.getResult()).isEmpty();
-        }
-        finally
-        {
-            System.clearProperty("cassandra.custom_query_handler_class");
         }
     }
 

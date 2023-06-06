@@ -20,15 +20,18 @@ package org.apache.cassandra.serializers;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.marshal.ValueComparators;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Pair;
 
 public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
@@ -47,7 +50,7 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         Pair<TypeSerializer<?>, TypeSerializer<?>> p = Pair.create(keys, values);
         MapSerializer<K, V> t = instances.get(p);
         if (t == null)
-            t = instances.computeIfAbsent(p, k -> new MapSerializer<>(k.left, k.right, comparators) );
+            t = instances.computeIfAbsent(p, k -> new MapSerializer<>(k.left, k.right, comparators));
         return t;
     }
 
@@ -59,6 +62,7 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         this.comparators = comparators;
     }
 
+    @Override
     public List<ByteBuffer> serializeValues(Map<K, V> map)
     {
         List<Pair<ByteBuffer, ByteBuffer>> pairs = new ArrayList<>(map.size());
@@ -74,28 +78,30 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         return buffers;
     }
 
+    @Override
     public int getElementCount(Map<K, V> value)
     {
         return value.size();
     }
 
-    public <T> void validateForNativeProtocol(T input, ValueAccessor<T> accessor, ProtocolVersion version)
+    @Override
+    public <T> void validate(T input, ValueAccessor<T> accessor)
     {
         try
         {
             // Empty values are still valid.
             if (accessor.isEmpty(input)) return;
 
-            int n = readCollectionSize(input, accessor, version);
-            int offset = sizeOfCollectionSize(n, version);
+            int n = readCollectionSize(input, accessor);
+            int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)
             {
-                T key = readValue(input, accessor, offset, version);
-                offset += sizeOfValue(key, accessor, version);
+                T key = readNonNullValue(input, accessor, offset);
+                offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
-                T value = readValue(input, accessor, offset, version);
-                offset += sizeOfValue(value, accessor, version);
+                T value = readNonNullValue(input, accessor, offset);
+                offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
             }
             if (!accessor.isEmptyFromOffset(input, offset))
@@ -107,12 +113,13 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         }
     }
 
-    public <I> Map<K, V> deserializeForNativeProtocol(I input, ValueAccessor<I> accessor, ProtocolVersion version)
+    @Override
+    public <I> Map<K, V> deserialize(I input, ValueAccessor<I> accessor)
     {
         try
         {
-            int n = readCollectionSize(input, accessor, version);
-            int offset = sizeOfCollectionSize(n, version);
+            int n = readCollectionSize(input, accessor);
+            int offset = sizeOfCollectionSize();
 
             if (n < 0)
                 throw new MarshalException("The data cannot be deserialized as a map");
@@ -124,12 +131,12 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             Map<K, V> m = new LinkedHashMap<>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
-                I key = readValue(input, accessor, offset, version);
-                offset += sizeOfValue(key, accessor, version);
+                I key = readNonNullValue(input, accessor, offset);
+                offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
-                I value = readValue(input, accessor, offset, version);
-                offset += sizeOfValue(value, accessor, version);
+                I value = readNonNullValue(input, accessor, offset);
+                offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
 
                 m.put(keys.deserialize(key, accessor), values.deserialize(value, accessor));
@@ -150,20 +157,20 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         try
         {
             ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
-            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
+            int n = readCollectionSize(input, ByteBufferAccessor.instance);
+            int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer kbb = readValue(input, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
-                offset += sizeOfValue(kbb, ByteBufferAccessor.instance, ProtocolVersion.V3);
+                ByteBuffer kbb = readValue(input, ByteBufferAccessor.instance, offset);
+                offset += sizeOfValue(kbb, ByteBufferAccessor.instance);
                 int comparison = comparator.compareForCQL(kbb, key);
                 if (comparison == 0)
-                    return readValue(input, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
+                    return readValue(input, ByteBufferAccessor.instance, offset);
                 else if (comparison > 0)
                     // since the map is in sorted order, we know we've gone too far and the element doesn't exist
                     return null;
                 else // comparison < 0
-                    offset += skipValue(input, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
+                    offset += skipValue(input, ByteBufferAccessor.instance, offset);
             }
             return null;
         }
@@ -173,6 +180,7 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         }
     }
 
+    @Override
     public String toString(Map<K, V> value)
     {
         StringBuilder sb = new StringBuilder();
@@ -192,9 +200,16 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         return sb.toString();
     }
 
+    @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public Class<Map<K, V>> getType()
     {
         return (Class) Map.class;
+    }
+
+    @Override
+    public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
+    {
+        throw new UnsupportedOperationException();
     }
 }

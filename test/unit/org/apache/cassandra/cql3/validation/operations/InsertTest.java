@@ -25,12 +25,50 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class InsertTest extends CQLTester
 {
+    @Test
+    public void testInsertZeroDuration() throws Throwable
+    {
+        Duration expectedDuration = Duration.newInstance(0, 0, 0);
+        createTable(KEYSPACE, "CREATE TABLE %s (a INT PRIMARY KEY, b DURATION);");
+        execute("INSERT INTO %s (a, b) VALUES (1, P0Y)");
+        execute("INSERT INTO %s (a, b) VALUES (2, P0M)");
+        execute("INSERT INTO %s (a, b) VALUES (3, P0W)");
+        execute("INSERT INTO %s (a, b) VALUES (4, P0D)");
+        execute("INSERT INTO %s (a, b) VALUES (5, P0Y0M0D)");
+        execute("INSERT INTO %s (a, b) VALUES (6, PT0H)");
+        execute("INSERT INTO %s (a, b) VALUES (7, PT0M)");
+        execute("INSERT INTO %s (a, b) VALUES (8, PT0S)");
+        execute("INSERT INTO %s (a, b) VALUES (9, PT0H0M0S)");
+        execute("INSERT INTO %s (a, b) VALUES (10, P0YT0H)");
+        execute("INSERT INTO %s (a, b) VALUES (11, P0MT0M)");
+        execute("INSERT INTO %s (a, b) VALUES (12, P0DT0S)");
+        execute("INSERT INTO %s (a, b) VALUES (13, P0M0DT0H0S)");
+        execute("INSERT INTO %s (a, b) VALUES (14, P0Y0M0DT0H0M0S)");
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s"),
+                                row(1, expectedDuration),
+                                row(2, expectedDuration),
+                                row(3, expectedDuration),
+                                row(4, expectedDuration),
+                                row(5, expectedDuration),
+                                row(6, expectedDuration),
+                                row(7, expectedDuration),
+                                row(8, expectedDuration),
+                                row(9, expectedDuration),
+                                row(10, expectedDuration),
+                                row(11, expectedDuration),
+                                row(12, expectedDuration),
+                                row(13, expectedDuration),
+                                row(14, expectedDuration));
+        assertInvalidMessage("no viable alternative at input ')' (... b) VALUES (15, [P]))","INSERT INTO %s (a, b) VALUES (15, P)");
+    }
+
     @Test
     public void testEmptyTTL() throws Throwable
     {
@@ -60,7 +98,7 @@ public class InsertTest extends CQLTester
 
         assertInvalidMessage("Invalid unset value for column k", "UPDATE %s SET i = 0 WHERE k = ?", unset());
         assertInvalidMessage("Invalid unset value for column k", "DELETE FROM %s WHERE k = ?", unset());
-        assertInvalidMessage("Invalid unset value for argument in call to function blobasint", "SELECT * FROM %s WHERE k = blobAsInt(?)", unset());
+        assertInvalidMessage("Invalid unset value for argument in call to function blob_as_int", "SELECT * FROM %s WHERE k = blob_as_int(?)", unset());
     }
 
     @Test

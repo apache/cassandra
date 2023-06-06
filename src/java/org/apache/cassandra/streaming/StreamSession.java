@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,7 +59,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static com.google.common.collect.Iterables.all;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -154,9 +155,12 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  * (via {@link org.apache.cassandra.net.MessagingService}, while the actual files themselves are sent by a special
  * "streaming" connection type. See {@link StreamingMultiplexedChannel} for details. Because of the asynchronous
  */
-public class StreamSession implements IEndpointStateChangeSubscriber
+public class StreamSession
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
+    private static final int DEBUG_STACKTRACE_LIMIT = CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT.getInt();
+
+    public enum PrepareDirection { SEND, ACK }
 
     // for test purpose to record received message and state transition
     public volatile static MessageStateSink sink = MessageStateSink.NONE;
@@ -200,6 +204,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
+
+    public String failureReason;
 
 /**
  * State Transition:
@@ -512,13 +518,20 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    private synchronized Future<?> closeSession(State finalState)
+    private Future<?> closeSession(State finalState)
+    {
+        return closeSession(finalState, null);
+    }
+
+    private synchronized Future<?> closeSession(State finalState, String failureReason)
     {
         // it's session is already closed
         if (closeFuture != null)
             return closeFuture;
 
         state(finalState);
+        //this refers to StreamInfo
+        this.failureReason = failureReason;
 
         List<Future<?>> futures = new ArrayList<>();
 
@@ -671,7 +684,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             if (state.finalState)
             {
                 logger.debug("[Stream #{}] Socket closed after session completed with state {}", planId(), state);
-
                 return null;
             }
             else
@@ -680,8 +692,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                              planId(),
                              peer.getHostAddressAndPort(),
                              e);
-
-                return closeSession(State.FAILED);
+                return closeSession(State.FAILED, "Failed because there was an " + e.getClass().getCanonicalName() + " with state=" + state.name());
             }
         }
 
@@ -692,19 +703,20 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-
-        return closeSession(State.FAILED);
+        StringBuilder failureReason = new StringBuilder("Failed because of an unknown exception\n");
+        boundStackTrace(e, DEBUG_STACKTRACE_LIMIT, failureReason);
+        return closeSession(State.FAILED, failureReason.toString());
     }
 
     private void logError(Throwable e)
     {
         if (e instanceof SocketTimeoutException)
         {
-            logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
-                         "If not, maybe try increasing streaming_keep_alive_period.", planId(),
+            logger.error("[Stream #{}] Timeout from peer {}{}. Is peer down? " +
+                         "If not, and earlier failure detection is required enable (or lower) streaming_keep_alive_period.",
+                         planId(),
                          hostAddressAndPort(channel.peer()),
                          channel.peer().equals(channel.connectedTo()) ? "" : " through " + hostAddressAndPort(channel.connectedTo()),
-                         2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),
                          e);
         }
         else
@@ -758,7 +770,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
 
-        streamResult.handleSessionPrepared(this);
+        streamResult.handleSessionPrepared(this, PrepareDirection.SEND);
         // After sending the message the initiator can close the channel which will cause a ClosedChannelException
         // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
         // the session.  To avoid a race condition between sending and setting state, make sure to update the state
@@ -791,14 +803,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (isPreview())
             completePreview();
         else
-            startStreamingFiles(true);
+            startStreamingFiles(PrepareDirection.ACK);
     }
 
     private void prepareAck(PrepareAckMessage msg)
     {
         if (isPreview())
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive PrepareAckMessage for preview session", planId()));
-        startStreamingFiles(true);
+        startStreamingFiles(PrepareDirection.ACK);
     }
 
     /**
@@ -979,7 +991,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamTransferTask task = transfers.get(message.header.tableId);
         if (task != null)
         {
-            task.scheduleTimeout(message.header.sequenceNumber, 12, TimeUnit.HOURS);
+            task.scheduleTimeout(message.header.sequenceNumber, DatabaseDescriptor.getStreamTransferTaskTimeout().toMilliseconds(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -1024,9 +1036,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
+    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long delta, long total)
     {
-        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, total);
+        if (delta < 0)
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
+                             "[id={}, key={{}, {}, {})] Stream event reported a negative delta ({})",
+                             planId(), peer, filename, direction, delta);
+        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, delta, total);
         streamResult.handleProgress(progress);
     }
 
@@ -1101,7 +1117,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized void sessionFailed()
     {
         logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.toString());
-        closeSession(State.FAILED);
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("Remote peer ").append(peer).append(" failed stream session");
+        closeSession(State.FAILED, stringBuilder.toString());
     }
 
     /**
@@ -1110,7 +1128,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public synchronized void sessionTimeout()
     {
         logger.error("[Stream #{}] timeout with {}.", planId(), peer.toString());
-        closeSession(State.FAILED);
+        closeSession(State.FAILED, "Session timed out");
     }
 
     /**
@@ -1124,7 +1142,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         List<StreamSummary> transferSummaries = Lists.newArrayList();
         for (StreamTask transfer : transfers.values())
             transferSummaries.add(transfer.getSummary());
-        return new SessionInfo(channel.peer(), index, channel.connectedTo(), receivingSummaries, transferSummaries, state);
+        return new SessionInfo(channel.peer(), index, channel.connectedTo(), receivingSummaries, transferSummaries, state, failureReason);
     }
 
     public synchronized void taskCompleted(StreamReceiveTask completedTask)
@@ -1137,18 +1155,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         transfers.remove(completedTask.tableId);
         maybeCompleted();
-    }
-
-    public void onRemove(InetAddressAndPort endpoint)
-    {
-        logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.toString());
-        closeSession(State.FAILED);
-    }
-
-    public void onRestart(InetAddressAndPort endpoint, EndpointState epState)
-    {
-        logger.error("[Stream #{}] Session failed because remote peer {} was restarted.", planId(), peer.toString());
-        closeSession(State.FAILED);
     }
 
     private void completePreview()
@@ -1187,10 +1193,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
     }
 
-    private void startStreamingFiles(boolean notifyPrepared)
+    private void startStreamingFiles(@Nullable PrepareDirection prepareDirection)
     {
-        if (notifyPrepared)
-            streamResult.handleSessionPrepared(this);
+        if (prepareDirection != null)
+            streamResult.handleSessionPrepared(this, prepareDirection);
 
         state(State.STREAMING);
 
@@ -1333,5 +1339,38 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                ", previewKind=" + previewKind +
                ", state=" + state +
                '}';
+    }
+
+    public static StringBuilder boundStackTrace(Throwable e, int limit, StringBuilder out)
+    {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        return boundStackTrace(e, limit, limit, visited, out);
+    }
+
+    public static StringBuilder boundStackTrace(Throwable e, int limit, int counter, Set<Throwable> visited, StringBuilder out)
+    {
+        if (e == null)
+            return out;
+
+        if (!visited.add(e))
+            return out.append("[CIRCULAR REFERENCE: ").append(e.getClass().getName()).append(": ").append(e.getMessage()).append("]").append('\n');
+        visited.add(e);
+
+        StackTraceElement[] stackTrace = e.getStackTrace();
+        out.append(e.getClass().getName() + ": " + e.getMessage()).append('\n');
+
+        // When dealing with the leaf, ignore how many stack traces were already written, and allow the max.
+        // This is here as the leaf tends to show where the issue started, so tends to be impactful for debugging
+        if (e.getCause() == null)
+            counter = limit;
+
+        for (int i = 0, size = Math.min(e.getStackTrace().length, limit); i < size && counter > 0; i++)
+        {
+            out.append('\t').append(stackTrace[i]).append('\n');
+            counter--;
+        }
+
+        boundStackTrace(e.getCause(), limit, counter, visited, out);
+        return out;
     }
 }

@@ -18,7 +18,7 @@
 #
 -->
 
-h1. Cassandra Query Language (CQL) v3.4.6
+h1. Cassandra Query Language (CQL) v3.4.7
 
 
 
@@ -252,8 +252,10 @@ bc(syntax)..
                           '(' <column-definition> ( ',' <column-definition> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 
-<column-definition> ::= <identifier> <type> ( STATIC )? ( PRIMARY KEY )?
+<column-definition> ::= <identifier> <type> ( STATIC )? ( <column_mask> )? ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
+
+<column-mask> ::= MASKED WITH ( DEFAULT | <function> '(' ( <term> (',' <term>)* )?  ')' )
 
 <partition-key> ::= <identifier>
                   | '(' <identifier> (',' <identifier> )* ')'
@@ -362,7 +364,7 @@ Table creation supports the following other @<property>@:
 
 h4(#compactionOptions). Compaction options
 
-The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@, @'DateTieredCompactionStrategy'@ and @'TimeWindowCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
+The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@ and @'TimeWindowCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
 |_. option                               |_. supported compaction strategy |_. default    |_. description |
 | @enabled@                              | _all_                           | true         | A boolean denoting whether compaction should be enabled or not.|
@@ -375,9 +377,6 @@ The @compaction@ property must at least define the @'class'@ sub-option, that de
 | @bucket_low@                           | SizeTieredCompactionStrategy    | 0.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%)|
 | @bucket_high@                          | SizeTieredCompactionStrategy    | 1.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%).|
 | @sstable_size_in_mb@                   | LeveledCompactionStrategy       | 5MB          | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
-| @timestamp_resolution@                 | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
-| @base_time_seconds@                    | DateTieredCompactionStrategy    | 60           | The base size of the time windows. |
-| @max_sstable_age_days@                 | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
 | @timestamp_resolution@                 | TimeWindowCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
 | @compaction_window_unit@               | TimeWindowCompactionStrategy    | DAYS         | The Java TimeUnit used for the window size, set in conjunction with @compaction_window_size@. Must be one of DAYS, HOURS, MINUTES |
 | @compaction_window_size@               | TimeWindowCompactionStrategy    | 1            | The number of @compaction_window_unit@ units that make up a time window. |
@@ -413,11 +412,15 @@ __Syntax:__
 bc(syntax).. 
 <alter-table-stmt> ::= ALTER (TABLE | COLUMNFAMILY) (IF NOT EXISTS)? <tablename> <instruction>
 
-<instruction> ::= ADD (IF NOT EXISTS)? ( <identifier> <type> ( , <identifier> <type> )* )
+<instruction> ::= ADD (IF NOT EXISTS)? ( <identifier> <type> ( <column-mask> )?
+                                       ( , <identifier> <type> ( <column-mask> )? )* )
                 | DROP  (IF EXISTS)? ( <identifier> ( , <identifier> )* )
+                | ALTER <identifier> ( <column-mask> | DROP MASKED )
                 | RENAME (IF EXISTS)? <identifier> to <identifier> (AND <identifier> to <identifier>)*
                 | DROP COMPACT STORAGE
                 | WITH  <option> ( AND <option> )*
+
+<column-mask> ::= MASKED WITH ( DEFAULT | <function> '(' ( <term> (',' <term>)* )?  ')' )
 p. 
 __Sample:__
 
@@ -437,6 +440,7 @@ If the table does not exist, the statement will return an error, unless @IF EXIS
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option. If the new column already exists, the statement will return an error, unless @IF NOT EXISTS@ is used in which case the operation is a no-op.
 * @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option. If the dropped column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+* @ALTER@: Alters an existing column. It can be used to set its data mask, or to set it as unmasked. The data mask is any function meant to obscure the real values of the column.
 * @RENAME@ a primary key column of a table. Non primary key columns cannot be renamed. Furthermore, renaming a column to another name which already exists isn't allowed. It's important to keep in mind that renamed columns shouldn't have dependent secondary indexes. If the renamed column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 * @DROP COMPACT STORAGE@: Removes Thrift compatibility mode from the table.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
@@ -1521,6 +1525,8 @@ The full set of available permissions is:
 * @AUTHORIZE@
 * @DESCRIBE@
 * @EXECUTE@
+* @UNMASK@
+* @SELECT_MASKED@
 
 Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions or mbeans; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
@@ -1580,6 +1586,12 @@ Not all permissions are applicable to every type of resource. For instance, @EXE
 | @EXECUTE@    | @ALL MBEANS@                 |Execute operations on any mbean|
 | @EXECUTE@    | @MBEANS@                     |Execute operations on any mbean matching a wildcard pattern|
 | @EXECUTE@    | @MBEAN@                      |Execute operations on named mbean|
+| @UNMASK@     | @ALL KEYSPACES@              |See the clear contents of masked columns on any table|
+| @UNMASK@     | @KEYSPACE@                   |See the clear contents of masked columns on any table in keyspace|
+| @UNMASK@     | @TABLE@                      |See the clear contents of masked columns on the specified table|
+| @SELECT_MASKED@ | @ALL KEYSPACES@           |Select restricting masked columns on any table|
+| @SELECT_MASKED@ | @KEYSPACE@                |Select restricting masked columns on any table in keyspace|
+| @SELECT_MASKED@ | @TABLE@                   |Select restricting masked columns on the specified table|
 
 
 h3(#grantPermissionsStmt). GRANT PERMISSION
@@ -1589,7 +1601,7 @@ __Syntax:__
 bc(syntax).. 
 <grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> TO <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -1646,7 +1658,7 @@ __Syntax:__
 bc(syntax).. 
 <revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> FROM <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -2106,21 +2118,21 @@ SELECT * FROM myTable WHERE t = now()
 
 
 will never return any result by design, since the value returned by @now()@ is guaranteed to be unique.
-@currentTimeUUID@ is an alias of @now@.
+@current_timeuuid@ is an alias of @now@.
 
 
-h4. @minTimeuuid@ and @maxTimeuuid@
+h4. @min_timeuuid@ and @max_timeuuid@
 
-The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps ) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
-
-
-bc(sample). 
-SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
+The @min_timeuuid@ (resp. @max_timeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps ) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
 
 
-will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but strictly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
+bc(sample).
+SELECT * FROM myTable WHERE t > max_timeuuid('2013-01-01 00:05+0000') AND t < min_timeuuid('2013-02-02 10:00+0000')
 
-_Warning_: We called the values generated by @minTimeuuid@ and @maxTimeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
+
+will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but strictly younger than '2013-02-02 10:00+0000'.  Please note that @t >= max_timeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
+
+_Warning_: We called the values generated by @min_timeuuid@ and @max_timeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
 
 
 h3(#datetimeFun). Datetime functions
@@ -2130,30 +2142,28 @@ h4(#curentDateTime). Retrieving the current date/time
 The following functions can be used to retrieve the date/time at the time where the function is invoked:
 
 |_. function name         |_.    output type       |
-| @currentTimestamp@      |  @timestamp@           |
-| @currentDate@           |  @date@                |
-| @currentTime@           |  @time@                |
-| @currentTimeUUID@       |  @timeUUID@            |
+| @current_timestamp@     |  @timestamp@           |
+| @current_date@          |  @date@                |
+| @current_time@          |  @time@                |
+| @current_timeuuid@      |  @timeUUID@            |
 
 For example the last 2 days of data can be retrieved using:
 
-bc(sample). 
-SELECT * FROM myTable WHERE date >= currentDate() - 2d
+bc(sample).
+SELECT * FROM myTable WHERE date >= current_date() - 2d
 
 h4(#timeFun). Time conversion functions
 
 A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a @date@ into another @native@ type.
 
 |_. function name    |_. input type   |_. description|
-|@toDate@            |@timeuuid@      |Converts the @timeuuid@ argument into a @date@ type|
-|@toDate@            |@timestamp@     |Converts the @timestamp@ argument into a @date@ type|
-|@toTimestamp@       |@timeuuid@      |Converts the @timeuuid@ argument into a @timestamp@ type|
-|@toTimestamp@       |@date@          |Converts the @date@ argument into a @timestamp@ type|
-|@toUnixTimestamp@   |@timeuuid@      |Converts the @timeuuid@ argument into a @bigInt@ raw value|
-|@toUnixTimestamp@   |@timestamp@     |Converts the @timestamp@ argument into a @bigInt@ raw value|
-|@toUnixTimestamp@   |@date@          |Converts the @date@ argument into a @bigInt@ raw value|
-|@dateOf@            |@timeuuid@      |Similar to @toTimestamp(timeuuid)@ (DEPRECATED)|
-|@unixTimestampOf@   |@timeuuid@      |Similar to @toUnixTimestamp(timeuuid)@ (DEPRECATED)|
+|@to_date@           |@timeuuid@      |Converts the @timeuuid@ argument into a @date@ type|
+|@to_date@           |@timestamp@     |Converts the @timestamp@ argument into a @date@ type|
+|@to_timestamp@      |@timeuuid@      |Converts the @timeuuid@ argument into a @timestamp@ type|
+|@to_timestamp@      |@date@          |Converts the @date@ argument into a @timestamp@ type|
+|@to_unix_timestamp@ |@timeuuid@      |Converts the @timeuuid@ argument into a @bigInt@ raw value|
+|@to_unix_timestamp@ |@timestamp@     |Converts the @timestamp@ argument into a @bigInt@ raw value|
+|@to_unix_timestamp@ |@date@          |Converts the @date@ argument into a @bigInt@ raw value|
 
 h4(#floorFun). Floor function
 
@@ -2167,7 +2177,7 @@ Rounds date and time to the nearest value.
 
 h3(#blobFun). Blob conversion functions
 
-A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
+A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @type_as_blob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blob_as_type@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigint_as_blob(3)@ is @0x0000000000000003@ and @blob_as_bigint(0x0000000000000003)@ is @3@.
 
 h2(#aggregates). Aggregates
 
@@ -2376,7 +2386,7 @@ h3(#jsonEncoding). JSON Encoding of Cassandra Data Types
 
 Where possible, Cassandra will represent and accept data types in their native @JSON@ representation.  Cassandra will also accept string representations matching the CQL literal format for all single-field types.  For example, floats, ints, UUIDs, and dates can be represented by CQL literal strings.  However, compound types, such as collections, tuples, and user-defined types must be represented by native @JSON@ collections (maps and lists) or a JSON-encoded string representation of the collection.
 
-The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @fromJson()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @fromJson()@):
+The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @from_json()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @from_json()@):
 
 |_. type    |_. formats accepted   |_. return format |_. notes|
 |@ascii@    |string                |string           |Uses JSON's @\u@ character escape|
@@ -2404,13 +2414,13 @@ The following table describes the encodings that Cassandra will accept in @INSER
 |@varchar@  |string                |string           |Uses JSON's @\u@ character escape|
 |@varint@   |integer, string       |integer          |Variable length; may overflow 32 or 64 bit integers in client-side decoder|
 
-h3(#fromJson). The fromJson() Function
+h3(#from_json). The from_json() Function
 
-The @fromJson()@ function may be used similarly to @INSERT JSON@, but for a single column value.  It may only be used in the @VALUES@ clause of an @INSERT@ statement or as one of the column values in an @UPDATE@, @DELETE@, or @SELECT@ statement.  For example, it cannot be used in the selection clause of a @SELECT@ statement.
+The @from_json()@ function may be used similarly to @INSERT JSON@, but for a single column value.  It may only be used in the @VALUES@ clause of an @INSERT@ statement or as one of the column values in an @UPDATE@, @DELETE@, or @SELECT@ statement.  For example, it cannot be used in the selection clause of a @SELECT@ statement.
 
-h3(#toJson). The toJson() Function
+h3(#to_json). The to_json() Function
 
-The @toJson()@ function may be used similarly to @SELECT JSON@, but for a single column value.  It may only be used in the selection clause of a @SELECT@ statement.
+The @to_json()@ function may be used similarly to @SELECT JSON@, but for a single column value.  It may only be used in the selection clause of a @SELECT@ statement.
 
 h2(#appendixA). Appendix A: CQL Keywords
 
@@ -2489,6 +2499,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @LIST@         | no  |
 | @LOGIN@        | no  |
 | @MAP@          | no  |
+| @MASKED@       | no  |
 | @MATERIALIZED@ | yes |
 | @MBEAN@        | yes |
 | @MBEANS@       | yes |
@@ -2518,6 +2529,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @ROLES@        | no  |
 | @SCHEMA@       | yes |
 | @SELECT@       | yes |
+| @SELECT_MASKED@| no  |
 | @SET@          | yes |
 | @SFUNC@        | no  |
 | @SMALLINT@     | no  |
@@ -2539,6 +2551,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TUPLE@        | no  |
 | @TYPE@         | no  |
 | @UNLOGGED@     | yes |
+| @UNMASK@       | no  |
 | @UNSET@        | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |
@@ -2553,7 +2566,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
-| @MAXWRITETIME@    | no  |
+| @MAXWRITETIME@ | no  |
 
 h2(#appendixB). Appendix B: CQL Reserved Types
 
@@ -2571,6 +2584,11 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.4.7
+
+* Remove deprecated functions @dateOf@ and @unixTimestampOf@, replaced by @to_timestamp@ and @to_unixtimestamp@ (see "CASSANDRA-18328":https://issues.apache.org/jira/browse/CASSANDRA-18328).
+* Adopt snake_case function names, deprecating all previous camelCase or alltogetherwithoutspaces function names (see "CASSANDRA-18037":https://issues.apache.org/jira/browse/CASSANDRA-18037).
 
 h3. 3.4.6
 

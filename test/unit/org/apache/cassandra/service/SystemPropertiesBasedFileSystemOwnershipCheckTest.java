@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import org.junit.Before;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.distributed.shared.WithProperties;
 
 public class SystemPropertiesBasedFileSystemOwnershipCheckTest extends AbstractFilesystemOwnershipCheckTest
 {
@@ -28,7 +29,7 @@ public class SystemPropertiesBasedFileSystemOwnershipCheckTest extends AbstractF
     public void setup()
     {
         super.setup();
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey(), token);
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey(), "true");
+        properties = new WithProperties().set(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN, token)
+                                         .set(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE, true);
     }
 }

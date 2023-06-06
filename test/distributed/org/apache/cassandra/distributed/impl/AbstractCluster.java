@@ -60,6 +60,7 @@ import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -183,6 +184,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
+
+        {
+            // Indicate that we are running in the in-jvm dtest environment
+            CassandraRelevantProperties.DTEST_IS_IN_JVM_DTEST.setBoolean(true);
+            // those properties may be set for unit-test optimizations; those should not be used when running dtests
+            CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
+            CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
+        }
 
         public AbstractBuilder(Factory<I, C, B> factory)
         {
@@ -643,6 +652,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         return stream().map(IInstance::coordinator);
     }
 
+    public List<I> get(int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            throw new IllegalArgumentException("No nodes provided");
+        List<I> list = new ArrayList<>(nodes.length);
+        for (int i : nodes)
+            list.add(get(i));
+        return list;
+    }
+
     /**
      * WARNING: we index from 1 here, for consistency with inet address!
      */
@@ -1026,6 +1045,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     @Override
     public void close()
     {
+        logger.info("Closing cluster {}", this.clusterId);
+        FBUtilities.closeQuietly(instanceInitializer);
         FBUtilities.waitOnFutures(instances.stream()
                                            .filter(i -> !i.isShutdown())
                                            .map(IInstance::shutdown)
@@ -1319,4 +1340,3 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         INSTANCE;
     }
 }
-

@@ -37,7 +37,8 @@ my_commands_ending_with_newline = (
     'exit',
     'quit',
     'clear',
-    'cls'
+    'cls',
+    'history'
 )
 
 cqlsh_syntax_completers = []
@@ -73,6 +74,7 @@ cqlsh_special_cmd_command_syntax_rules = r'''
                    | <exitCommand>
                    | <pagingCommand>
                    | <clearCommand>
+                   | <historyCommand>
                    ;
 '''
 
@@ -141,7 +143,7 @@ cqlsh_source_cmd_syntax_rules = r'''
 '''
 
 cqlsh_capture_cmd_syntax_rules = r'''
-<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral> | "OFF" ) )?
+<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral>) | "OFF" )?
                    ;
 '''
 
@@ -188,7 +190,7 @@ cqlsh_expand_cmd_syntax_rules = r'''
 '''
 
 cqlsh_paging_cmd_syntax_rules = r'''
-<pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" | /[0-9]+/) )?
+<pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" | <wholenumber>) )?
                   ;
 '''
 
@@ -205,6 +207,11 @@ cqlsh_exit_cmd_syntax_rules = r'''
 cqlsh_clear_cmd_syntax_rules = r'''
 <clearCommand> ::= "CLEAR" | "CLS"
                  ;
+'''
+
+cqlsh_history_cmd_syntax_rules = r'''
+<historyCommand> ::= "history" (n=<wholenumber>)?
+                    ;
 '''
 
 cqlsh_question_mark = r'''
@@ -232,6 +239,7 @@ cqlsh_extra_syntax_rules = cqlsh_cmd_syntax_rules + \
     cqlsh_login_cmd_syntax_rules + \
     cqlsh_exit_cmd_syntax_rules + \
     cqlsh_clear_cmd_syntax_rules + \
+    cqlsh_history_cmd_syntax_rules + \
     cqlsh_question_mark
 
 

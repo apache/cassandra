@@ -58,6 +58,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_QUERY_HANDLER_CLASS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -101,13 +102,14 @@ public class ClientState
     static
     {
         QueryHandler handler = QueryProcessor.instance;
-        String customHandlerClass = System.getProperty("cassandra.custom_query_handler_class");
+        String customHandlerClass = CUSTOM_QUERY_HANDLER_CLASS.getString();
         if (customHandlerClass != null)
         {
             try
             {
                 handler = FBUtilities.construct(customHandlerClass, "QueryHandler");
-                logger.info("Using {} as query handler for native protocol queries (as requested with -Dcassandra.custom_query_handler_class)", customHandlerClass);
+                logger.info("Using {} as a query handler for native protocol queries (as requested by the {} system property)",
+                            customHandlerClass, CUSTOM_QUERY_HANDLER_CLASS.getKey());
             }
             catch (Exception e)
             {
@@ -412,6 +414,27 @@ public class ClientState
     public void ensureTablePermission(TableMetadata table, Permission perm)
     {
         ensurePermission(table.keyspace, perm, table.resource);
+    }
+
+    public boolean hasTablePermission(TableMetadata table, Permission perm)
+    {
+        if (isInternal)
+            return true;
+
+        validateLogin();
+
+        if (!DatabaseDescriptor.getAuthorizer().requireAuthorization())
+            return true;
+
+        List<? extends IResource> resources = Resources.chain(table.resource);
+        if (DatabaseDescriptor.getAuthFromRoot())
+            resources = Lists.reverse(resources);
+
+        for (IResource r : resources)
+            if (authorize(r).contains(perm))
+                return true;
+
+        return false;
     }
 
     private void ensurePermission(String keyspace, Permission perm, DataResource resource)

@@ -27,6 +27,8 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
@@ -104,14 +106,18 @@ public class PreviewRepairTask extends AbstractRepairTask
         {
             Set<String> mismatchingTables = new HashSet<>();
             Set<InetAddressAndPort> nodes = new HashSet<>();
+            Set<Range<Token>> ranges = new HashSet<>();
             for (RepairSessionResult sessionResult : results)
             {
                 for (RepairResult repairResult : emptyIfNull(sessionResult.repairJobResults))
                 {
                     for (SyncStat stat : emptyIfNull(repairResult.stats))
                     {
-                        if (stat.numberOfDifferences > 0)
+                        if (!stat.differences.isEmpty())
+                        {
                             mismatchingTables.add(repairResult.desc.columnFamily);
+                            ranges.addAll(stat.differences);
+                        }
                         // snapshot all replicas, even if they don't have any differences
                         nodes.add(stat.nodes.coordinator);
                         nodes.add(stat.nodes.peer);
@@ -125,10 +131,13 @@ public class PreviewRepairTask extends AbstractRepairTask
                 // we can just check snapshot existence locally since the repair coordinator is always a replica (unlike in the read case)
                 if (!Keyspace.open(keyspace).getColumnFamilyStore(table).snapshotExists(snapshotName))
                 {
-                    logger.info("{} Snapshotting {}.{} for preview repair mismatch with tag {} on instances {}",
+                    List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+                    logger.info("{} Snapshotting {}.{} for preview repair mismatch for ranges {} with tag {} on instances {}",
                                 options.getPreviewKind().logPrefix(parentSession),
-                                keyspace, table, snapshotName, nodes);
-                    DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(), nodes);
+                                keyspace, table, normalizedRanges, snapshotName, nodes);
+                    DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(),
+                                                                   nodes,
+                                                                   normalizedRanges);
                 }
                 else
                 {

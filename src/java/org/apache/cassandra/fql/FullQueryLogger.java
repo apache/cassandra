@@ -444,7 +444,7 @@ public class FullQueryLogger implements QueryEvents.Listener
         private final ByteBuf queryOptionsBuffer;
 
         private final long generatedTimestamp;
-        private final int generatedNowInSeconds;
+        private final long generatedNowInSeconds;
         @Nullable
         private final String keyspace;
 
@@ -497,7 +497,7 @@ public class FullQueryLogger implements QueryEvents.Listener
             wire.write(QUERY_OPTIONS).bytes(BytesStore.wrap(queryOptionsBuffer.nioBuffer()));
 
             wire.write(GENERATED_TIMESTAMP).int64(generatedTimestamp);
-            wire.write(GENERATED_NOW_IN_SECONDS).int32(generatedNowInSeconds);
+            wire.write(GENERATED_NOW_IN_SECONDS).int64(generatedNowInSeconds);
 
             wire.write(KEYSPACE).text(keyspace);
         }
@@ -516,7 +516,7 @@ public class FullQueryLogger implements QueryEvents.Listener
                  + Integer.BYTES                                                              // protocolVersion
                  + OBJECT_REFERENCE_SIZE + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
                  + Long.BYTES                                                                 // generatedTimestamp
-                 + Integer.BYTES                                                              // generatedNowInSeconds
+                 + Long.BYTES                                                                 // generatedNowInSeconds
                  + OBJECT_REFERENCE_SIZE + Ints.checkedCast(ObjectSizes.sizeOf(keyspace));    // keyspace
         }
     }

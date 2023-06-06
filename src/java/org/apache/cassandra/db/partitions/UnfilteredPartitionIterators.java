@@ -96,7 +96,7 @@ public abstract class UnfilteredPartitionIterators
         return MorePartitions.extend(iterators.get(0), new Extend());
     }
 
-    public static PartitionIterator filter(final UnfilteredPartitionIterator iterator, final int nowInSec)
+    public static PartitionIterator filter(final UnfilteredPartitionIterator iterator, final long nowInSec)
     {
         return FilteredPartitions.filter(iterator, nowInSec);
     }

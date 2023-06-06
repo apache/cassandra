@@ -42,7 +42,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,14 +58,15 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
@@ -76,7 +76,6 @@ import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -181,9 +180,12 @@ public class CompactionStrategyManager implements INotificationConsumer
         this.compactionLogger = new CompactionLogger(cfs, this);
         this.boundariesSupplier = boundariesSupplier;
         this.partitionSSTablesByTokenRange = partitionSSTablesByTokenRange;
-        params = cfs.metadata().params.compaction;
+
+        currentBoundaries = boundariesSupplier.get();
+        params = schemaCompactionParams = cfs.metadata().params.compaction;
         enabled = params.isEnabled();
-        reload(cfs.metadata().params.compaction);
+        setStrategy(schemaCompactionParams);
+        startup();
     }
 
     /**
@@ -191,7 +193,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * Returns a task for the compaction strategy that needs it the most (most estimated remaining tasks)
      */
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
@@ -250,8 +252,8 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                   .stream()
                                                   .filter(s -> !compacting.contains(s) && !s.descriptor.version.isLatestVersion())
                                                   .sorted((o1, o2) -> {
-                                                      File f1 = new File(o1.descriptor.filenameFor(Component.DATA));
-                                                      File f2 = new File(o2.descriptor.filenameFor(Component.DATA));
+                                                      File f1 = o1.descriptor.fileFor(Components.DATA);
+                                                      File f2 = o2.descriptor.fileFor(Components.DATA);
                                                       return Longs.compare(f1.lastModified(), f2.lastModified());
                                                   }).collect(Collectors.toList());
         for (SSTableReader sstable : potentialUpgrade)
@@ -456,19 +458,20 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public void maybeReload(TableMetadata metadata)
+    /**
+     * Maybe reload the compaction strategies. Called after changing configuration.
+     */
+    public void maybeReloadParamsFromSchema(CompactionParams params)
     {
         // compare the old schema configuration to the new one, ignore any locally set changes.
-        if (metadata.params.compaction.equals(schemaCompactionParams))
+        if (params.equals(schemaCompactionParams))
             return;
 
         writeLock.lock();
         try
         {
-            // compare the old schema configuration to the new one, ignore any locally set changes.
-            if (metadata.params.compaction.equals(schemaCompactionParams))
-                return;
-            reload(metadata.params.compaction);
+            if (!params.equals(schemaCompactionParams))
+                reloadParamsFromSchema(params);
         }
         finally
         {
@@ -477,17 +480,84 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     /**
+     * @param newParams new CompactionParams set in via CQL
+     */
+    private void reloadParamsFromSchema(CompactionParams newParams)
+    {
+        logger.debug("Recreating compaction strategy for {}.{} - compaction parameters changed via CQL",
+                     cfs.keyspace.getName(), cfs.getTableName());
+
+        /*
+         * It's possible for compaction to be explicitly enabled/disabled
+         * via JMX when already enabled/disabled via params. In that case,
+         * if we now toggle enabled/disabled via params, we'll technically
+         * be overriding JMX-set value with params-set value.
+         */
+        boolean enabledWithJMX = enabled && !shouldBeEnabled();
+        boolean disabledWithJMX = !enabled && shouldBeEnabled();
+
+        schemaCompactionParams = newParams;
+        setStrategy(newParams);
+
+        // enable/disable via JMX overrides CQL params, but please see the comment above
+        if (enabled && !shouldBeEnabled() && !enabledWithJMX)
+            disable();
+        else if (!enabled && shouldBeEnabled() && !disabledWithJMX)
+            enable();
+
+        startup();
+    }
+
+    private void maybeReloadParamsFromJMX(CompactionParams params)
+    {
+        // compare the old local configuration to the new one, ignoring schema
+        if (params.equals(this.params))
+            return;
+
+        writeLock.lock();
+        try
+        {
+            if (!params.equals(this.params))
+                reloadParamsFromJMX(params);
+        }
+        finally
+        {
+            writeLock.unlock();
+        }
+    }
+
+    /**
+     * @param newParams new CompactionParams set via JMX
+     */
+    private void reloadParamsFromJMX(CompactionParams newParams)
+    {
+        logger.debug("Recreating compaction strategy for {}.{} - compaction parameters changed via JMX",
+                     cfs.keyspace.getName(), cfs.getTableName());
+
+        setStrategy(newParams);
+
+        // compaction params set via JMX override enable/disable via JMX
+        if (enabled && !shouldBeEnabled())
+            disable();
+        else if (!enabled && shouldBeEnabled())
+            enable();
+
+        startup();
+    }
+
+    /**
      * Checks if the disk boundaries changed and reloads the compaction strategies
      * to reflect the most up-to-date disk boundaries.
-     *
+     * <p>
      * This is typically called before acquiring the {@link this#readLock} to ensure the most up-to-date
      * disk locations and boundaries are used.
-     *
+     * <p>
      * This should *never* be called inside by a thread holding the {@link this#readLock}, since it
      * will potentially acquire the {@link this#writeLock} to update the compaction strategies
      * what can cause a deadlock.
+     * <p>
+     * TODO: improve this to reload after receiving a notification rather than trying to reload on every operation
      */
-    //TODO improve this to reload after receiving a notification rather than trying to reload on every operation
     @VisibleForTesting
     protected void maybeReloadDiskBoundaries()
     {
@@ -497,9 +567,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         writeLock.lock();
         try
         {
-            if (!currentBoundaries.isOutOfDate())
-                return;
-            reload(params);
+            if (currentBoundaries.isOutOfDate())
+                reloadDiskBoundaries(boundariesSupplier.get());
         }
         finally
         {
@@ -508,34 +577,23 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     /**
-     * Reload the compaction strategies
-     *
-     * Called after changing configuration and at startup.
-     * @param newCompactionParams
+     * @param newBoundaries new DiskBoundaries - potentially functionally equivalent to current ones
      */
-    private void reload(CompactionParams newCompactionParams)
+    private void reloadDiskBoundaries(DiskBoundaries newBoundaries)
     {
-        boolean enabledWithJMX = enabled && !shouldBeEnabled();
-        boolean disabledWithJMX = !enabled && shouldBeEnabled();
+        DiskBoundaries oldBoundaries = currentBoundaries;
+        currentBoundaries = newBoundaries;
 
-        if (currentBoundaries != null)
+        if (newBoundaries.isEquivalentTo(oldBoundaries))
         {
-            if (!newCompactionParams.equals(schemaCompactionParams))
-                logger.debug("Recreating compaction strategy - compaction parameters changed for {}.{}", cfs.keyspace.getName(), cfs.getTableName());
-            else if (currentBoundaries.isOutOfDate())
-                logger.debug("Recreating compaction strategy - disk boundaries are out of date for {}.{}.", cfs.keyspace.getName(), cfs.getTableName());
+            logger.debug("Not recreating compaction strategy for {}.{} - disk boundaries are equivalent",
+                         cfs.keyspace.getName(), cfs.getTableName());
+            return;
         }
 
-        if (currentBoundaries == null || currentBoundaries.isOutOfDate())
-            currentBoundaries = boundariesSupplier.get();
-
-        setStrategy(newCompactionParams);
-        schemaCompactionParams = cfs.metadata().params.compaction;
-
-        if (disabledWithJMX || !shouldBeEnabled() && !enabledWithJMX)
-            disable();
-        else
-            enable();
+        logger.debug("Recreating compaction strategy for {}.{} - disk boundaries are out of date",
+                     cfs.keyspace.getName(), cfs.getTableName());
+        setStrategy(params);
         startup();
     }
 
@@ -612,6 +670,18 @@ public class CompactionStrategyManager implements INotificationConsumer
             return null;
         }
         finally
+        {
+            readLock.unlock();
+        }
+    }
+
+    public boolean isLeveledCompaction()
+    {
+        readLock.lock();
+        try
+        {
+            return repaired.first() instanceof LeveledCompactionStrategy;
+        } finally
         {
             readLock.unlock();
         }
@@ -795,8 +865,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private void handleMetadataChangedNotification(SSTableReader sstable, StatsMetadata oldMetadata)
     {
-        AbstractCompactionStrategy acs = getCompactionStrategyFor(sstable);
-        acs.metadataChanged(oldMetadata, sstable);
+        compactionStrategyFor(sstable).metadataChanged(oldMetadata, sstable);
     }
 
     /**
@@ -948,7 +1017,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         return maxSSTableSizeBytes;
     }
 
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, long gcBefore, long maxSSTableBytes)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
@@ -991,7 +1060,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public CompactionTasks getMaximalTasks(final int gcBefore, final boolean splitOutput, OperationType operationType)
+    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, OperationType operationType)
     {
         maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
@@ -1004,7 +1073,10 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 for (AbstractStrategyHolder holder : holders)
                 {
-                    tasks.addAll(holder.getMaximalTasks(gcBefore, splitOutput));
+                    for (AbstractCompactionTask task: holder.getMaximalTasks(gcBefore, splitOutput)) 
+                    {
+                        tasks.add(task.setCompactionType(operationType));
+                    }
                 }
             }
             finally
@@ -1024,7 +1096,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param gcBefore gc grace period, throw away tombstones older than this
      * @return a list of compaction tasks corresponding to the sstables requested
      */
-    public CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
+    public CompactionTasks getUserDefinedTasks(Collection<SSTableReader> sstables, long gcBefore)
     {
         maybeReloadDiskBoundaries();
         List<AbstractCompactionTask> ret = new ArrayList<>();
@@ -1127,23 +1199,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public void setNewLocalCompactionStrategy(CompactionParams params)
+    public void overrideLocalParams(CompactionParams params)
     {
-        logger.info("Switching local compaction strategy from {} to {}}", this.params, params);
-        writeLock.lock();
-        try
-        {
-            setStrategy(params);
-            if (shouldBeEnabled())
-                enable();
-            else
-                disable();
-            startup();
-        }
-        finally
-        {
-            writeLock.unlock();
-        }
+        logger.info("Switching local compaction strategy from {} to {}", this.params, params);
+        maybeReloadParamsFromJMX(params);
     }
 
     private int getNumTokenPartitions()

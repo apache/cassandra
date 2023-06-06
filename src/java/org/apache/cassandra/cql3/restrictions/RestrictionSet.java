@@ -105,6 +105,15 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         return new ArrayList<>(restrictions.keySet());
     }
 
+    /**
+     * @return a direct reference to the key set from {@link #restrictions} with no defenseive copying
+     */
+    @Override
+    public Collection<ColumnMetadata> getColumnDefinitions()
+    {
+        return restrictions.keySet();
+    }
+
     @Override
     public void addFunctionsTo(List<Function> functions)
     {
@@ -332,7 +341,6 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     /**
      * {@code Iterator} decorator that removes duplicates in an ordered one.
      *
-     * @param iterator the decorated iterator
      * @param <E> the iterator element type.
      */
     private static final class DistinctIterator<E> extends AbstractIterator<E>

@@ -23,7 +23,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 
 /**
  * Common data access interface for sstables and memtables.
@@ -65,5 +65,5 @@ public interface UnfilteredSource
     long getMinTimestamp();
 
     /** Minimum local deletion time in the memtable */
-    int getMinLocalDeletionTime();
+    long getMinLocalDeletionTime();
 }

@@ -64,19 +64,20 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
     {
         // WARNING: the ordering of that enum matters because we use ordinal() in the serialization
 
-        EXCL_END_BOUND              (0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
-        INCL_START_BOUND            (0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
-        EXCL_END_INCL_START_BOUNDARY(0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
-        STATIC_CLUSTERING           (1, -1, v -> v == Version.LEGACY
-                                                 ? ByteSource.LT_NEXT_COMPONENT + 1
-                                                 : ByteSource.EXCLUDED),
-        CLUSTERING                  (2,  0, v -> v == Version.LEGACY
-                                                 ? ByteSource.NEXT_COMPONENT
-                                                 : ByteSource.TERMINATOR),
-        INCL_END_EXCL_START_BOUNDARY(3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
-        INCL_END_BOUND              (3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
-        EXCL_START_BOUND            (3,  1, v -> ByteSource.GT_NEXT_COMPONENT);
-
+        // @formatter:off
+        EXCL_END_BOUND               ( 0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
+        INCL_START_BOUND             ( 0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
+        EXCL_END_INCL_START_BOUNDARY ( 0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
+        STATIC_CLUSTERING            ( 1, -1, v -> v == Version.LEGACY ? ByteSource.LT_NEXT_COMPONENT + 1
+                                                                       : ByteSource.EXCLUDED),
+        CLUSTERING                   ( 2,  0, v -> v == Version.LEGACY ? ByteSource.NEXT_COMPONENT
+                                                                       : ByteSource.TERMINATOR),
+        INCL_END_EXCL_START_BOUNDARY ( 3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
+        INCL_END_BOUND               ( 3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
+        EXCL_START_BOUND             ( 3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
+        SSTABLE_LOWER_BOUND          (-1, -1, v -> ByteSource.LTLT_NEXT_COMPONENT),
+        SSTABLE_UPPER_BOUND          ( 4,  1, v -> ByteSource.GTGT_NEXT_COMPONENT);
+        // @formatter:on
 
         private final int comparison;
 
@@ -311,6 +312,22 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
      * @return a human-readable string representation fo this prefix.
      */
     public String toString(TableMetadata metadata);
+
+    /**
+     * Returns this prefix as a start bound.
+     * If this prefix is a bound, just returns it asserting that it is a start bound.
+     * If this prefix is a clustering, returns an included start bound.
+     * If this prefix is a boundary, returns an open bound of it
+     */
+    ClusteringBound<V> asStartBound();
+
+    /**
+     * Returns this prefix as an end bound.
+     * If this prefix is a bound, just returns it asserting that it is an end bound.
+     * If this prefix is a clustering, returns an included end bound.
+     * In this prefix is a boundary, returns a close bound of it.
+     */
+    ClusteringBound<V> asEndBound();
 
     /*
      * TODO: we should stop using Clustering for partition keys. Maybe we can add

@@ -119,6 +119,11 @@ import static com.google.common.collect.Iterables.transform;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARENT_REPAIR_STATUS_CACHE_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARENT_REPAIR_STATUS_EXPIRY_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
 import static org.apache.cassandra.config.Config.RepairCommandPoolFullStrategy.reject;
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
 import static org.apache.cassandra.net.Message.out;
@@ -212,22 +217,20 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     private final Gossiper gossiper;
     private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
 
-    private final ExecutorPlus clearSnapshotExecutor = executorFactory().configurePooled("RepairClearSnapshot", 1)
-                                                                        .withKeepAlive(1, TimeUnit.HOURS)
-                                                                        .build();
+    public final ExecutorPlus snapshotExecutor = executorFactory().configurePooled("RepairSnapshotExecutor", 1)
+                                                                  .withKeepAlive(1, TimeUnit.HOURS)
+                                                                  .build();
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
         this.failureDetector = failureDetector;
         this.gossiper = gossiper;
         this.repairStatusByCmd = CacheBuilder.newBuilder()
-                                             .expireAfterWrite(
-                                             Long.getLong("cassandra.parent_repair_status_expiry_seconds",
-                                                          TimeUnit.SECONDS.convert(1, TimeUnit.DAYS)), TimeUnit.SECONDS)
+                                             .expireAfterWrite(PARENT_REPAIR_STATUS_EXPIRY_SECONDS.getLong(), TimeUnit.SECONDS)
                                              // using weight wouldn't work so well, since it doesn't reflect mutation of cached data
                                              // see https://github.com/google/guava/wiki/CachesExplained
                                              // We assume each entry is unlikely to be much more than 100 bytes, so bounding the size should be sufficient.
-                                             .maximumSize(Long.getLong("cassandra.parent_repair_status_cache_size", 100_000))
+                                             .maximumSize(PARENT_REPAIR_STATUS_CACHE_SIZE.getLong())
                                              .build();
 
         DurationSpec.LongNanosecondsBound duration = getRepairStateExpires();
@@ -767,7 +770,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     /**
      * We assume when calling this method that a parent session for the provided identifier
      * exists, and that session is still in progress. When it doesn't, that should mean either
-     * {@link #abort(Predicate, String)} or {@link #failRepair(UUID, String)} have removed it.
+     * {@link #abort(Predicate, String)} or {@link #failRepair(TimeUUID, String)} have removed it.
      *
      * @param parentSessionId an identifier for an active parent repair session
      * @return the {@link ParentRepairSession} associated with the provided identifier
@@ -789,6 +792,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @param parentSessionId an identifier for an active parent repair session
      * @return the {@link ParentRepairSession} associated with the provided identifier
+     * @see org.apache.cassandra.db.repair.CassandraTableRepairManager#snapshot(String, Collection, boolean)
      */
     public synchronized ParentRepairSession removeParentRepairSession(TimeUUID parentSessionId)
     {
@@ -799,7 +803,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (session.hasSnapshots)
         {
-            clearSnapshotExecutor.submit(() -> {
+            snapshotExecutor.submit(() -> {
                 logger.info("[repair #{}] Clearing snapshots for {}", parentSessionId,
                             session.columnFamilyStores.values()
                                                       .stream()
@@ -1054,21 +1058,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     throw new RuntimeException(String.format("Insufficient live nodes to repair paxos for %s in %s for %s.\n" +
                                                              "There must be enough live nodes to satisfy EACH_QUORUM, but the following nodes are down: %s\n" +
                                                              "This check can be skipped by setting either the yaml property skip_paxos_repair_on_topology_change or " +
-                                                             "the system property cassandra.skip_paxos_repair_on_topology_change to false. The jmx property " +
+                                                             "the system property %s to false. The jmx property " +
                                                              "StorageService.SkipPaxosRepairOnTopologyChange can also be set to false to temporarily disable without " +
                                                              "restarting the node\n" +
                                                              "Individual keyspaces can be skipped with the yaml property skip_paxos_repair_on_topology_change_keyspaces, the" +
-                                                             "system property cassandra.skip_paxos_repair_on_topology_change_keyspaces, or temporarily with the jmx" +
+                                                             "system property %s, or temporarily with the jmx" +
                                                              "property StorageService.SkipPaxosRepairOnTopologyChangeKeyspaces\n" +
                                                              "Skipping this check can lead to paxos correctness issues",
-                                                             range, ksName, reason, downEndpoints));
+                                                             range, ksName, reason, downEndpoints, SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE.getKey(), SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES.getKey()));
                 }
                 EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(range.right, ksName);
-                if (pending.size() > 1 && !Boolean.getBoolean("cassandra.paxos_repair_allow_multiple_pending_unsafe"))
+                if (pending.size() > 1 && !PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getBoolean())
                 {
                     throw new RuntimeException(String.format("Cannot begin paxos auto repair for %s in %s.%s, multiple pending endpoints exist for range (%s). " +
-                                                             "Set -Dcassandra.paxos_repair_allow_multiple_pending_unsafe=true to skip this check",
-                                                             range, table.keyspace, table.name, pending));
+                                                             "Set -D%s=true to skip this check",
+                                                             range, table.keyspace, table.name, pending, PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
 
                 }
                 Future<Void> future = PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
@@ -1091,7 +1095,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownNowAndWait(timeout, unit, clearSnapshotExecutor);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, snapshotExecutor);
     }
 
     public Collection<CoordinatorState> coordinators()

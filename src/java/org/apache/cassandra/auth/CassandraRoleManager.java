@@ -34,7 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
@@ -49,6 +48,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mindrot.jbcrypt.BCrypt;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -82,7 +82,7 @@ public class CassandraRoleManager implements IRoleManager
     private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManager.class);
 
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
-    static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
+    public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
 
     /**
      * We need to treat the default superuser as a special case since during initial node startup, we may end up with
@@ -113,19 +113,15 @@ public class CassandraRoleManager implements IRoleManager
         }
     };
 
-    // 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed.
-    @VisibleForTesting
-    public static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
     private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
 
     static int getGensaltLogRounds()
     {
-         int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
-         if (rounds < 4 || rounds > 30)
-         throw new ConfigurationException(String.format("Bad value for system property -D%s." +
-                                                        "Please use a value between 4 and 30 inclusively",
-                                                        GENSALT_LOG2_ROUNDS_PROPERTY));
-         return rounds;
+        int rounds = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getInt(10);
+        if (rounds < 4 || rounds > 30)
+            throw new ConfigurationException(String.format("Bad value for system property %s." +
+                                                           "Please use a value between 4 and 30 inclusively", AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey()));
+        return rounds;
     }
 
     private SelectStatement loadRoleStatement;
@@ -365,7 +361,7 @@ public class CassandraRoleManager implements IRoleManager
     @VisibleForTesting
     public static String createDefaultRoleQuery()
     {
-        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s')",
+        return String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', true, true, '%s') USING TIMESTAMP 0",
                              SchemaConstants.AUTH_KEYSPACE_NAME,
                              AuthKeyspace.ROLES,
                              DEFAULT_SUPERUSER_NAME,

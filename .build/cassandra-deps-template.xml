@@ -114,10 +114,6 @@
       <artifactId>jackson-datatype-jsr310</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.googlecode.json-simple</groupId>
-      <artifactId>json-simple</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.boundary</groupId>
       <artifactId>high-scale-lib</artifactId>
     </dependency>
@@ -162,14 +158,6 @@
       <artifactId>logback-classic</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-minicluster</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.datastax.cassandra</groupId>
       <artifactId>cassandra-driver-core</artifactId>
       <classifier>shaded</classifier>
@@ -191,6 +179,8 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
     </dependency>
+
+    <!-- chronicle queue, and fixed transitive dependencies -->
     <dependency>
       <groupId>net.openhft</groupId>
       <artifactId>chronicle-queue</artifactId>
@@ -211,6 +201,44 @@
       <groupId>net.openhft</groupId>
       <artifactId>chronicle-threads</artifactId>
     </dependency>
+    <dependency>
+      <!-- transitive to chronicle-core -->
+      <groupId>net.openhft</groupId>
+      <artifactId>posix</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to posix to chronicle-core -->
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna-platform</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to posix to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jnr-ffi</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to jnr-ffi to posix to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jffi</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to jnr-ffi to posix to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jffi</artifactId>
+      <classifier>native</classifier>
+    </dependency>
+    <dependency>
+      <!-- transitive to jnr-ffi to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jnr-constants</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to chronicle-threads -->
+      <groupId>net.openhft</groupId>
+      <artifactId>affinity</artifactId>
+    </dependency>
+    <!-- end of chronicle-queue -->
+
     <dependency>
       <groupId>org.fusesource</groupId>
       <artifactId>sigar</artifactId>
@@ -339,6 +367,10 @@
     <dependency>
       <groupId>com.github.seancfoley</groupId>
       <artifactId>ipaddress</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ch.obermuhlner</groupId>
+      <artifactId>big-math</artifactId>
     </dependency>
     <dependency>
       <groupId>org.agrona</groupId>

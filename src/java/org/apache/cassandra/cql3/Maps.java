@@ -17,24 +17,37 @@
  */
 package org.apache.cassandra.cql3;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
-
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for maps.
@@ -128,8 +141,8 @@ public abstract class Maps
      * @param mapper the mapper used to retrieve the key and value types from the entries
      * @return the exact MapType from the entries if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactMapTypeIfKnown(List<Pair<T, T>> entries,
-                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> MapType<?, ?> getExactMapTypeIfKnown(List<Pair<T, T>> entries,
+                                                           java.util.function.Function<T, AbstractType<?>> mapper)
     {
         AbstractType<?> keyType = null;
         AbstractType<?> valueType = null;
@@ -143,6 +156,22 @@ public abstract class Maps
                 return MapType.getInstance(keyType, valueType, false);
         }
         return null;
+    }
+
+    public static <T> MapType<?, ?> getPreferredCompatibleType(List<Pair<T, T>> entries,
+                                                               java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        Set<AbstractType<?>> keyTypes = entries.stream().map(Pair::left).map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> keyType = AssignmentTestable.getCompatibleTypeIfKnown(keyTypes);
+        if (keyType == null)
+            return null;
+
+        Set<AbstractType<?>> valueTypes = entries.stream().map(Pair::right).map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> valueType = AssignmentTestable.getCompatibleTypeIfKnown(valueTypes);
+        if (valueType == null)
+            return null;
+
+        return  MapType.getInstance(keyType, valueType, false);
     }
 
     public static class Literal extends Term.Raw
@@ -208,6 +237,12 @@ public abstract class Maps
             return getExactMapTypeIfKnown(entries, p -> p.getExactTypeIfKnown(keyspace));
         }
 
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Maps.getPreferredCompatibleType(entries, p -> p.getCompatibleTypeIfKnown(keyspace));
+        }
+
         public String getText()
         {
             return mapToString(entries, Term.Raw::getText);
@@ -223,16 +258,16 @@ public abstract class Maps
             this.map = map;
         }
 
-        public static Value fromSerialized(ByteBuffer value, MapType type, ProtocolVersion version) throws InvalidRequestException
+        public static <K, V> Value fromSerialized(ByteBuffer value, MapType<K, V> type) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                Map<?, ?> m = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
+                Map<K, V> m = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
                 // We depend on Maps to be properly sorted by their keys, so use a sorted map implementation here.
                 SortedMap<ByteBuffer, ByteBuffer> map = new TreeMap<>(type.getKeysType());
-                for (Map.Entry<?, ?> entry : m.entrySet())
+                for (Map.Entry<K, V> entry : m.entrySet())
                     map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));
                 return new Value(map);
             }
@@ -243,7 +278,7 @@ public abstract class Maps
         }
 
         @Override
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
             List<ByteBuffer> buffers = new ArrayList<>(2 * map.size());
             for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
@@ -251,10 +286,10 @@ public abstract class Maps
                 buffers.add(entry.getKey());
                 buffers.add(entry.getValue());
             }
-            return CollectionSerializer.pack(buffers, map.size(), protocolVersion);
+            return CollectionSerializer.pack(buffers, map.size());
         }
 
-        public boolean equals(MapType mt, Value v)
+        public boolean equals(MapType<?, ?> mt, Value v)
         {
             if (map.size() != v.map.size())
                 return false;
@@ -342,7 +377,7 @@ public abstract class Maps
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 return UNSET_VALUE;
-            return Value.fromSerialized(value, (MapType)receiver.type, options.getProtocolVersion());
+            return Value.fromSerialized(value, (MapType<?, ?>) receiver.type);
         }
     }
 

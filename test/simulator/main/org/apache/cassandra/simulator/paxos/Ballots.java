@@ -42,17 +42,17 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.simulator.systems.NonInterceptible;
-import org.apache.cassandra.simulator.systems.NonInterceptible.Permit;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.simulator.systems.NonInterceptible;
+import org.apache.cassandra.simulator.systems.NonInterceptible.Permit;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.Long.max;
 import static java.util.Arrays.stream;
@@ -102,7 +102,7 @@ public class Ballots
         }
     }
 
-    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, int nowInSec, boolean includeEmptyProposals)
+    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, long nowInSec, boolean includeEmptyProposals)
     {
         return NonInterceptible.apply(permit, () -> {
             PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);
@@ -141,7 +141,7 @@ public class Ballots
         });
     }
 
-    public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, int nowInSec)
+    public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, long nowInSec)
     {
         return NonInterceptible.apply(OPTIONAL, () -> {
             PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);

@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
 
 public class BTree
 {
@@ -62,7 +63,7 @@ public class BTree
      * subtrees when modifying the tree, since the modified tree would need new parent references).
      * Instead, we store these references in a Path as needed when navigating the tree.
      */
-    public static final int BRANCH_SHIFT = Integer.getInteger("cassandra.btree.branchshift", 5);
+    public static final int BRANCH_SHIFT = BTREE_BRANCH_SHIFT.getInt();
 
     private static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
     public static final int MIN_KEYS = BRANCH_FACTOR / 2 - 1;
@@ -365,7 +366,9 @@ public class BTree
                 toUpdate = insert;
                 insert = tmp;
             }
-            return updateLeaves(toUpdate, insert, comparator, updateF);
+            Object[] merged = updateLeaves(toUpdate, insert, comparator, updateF);
+            updateF.onAllocatedOnHeap(sizeOnHeapOf(merged) - sizeOnHeapOf(toUpdate));
+            return merged;
         }
 
         if (!isLeaf(insert) && isSimple(updateF))
@@ -2198,6 +2201,9 @@ public class BTree
 
     public static long sizeOnHeapOf(Object[] tree)
     {
+        if (isEmpty(tree))
+            return 0;
+
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;
@@ -2205,6 +2211,14 @@ public class BTree
             size += sizeOnHeapOf((Object[]) tree[i]);
         size += ObjectSizes.sizeOfArray(sizeMap(tree)); // may overcount, since we share size maps
         return size;
+    }
+
+    private static long sizeOnHeapOfLeaf(Object[] tree)
+    {
+        if (isEmpty(tree))
+            return 0;
+
+        return ObjectSizes.sizeOfArray(tree);
     }
 
     // Arbitrary boundaries
@@ -2754,7 +2768,7 @@ public class BTree
                 sizeOfLeaf = count;
                 leaf = drain();
                 if (allocated >= 0 && sizeOfLeaf > 0)
-                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (unode == null ? 0 : ObjectSizes.sizeOfArray(unode));
+                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (unode == null ? 0 : sizeOnHeapOfLeaf(unode));
             }
 
             count = 0;

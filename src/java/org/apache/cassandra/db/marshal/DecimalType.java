@@ -37,9 +37,13 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
+import ch.obermuhlner.math.big.BigDecimalMath;
+
 public class DecimalType extends NumberType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
+
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(BigDecimal.ZERO);
     private static final int MIN_SCALE = 32;
     private static final int MIN_SIGNIFICANT_DIGITS = MIN_SCALE;
     private static final int MAX_SCALE = 1000;
@@ -389,5 +393,68 @@ public class DecimalType extends NumberType<BigDecimal>
     public ByteBuffer negate(ByteBuffer input)
     {
         return decompose(toBigDecimal(input).negate());
+    }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input)
+    {
+        return decompose(toBigDecimal(input).abs());
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input)
+    {
+        return decompose(exp(toBigDecimal(input)));
+    }
+
+    protected BigDecimal exp(BigDecimal input)
+    {
+        int precision = input.precision();
+        precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
+        precision = Math.min(MAX_PRECISION.getPrecision(), precision);
+        return BigDecimalMath.exp(input, new MathContext(precision, RoundingMode.HALF_EVEN));
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input)
+    {
+        return decompose(log(toBigDecimal(input)));
+    }
+
+    protected BigDecimal log(BigDecimal input)
+    {
+        if (input.compareTo(BigDecimal.ZERO) <= 0) throw new ArithmeticException("Natural log of number zero or less");
+        int precision = input.precision();
+        precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
+        precision = Math.min(MAX_PRECISION.getPrecision(), precision);
+        return BigDecimalMath.log(input, new MathContext(precision, RoundingMode.HALF_EVEN));
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input)
+    {
+        return decompose(log10(toBigDecimal(input)));
+    }
+
+    protected BigDecimal log10(BigDecimal input)
+    {
+        if (input.compareTo(BigDecimal.ZERO) <= 0) throw new ArithmeticException("Log10 of number zero or less");
+        int precision = input.precision();
+        precision = Math.max(MIN_SIGNIFICANT_DIGITS, precision);
+        precision = Math.min(MAX_PRECISION.getPrecision(), precision);
+        return BigDecimalMath.log10(input, new MathContext(precision, RoundingMode.HALF_EVEN));
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input)
+    {
+        return DecimalType.instance.decompose(
+        toBigDecimal(input).setScale(0, RoundingMode.HALF_UP));
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

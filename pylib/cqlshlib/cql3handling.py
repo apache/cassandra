@@ -47,6 +47,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('bloom_filter_fp_chance', None),
         ('comment', None),
         ('gc_grace_seconds', None),
+        ('incremental_backups', None),
         ('min_index_interval', None),
         ('max_index_interval', None),
         ('default_time_to_live', None),
@@ -94,14 +95,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
     leveled_compaction_strategy_options = (
         'sstable_size_in_mb',
         'fanout_size'
-    )
-
-    date_tiered_compaction_strategy_options = (
-        'base_time_seconds',
-        'max_sstable_age_days',
-        'min_threshold',
-        'max_window_size_seconds',
-        'timestamp_resolution'
     )
 
     time_window_compaction_strategy_options = (
@@ -312,7 +305,9 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
-<storageType> ::= <simpleStorageType> | <collectionType> | <frozenCollectionType> | <userType> ;
+<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <userType> ) ( <column_mask> )? ;
+
+<column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
 # Note: autocomplete for frozen collection types does not handle nesting past depth 1 properly,
 # but that's a lot of work to fix for little benefit.
@@ -523,6 +518,8 @@ def cf_prop_val_completer(ctxt, cass):
         return [Hint('<\'none\'|\'blocking\'>')]
     if this_opt == 'allow_auto_snapshot':
         return [Hint('<boolean>')]
+    if this_opt == 'incremental_backups':
+        return [Hint('<boolean>')]
     return [Hint('<option_value>')]
 
 
@@ -551,8 +548,6 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             opts = opts.union(set(CqlRuleSet.size_tiered_compaction_strategy_options))
         elif csc == 'LeveledCompactionStrategy':
             opts = opts.union(set(CqlRuleSet.leveled_compaction_strategy_options))
-        elif csc == 'DateTieredCompactionStrategy':
-            opts = opts.union(set(CqlRuleSet.date_tiered_compaction_strategy_options))
         elif csc == 'TimeWindowCompactionStrategy':
             opts = opts.union(set(CqlRuleSet.time_window_compaction_strategy_options))
 
@@ -1313,7 +1308,7 @@ syntax_rules += r'''
                                       ( "WITH" <cfamProperty> ( "AND" <cfamProperty> )* )?
                                     ;
 
-<createUserTypeStatement> ::= "CREATE" "TYPE" ( ks=<nonSystemKeyspaceName> dot="." )? typename=<cfOrKsName> "(" newcol=<cident> <storageType>
+<createUserTypeStatement> ::= "CREATE" "TYPE" ("IF" "NOT" "EXISTS")? ( ks=<nonSystemKeyspaceName> dot="." )? typename=<cfOrKsName> "(" newcol=<cident> <storageType>
                                 ( "," [newcolname]=<cident> <storageType> )*
                             ")"
                          ;
@@ -1377,7 +1372,7 @@ syntax_rules += r'''
 <dropMaterializedViewStatement> ::= "DROP" "MATERIALIZED" "VIEW" ("IF" "EXISTS")? mv=<materializedViewName>
                                   ;
 
-<dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
+<dropUserTypeStatement> ::= "DROP" "TYPE" ( "IF" "EXISTS" )? ut=<userTypeName>
                           ;
 
 <dropFunctionStatement> ::= "DROP" "FUNCTION" ( "IF" "EXISTS" )? <userFunctionName>
@@ -1425,6 +1420,7 @@ syntax_rules += r'''
                       | "WITH" <cfamProperty> ( "AND" <cfamProperty> )*
                       | "RENAME" ("IF" "EXISTS")? existcol=<cident> "TO" newcol=<cident>
                          ( "AND" existcol=<cident> "TO" newcol=<cident> )*
+                      | "ALTER" ("IF" "EXISTS")? existcol=<cident> ( <column_mask> | "DROP" "MASKED" )
                       ;
 
 <alterUserTypeStatement> ::= "ALTER" "TYPE" ("IF" "EXISTS")? ut=<userTypeName>
@@ -1488,12 +1484,12 @@ syntax_rules += r'''
              | <unreservedKeyword>
              ;
 
-<createRoleStatement> ::= "CREATE" "ROLE" <rolename>
+<createRoleStatement> ::= "CREATE" "ROLE" ("IF" "NOT" "EXISTS")? <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                         ;
 
 <alterRoleStatement> ::= "ALTER" "ROLE" ("IF" "EXISTS")? <rolename>
-                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
+                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
@@ -1504,7 +1500,7 @@ syntax_rules += r'''
                  | "ACCESS" "TO" "ALL" "DATACENTERS"
                  ;
 
-<dropRoleStatement> ::= "DROP" "ROLE" <rolename>
+<dropRoleStatement> ::= "DROP" "ROLE" ("IF" "EXISTS")? <rolename>
                       ;
 
 <grantRoleStatement> ::= "GRANT" <rolename> "TO" <rolename>
@@ -1537,6 +1533,8 @@ syntax_rules += r'''
                | "MODIFY"
                | "DESCRIBE"
                | "EXECUTE"
+               | "UNMASK"
+               | "SELECT_MASKED"
                ;
 
 <permissionExpr> ::= ( [newpermission]=<permission> "PERMISSION"? ( "," [newpermission]=<permission> "PERMISSION"? )* )

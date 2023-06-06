@@ -45,7 +45,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 
@@ -238,7 +237,7 @@ public class TopPartitionTracker implements Closeable
                 return;
 
             if (top.size() < maxTopPartitionCount || value > currentMinValue)
-                track(new TopPartition(SSTable.getMinimalKey(key), value));
+                track(new TopPartition(key.retainable(), value));
         }
 
         private void track(TopPartition tp)
@@ -339,11 +338,11 @@ public class TopPartitionTracker implements Closeable
     public static class TombstoneCounter extends Transformation<UnfilteredRowIterator>
     {
         private final TopPartitionTracker.Collector collector;
-        private final int nowInSec;
+        private final long nowInSec;
         private long tombstoneCount = 0;
         private DecoratedKey key = null;
 
-        public TombstoneCounter(TopPartitionTracker.Collector collector, int nowInSec)
+        public TombstoneCounter(TopPartitionTracker.Collector collector, long nowInSec)
         {
             this.collector = collector;
             this.nowInSec = nowInSec;

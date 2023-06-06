@@ -84,7 +84,7 @@ public abstract class BatchQueryOptions
         return wrapped.getTimestamp(state);
     }
 
-    public int getNowInSeconds(QueryState state)
+    public long getNowInSeconds(QueryState state)
     {
         return wrapped.getNowInSeconds(state);
     }

@@ -40,7 +40,7 @@ public class CollectionSerializer
 
     public static <V> void serializeCollection(IVersionedSerializer<V> valueSerializer, Collection<V> values, DataOutputPlus out, int version) throws IOException
     {
-        out.writeUnsignedVInt(values.size());
+        out.writeUnsignedVInt32(values.size());
         for (V value : values)
             valueSerializer.serialize(value, out, version);
     }
@@ -48,14 +48,14 @@ public class CollectionSerializer
     public static <V, L extends List<V> & RandomAccess> void serializeList(IVersionedSerializer<V> valueSerializer, L values, DataOutputPlus out, int version) throws IOException
     {
         int size = values.size();
-        out.writeUnsignedVInt(size);
+        out.writeUnsignedVInt32(size);
         for (int i = 0 ; i < size ; ++i)
             valueSerializer.serialize(values.get(i), out, version);
     }
 
     public static <K, V> void serializeMap(IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, Map<K, V> map, DataOutputPlus out, int version) throws IOException
     {
-        out.writeUnsignedVInt(map.size());
+        out.writeUnsignedVInt32(map.size());
         for (Map.Entry<K, V> e : map.entrySet())
         {
             keySerializer.serialize(e.getKey(), out, version);
@@ -65,7 +65,7 @@ public class CollectionSerializer
 
     public static <V, C extends Collection<? super V>> C deserializeCollection(IVersionedSerializer<V> serializer, IntFunction<C> factory, DataInputPlus in, int version) throws IOException
     {
-        int size = (int) in.readUnsignedVInt();
+        int size = in.readUnsignedVInt32();
         C result = factory.apply(size);
         while (size-- > 0)
             result.add(serializer.deserialize(in, version));
@@ -74,7 +74,7 @@ public class CollectionSerializer
 
     public static <K, V, M extends Map<K, V>> M deserializeMap(IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, IntFunction<M> factory, DataInputPlus in, int version) throws IOException
     {
-        int size = (int) in.readUnsignedVInt();
+        int size = in.readUnsignedVInt32();
         M result = factory.apply(size);
         while (size-- > 0)
         {

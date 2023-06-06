@@ -67,6 +67,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -97,6 +98,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
     private static final Future<Void> FINISHED_FUTURE = ImmediateFuture.success(null);
 
     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
@@ -252,10 +254,11 @@ public class MigrationCoordinator
 
     void start()
     {
-        logger.info("Starting migration coordinator and scheduling pulling schema versions every {}", Duration.ofMillis(SCHEMA_PULL_INTERVAL_MS.getLong()));
+        long interval = SCHEMA_PULL_INTERVAL_MS.getLong();
+        logger.info("Starting migration coordinator and scheduling pulling schema versions every {}", Duration.ofMillis(interval));
         announce(schemaVersion.get());
         periodicPullTask.updateAndGet(curTask -> curTask == null
-                                                 ? periodicCheckExecutor.scheduleWithFixedDelay(this::pullUnreceivedSchemaVersions, SCHEMA_PULL_INTERVAL_MS.getLong(), SCHEMA_PULL_INTERVAL_MS.getLong(), TimeUnit.MILLISECONDS)
+                                                 ? periodicCheckExecutor.scheduleWithFixedDelay(this::pullUnreceivedSchemaVersions, interval, interval, TimeUnit.MILLISECONDS)
                                                  : curTask);
     }
 
@@ -647,7 +650,7 @@ public class MigrationCoordinator
     {
         if (!gossiper.isAlive(endpoint))
         {
-            logger.warn("Can't send schema pull request: node {} is down.", endpoint);
+            noSpamLogger.warn("Can't send schema pull request: node {} is down.", endpoint);
             callback.onFailure(endpoint, RequestFailureReason.UNKNOWN);
             return;
         }

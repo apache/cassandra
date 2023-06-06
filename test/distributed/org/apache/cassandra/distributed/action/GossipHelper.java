@@ -32,6 +32,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -70,6 +71,18 @@ public class GossipHelper
                               Arrays.asList(tokens(newNode),
                                             statusBootstrapping(newNode),
                                             statusWithPortBootstrapping(newNode)));
+        };
+    }
+
+    public static InstanceAction statusToDecommission(IInvokableInstance newNode)
+    {
+        return (instance) ->
+        {
+            changeGossipState(instance,
+                              newNode,
+                              Arrays.asList(tokens(newNode),
+                                            statusLeaving(newNode),
+                                            statusWithPortLeaving(newNode)));
         };
     }
 
@@ -455,25 +468,24 @@ public class GossipHelper
         return netVersion;
     }
 
-    public static void withProperty(String prop, boolean value, Runnable r)
+    public static void withProperty(CassandraRelevantProperties prop, boolean value, Runnable r)
     {
         withProperty(prop, Boolean.toString(value), r);
     }
 
-    public static void withProperty(String prop, String value, Runnable r)
+    public static void withProperty(CassandraRelevantProperties prop, String value, Runnable r)
     {
-        String before = System.getProperty(prop);
+        String prev = prop.setString(value);
         try
         {
-            System.setProperty(prop, value);
             r.run();
         }
         finally
         {
-            if (before == null)
-                System.clearProperty(prop);
+            if (prev == null)
+                prop.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
             else
-                System.setProperty(prop, before);
+                prop.setString(prev);
         }
     }
 }

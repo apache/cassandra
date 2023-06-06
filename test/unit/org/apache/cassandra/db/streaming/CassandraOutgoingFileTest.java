@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -132,13 +133,17 @@ public class CassandraOutgoingFileTest
         int count = 0;
         DecoratedKey key;
 
-        try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
+        try (KeyIterator iter = sstable.keyIterator())
         {
             do
             {
                 key = iter.next();
                 count++;
             } while (iter.hasNext() && count < i);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
         return key;
     }

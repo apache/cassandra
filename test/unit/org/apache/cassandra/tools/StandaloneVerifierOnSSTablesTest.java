@@ -29,12 +29,16 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.io.sstable.VerifyTest;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableVerifier;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -42,28 +46,31 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 
 /**
  * Class that tests tables for {@link StandaloneVerifier} by updating using {@link SchemaLoader}
  * Similar in vein to other {@link SchemaLoader} type tests, as well as {@link StandaloneUpgraderOnSStablesTest}.
- * Since the tool mainly exercises the {@link org.apache.cassandra.db.compaction.Verifier}, we elect to
- * not run every conceivable option as many tests are already covered by {@link org.apache.cassandra.db.VerifyTest}.
+ * Since the tool mainly exercises the {@link BigTableVerifier}, we elect to
+ * not run every conceivable option as many tests are already covered by {@link VerifyTest}.
  * 
  * Note: the complete coverage is composed of:
  * - {@link StandaloneVerifierOnSSTablesTest}
  * - {@link StandaloneVerifierTest}
- * - {@link org.apache.cassandra.db.VerifyTest}
+ * - {@link VerifyTest}
  */
 public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 {
+    static WithProperties properties;
+
     @BeforeClass
     public static void setup()
     {
         // since legacy tables test data uses ByteOrderedPartitioner that's what we need
         // for the check version to work
-        System.setProperty("cassandra.partitioner", "org.apache.cassandra.dht.ByteOrderedPartitioner");
-        System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing`
+        CassandraRelevantProperties.PARTITIONER.setString("org.apache.cassandra.dht.ByteOrderedPartitioner");
+        properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true);
         SchemaLoader.loadSchema();
         StorageService.instance.initServer();
     }
@@ -72,7 +79,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     public static void teardown() throws Exception
     {
         SchemaLoader.cleanupAndLeaveDirs();
-        System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+        properties.close();
     }
 
     @Test
@@ -129,7 +136,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
         String corruptStatsTable = "corruptStatsTable";
         createAndPopulateTable(keyspaceName, corruptStatsTable, cfs -> {
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-            try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.STATS), "rw"))
+            try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.fileFor(Components.STATS).toJavaIOFile(), "rw"))
             {
                 file.seek(0);
                 file.writeBytes(StringUtils.repeat('z', 2));
@@ -150,8 +157,8 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 
         createAndPopulateTable(keyspaceName, corruptDataTable, cfs -> {
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
-            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
+            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ);
+            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ);
             long startPosition = Math.min(row0Start, row1Start);
 
             try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))

@@ -22,14 +22,14 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.text.StrBuilder;
+
+import org.apache.cassandra.cql3.functions.FunctionResolver;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -57,28 +57,26 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             FunctionName name = new FunctionName(in.readUTF(), in.readUTF());
 
-            int numberOfArguments = (int) in.readUnsignedVInt();
+            int numberOfArguments = in.readUnsignedVInt32();
             List<AbstractType<?>> argTypes = new ArrayList<>(numberOfArguments);
             for (int i = 0; i < numberOfArguments; i++)
             {
                 argTypes.add(readType(metadata, in));
             }
 
-            Optional<Function> optional = Schema.instance.findFunction(name, argTypes);
+            Function function = FunctionResolver.get(metadata.keyspace, name, argTypes, metadata.keyspace, metadata.name, null);
 
-            if (!optional.isPresent())
+            if (function == null)
                 throw new IOException(String.format("Unknown serialized function %s(%s)",
                                                     name,
                                                     argTypes.stream()
                                                             .map(p -> p.asCQL3Type().toString())
                                                             .collect(joining(", "))));
 
-            Function function = optional.get();
-
             boolean isPartial = in.readBoolean();
             if (isPartial)
             {
-                int bitset = (int) in.readUnsignedVInt();
+                int bitset = in.readUnsignedVInt32();
                 List<ByteBuffer> partialParameters = new ArrayList<>(numberOfArguments);
                 for (int i = 0; i < numberOfArguments; i++)
                 {
@@ -91,7 +89,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 function = ((ScalarFunction) function).partialApplication(ProtocolVersion.CURRENT, partialParameters);
             }
 
-            int numberOfRemainingArguments = (int) in.readUnsignedVInt();
+            int numberOfRemainingArguments = in.readUnsignedVInt32();
             List<Selector> argSelectors = new ArrayList<>(numberOfRemainingArguments);
             for (int i = 0; i < numberOfRemainingArguments; i++)
             {
@@ -102,8 +100,8 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         }
 
         protected abstract Selector newFunctionSelector(Function function, List<Selector> argSelectors);
-    };
-    
+    }
+
     protected final T fun;
 
     /**
@@ -346,7 +344,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
         List<AbstractType<?>> argTypes = function.argTypes();
         int numberOfArguments = argTypes.size();
-        out.writeUnsignedVInt(numberOfArguments);
+        out.writeUnsignedVInt32(numberOfArguments);
 
         for (int i = 0; i < numberOfArguments; i++)
             writeType(out, argTypes.get(i));
@@ -358,7 +356,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             List<ByteBuffer> partialParameters = ((PartialScalarFunction) fun).getPartialParameters();
 
             // We use a bitset to track the position of the unresolved arguments
-            out.writeUnsignedVInt(computeBitSet(partialParameters));
+            out.writeUnsignedVInt32(computeBitSet(partialParameters));
 
             for (int i = 0, m = partialParameters.size(); i < m; i++)
             {
@@ -369,7 +367,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         }
 
         int numberOfRemainingArguments = argSelectors.size();
-        out.writeUnsignedVInt(numberOfRemainingArguments);
+        out.writeUnsignedVInt32(numberOfRemainingArguments);
         for (int i = 0; i < numberOfRemainingArguments; i++)
             serializer.serialize(argSelectors.get(i), out, version);
     }

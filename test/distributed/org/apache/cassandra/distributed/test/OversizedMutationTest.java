@@ -36,7 +36,7 @@ public class OversizedMutationTest extends TestBaseImpl
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (key int PRIMARY KEY, val blob)"));
             String payload = StringUtils.repeat('1', 1024 * 49);
-            String query = "INSERT INTO %s.t (key, val) VALUES (1, textAsBlob('" + payload + "'))";
+            String query = "INSERT INTO %s.t (key, val) VALUES (1, text_as_blob('" + payload + "'))";
             Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(withKeyspace(query), ALL))
                       .hasMessageContaining("Rejected an oversized mutation (")
                       .hasMessageContaining("/49152) for keyspace: distributed_test_keyspace. Top keys are: t.1");
@@ -53,8 +53,8 @@ public class OversizedMutationTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE TABLE ks1.t (key int PRIMARY KEY, val blob)"));
             String payload = StringUtils.repeat('1', 1024 * 48);
             String query = "BEGIN BATCH\n" +
-                           "INSERT INTO ks1.t (key, val) VALUES (1, textAsBlob('" + payload + "'))\n" +
-                           "INSERT INTO ks1.t (key, val) VALUES (2, textAsBlob('222'))\n" +
+                           "INSERT INTO ks1.t (key, val) VALUES (1, text_as_blob('" + payload + "'))\n" +
+                           "INSERT INTO ks1.t (key, val) VALUES (2, text_as_blob('222'))\n" +
                            "APPLY BATCH";
             Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(withKeyspace(query), ALL))
                       .hasMessageContaining("Rejected an oversized mutation (")

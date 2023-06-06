@@ -37,7 +37,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosRequestCallback.class);
-    private static final boolean USE_SELF_EXECUTION = CassandraRelevantProperties.PAXOS_EXECUTE_ON_SELF.getBoolean();
+    private static final boolean USE_SELF_EXECUTION = CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.getBoolean();
 
     protected abstract void onResponse(T response, InetAddressAndPort from);
 

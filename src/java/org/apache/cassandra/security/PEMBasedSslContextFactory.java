@@ -20,7 +20,6 @@ package org.apache.cassandra.security;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -109,11 +108,6 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
         {
             final String msg = String.format("'%skeystore_password' and '%skey_password' both configurations are given and the values do not match", keyName, keyName);
             throw new IllegalArgumentException(msg);
-        }
-        else
-        {
-            logger.warn("'{}keystore_password' and '{}key_password' both are configured but since the values match it's " +
-                        "okay. Ideally you should only specify one of them.", keyName, keyName);
         }
     }
 
@@ -306,7 +300,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
     private String readPEMFile(String file) throws IOException
     {
-        return new String(Files.readAllBytes(Paths.get(file)));
+        return new String(Files.readAllBytes(File.getPath(file)));
     }
 
     /**

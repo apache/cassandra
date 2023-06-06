@@ -76,8 +76,9 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
-            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
+            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
             String filename = writer.getFilename();
+            String sectionName = filename + '-' + fileSeqNum;
             int sectionIdx = 0;
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
@@ -89,11 +90,15 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 cis.position(section.lowerPosition);
                 in.reset(0);
 
+                long lastBytesRead = 0;
                 while (in.getBytesRead() < sectionLength)
                 {
                     writePartition(deserializer, writer);
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
-                    session.progress(filename + '-' + fileSeqNum, ProgressInfo.Direction.IN, cis.chunkBytesRead(), totalSize);
+                    long bytesRead = cis.chunkBytesRead();
+                    long bytesDelta = bytesRead - lastBytesRead;
+                    lastBytesRead = bytesRead;
+                    session.progress(sectionName, ProgressInfo.Direction.IN, bytesRead, bytesDelta, totalSize);
                 }
                 assert in.getBytesRead() == sectionLength;
             }

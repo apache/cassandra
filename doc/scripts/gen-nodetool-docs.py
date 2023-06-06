@@ -24,6 +24,10 @@ import sys
 import subprocess
 from subprocess import PIPE
 from subprocess import Popen
+from itertools import islice
+from threading import Thread
+
+batch_size = 3
 
 if(os.environ.get("SKIP_NODETOOL") == "1"):
     sys.exit(0)
@@ -35,6 +39,18 @@ examplesdir = "modules/cassandra/examples/TEXT/NODETOOL"
 helpfilename = outdir + "/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
 commandADOCContent = "== {0}\n\n== Usage\n[source,plaintext]\n----\ninclude::example$TEXT/NODETOOL/{0}.txt[]\n----\n"
+
+# https://docs.python.org/3/library/itertools.html#itertools-recipes
+def batched(iterable, n):
+    "Batch data into tuples of length n. The last batch may be shorter."
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    if n < 1:
+        raise ValueError('n must be at least one')
+    it = iter(iterable)
+    batch = tuple(islice(it, n))
+    while (batch):
+        yield batch
+        batch = tuple(islice(it, n))
 
 # create the documentation directory
 if not os.path.exists(outdir):
@@ -78,6 +94,12 @@ with open(outdir + "/nodetool.adoc", "w+") as output:
 
 # create the command usage pages
 with open(helpfilename, "r+") as helpfile:
-    for commandLine in helpfile:
-        command = command_re.match(commandLine)
-        create_adoc(command)
+    for clis in batched(helpfile, batch_size):
+        threads = []
+        for commandLine in clis:
+            command = command_re.match(commandLine)
+            t = Thread(target=create_adoc, args=[command])
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()

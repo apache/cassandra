@@ -32,20 +32,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_NETTY_USE_HEAP_ALLOCATOR;
 
 /**
  * ByteBuf utility methods.
@@ -56,7 +57,7 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public abstract class CBUtil
 {
-    public static final boolean USE_HEAP_ALLOCATOR = Boolean.getBoolean(Config.PROPERTY_PREFIX + "netty_use_heap_allocator");
+    public static final boolean USE_HEAP_ALLOCATOR = CASSANDRA_NETTY_USE_HEAP_ALLOCATOR.getBoolean();
     public static final ByteBufAllocator allocator = USE_HEAP_ALLOCATOR ? new UnpooledByteBufAllocator(false) : new PooledByteBufAllocator(true);
     private static final int UUID_SIZE = 16;
 
@@ -66,6 +67,15 @@ public abstract class CBUtil
         protected CharsetDecoder initialValue()
         {
             return StandardCharsets.UTF_8.newDecoder();
+        }
+    };
+
+    private final static FastThreadLocal<ByteBuffer> localDirectBuffer = new FastThreadLocal<ByteBuffer>()
+    {
+        @Override
+        protected ByteBuffer initialValue()
+        {
+            return MemoryUtil.getHollowDirectByteBuffer();
         }
     };
 
@@ -478,7 +488,35 @@ public abstract class CBUtil
         cb.writeInt(remaining);
 
         if (remaining > 0)
-            cb.writeBytes(bytes.duplicate());
+            addBytes(bytes, cb);
+    }
+
+    public static void addBytes(ByteBuffer src, ByteBuf dest)
+    {
+        if (src.remaining() == 0)
+            return;
+
+        int length = src.remaining();
+
+        if (src.hasArray())
+        {
+            // Heap buffers are copied using a raw array instead of shared heap buffer and MemoryUtil.unsafe to avoid a CMS bug, which causes the JVM to crash with the follwing:
+            // # Problematic frame:
+            // # V  [libjvm.dylib+0x63e858]  void ParScanClosure::do_oop_work<unsigned int>(unsigned int*, bool, bool)+0x94
+            // More details can be found here: https://bugs.openjdk.org/browse/JDK-8222798
+            byte[] array = src.array();
+            dest.writeBytes(array, src.arrayOffset() + src.position(), length);
+        }
+        else if (src.isDirect())
+        {
+            ByteBuffer local = getLocalDirectBuffer();
+            MemoryUtil.duplicateDirectByteBuffer(src, local);
+            dest.writeBytes(local);
+        }
+        else
+        {
+            dest.writeBytes(src.duplicate());
+        }
     }
 
     public static int sizeOfValue(byte[] bytes)
@@ -614,4 +652,8 @@ public abstract class CBUtil
         return bytes;
     }
 
+    private static ByteBuffer getLocalDirectBuffer()
+    {
+        return localDirectBuffer.get();
+    }
 }

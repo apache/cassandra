@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -130,8 +129,8 @@ public class PagingState
         DataOutputBuffer out = new DataOutputBufferFixed(modernSerializedSize());
         writeWithVIntLength(null == partitionKey ? EMPTY_BYTE_BUFFER : partitionKey, out);
         writeWithVIntLength(null == rowMark ? EMPTY_BYTE_BUFFER : rowMark.mark, out);
-        out.writeUnsignedVInt(remaining);
-        out.writeUnsignedVInt(remainingInPartition);
+        out.writeUnsignedVInt32(remaining);
+        out.writeUnsignedVInt32(remainingInPartition);
         return out.buffer(false);
     }
 
@@ -207,8 +206,8 @@ public class PagingState
 
         ByteBuffer partitionKey = readWithVIntLength(in);
         ByteBuffer rawMark = readWithVIntLength(in);
-        int remaining = Ints.checkedCast(in.readUnsignedVInt());
-        int remainingInPartition = Ints.checkedCast(in.readUnsignedVInt());
+        int remaining = in.readUnsignedVInt32();
+        int remainingInPartition = in.readUnsignedVInt32();
 
         return new PagingState(partitionKey.hasRemaining() ? partitionKey : null,
                                rawMark.hasRemaining() ? new RowMark(rawMark, protocolVersion) : null,
@@ -421,6 +420,10 @@ public class PagingState
         // Old (pre-3.0) encoding of cells. We need that for the protocol v3 as that is how things where encoded
         private static ByteBuffer encodeCellName(TableMetadata metadata, Clustering<?> clustering, ByteBuffer columnName, ByteBuffer collectionElement)
         {
+            // v30 and v3X don't use composites for single-element clusterings in compact tables
+            if (metadata.isCompactTable() && metadata.comparator.size() == 1)
+                return clustering.bufferAt(0);
+
             boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
 
             // We use comparator.size() rather than clustering.size() because of static clusterings
@@ -456,6 +459,10 @@ public class PagingState
             int csize = metadata.comparator.size();
             if (csize == 0)
                 return Clustering.EMPTY;
+
+            // v30 and v3X don't use composites for single-element clusterings in compact tables
+            if (metadata.isCompactTable() && metadata.comparator.size() == 1)
+                return Clustering.make(value);
 
             if (CompositeType.isStaticName(value, ByteBufferAccessor.instance))
                 return Clustering.STATIC_CLUSTERING;

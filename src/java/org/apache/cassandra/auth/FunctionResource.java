@@ -29,13 +29,14 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.SchemaConstants;
 
 /**
  * IResource implementation representing functions.
@@ -135,7 +136,7 @@ public class FunctionResource implements IResource
         return new FunctionResource(keyspace, name, argTypes);
     }
 
-    public static FunctionResource function(Function function)
+    public static FunctionResource function(UserFunction function)
     {
         return new FunctionResource(function.name().keyspace, function.name().name, function.argTypes());
     }
@@ -170,15 +171,23 @@ public class FunctionResource implements IResource
 
     /**
      * Parses a resource name into a FunctionResource instance.
+     * A valid resource name for function should be in the follow format:
+     * functions/KEYSPACE/FUNCTION_NAME[FUNCTION_ARGS]
+     * Note that
+     * 1. FUNCTION_NAME could contain any character due to the use of quoted text in CQL.
+     * 2. FUNCTION_ARGS could be empty. If it is not empty, it is expressed in this format:
+     *    FUNCTION_ARG1^FUNCTION_ARG2... where ^ is the delimiter for arguments
      *
      * @param name Name of the function resource.
      * @return FunctionResource instance matching the name.
      */
     public static FunctionResource fromName(String name)
     {
-        String[] parts = StringUtils.split(name, '/');
+        // Split the name into at most 3 parts.
+        // The last part is the function name + args list, the name might contains '/'
+        String[] parts = StringUtils.split(name, "/", 3);
 
-        if (!parts[0].equals(ROOT_NAME) || parts.length > 3)
+        if (!parts[0].equals(ROOT_NAME))
             throw new IllegalArgumentException(String.format("%s is not a valid function resource name", name));
 
         if (parts.length == 1)
@@ -189,8 +198,17 @@ public class FunctionResource implements IResource
 
         if (!name.matches("^.+\\[.*\\]$"))
             throw new IllegalArgumentException(String.format("%s is not a valid function resource name. It must end with \"[]\"", name));
-        String[] nameAndArgs = StringUtils.split(parts[2], "[|]");
-        return function(parts[1], nameAndArgs[0], nameAndArgs.length > 1 ? argsListFromString(nameAndArgs[1]) : Collections.emptyList());
+
+        String function = parts[2];
+        // The name must end with '[...]' block
+        int lastStartingBracketIndex = function.lastIndexOf('[');
+        String functionName = StringUtils.substring(function, 0, lastStartingBracketIndex);
+        String functionArgs = StringUtils.substring(function,
+                                                    // excludes the wrapping brackets [ ]
+                                                    lastStartingBracketIndex + 1,
+                                                    function.length() - 1);
+
+        return function(parts[1], functionName, functionArgs.isEmpty() ? Collections.emptyList() : argsListFromString(functionArgs));
     }
 
     /**
@@ -254,6 +272,7 @@ public class FunctionResource implements IResource
 
     public boolean exists()
     {
+        validate();
         switch (level)
         {
             case ROOT:
@@ -261,13 +280,14 @@ public class FunctionResource implements IResource
             case KEYSPACE:
                 return Schema.instance.getKeyspaces().contains(keyspace);
             case FUNCTION:
-                return Schema.instance.findFunction(getFunctionName(), argTypes).isPresent();
+                return Schema.instance.findUserFunction(getFunctionName(), argTypes).isPresent();
         }
         throw new AssertionError();
     }
 
     public Set<Permission> applicablePermissions()
     {
+        validate();
         switch (level)
         {
             case ROOT:
@@ -275,12 +295,18 @@ public class FunctionResource implements IResource
                 return COLLECTION_LEVEL_PERMISSIONS;
             case FUNCTION:
             {
-                Optional<Function> function = Schema.instance.findFunction(getFunctionName(), argTypes);
+                Optional<UserFunction> function = Schema.instance.findUserFunction(getFunctionName(), argTypes);
                 assert function.isPresent() : "Unable to find function object for resource " + toString();
                 return function.get().isAggregate() ? AGGREGATE_FUNCTION_PERMISSIONS : SCALAR_FUNCTION_PERMISSIONS;
             }
         }
         throw new AssertionError();
+    }
+
+    private void validate()
+    {
+        if (SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspace))
+            throw new InvalidRequestException("Altering permissions on builtin functions is not supported");
     }
 
     public int compareTo(FunctionResource o)

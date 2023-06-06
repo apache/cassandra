@@ -20,7 +20,6 @@ package org.apache.cassandra.security;
 
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.cert.X509Certificate;
@@ -125,21 +124,51 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
     }
 
     /**
+     * Validates the given keystore password.
+     *
+     * @param isOutboundKeystore {@code true} for the {@code outbound_keystore_password};{@code false} otherwise
+     * @param password           value
+     * @throws IllegalArgumentException if the {@code password} is empty as per the definition of {@link StringUtils#isEmpty(CharSequence)}
+     */
+    protected void validatePassword(boolean isOutboundKeystore, String password)
+    {
+        boolean keystorePasswordEmpty = StringUtils.isEmpty(password);
+        if (keystorePasswordEmpty)
+        {
+            String keyName = isOutboundKeystore ? "outbound_" : "";
+            final String msg = String.format("'%skeystore_password' must be specified", keyName);
+            throw new IllegalArgumentException(msg);
+        }
+    }
+
+    /**
      * Builds required KeyManagerFactory from the file based keystore. It also checks for the PrivateKey's certificate's
      * expiry and logs {@code warning} for each expired PrivateKey's certitificate.
      *
      * @return KeyManagerFactory built from the file based keystore.
      * @throws SSLException if any issues encountered during the build process
+     * @throws IllegalArgumentException if the validation for the {@code keystore_password} fails
+     * @see #validatePassword(boolean, String)
      */
     @Override
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
+        /*
+         * Validation of the password is delayed until this point to allow nullable keystore passwords
+         * for other use-cases (CASSANDRA-18124).
+         */
+        validatePassword(false, keystoreContext.password);
         return getKeyManagerFactory(keystoreContext);
     }
 
     @Override
     protected KeyManagerFactory buildOutboundKeyManagerFactory() throws SSLException
     {
+        /*
+         * Validation of the password is delayed until this point to allow nullable keystore passwords
+         * for other use-cases (CASSANDRA-18124).
+         */
+        validatePassword(true, outboundKeystoreContext.password);
         return getKeyManagerFactory(outboundKeystoreContext);
     }
 
@@ -152,12 +181,14 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
     @Override
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
-        try (InputStream tsf = Files.newInputStream(Paths.get(trustStoreContext.filePath)))
+        try (InputStream tsf = Files.newInputStream(File.getPath(trustStoreContext.filePath)))
         {
             final String algorithm = this.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : this.algorithm;
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
             KeyStore ts = KeyStore.getInstance(store_type);
-            ts.load(tsf, trustStoreContext.password.toCharArray());
+
+            final char[] truststorePassword = StringUtils.isEmpty(trustStoreContext.password) ? null : trustStoreContext.password.toCharArray();
+            ts.load(tsf, truststorePassword);
             tmf.init(ts);
             return tmf;
         }
@@ -169,7 +200,7 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
 
     private KeyManagerFactory getKeyManagerFactory(final FileBasedStoreContext context) throws SSLException
     {
-        try (InputStream ksf = Files.newInputStream(Paths.get(context.filePath)))
+        try (InputStream ksf = Files.newInputStream(File.getPath(context.filePath)))
         {
             final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);

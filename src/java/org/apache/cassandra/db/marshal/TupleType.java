@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -208,7 +209,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         {
             case LEGACY:
                 return asComparableBytesLegacy(accessor, data);
-            case OSS42:
+            case OSS50:
                 return asComparableBytesNew(accessor, data, version);
             default:
                 throw new AssertionError();
@@ -254,7 +255,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
     {
-        assert version == ByteComparable.Version.OSS42; // Reverse translation is not supported for the legacy version.
+        assert version == ByteComparable.Version.OSS50; // Reverse translation is not supported for the legacy version.
         if (comparableBytes == null)
             return accessor.empty();
 
@@ -423,13 +424,13 @@ public class TupleType extends AbstractType<ByteBuffer>
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(
                     "Expected a list representation of a tuple, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
-        List list = (List) parsed;
+        List<?> list = (List<?>) parsed;
 
         if (list.size() > types.size())
             throw new MarshalException(String.format("Tuple contains extra items (expected %s): %s", types.size(), parsed));
@@ -465,8 +466,8 @@ public class TupleType extends AbstractType<ByteBuffer>
             if (i > 0)
                 sb.append(", ");
 
-            ByteBuffer value = CollectionSerializer.readValue(duplicated, ByteBufferAccessor.instance, offset, protocolVersion);
-            offset += CollectionSerializer.sizeOfValue(value, ByteBufferAccessor.instance, protocolVersion);
+            ByteBuffer value = CollectionSerializer.readValue(duplicated, ByteBufferAccessor.instance, offset);
+            offset += CollectionSerializer.sizeOfValue(value, ByteBufferAccessor.instance);
             if (value == null)
                 sb.append("null");
             else
@@ -548,5 +549,18 @@ public class TupleType extends AbstractType<ByteBuffer>
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(types, true);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        ByteBuffer[] buffers = new ByteBuffer[types.size()];
+        for (int i = 0; i < types.size(); i++)
+        {
+            AbstractType<?> type = types.get(i);
+            buffers[i] = type.getMaskedValue();
+        }
+
+        return serializer.serialize(buildValue(buffers));
     }
 }

@@ -91,19 +91,17 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
-    public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
+    public static final Semver v50 = new Semver("5.0-alpha1", SemverType.LOOSE);
 
     protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
                                                                          .addEdge(v30, v3X)
                                                                          .addEdge(v30, v40)
                                                                          .addEdge(v30, v41)
-                                                                         .addEdge(v30, v42)
                                                                          .addEdge(v3X, v40)
                                                                          .addEdge(v3X, v41)
-                                                                         .addEdge(v3X, v42)
                                                                          .addEdge(v40, v41)
-                                                                         .addEdge(v40, v42)
-                                                                         .addEdge(v41, v42)
+                                                                         .addEdge(v40, v50)
+                                                                         .addEdge(v41, v50)
                                                                          .build();
 
     // the last is always the current
@@ -178,7 +176,9 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        /** performs all supported upgrade paths that exist in between from and CURRENT (inclusive) **/
+        /** performs all supported upgrade paths that exist in between from and end on CURRENT (inclusive)
+         * {@code upgradesToCurrentFrom(3.0); // produces: 3.0 -> CURRENT, 3.11 -> CURRENT, …}
+         **/
         public TestCase upgradesToCurrentFrom(Semver from)
         {
             return upgradesTo(from, CURRENT);
@@ -194,8 +194,8 @@ public class UpgradeTestBase extends DistributedTestBase
             NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
             for (Semver start : vertices.subSet(from, true, to, false))
             {
-                // only include pairs that are allowed
-                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
+                // only include pairs that are allowed, and start or end on CURRENT
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to) && contains(start, to, CURRENT))
                     upgrade.add(new TestVersions(versions.getLatest(start), Collections.singletonList(versions.getLatest(to))));
             }
             logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
@@ -213,8 +213,8 @@ public class UpgradeTestBase extends DistributedTestBase
             NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
             for (Semver end : vertices.subSet(from, false, to, true))
             {
-                // only include pairs that are allowed
-                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end))
+                // only include pairs that are allowed, and start or end on CURRENT
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end) && contains(from, end, CURRENT))
                     upgrade.add(new TestVersions(versions.getLatest(from), Collections.singletonList(versions.getLatest(end))));
             }
             logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
@@ -224,7 +224,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
         /**
          * performs all supported upgrade paths that exist in between from and to that include the current version.
-         * This call is equivilent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
+         * This call is equivalent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
          **/
         public TestCase upgrades(Semver from, Semver to)
         {

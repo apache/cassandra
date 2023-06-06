@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -33,7 +34,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra-old.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-old.yaml");
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -105,7 +106,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
         assertEquals(new DurationSpec.IntSecondsBound(604800), config.trace_type_repair_ttl);
         assertNull(config.prepared_statements_cache_size);
         assertTrue(config.user_defined_functions_enabled);
-        assertTrue(config.scripted_user_defined_functions_enabled);
+        assertFalse(config.scripted_user_defined_functions_enabled);
         assertTrue(config.materialized_views_enabled);
         assertFalse(config.transient_replication_enabled);
         assertTrue(config.sasi_indexes_enabled);

@@ -33,11 +33,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.NoSpamLogger;
 
-import static java.lang.System.getProperty;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MONITORING_MAX_OPERATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MONITORING_REPORT_INTERVAL_MS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
@@ -48,20 +49,20 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  */
 class MonitoringTask
 {
-    private static final String LINE_SEPARATOR = getProperty("line.separator");
+    private static final String LINE_SEPARATOR = CassandraRelevantProperties.LINE_SEPARATOR.getString();
     private static final Logger logger = LoggerFactory.getLogger(MonitoringTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5L, TimeUnit.MINUTES);
 
     /**
      * Defines the interval for reporting any operations that have timed out.
      */
-    private static final int REPORT_INTERVAL_MS = Math.max(0, Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "monitoring_report_interval_ms", "5000")));
+    private static final int REPORT_INTERVAL_MS = Math.max(0, MONITORING_REPORT_INTERVAL_MS.getInt());
 
     /**
      * Defines the maximum number of unique timed out queries that will be reported in the logs.
      * Use a negative number to remove any limit.
      */
-    private static final int MAX_OPERATIONS = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "monitoring_max_operations", "50"));
+    private static final int MAX_OPERATIONS = MONITORING_MAX_OPERATIONS.getInt();
 
     @VisibleForTesting
     static MonitoringTask instance = make(REPORT_INTERVAL_MS, MAX_OPERATIONS);

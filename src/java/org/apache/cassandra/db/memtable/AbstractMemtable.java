@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.partitions.Partition;
@@ -43,7 +45,7 @@ public abstract class AbstractMemtable implements Memtable
     // The smallest timestamp for all partitions stored in this memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
     // The smallest local deletion time for all partitions in this memtable
-    protected AtomicInteger minLocalDeletionTime = new AtomicInteger(Integer.MAX_VALUE);
+    protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -54,6 +56,14 @@ public abstract class AbstractMemtable implements Memtable
     {
         this.metadata = metadataRef;
         this.columnsCollector = new ColumnsCollector(metadata.get().regularAndStaticColumns());
+    }
+
+    @VisibleForTesting
+    public AbstractMemtable(TableMetadataRef metadataRef, long minTimestamp)
+    {
+        this.metadata = metadataRef;
+        this.columnsCollector = new ColumnsCollector(metadata.get().regularAndStaticColumns());
+        this.minTimestamp = new AtomicLong(minTimestamp);
     }
 
     public TableMetadata metadata()
@@ -68,10 +78,10 @@ public abstract class AbstractMemtable implements Memtable
 
     public long getMinTimestamp()
     {
-        return minTimestamp.get();
+        return minTimestamp.get() != EncodingStats.NO_STATS.minTimestamp ? minTimestamp.get() : NO_MIN_TIMESTAMP;
     }
 
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return minLocalDeletionTime.get();
     }

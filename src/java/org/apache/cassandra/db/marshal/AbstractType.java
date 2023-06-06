@@ -540,7 +540,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
             return accessor.read(in, length);
         else
         {
-            int l = (int)in.readUnsignedVInt();
+            int l = in.readUnsignedVInt32();
             if (l < 0)
                 throw new IOException("Corrupt (negative) value length encountered");
 
@@ -708,5 +708,19 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public final AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
         return testAssignment(receiver.type);
+    }
+
+    @Override
+    public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+    {
+        return this;
+    }
+
+    /**
+     * @return A fixed, serialized value to be used when the column is masked, to be returned instead of the real value.
+     */
+    public ByteBuffer getMaskedValue()
+    {
+        throw new UnsupportedOperationException("There isn't a defined masked value for type " + asCQL3Type());
     }
 }

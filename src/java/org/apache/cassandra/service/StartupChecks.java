@@ -26,7 +26,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -74,6 +73,7 @@ import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SigarLibrary;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
@@ -258,7 +258,7 @@ public class StartupChecks
                 logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
                 jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT.toString();
                 if (jmxPort == null)
-                    logger.error("cassandra.jmx.local.port missing from cassandra-env.sh, unable to start local JMX service.");
+                    logger.error(CASSANDRA_JMX_LOCAL_PORT.getKey() + " missing from cassandra-env.sh, unable to start local JMX service.");
             }
             else
             {
@@ -386,7 +386,7 @@ public class StartupChecks
             {
                 try
                 {
-                    Path p = Paths.get(dataDirectory);
+                    Path p = File.getPath(dataDirectory);
                     FileStore fs = Files.getFileStore(p);
 
                     String blockDirectory = fs.name();
@@ -455,7 +455,7 @@ public class StartupChecks
 
         private long getMaxMapCount()
         {
-            final Path path = Paths.get(MAX_MAP_COUNT_PATH);
+            final Path path = File.getPath(MAX_MAP_COUNT_PATH);
             try (final BufferedReader bufferedReader = Files.newBufferedReader(path))
             {
                 final String data = bufferedReader.readLine();
@@ -555,7 +555,7 @@ public class StartupChecks
 
                     try
                     {
-                        Descriptor desc = Descriptor.fromFilename(file);
+                        Descriptor desc = Descriptor.fromFileWithComponent(file, false).left;
                         if (!desc.isCompatible())
                             invalid.add(file.toString());
 
@@ -682,7 +682,7 @@ public class StartupChecks
                 logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
                                           "use startup check configuration in cassandra.yaml",
                                           CassandraRelevantProperties.IGNORE_DC.getKey()));
-                enabled = !Boolean.getBoolean(CassandraRelevantProperties.IGNORE_DC.getKey());
+                enabled = !CassandraRelevantProperties.IGNORE_DC.getBoolean();
             }
             if (enabled)
             {
@@ -719,7 +719,7 @@ public class StartupChecks
                 logger.warn(String.format("Cassandra system property flag %s is deprecated and you should " +
                                           "use startup check configuration in cassandra.yaml",
                                           CassandraRelevantProperties.IGNORE_RACK.getKey()));
-                enabled = !Boolean.getBoolean(CassandraRelevantProperties.IGNORE_RACK.getKey());
+                enabled = !CassandraRelevantProperties.IGNORE_RACK.getBoolean();
             }
             if (enabled)
             {
@@ -772,7 +772,7 @@ public class StartupChecks
                 String deviceName = blockDirComponents[2].replaceAll("[0-9]*$", "");
                 if (StringUtils.isNotEmpty(deviceName))
                 {
-                    readAheadKBPath = Paths.get(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
+                    readAheadKBPath = File.getPath(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
                 }
             }
         }

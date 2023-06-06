@@ -103,6 +103,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getReleaseVersion();
 
     /**
+     * Fetch a string representation of the Cassandra git SHA.
+     * @return A string representation of the Cassandra git SHA.
+     */
+    public String getGitSHA();
+
+    /**
      * Fetch a string representation of the current Schema version.
      * @return A string representation of the Schema version.
      */
@@ -359,6 +365,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Forces compaction for a list of partition keys on a table.
+     * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
+     * in order to purge the tombstones and free up space quicker.
+     */
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Trigger a cleanup of keys on a single keyspace
      */
     @Deprecated
@@ -372,11 +385,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
      */
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+    default int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, true, keyspaceName, tableNames);
+    }
+
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, checkData, 0, keyspaceName, tableNames);
+    }
+
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, checkData, false, jobs, keyspaceName, columnFamilies);
+    }
 
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
@@ -769,8 +793,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
      * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+     * @param specificSources list of sources that can be used for rebuilding. Must be other nodes in the cluster.
+     *                        The format of the string is comma separated values.
      */
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
+
+    /**
+    * Same as {@link #rebuild(String)}, but only for specified keyspace and ranges. It excludes local data center nodes
+    *
+    * @param sourceDc Name of DC from which to select sources for streaming or null to pick any node
+    * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
+    * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
+    *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+    * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
+    * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as sources for streaming.
+    */
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes);
 
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);
@@ -892,10 +930,16 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the number of rows cached at the coordinator before filtering/index queries fail outright. */
     public void setCachedReplicaRowsFailThreshold(int threshold);
 
-    /** Returns the granularity of the collation index of rows within a partition **/
+    /**
+     * Returns the granularity of the collation index of rows within a partition.
+     * -1 stands for the SSTable format's default.
+     **/
     public int getColumnIndexSizeInKiB();
 
-    /** Sets the granularity of the collation index of rows within a partition **/
+    /**
+     * Sets the granularity of the collation index of rows within a partition.
+     * Use -1 to select the SSTable format's default.
+     **/
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
 
     /**
@@ -1071,8 +1115,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     void setKeyspaceCountWarnThreshold(int value);
 
-    public void setCompactionTombstoneWarningThreshold(int count);
-    public int getCompactionTombstoneWarningThreshold();
+    @Deprecated
+    void setCompactionTombstoneWarningThreshold(int count);
+    @Deprecated
+    int getCompactionTombstoneWarningThreshold();
 
     public boolean getReadThresholdsEnabled();
     public void setReadThresholdsEnabled(boolean value);

@@ -51,6 +51,14 @@ public interface SingleRestriction extends Restriction
         return false;
     }
 
+    /**
+     * @return <code>true</code> if this restriction is based on equality comparison rather than a range or negation
+     */
+    default boolean isEqualityBased()
+    {
+        return isEQ() || isIN() || isContains();
+    }
+
     public default boolean isNotNull()
     {
         return false;

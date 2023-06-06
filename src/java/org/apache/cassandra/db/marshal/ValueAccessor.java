@@ -65,7 +65,7 @@ public interface ValueAccessor<V>
      */
     public interface ObjectFactory<V>
     {
-        Cell<V> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, V value, CellPath path);
+        Cell<V> cell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, V value, CellPath path);
         Clustering<V> clustering(V... values);
         Clustering<V> clustering();
         Clustering<V> staticClustering();
@@ -162,7 +162,7 @@ public interface ValueAccessor<V>
 
     default void writeWithVIntLength(V value, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(size(value));
+        out.writeUnsignedVInt32(size(value));
         write(value, out);
     }
 

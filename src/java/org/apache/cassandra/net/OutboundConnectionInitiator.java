@@ -147,7 +147,8 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         {
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
-            return ImmediateFuture.failure(new IOException("authentication failed to " + settings.connectToId()));
+            logger.error("Authentication failed to " + settings.connectToId());
+            return ImmediateFuture.failure(new IOException("Authentication failed to " + settings.connectToId()));
         }
 
 
@@ -281,7 +282,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             {
                 // interrupt other connections, so they must attempt to re-authenticate
                 MessagingService.instance().interruptOutbound(settings.to);
-                logger.error("authentication failed to " + settings.connectToId());
+                logger.error("Authentication failed to " + settings.connectToId());
 
                 // To release all the pending buffered data, replace authentication handler with discard handler.
                 // This avoids pending inbound data to be fired through the pipeline

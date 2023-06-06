@@ -91,9 +91,10 @@ ALTER TABLE ... WITH memtable = 'default';
 ```
 
 The memtable configuration selection is per table, i.e. it will be propagated to all nodes in the cluster. If some nodes
-do not have a definition for that configuration, cannot instantiate the class, or are still on a version of Cassandra
-before 4.1, they will reject the schema change. We therefore recommend using a separate `ALTER` statement to change a
-table's memtable implementation; upgrading all nodes to 4.1 or later is required to use the API.
+do not have a definition for that configuration or cannot instantiate the class, they will log an error and fall 
+back to the default memtable configuration to avoid schema disagreements. However, if some nodes are still on a version 
+of Cassandra before 4.1, they will reject the schema change. We therefore recommend using a separate `ALTER` statement 
+to change a table's memtable implementation; upgrading all nodes to 4.1 or later is required to use the API.
 
 As additional safety when first deploying an alternative implementation to a production cluster, one may consider
 first deploying a remapped `default` configuration to all nodes in the cluster, switching the schema to reference

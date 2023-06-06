@@ -17,15 +17,15 @@
  */
 package org.apache.cassandra.serializers;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public final class DurationSerializer extends TypeSerializer<Duration>
 {
@@ -65,8 +65,8 @@ public final class DurationSerializer extends TypeSerializer<Duration>
 
         try (DataInputBuffer in = new DataInputBuffer(accessor.toBuffer(value), true))  // TODO: make a value input buffer
         {
-            int months = (int) in.readVInt();
-            int days = (int) in.readVInt();
+            int months = in.readVInt32();
+            int days = in.readVInt32();
             long nanoseconds = in.readVInt();
             return Duration.newInstance(months, days, nanoseconds);
         }

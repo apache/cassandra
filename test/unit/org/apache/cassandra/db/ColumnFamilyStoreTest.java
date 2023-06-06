@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
@@ -44,14 +45,27 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.memtable.AbstractMemtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.ScrubTest;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -65,6 +79,8 @@ import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.OpOrder.Barrier;
+import org.apache.cassandra.utils.concurrent.OpOrder.Group;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -108,6 +124,13 @@ public class ColumnFamilyStoreTest
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1).truncateBlocking();
         Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
+    }
+
+    @Test
+    public void testMemtableTimestamp() throws Throwable
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        assertEquals(Memtable.NO_MIN_TIMESTAMP, fakeMemTableWithMinTS(cfs, EncodingStats.NO_STATS.minTimestamp).getMinTimestamp());
     }
 
     @Test
@@ -326,9 +349,9 @@ public class ColumnFamilyStoreTest
                                              KEYSPACE2,
                                              CF_STANDARD1,
                                              liveSSTable.descriptor.id,
-                                             liveSSTable.descriptor.formatType);
+                                             liveSSTable.descriptor.version.format);
             for (Component c : liveSSTable.getComponents())
-                assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
+                assertTrue("Cannot find backed-up file:" + desc.fileFor(c), desc.fileFor(c).exists());
         }
     }
 
@@ -557,8 +580,8 @@ public class ColumnFamilyStoreTest
 
         Set<String> originalFiles = new HashSet<>();
         Iterables.toList(cfs.concatWithIndexes()).stream()
-                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.filenameFor(Component.DATA)))
-                 .forEach(originalFiles::add);
+                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.fileFor(Components.DATA)))
+                 .forEach(e -> originalFiles.add(e.toString()));
         assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(indexTableFile))).isTrue();
         assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(baseTableFile))).isTrue();
     }
@@ -646,9 +669,9 @@ public class ColumnFamilyStoreTest
         assertEquals(1, ssTables.size());
         SSTableReader ssTable = ssTables.iterator().next();
 
-        String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
-        String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
-        new File(dataFileName).tryMove(new File(tmpDataFileName));
+        File dataFile = ssTable.descriptor.fileFor(Components.DATA);
+        File tmpDataFile = ssTable.descriptor.tmpFileFor(Components.DATA);
+        dataFile.tryMove(tmpDataFile);
 
         ssTable.selfRef().release();
 
@@ -672,5 +695,135 @@ public class ColumnFamilyStoreTest
         schemaAndManifestFileSizes += manifestFile.isPresent() ? manifestFile.get().length() : 0;
 
         return schemaAndManifestFileSizes;
+    }
+
+    private Memtable fakeMemTableWithMinTS(ColumnFamilyStore cfs, long minTS)
+    {
+        return new AbstractMemtable(cfs.metadata, minTS)
+        {
+
+            @Override
+            public long put(PartitionUpdate update, UpdateTransaction indexer, Group opGroup)
+            {
+                return 0;
+            }
+
+            @Override
+            public long partitionCount()
+            {
+                return 0;
+            }
+
+            @Override
+            public long getLiveDataSize()
+            {
+                return 0;
+            }
+
+            @Override
+            public void addMemoryUsageTo(MemoryUsage usage)
+            {
+            }
+
+            @Override
+            public void markExtraOnHeapUsed(long additionalSpace, Group opGroup)
+            {
+            }
+
+            @Override
+            public void markExtraOffHeapUsed(long additionalSpace, Group opGroup)
+            {
+            }
+
+            @Override
+            public FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to)
+            {
+                return null;
+            }
+
+            @Override
+            public void switchOut(Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
+            {
+            }
+
+            @Override
+            public void discard()
+            {
+            }
+
+            @Override
+            public boolean accepts(Group opGroup, CommitLogPosition commitLogPosition)
+            {
+                return false;
+            }
+
+            @Override
+            public CommitLogPosition getApproximateCommitLogLowerBound()
+            {
+                return null;
+            }
+
+            @Override
+            public CommitLogPosition getCommitLogLowerBound()
+            {
+                return null;
+            }
+
+            @Override
+            public LastCommitLogPosition getFinalCommitLogUpperBound()
+            {
+                return null;
+            }
+
+            @Override
+            public boolean mayContainDataBefore(CommitLogPosition position)
+            {
+                return false;
+            }
+
+            @Override
+            public boolean isClean()
+            {
+                return false;
+            }
+
+            @Override
+            public boolean shouldSwitch(FlushReason reason)
+            {
+                return false;
+            }
+
+            @Override
+            public void metadataUpdated()
+            {
+            }
+
+            @Override
+            public void localRangesUpdated()
+            {
+            }
+
+            @Override
+            public void performSnapshot(String snapshotName)
+            {
+            }
+
+            @Override
+            public UnfilteredRowIterator rowIterator(DecoratedKey key,
+                                                     Slices slices,
+                                                     ColumnFilter columnFilter,
+                                                     boolean reversed,
+                                                     SSTableReadsListener listener)
+            {
+                return null;
+            }
+
+            @Override
+            public UnfilteredPartitionIterator
+                   partitionIterator(ColumnFilter columnFilter, DataRange dataRange, SSTableReadsListener listener)
+            {
+                return null;
+            }
+        };
     }
 }

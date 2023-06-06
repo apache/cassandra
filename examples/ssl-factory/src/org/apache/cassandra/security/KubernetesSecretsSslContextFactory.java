@@ -149,12 +149,12 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
 
     public KubernetesSecretsSslContextFactory()
     {
-        keystore = getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE);
-        keystore_password = getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME,
-                                            DEFAULT_KEYSTORE_PASSWORD);
-        truststore = getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE);
-        truststore_password = getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME,
-                                              DEFAULT_TRUSTSTORE_PASSWORD);
+        keystoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE),
+                                                    getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_KEYSTORE_PASSWORD));
+
+        trustStoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE),
+                                                      getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_TRUSTSTORE_PASSWORD));
+
         keystoreLastUpdatedTime = System.nanoTime();
         keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
                                                      KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
@@ -166,12 +166,13 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
     public KubernetesSecretsSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        keystore = getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE);
-        keystore_password = getValueFromEnv(getString(ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR,
-                                                      KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD);
-        truststore = getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE);
-        truststore_password = getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
-                                                        TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD);
+        keystoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE),
+                                                    getValueFromEnv(getString(ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR,
+                                                                              KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD));
+
+        trustStoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE),
+                                                      getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
+                                                                                TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD));
         keystoreLastUpdatedTime = System.nanoTime();
         keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
                                                      KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);

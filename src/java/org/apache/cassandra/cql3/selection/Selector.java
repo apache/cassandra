@@ -306,6 +306,7 @@ public abstract class Selector
     {
         private final ProtocolVersion protocolVersion;
         private final List<ColumnMetadata> columns;
+        private final boolean unmask;
         private final boolean collectWritetimes;
         private final boolean collectTTLs;
 
@@ -314,18 +315,20 @@ public abstract class Selector
         private RowTimestamps ttls;
         private int index;
 
-        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns)
+        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns, boolean unmask)
         {
-            this(protocolVersion, columns, false, false);
+            this(protocolVersion, columns, unmask, false, false);
         }
 
         public InputRow(ProtocolVersion protocolVersion,
                         List<ColumnMetadata> columns,
+                        boolean unmask,
                         boolean collectWritetimes,
                         boolean collectTTLs)
         {
             this.protocolVersion = protocolVersion;
             this.columns = columns;
+            this.unmask = unmask;
             this.collectWritetimes = collectWritetimes;
             this.collectTTLs = collectTTLs;
 
@@ -347,6 +350,11 @@ public abstract class Selector
             return protocolVersion;
         }
 
+        public boolean unmask()
+        {
+            return unmask;
+        }
+
         public void add(ByteBuffer v)
         {
             values[index] = v;
@@ -359,7 +367,7 @@ public abstract class Selector
             index++;
         }
 
-        public void add(ColumnData columnData, int nowInSec)
+        public void add(ColumnData columnData, long nowInSec)
         {
             ColumnMetadata column = columns.get(index);
             if (columnData == null)
@@ -379,7 +387,7 @@ public abstract class Selector
             }
         }
 
-        private void add(Cell<?> c, int nowInSec)
+        private void add(Cell<?> c, long nowInSec)
         {
             values[index] = value(c);
             writetimes.addTimestamp(index, c, nowInSec);
@@ -387,12 +395,12 @@ public abstract class Selector
             index++;
         }
 
-        private void add(ComplexColumnData ccd, int nowInSec)
+        private void add(ComplexColumnData ccd, long nowInSec)
         {
             AbstractType<?> type = columns.get(index).type;
             if (type.isCollection())
             {
-                values[index] = ((CollectionType<?>) type).serializeForNativeProtocol(ccd.iterator(), protocolVersion);
+                values[index] = ((CollectionType<?>) type).serializeForNativeProtocol(ccd.iterator());
 
                 for (Cell<?> cell : ccd)
                 {

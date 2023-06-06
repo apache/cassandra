@@ -36,6 +36,8 @@ public class ShortType extends NumberType<Short>
 {
     public static final ShortType instance = new ShortType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose((short) 0);
+
     ShortType()
     {
         super(ComparisonType.CUSTOM);
@@ -149,5 +151,41 @@ public class ShortType extends NumberType<Short>
     public ByteBuffer negate(ByteBuffer input)
     {
         return ByteBufferUtil.bytes((short) -toShort(input));
+    }
+
+    @Override
+    public ByteBuffer abs(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((short) Math.abs(toShort(input)));
+    }
+
+    @Override
+    public ByteBuffer exp(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((short) Math.exp(toShort(input)));
+    }
+
+    @Override
+    public ByteBuffer log(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((short) Math.log(toShort(input)));
+    }
+
+    @Override
+    public ByteBuffer log10(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((short) Math.log10(toShort(input)));
+    }
+
+    @Override
+    public ByteBuffer round(ByteBuffer input)
+    {
+        return ByteBufferUtil.clone(input);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

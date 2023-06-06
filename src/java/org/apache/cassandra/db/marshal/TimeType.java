@@ -39,6 +39,8 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 public class TimeType extends TemporalType<Long>
 {
     public static final TimeType instance = new TimeType();
+
+    private static final ByteBuffer DEFAULT_MASKED_VALUE = instance.decompose(0L);
     private TimeType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -100,5 +102,11 @@ public class TimeType extends TemporalType<Long>
     public ByteBuffer now()
     {
         return decompose(LocalTime.now(ZoneOffset.UTC).toNanoOfDay());
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return DEFAULT_MASKED_VALUE;
     }
 }

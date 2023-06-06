@@ -30,8 +30,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.JsonUtils;
+import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 public class TableStatsTest extends CQLTester
 {
@@ -108,7 +111,8 @@ public class TableStatsTest extends CQLTester
                         "            off_heap_memory_used_total, pending_flushes, percent_repaired,\n" + 
                         "            read_latency, reads, space_used_by_snapshots_total, space_used_live,\n" + 
                         "            space_used_total, sstable_compression_ratio, sstable_count,\n" + 
-                        "            table_name, write_latency, writes)\n" + 
+                        "            table_name, write_latency, writes, max_sstable_size,\n" +
+                        "            local_read_write_ratio, twcs_max_duration)\n" +
                         "\n" + 
                         "        -t <top>, --top <top>\n" + 
                         "            Show only the top K tables for the sort key (specify the number K of\n" + 
@@ -134,12 +138,12 @@ public class TableStatsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
+        assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
 
         tool = ToolRunner.invokeNodetool("tablestats", "system_distributed");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_distributed");
+        assertThat(tool.getStdout()).contains("Keyspace: system_distributed");
         assertThat(tool.getStdout()).doesNotContain("Keyspace : system_schema");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
     }
@@ -149,7 +153,7 @@ public class TableStatsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-i", "system_schema.aggregates");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
+        assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(tool.getStdout()).doesNotContain("Table: system_schema.aggregates");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
     }
@@ -222,5 +226,31 @@ public class TableStatsTest extends CQLTester
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "system.local");
         tool.assertCleanStdErr();
         assertThat(tool.getStdout()).doesNotContain("SSTables in correct location: ");
+    }
+
+    @Test
+    public void testFormatJson()
+    {
+        Arrays.asList("-F", "--format").forEach(arg -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "json");
+            tool.assertOnCleanExit();
+            String json = tool.getStdout();
+            assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
+            assertThat(json).containsPattern("\"sstable_count\"\\s*:\\s*[0-9]+")
+                            .containsPattern("\"old_sstable_count\"\\s*:\\s*[0-9]+");
+        });
+    }
+
+    @Test
+    public void testFormatYaml()
+    {
+        Arrays.asList("-F", "--format").forEach(arg -> {
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "yaml");
+            tool.assertOnCleanExit();
+            String yaml = tool.getStdout();
+            assertThatCode(() -> new Yaml().load(yaml)).doesNotThrowAnyException();
+            assertThat(yaml).containsPattern("sstable_count:\\s*[0-9]+")
+                            .containsPattern("old_sstable_count:\\s*[0-9]+");
+        });
     }
 }

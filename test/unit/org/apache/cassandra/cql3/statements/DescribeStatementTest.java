@@ -39,12 +39,14 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SchemaConstants.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -711,17 +713,49 @@ public class DescribeStatementTest extends CQLTester
             executeDescribeNet(KEYSPACE_PER_TEST, "DROP MATERIALIZED VIEW " + table + "_view");
             execute("DROP TABLE " + KEYSPACE_PER_TEST + "." + table);
 
+            String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
+            String aggregationName = KEYSPACE_PER_TEST + ".\"aggregate\"";
+            createFunction(KEYSPACE_PER_TEST,
+                           "int, int",
+                           "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE java " +
+                           "AS 'return token + add_to;'");
+
+            createAggregate(KEYSPACE_PER_TEST,
+                            "int",
+                            format("CREATE AGGREGATE " + aggregationName + "(int) " +
+                                   "SFUNC %s " +
+                                   "STYPE int " +
+                                   "INITCOND 42",
+                                   shortFunctionName(aggregationFunctionName)));
+
+            String functionCreate = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE FUNCTION " + aggregationFunctionName).all().get(0).getString("create_statement");
+            String aggregateCreate = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE AGGREGATE " + aggregationName).all().get(0).getString("create_statement");
+
+            execute("DROP AGGREGATE " + aggregationName);
+            execute("DROP FUNCTION " + aggregationFunctionName);
+
             executeNet(output);
             executeNet(mvCreateView);
+            executeNet(functionCreate);
+            executeNet(aggregateCreate);
 
             String output2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TABLE " + table + withInternals).all().get(0).getString("create_statement");
             String mvCreateView2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE MATERIALIZED VIEW " + table + "_view").all().get(0).getString("create_statement");
+            String functionCreate2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE FUNCTION " + aggregationFunctionName).all().get(0).getString("create_statement");
+            String aggregateCreate2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE AGGREGATE " + aggregationName).all().get(0).getString("create_statement");
 
             assertEquals(output, output2);
             assertEquals(mvCreateView, mvCreateView2);
+            assertEquals(functionCreate, functionCreate2);
+            assertEquals(aggregateCreate, aggregateCreate2);
 
             execute("INSERT INTO " + KEYSPACE_PER_TEST + "." + table + " (key) VALUES (1)");
             executeDescribeNet(KEYSPACE_PER_TEST, "DROP MATERIALIZED VIEW " + table + "_view");
+            executeDescribeNet(KEYSPACE_PER_TEST, "DROP AGGREGATE " + aggregationName);
+            executeDescribeNet(KEYSPACE_PER_TEST, "DROP FUNCTION " + aggregationFunctionName);
         }
     }
 
@@ -755,6 +789,154 @@ public class DescribeStatementTest extends CQLTester
 
         assertRowsNet(executeDescribeNet("DESCRIBE INDEX " + KEYSPACE_PER_TEST + "." + indexWithOptions),
                       row(KEYSPACE_PER_TEST, "index", indexWithOptions, expectedIndexStmtWithOptions));
+    }
+
+    @Test
+    public void testDescribeTableWithColumnMasks() throws Throwable
+    {
+        requireNetwork();
+        DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
+
+        String table = createTable(KEYSPACE_PER_TEST,
+                                   "CREATE TABLE %s (" +
+                                   "  pk1 text, " +
+                                   "  pk2 int MASKED WITH DEFAULT, " +
+                                   "  ck1 int, " +
+                                   "  ck2 int MASKED WITH mask_default()," +
+                                   "  s1 decimal static, " +
+                                   "  s2 decimal static MASKED WITH mask_null(), " +
+                                   "  v1 text, " +
+                                   "  v2 text MASKED WITH mask_inner(1, null), " +
+                                   "PRIMARY KEY ((pk1, pk2), ck1, ck2 ))");
+
+        TableMetadata tableMetadata = Schema.instance.getTableMetadata(KEYSPACE_PER_TEST, table);
+        assertNotNull(tableMetadata);
+
+        String tableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
+                                      "    pk1 text,\n" +
+                                      "    pk2 int MASKED WITH system.mask_default(),\n" +
+                                      "    ck1 int,\n" +
+                                      "    ck2 int MASKED WITH system.mask_default(),\n" +
+                                      "    s1 decimal static,\n" +
+                                      "    s2 decimal static MASKED WITH system.mask_null(),\n" +
+                                      "    v1 text,\n" +
+                                      "    v2 text MASKED WITH system.mask_inner(1, null),\n" +
+                                      "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
+                                      ") WITH ID = " + tableMetadata.id + "\n" +
+                                      "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    AND " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE_PER_TEST,
+                          "table",
+                          table,
+                          tableCreateStatement));
+
+        // masks should be listed even if DDM is disabled
+        DatabaseDescriptor.setDynamicDataMaskingEnabled(false);
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE_PER_TEST,
+                          "table",
+                          table,
+                          tableCreateStatement));
+    }
+
+    @Test
+    public void testUsingReservedInCreateType() throws Throwable
+    {
+        String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (\"token\" text, \"desc\" text);");
+        assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TYPE " + type),
+                      row(KEYSPACE_PER_TEST, "type", type, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
+                                                           "    \"token\" text,\n" +
+                                                           "    \"desc\" text\n" +
+                                                           ");"));
+    }
+
+    @Test
+    public void testDescMaterializedViewShouldNotOmitQuotations() throws Throwable
+    {
+        try{
+            execute("CREATE KEYSPACE testWithKeywords WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+            execute("CREATE TABLE testWithKeywords.users_mv (username varchar, password varchar, gender varchar, session_token varchar, " +
+                    "state varchar, birth_year bigint, \"token\" text, PRIMARY KEY (\"token\"));");
+            execute("CREATE MATERIALIZED VIEW testWithKeywords.users_by_state AS SELECT * FROM testWithKeywords.users_mv " +
+                    "WHERE STATE IS NOT NULL AND \"token\" IS NOT NULL PRIMARY KEY (state, \"token\")");
+
+            final String expectedOutput = "CREATE MATERIALIZED VIEW testwithkeywords.users_by_state AS\n" +
+                                          "    SELECT *\n" +
+                                          "    FROM testwithkeywords.users_mv\n" +
+                                          "    WHERE state IS NOT NULL AND \"token\" IS NOT NULL\n" +
+                                          "    PRIMARY KEY (state, \"token\")\n" +
+                                          " WITH CLUSTERING ORDER BY (\"token\" ASC)\n" +
+                                          "    AND " + mvParametersCql();
+
+            testDescribeMaterializedView("testWithKeywords", "users_by_state", row("testwithkeywords", "materialized_view", "users_by_state", expectedOutput));
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS testWithKeywords");
+        }
+    }
+
+    @Test
+    public void testDescFunctionAndAggregateShouldNotOmitQuotations() throws Throwable
+    {
+
+        final String functionName = KEYSPACE_PER_TEST + ".\"token\"";
+
+        createFunctionOverload(functionName,
+                                             "int, ascii",
+                                             "CREATE FUNCTION " + functionName + " (\"token\" int, other_in ascii) " +
+                                             "RETURNS NULL ON NULL INPUT " +
+                                             "RETURNS text " +
+                                             "LANGUAGE java " +
+                                             "AS 'return \"Hello World\";'");
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTION " + functionName),
+                          row(KEYSPACE_PER_TEST,
+                              "function",
+                              shortFunctionName(functionName) + "(int, ascii)",
+                              "CREATE FUNCTION " + functionName + "(\"token\" int, other_in ascii)\n" +
+                              "    RETURNS NULL ON NULL INPUT\n" +
+                              "    RETURNS text\n" +
+                              "    LANGUAGE java\n" +
+                              "    AS $$return \"Hello World\";$$;"));
+        }
+
+        final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
+        final String aggregationName = KEYSPACE_PER_TEST + ".\"token\"";
+        createFunctionOverload(aggregationName,
+                                          "int, int",
+                                          "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                                          "CALLED ON NULL INPUT " +
+                                          "RETURNS int " +
+                                          "LANGUAGE java " +
+                                          "AS 'return token + add_to;'");
+
+
+        String aggregate = createAggregate(KEYSPACE_PER_TEST,
+                                                   "int",
+                                                   format("CREATE AGGREGATE %%s(int) " +
+                                                          "SFUNC %s " +
+                                                          "STYPE int " +
+                                                          "INITCOND 42",
+                                                          shortFunctionName(aggregationFunctionName)));
+
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aggregate),
+                          row(KEYSPACE_PER_TEST,
+                              "aggregate",
+                              shortFunctionName(aggregate) + "(int)",
+                              "CREATE AGGREGATE " + aggregate + "(int)\n" +
+                              "    SFUNC " + shortFunctionName(aggregationName) + "\n" +
+                              "    STYPE int\n" +
+                              "    INITCOND 42;"));
+        }
     }
 
     private static String allTypesTable()
@@ -851,6 +1033,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND default_time_to_live = 0\n" +
                "    AND extensions = {}\n" +
                "    AND gc_grace_seconds = 864000\n" +
+               "    AND incremental_backups = true\n" + 
                "    AND max_index_interval = 2048\n" +
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
@@ -872,6 +1055,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND crc_check_chance = 1.0\n" +
                "    AND extensions = {}\n" +
                "    AND gc_grace_seconds = 864000\n" +
+               "    AND incremental_backups = true\n" +
                "    AND max_index_interval = 2048\n" +
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
@@ -915,10 +1099,5 @@ public class DescribeStatementTest extends CQLTester
         if (useKs != null)
             executeNet(v, "USE " + useKs);
         return v;
-    }
-
-    private static Object[][] rows(Object[]... rows)
-    {
-        return rows;
     }
 }

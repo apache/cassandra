@@ -17,13 +17,14 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Random;
-
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.format.ForwardingSSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -59,7 +60,21 @@ public class QueryWithIndexedSSTableTest extends CQLTester
         boolean hasIndexed = false;
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
         {
-            RowIndexEntry indexEntry = sstable.getPosition(dk, SSTableReader.Operator.EQ);
+            class IndexEntryAccessor extends ForwardingSSTableReader
+            {
+                public IndexEntryAccessor(SSTableReader delegate)
+                {
+                    super(delegate);
+                }
+
+                public AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op, boolean updateCacheAndStats, SSTableReadsListener listener)
+                {
+                    return super.getRowIndexEntry(key, op, updateCacheAndStats, listener);
+                }
+            }
+
+            IndexEntryAccessor accessor = new IndexEntryAccessor(sstable);
+            AbstractRowIndexEntry indexEntry = accessor.getRowIndexEntry(dk, SSTableReader.Operator.EQ, false, SSTableReadsListener.NOOP_LISTENER);
             hasIndexed |= indexEntry != null && indexEntry.isIndexed();
         }
         assert hasIndexed;
@@ -69,16 +84,5 @@ public class QueryWithIndexedSSTableTest extends CQLTester
 
         assertRowCount(execute("SELECT DISTINCT s FROM %s WHERE k = ?", 0), 1);
         assertRowCount(execute("SELECT DISTINCT s FROM %s WHERE k = ? ORDER BY t DESC", 0), 1);
-    }
-
-    // Creates a random string 
-    public static String makeRandomSt(int length)
-    {
-        Random random = new Random();
-        char[] chars = new char[26];
-        int i = 0;
-        for (char c = 'a'; c <= 'z'; c++)
-            chars[i++] = c;
-        return new String(chars);
     }
 }

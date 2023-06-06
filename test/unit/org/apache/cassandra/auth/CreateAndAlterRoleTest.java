@@ -21,11 +21,10 @@ package org.apache.cassandra.auth;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.AuthenticationException;
-import org.apache.cassandra.Util;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 
-import static org.junit.Assert.assertTrue;
 import static org.mindrot.jbcrypt.BCrypt.gensalt;
 import static org.mindrot.jbcrypt.BCrypt.hashpw;
 
@@ -34,6 +33,12 @@ public class CreateAndAlterRoleTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
+
+        DatabaseDescriptor.setPermissionsValidity(0);
+        DatabaseDescriptor.setRolesValidity(0);
+        DatabaseDescriptor.setCredentialsValidity(0);
+
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
@@ -62,11 +67,11 @@ public class CreateAndAlterRoleTest extends CQLTester
 
         useUser(user1, plainTextPwd);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
 
         useUser(user2, plainTextPwd);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
 
         useSuperUser();
 
@@ -78,11 +83,11 @@ public class CreateAndAlterRoleTest extends CQLTester
 
         useUser(user1, plainTextPwd2);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
 
         useUser(user2, plainTextPwd2);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
     }
 
     @Test
@@ -105,11 +110,11 @@ public class CreateAndAlterRoleTest extends CQLTester
 
         useUser(user1, plainTextPwd);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
 
         useUser(user2, plainTextPwd);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
 
         useSuperUser();
 
@@ -118,32 +123,10 @@ public class CreateAndAlterRoleTest extends CQLTester
 
         useUser(user1, plainTextPwd2);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
+        executeNet("SELECT key FROM system.local");
 
         useUser(user2, plainTextPwd2);
 
-        executeNetWithAuthSpin("SELECT key FROM system.local");
-    }
-
-    /**
-     * Altering or creating auth may take some time to be effective
-     *
-     * @param query
-     */
-    void executeNetWithAuthSpin(String query)
-    {
-        Util.spinAssertEquals(true, () -> {
-            try
-            {
-                executeNet(query);
-                return true;
-            }
-            catch (Throwable e)
-            {
-                assertTrue("Unexpected exception: " + e, e instanceof AuthenticationException);
-                reinitializeNetwork();
-                return false;
-            }
-        }, 10);
+        executeNet("SELECT key FROM system.local");
     }
 }

@@ -39,17 +39,19 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneVerifier
@@ -78,6 +80,8 @@ public class StandaloneVerifier
 
         System.out.println("sstableverify using the following options: " + options);
 
+        List<SSTableReader> sstables = new ArrayList<>();
+        int exitCode = 0;
         try
         {
             // load keyspace descriptions.
@@ -97,13 +101,11 @@ public class StandaloneVerifier
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
 
-            List<SSTableReader> sstables = new ArrayList<>();
-
             // Verify sstables
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
             {
                 Set<Component> components = entry.getValue();
-                if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))
+                if (!components.containsAll(entry.getKey().getFormat().primaryComponents()))
                     continue;
 
                 try
@@ -117,45 +119,56 @@ public class StandaloneVerifier
                     System.err.println(String.format("Error Loading %s: %s", entry.getKey(), e.getMessage()));
                     if (options.debug)
                         e.printStackTrace(System.err);
-                    System.exit(1);
+                    exitCode = 1;
+                    return;
                 }
             }
-            Verifier.Options verifyOptions = Verifier.options().invokeDiskFailurePolicy(false)
-                                                               .extendedVerification(options.extended)
-                                                               .checkVersion(options.checkVersion)
-                                                               .mutateRepairStatus(options.mutateRepairStatus)
-                                                               .checkOwnsTokens(!options.tokens.isEmpty())
-                                                               .tokenLookup(ignore -> options.tokens)
-                                                               .build();
+            IVerifier.Options verifyOptions = IVerifier.options().invokeDiskFailurePolicy(false)
+                                                       .extendedVerification(options.extended)
+                                                       .checkVersion(options.checkVersion)
+                                                       .mutateRepairStatus(options.mutateRepairStatus)
+                                                       .checkOwnsTokens(!options.tokens.isEmpty())
+                                                       .tokenLookup(ignore -> options.tokens)
+                                                       .build();
             handler.output("Running verifier with the following options: " + verifyOptions);
             for (SSTableReader sstable : sstables)
             {
-                try (Verifier verifier = new Verifier(cfs, sstable, handler, true, verifyOptions))
+                try (IVerifier verifier = sstable.getVerifier(cfs, handler, true, verifyOptions))
                 {
                     verifier.verify();
                 }
                 catch (Exception e)
                 {
-                    handler.warn(String.format("Error verifying %s: %s", sstable, e.getMessage()), e);
+                    handler.warn(e, String.format("Error verifying %s: %s", sstable, e.getMessage()));
                     hasFailed = true;
                 }
             }
 
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
 
-            System.exit( hasFailed ? 1 : 0 ); // We need that to stop non daemonized threads
+            for (SSTableReader reader : sstables)
+                Throwables.perform((Throwable) null, () -> reader.selfRef().close());
+
+            exitCode = hasFailed ? 1 : 0; // We need that to stop non daemonized threads
         }
         catch (Exception e)
         {
             System.err.println(e.getMessage());
             if (options.debug)
                 e.printStackTrace(System.err);
-            System.exit(1);
+            exitCode = 1;
+        }
+        finally
+        {
+            for (SSTableReader reader : sstables)
+                Throwables.perform((Throwable) null, () -> reader.selfRef().close());
+
+            System.exit(exitCode);
         }
     }
 
     private static void initDatabaseDescriptorForTool() {
-        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+        if (TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean())
             DatabaseDescriptor.toolInitialization(false); //Necessary for testing
         else
             Util.initDatabaseDescriptor();

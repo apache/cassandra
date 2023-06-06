@@ -12,7 +12,7 @@ physical location).
 
 == Dynamic snitching
 
-The dynamic snitch monitor read latencies to avoid reading from hosts
+The dynamic snitch monitors read latencies to avoid reading from hosts
 that have slowed down. The dynamic snitch is configured with the
 following properties on `cassandra.yaml`:
 

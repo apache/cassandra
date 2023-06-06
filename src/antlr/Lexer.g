@@ -218,6 +218,10 @@ K_DEFAULT:     D E F A U L T;
 K_UNSET:       U N S E T;
 K_LIKE:        L I K E;
 
+K_MASKED:      M A S K E D;
+K_UNMASK:      U N M A S K;
+K_SELECT_MASKED: S E L E C T '_' M A S K E D;
+
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
 fragment B: ('b'|'B');
@@ -295,6 +299,22 @@ fragment EXPONENT
     : E ('+' | '-')? DIGIT+
     ;
 
+fragment DURATION_ISO_8601_PERIOD_DESIGNATORS
+    : '-'? 'P' DIGIT+ 'Y' (DIGIT+ 'M')? (DIGIT+ 'D')?
+    | '-'? 'P' DIGIT+ 'M' (DIGIT+ 'D')?
+    | '-'? 'P' DIGIT+ 'D'
+    ;
+
+fragment DURATION_ISO_8601_TIME_DESIGNATORS
+    : 'T' DIGIT+ 'H' (DIGIT+ 'M')? (DIGIT+ 'S')?
+    | 'T' DIGIT+ 'M' (DIGIT+ 'S')?
+    | 'T' DIGIT+ 'S'
+    ;
+
+fragment DURATION_ISO_8601_WEEK_PERIOD_DESIGNATOR
+    : '-'? 'P' DIGIT+ 'W'
+    ;
+
 fragment DURATION_UNIT
     : Y
     | M O
@@ -340,9 +360,10 @@ BOOLEAN
 
 DURATION
     : '-'? DIGIT+ DURATION_UNIT (DIGIT+ DURATION_UNIT)*
-    | '-'? 'P' (DIGIT+ 'Y')? (DIGIT+ 'M')? (DIGIT+ 'D')? ('T' (DIGIT+ 'H')? (DIGIT+ 'M')? (DIGIT+ 'S')?)? // ISO 8601 "format with designators"
-    | '-'? 'P' DIGIT+ 'W'
     | '-'? 'P' DIGIT DIGIT DIGIT DIGIT '-' DIGIT DIGIT '-' DIGIT DIGIT 'T' DIGIT DIGIT ':' DIGIT DIGIT ':' DIGIT DIGIT // ISO 8601 "alternative format"
+    | '-'? 'P' DURATION_ISO_8601_TIME_DESIGNATORS
+    | DURATION_ISO_8601_WEEK_PERIOD_DESIGNATOR
+    | DURATION_ISO_8601_PERIOD_DESIGNATORS DURATION_ISO_8601_TIME_DESIGNATORS?
     ;
 
 IDENT

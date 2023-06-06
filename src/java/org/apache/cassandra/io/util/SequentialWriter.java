@@ -37,6 +37,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 {
     // absolute path to the given file
     private final String filePath;
+    private final File file;
 
     // Offset for start of buffer relative to underlying file
     protected long bufferOffset;
@@ -83,16 +84,19 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             return accumulate;
         }
 
+        @Override
         protected void doPrepare()
         {
             syncInternal();
         }
 
+        @Override
         protected Throwable doCommit(Throwable accumulate)
         {
             return accumulate;
         }
 
+        @Override
         protected Throwable doAbort(Throwable accumulate)
         {
             return accumulate;
@@ -162,12 +166,13 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this.strictFlushing = strictFlushing;
         this.fchannel = (FileChannel)channel;
 
+        this.file = file;
         this.filePath = file.absolutePath();
 
         this.option = option;
     }
 
-    public void skipBytes(int numBytes) throws IOException
+    public void skipBytes(long numBytes) throws IOException
     {
         flush();
         fchannel.position(fchannel.position() + numBytes);
@@ -250,14 +255,40 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             runPostFlush.run();
     }
 
+    @Override
     public boolean hasPosition()
     {
         return true;
     }
 
+    @Override
     public long position()
     {
         return current();
+    }
+
+    @Override
+    public int maxBytesInPage()
+    {
+        return PageAware.PAGE_SIZE;
+    }
+
+    @Override
+    public void padToPageBoundary() throws IOException
+    {
+        PageAware.pad(this);
+    }
+
+    @Override
+    public int bytesLeftInPage()
+    {
+        return PageAware.bytesLeftInPage(position());
+    }
+
+    @Override
+    public long paddedPosition()
+    {
+        return PageAware.padded(position());
     }
 
     /**
@@ -294,6 +325,11 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     public String getPath()
     {
         return filePath;
+    }
+
+    public File getFile()
+    {
+        return file;
     }
 
     protected void resetBuffer()
@@ -373,16 +409,19 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return channel.isOpen();
     }
 
+    @Override
     public final void prepareToCommit()
     {
         txnProxy.prepareToCommit();
     }
 
+    @Override
     public final Throwable commit(Throwable accumulate)
     {
         return txnProxy.commit(accumulate);
     }
 
+    @Override
     public final Throwable abort(Throwable accumulate)
     {
         return txnProxy.abort(accumulate);

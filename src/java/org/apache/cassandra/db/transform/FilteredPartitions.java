@@ -51,7 +51,7 @@ public final class FilteredPartitions extends BasePartitions<RowIterator, BasePa
      * Filter any RangeTombstoneMarker from the iterator's iterators, transforming it into a PartitionIterator.
      */
     @SuppressWarnings("resource")
-    public static FilteredPartitions filter(UnfilteredPartitionIterator iterator, int nowInSecs)
+    public static FilteredPartitions filter(UnfilteredPartitionIterator iterator, long nowInSecs)
     {
         FilteredPartitions filtered = filter(iterator, new Filter(nowInSecs, iterator.metadata().enforceStrictLiveness()));
         return (FilteredPartitions) Transformation.apply(filtered, new EmptyPartitionsDiscarder());

@@ -484,7 +484,7 @@ public class CQL3TypeLiteralTest
                 }
             }
             expected.append(bracketClose);
-            buffer = CollectionSerializer.pack(buffers, added.size(), version);
+            buffer = CollectionSerializer.pack(buffers, added.size());
         }
 
         return new Value(expected.toString(), collectionType.asCQL3Type(), buffer);

@@ -17,8 +17,8 @@
 #
 
 %define __jar_repack %{nil}
-# Turn off the brp-python-bytecompile script
-%global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
+# Turn off the brp-python-bytecompile script and mangling shebangs for Python scripts
+%global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g' -e 's!/usr/lib[^[:space:]]*/brp-mangle-shebangs[[:space:]].*$!!g')
 
 # rpmbuild should not barf when it spots we ship
 # binary executable files in our 'noarch' package
@@ -190,6 +190,7 @@ Cassandra is a distributed (peer-to-peer) system for the management and storage 
 This package contains extra tools for working with Cassandra clusters.
 
 %files tools
+%attr(755,root,root) %{_bindir}/sstablepartitions
 %attr(755,root,root) %{_bindir}/sstabledump
 %attr(755,root,root) %{_bindir}/compaction-stress
 %attr(755,root,root) %{_bindir}/sstableexpiredblockers

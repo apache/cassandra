@@ -39,6 +39,8 @@ public class SimpleDateType extends TemporalType<Integer>
 {
     public static final SimpleDateType instance = new SimpleDateType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(SimpleDateSerializer.timeInMillisToDay(0));
+
     SimpleDateType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     @Override
@@ -115,5 +117,11 @@ public class SimpleDateType extends TemporalType<Integer>
         // Checks that the duration has no data below days.
         if (!duration.hasDayPrecision())
             throw invalidRequest("The duration must have a day precision. Was: %s", duration);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

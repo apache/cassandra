@@ -23,9 +23,13 @@ package org.apache.cassandra.utils;
  * afterward, and ensure the tests still pass.
  */
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -34,8 +38,8 @@ import java.util.UUID;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -338,7 +342,7 @@ public class ByteBufferUtil
 
     public static void writeWithVIntLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(bytes.remaining());
+        out.writeUnsignedVInt32(bytes.remaining());
         out.write(bytes);
     }
 
@@ -364,7 +368,7 @@ public class ByteBufferUtil
 
     public static ByteBuffer readWithVIntLength(DataInputPlus in) throws IOException
     {
-        int length = (int)in.readUnsignedVInt();
+        int length = in.readUnsignedVInt32();
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
@@ -385,7 +389,7 @@ public class ByteBufferUtil
 
     public static void skipWithVIntLength(DataInputPlus in) throws IOException
     {
-        int length = (int)in.readUnsignedVInt();
+        int length = in.readUnsignedVInt32();
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
@@ -865,5 +869,36 @@ public class ByteBufferUtil
         }
 
         return true;
+    }
+
+    /**
+     * Returns true if the buffer at the current position in the input matches given buffer.
+     * If true, the input is positioned at the end of the consumed buffer.
+     * If false, the position of the input is undefined.
+     * <p>
+     * The matched buffer is unchanged
+     */
+    public static boolean equalsWithShortLength(DataInput in, ByteBuffer toMatch) throws IOException
+    {
+        int length = readShortLength(in);
+        if (length != toMatch.remaining())
+            return false;
+        int limit = toMatch.limit();
+        for (int i = toMatch.position(); i < limit; ++i)
+            if (toMatch.get(i) != in.readByte())
+                return false;
+
+        return true;
+    }
+
+    public static void readFully(FileChannel channel, ByteBuffer dst, long position) throws IOException
+    {
+        while (dst.hasRemaining())
+        {
+            int read = channel.read(dst, position);
+            if (read == -1)
+                throw new EOFException();
+            position += read;
+        }
     }
 }

@@ -21,18 +21,17 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.annotation.Nullable;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -55,12 +54,11 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
-import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
-import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
-import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
+import static org.apache.cassandra.utils.vint.VIntCoding.*;
 
 /**
  * Immutable main unit of internode communication - what used to be {@code MessageIn} and {@code MessageOut} fused
@@ -500,6 +498,12 @@ public class Message<T>
         {
             return Collections.unmodifiableMap(params);
         }
+
+        @Nullable
+        public Map<String,byte[]> customParams()
+        {
+            return (Map<String,byte[]>) params.get(ParamType.CUSTOM_MAP);
+        }
     }
 
     @SuppressWarnings("WeakerAccess")
@@ -547,6 +551,15 @@ public class Message<T>
         public Builder<T> withParam(ParamType type, Object value)
         {
             params.put(type, value);
+            return this;
+        }
+
+        public Builder<T> withCustomParam(String name, byte[] value)
+        {
+            Map<String,byte[]> customParams  = (Map<String,byte[]>)
+                    params.computeIfAbsent(ParamType.CUSTOM_MAP, (t) -> new HashMap<String,byte[]>());
+
+            customParams.put(name, value);
             return this;
         }
 
@@ -768,8 +781,8 @@ public class Message<T>
             // the same between now and when the recipient reconstructs it.
             out.writeInt((int) approxTime.translate().toMillisSinceEpoch(header.createdAtNanos));
             out.writeUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
-            out.writeUnsignedVInt(header.verb.id);
-            out.writeUnsignedVInt(header.flags);
+            out.writeUnsignedVInt32(header.verb.id);
+            out.writeUnsignedVInt32(header.flags);
             serializeParams(header.params, out, version);
         }
 
@@ -780,8 +793,8 @@ public class Message<T>
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
             long creationTimeNanos = calculateCreationTimeNanos(in.readInt(), timeSnapshot, currentTimeNanos);
             long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
-            Verb verb = Verb.fromId(Ints.checkedCast(in.readUnsignedVInt()));
-            int flags = Ints.checkedCast(in.readUnsignedVInt());
+            Verb verb = Verb.fromId(in.readUnsignedVInt32());
+            int flags = in.readUnsignedVInt32();
             Map<ParamType, Object> params = deserializeParams(in, version);
             return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
         }
@@ -823,10 +836,10 @@ public class Message<T>
             long expiresInMillis = getUnsignedVInt(buf, index);
             index += computeUnsignedVIntSize(expiresInMillis);
 
-            Verb verb = Verb.fromId(Ints.checkedCast(getUnsignedVInt(buf, index)));
+            Verb verb = Verb.fromId(getUnsignedVInt32(buf, index));
             index += computeUnsignedVIntSize(verb.id);
 
-            int flags = Ints.checkedCast(getUnsignedVInt(buf, index));
+            int flags = getUnsignedVInt32(buf, index);
             index += computeUnsignedVIntSize(flags);
 
             Map<ParamType, Object> params = extractParams(buf, index, version);
@@ -840,7 +853,7 @@ public class Message<T>
         private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
             serializeHeaderPost40(message.header, out, version);
-            out.writeUnsignedVInt(message.payloadSize(version));
+            out.writeUnsignedVInt32(message.payloadSize(version));
             message.verb().serializer().serialize(message.payload, out, version);
         }
 
@@ -1204,7 +1217,7 @@ public class Message<T>
         private void serializeParams(Map<ParamType, Object> params, DataOutputPlus out, int version) throws IOException
         {
             if (version >= VERSION_40)
-                out.writeUnsignedVInt(params.size());
+                out.writeUnsignedVInt32(params.size());
             else
                 out.writeInt(params.size());
 
@@ -1212,7 +1225,7 @@ public class Message<T>
             {
                 ParamType type = kv.getKey();
                 if (version >= VERSION_40)
-                    out.writeUnsignedVInt(type.id);
+                    out.writeUnsignedVInt32(type.id);
                 else
                     out.writeUTF(type.legacyAlias);
 
@@ -1221,7 +1234,7 @@ public class Message<T>
 
                 int length = Ints.checkedCast(serializer.serializedSize(value, version));
                 if (version >= VERSION_40)
-                    out.writeUnsignedVInt(length);
+                    out.writeUnsignedVInt32(length);
                 else
                     out.writeInt(length);
 
@@ -1231,7 +1244,7 @@ public class Message<T>
 
         private Map<ParamType, Object> deserializeParams(DataInputPlus in, int version) throws IOException
         {
-            int count = version >= VERSION_40 ? Ints.checkedCast(in.readUnsignedVInt()) : in.readInt();
+            int count = version >= VERSION_40 ? in.readUnsignedVInt32() : in.readInt();
 
             if (count == 0)
                 return NO_PARAMS;
@@ -1241,11 +1254,11 @@ public class Message<T>
             for (int i = 0; i < count; i++)
             {
                 ParamType type = version >= VERSION_40
-                    ? ParamType.lookUpById(Ints.checkedCast(in.readUnsignedVInt()))
+                    ? ParamType.lookUpById(in.readUnsignedVInt32())
                     : ParamType.lookUpByAlias(in.readUTF());
 
                 int length = version >= VERSION_40
-                    ? Ints.checkedCast(in.readUnsignedVInt())
+                    ? in.readUnsignedVInt32()
                     : in.readInt();
 
                 if (null != type)
@@ -1294,12 +1307,12 @@ public class Message<T>
 
         private void skipParamsPost40(DataInputPlus in) throws IOException
         {
-            int count = Ints.checkedCast(in.readUnsignedVInt());
+            int count = in.readUnsignedVInt32();
 
             for (int i = 0; i < count; i++)
             {
                 skipUnsignedVInt(in);
-                in.skipBytesFully(Ints.checkedCast(in.readUnsignedVInt()));
+                in.skipBytesFully(in.readUnsignedVInt32());
             }
         }
 
@@ -1416,6 +1429,7 @@ public class Message<T>
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize50;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1436,14 +1450,19 @@ public class Message<T>
                 if (serializedSize40 == 0)
                     serializedSize40 = serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_50:
+                if (serializedSize50 == 0)
+                    serializedSize50 = serializer.serializedSize(this, VERSION_50);
+                return serializedSize50;
             default:
-                throw new IllegalStateException();
+                throw new IllegalStateException("Unkown serialization version " + version);
         }
     }
 
     private int payloadSize30   = -1;
     private int payloadSize3014 = -1;
     private int payloadSize40   = -1;
+    private int payloadSize50   = -1;
 
     private int payloadSize(int version)
     {
@@ -1461,8 +1480,13 @@ public class Message<T>
                 if (payloadSize40 < 0)
                     payloadSize40 = serializer.payloadSize(this, VERSION_40);
                 return payloadSize40;
+            case VERSION_50:
+                if (payloadSize50 < 0)
+                    payloadSize50 = serializer.payloadSize(this, VERSION_50);
+                return payloadSize50;
+
             default:
-                throw new IllegalStateException();
+                throw new IllegalStateException("Unkown serialization version " + version);
         }
     }
 

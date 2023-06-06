@@ -44,7 +44,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
     public final int protocolVersion;
     public final QueryState queryState;
 
-    public FQLQuery(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, int generatedNowInSeconds)
+    public FQLQuery(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, long generatedNowInSeconds)
     {
         this.queryStartTime = queryStartTime;
         this.queryOptions = queryOptions;
@@ -64,7 +64,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         return queryState.getClientState().getRawKeyspace();
     }
 
-    private QueryState queryState(String keyspace, long generatedTimestamp, int generatedNowInSeconds)
+    private QueryState queryState(String keyspace, long generatedTimestamp, long generatedNowInSeconds)
     {
         ClientState clientState = keyspace != null ? ClientState.forInternalCalls(keyspace) : ClientState.forInternalCalls();
         return new QueryState(clientState, generatedTimestamp, generatedNowInSeconds);
@@ -110,7 +110,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         public final String query;
         public final List<ByteBuffer> values;
 
-        public Single(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, int generatedNowInSeconds, String queryString, List<ByteBuffer> values)
+        public Single(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, long generatedNowInSeconds, String queryString, List<ByteBuffer> values)
         {
             super(keyspace, protocolVersion, queryOptions, queryStartTime, generatedTimestamp, generatedNowInSeconds);
             this.query = queryString;
@@ -200,7 +200,7 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         public final BatchStatement.Type batchType;
         public final List<Single> queries;
 
-        public Batch(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, int generatedNowInSeconds, BatchStatement.Type batchType, List<String> queries, List<List<ByteBuffer>> values)
+        public Batch(String keyspace, int protocolVersion, QueryOptions queryOptions, long queryStartTime, long generatedTimestamp, long generatedNowInSeconds, BatchStatement.Type batchType, List<String> queries, List<List<ByteBuffer>> values)
         {
             super(keyspace, protocolVersion, queryOptions, queryStartTime, generatedTimestamp, generatedNowInSeconds);
             this.batchType = batchType;

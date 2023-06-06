@@ -45,7 +45,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
@@ -86,12 +86,12 @@ public class DataResurrectionCheck implements StartupCheck
 
         public void serializeToJsonFile(File outputFile) throws IOException
         {
-            FBUtilities.serializeToJsonFile(this, outputFile);
+            JsonUtils.serializeToJsonFile(this, outputFile);
         }
 
         public static Heartbeat deserializeFromJsonFile(File file) throws IOException
         {
-            return FBUtilities.deserializeFromJsonFile(Heartbeat.class, file);
+            return JsonUtils.deserializeFromJsonFile(Heartbeat.class, file);
         }
 
         @Override

@@ -1,5 +1,8 @@
 alter_table_statement::= ALTER TABLE [ IF EXISTS ] table_name alter_table_instruction
-alter_table_instruction::= ADD [ IF NOT EXISTS ] column_name cql_type ( ',' column_name cql_type )*
-	| DROP [ IF EXISTS ] column_name ( column_name )*
+alter_table_instruction::= ADD [ IF NOT EXISTS ] column_definition ( ',' column_definition)*
+	| DROP [ IF EXISTS ] column_name ( ',' column_name )*
 	| RENAME [ IF EXISTS ] column_name to column_name (AND column_name to column_name)*
+	| ALTER [ IF EXISTS ] column_name ( column_mask | DROP MASKED )
 	| WITH options
+column_definition::= column_name cql_type [ column_mask]
+column_mask::= MASKED WITH ( DEFAULT | function_name '(' term ( ',' term )* ')' )

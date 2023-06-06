@@ -303,7 +303,7 @@ public class Murmur3Partitioner implements IPartitioner
             throw new RuntimeException("No nodes present in the cluster. Has this node finished starting up?");
         // 1-case
         if (sortedTokens.size() == 1)
-            ownerships.put(i.next(), new Float(1.0));
+            ownerships.put(i.next(), 1.0F);
         // n-case
         else
         {

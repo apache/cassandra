@@ -1,0 +1,23 @@
+= Terminology
+
+a | b | xref:#c[c] | d | e | f
+
+[[c]]
+cluster::
+A ring of nodes that holds a database.
+
+node::
+A machine that holds Cassandra replicas.
+Each node holds a portion of the whole database.
+
+replica::
+A copy of a portion of the whole database. Each node holds some replicas.
+
+replication::
+The process of creating replicas across nodes in a cluster.
+
+replication factor (RF)::
+A scalar value that sets the number of replicas of each partition in a cluster.
+For example, and RF=3 means that three nodes hold a replica of each partition.
+
+

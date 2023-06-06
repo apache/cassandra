@@ -30,11 +30,12 @@ import org.apache.cassandra.dht.Token.KeyBound;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.IFilter.FilterKey;
+import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.cassandra.utils.IFilter.FilterKey;
-import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.memory.HeapCloner;
 
 /**
  * Represents a decorated key, handy for certain operations
@@ -47,13 +48,7 @@ import org.apache.cassandra.utils.MurmurHash;
  */
 public abstract class DecoratedKey implements PartitionPosition, FilterKey
 {
-    public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
-    {
-        public int compare(DecoratedKey o1, DecoratedKey o2)
-        {
-            return o1.compareTo(o2);
-        }
-    };
+    public static final Comparator<DecoratedKey> comparator = DecoratedKey::compareTo;
 
     private final Token token;
 
@@ -111,7 +106,7 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
     {
         // Note: In the legacy version one encoding could be a prefix of another as the escaping is only weakly
         // prefix-free (see ByteSourceTest.testDecoratedKeyPrefixes()).
-        // The OSS42 version avoids this by adding a terminator.
+        // The OSS50 version avoids this by adding a terminator.
         return ByteSource.withTerminatorMaybeLegacy(version,
                                                     ByteSource.END_OF_STREAM,
                                                     token.asComparableBytes(version),
@@ -199,6 +194,17 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
 
     public abstract ByteBuffer getKey();
     public abstract int getKeyLength();
+
+    /**
+     * If this key occupies only part of a larger buffer, allocate a new buffer that is only as large as necessary.
+     * Otherwise, it returns this key.
+     */
+    public DecoratedKey retainable()
+    {
+        return ByteBufferUtil.canMinimize(getKey())
+               ? new BufferDecoratedKey(getToken(), HeapCloner.instance.clone(getKey()))
+               : this;
+    }
 
     public void filterHash(long[] dest)
     {
