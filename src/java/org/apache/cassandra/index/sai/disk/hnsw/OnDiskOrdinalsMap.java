@@ -19,6 +19,8 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
@@ -26,27 +28,37 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.lucene.util.Bits;
 
 public class OnDiskOrdinalsMap
 {
     private static final Logger logger = LoggerFactory.getLogger(OnDiskOrdinalsMap.class);
 
     private final FileHandle fh;
-    private final long segmentOffset;
-    private final long segmentLength;
+    private final long ordToRowOffset;
+    private final long segmentEnd;
     private final int size;
     // the offset where we switch from recording ordinal -> rows, to row -> ordinal
     private final long rowOrdinalOffset;
+    private final Set<Integer> deletedOrdinals;
 
     public OnDiskOrdinalsMap(FileHandle fh, long segmentOffset, long segmentLength)
     {
-        this.segmentOffset = segmentOffset;
-        this.segmentLength = segmentLength;
+        deletedOrdinals = new HashSet<>();
+
+        this.segmentEnd = segmentOffset + segmentLength;
         this.fh = fh;
         try (var reader = fh.createReader())
         {
+            int deletedCount = reader.readInt();
+            for (var i = 0; i < deletedCount; i++)
+            {
+                deletedOrdinals.add(reader.readInt());
+            }
+
+            this.ordToRowOffset = reader.getFilePointer();
             this.size = reader.readInt();
-            reader.seek(segmentOffset + segmentLength - 8);
+            reader.seek(segmentEnd - 8);
             this.rowOrdinalOffset = reader.readLong();
         }
         catch (IOException e)
@@ -60,6 +72,11 @@ public class OnDiskOrdinalsMap
         return new RowIdsView();
     }
 
+    public Bits ignoringDeleted(Bits acceptBits)
+    {
+        return BitsUtil.bitsIgnoringDeleted(acceptBits, deletedOrdinals);
+    }
+
     public class RowIdsView implements AutoCloseable
     {
         RandomAccessReader reader = fh.createReader();
@@ -69,7 +86,7 @@ public class OnDiskOrdinalsMap
             Preconditions.checkArgument(vectorOrdinal < size, "vectorOrdinal %s is out of bounds %s", vectorOrdinal, size);
 
             // read index entry
-            reader.seek(segmentOffset + 4L + vectorOrdinal * 8L);
+            reader.seek(ordToRowOffset + 4L + vectorOrdinal * 8L);
             var offset = reader.readLong();
             // seek to and read ordinals
             reader.seek(offset);
@@ -97,7 +114,7 @@ public class OnDiskOrdinalsMap
     public class OrdinalsView implements AutoCloseable
     {
         RandomAccessReader reader = fh.createReader();
-        private final long high = (segmentOffset + segmentLength - 8 - rowOrdinalOffset) / 8;
+        private final long high = (segmentEnd - 8 - rowOrdinalOffset) / 8;
 
         /**
          * @return order if given row id is found; otherwise return -1

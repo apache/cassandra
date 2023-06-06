@@ -227,6 +227,7 @@ public class VectorUpdateDeleteTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
+        // overwrite row A a bunch of times; also write row B with the same vector as a deleted A value
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [2.0, 3.0, 4.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [3.0, 4.0, 5.0])");
@@ -234,6 +235,7 @@ public class VectorUpdateDeleteTest extends VectorTester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [5.0, 6.0, 7.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
 
+        // check that queries near A and B get the right row
         UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [4.5, 5.5, 6.5] LIMIT 1");
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 0);
@@ -241,14 +243,23 @@ public class VectorUpdateDeleteTest extends VectorTester
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 1);
 
+        // flush, and re-check same queries
         flush();
+        result = execute("SELECT * FROM %s ORDER BY val ann of [4.5, 5.5, 6.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+        result = execute("SELECT * FROM %s ORDER BY val ann of [0.5, 1.5, 2.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 1);
 
+        // overwite A more in the new memtable
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [6.0, 7.0, 8.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [7.0, 8.0, 9.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [8.0, 9.0, 10.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [9.0, 10.0, 11.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [10.0, 11.0, 12.0])");
 
+        // query near A and B again
         result = execute("SELECT * FROM %s ORDER BY val ann of [9.5, 10.5, 11.5] LIMIT 1");
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 0);
@@ -256,8 +267,8 @@ public class VectorUpdateDeleteTest extends VectorTester
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 1);
 
+        // flush, and re-check same queries
         flush();
-
         result = execute("SELECT * FROM %s ORDER BY val ann of [9.5, 10.5, 11.5] LIMIT 1");
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 0);

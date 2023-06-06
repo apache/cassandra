@@ -95,7 +95,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
                                              VectorEncoding.FLOAT32,
                                              similarityFunction,
                                              view,
-                                             acceptBits,
+                                             ordinalsMap.ignoringDeleted(acceptBits),
                                              vistLimit);
             return annRowIdsToPostings(queue);
         }
@@ -122,7 +122,8 @@ public class CassandraOnDiskHnsw implements AutoCloseable
             while (!segmentRowIdIterator.hasNext() && queue.size() > 0) {
                 try
                 {
-                    segmentRowIdIterator = Arrays.stream(rowIdsView.getSegmentRowIdsMatching(queue.pop())).iterator();
+                    var ordinal = queue.pop();
+                    segmentRowIdIterator = Arrays.stream(rowIdsView.getSegmentRowIdsMatching(ordinal)).iterator();
                 }
                 catch (IOException e)
                 {

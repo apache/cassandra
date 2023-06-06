@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Pair;
@@ -33,12 +35,22 @@ public class VectorPostingsWriter<T>
     public long writePostings(SequentialWriter writer,
                               ConcurrentVectorValues vectorValues,
                               Map<float[], VectorPostings<T>> postingsMap,
-                              Function<T, Integer> postingTransformer) throws IOException
+                              Function<T, Integer> postingTransformer,
+                              Set<Integer> deletedOrdinals) throws IOException
     {
+        writeDeletedOrdinals(writer, deletedOrdinals);
         writeNodeOrdinalToRowIdMapping(writer, vectorValues, postingsMap, postingTransformer);
         writeRowIdToNodeOrdinalMapping(writer, vectorValues, postingsMap, postingTransformer);
 
         return writer.position();
+    }
+
+    private void writeDeletedOrdinals(SequentialWriter writer, Set<Integer> deletedOrdinals) throws IOException
+    {
+        writer.writeInt(deletedOrdinals.size());
+        for (var ordinal : deletedOrdinals) {
+            writer.writeInt(ordinal);
+        }
     }
 
     public void writeNodeOrdinalToRowIdMapping(SequentialWriter writer,
@@ -46,13 +58,13 @@ public class VectorPostingsWriter<T>
                                                Map<float[], VectorPostings<T>> postingsMap,
                                                Function<T, Integer> postingTransformer) throws IOException
     {
-        long segmentOffset = writer.getOnDiskFilePointer();
+        long ordToRowOffset = writer.getOnDiskFilePointer();
 
         // total number of vectors
         writer.writeInt(vectorValues.size());
 
         // Write the offsets of the postings for each ordinal
-        var offsetsStartAt = segmentOffset + 4L + 8L * vectorValues.size();
+        var offsetsStartAt = ordToRowOffset + 4L + 8L * vectorValues.size();
         var nextOffset = offsetsStartAt;
         for (var i = 0; i < vectorValues.size(); i++) {
             // (ordinal is implied; don't need to write it)

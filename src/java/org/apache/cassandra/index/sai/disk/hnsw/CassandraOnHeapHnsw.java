@@ -195,7 +195,7 @@ public class CassandraOnHeapHnsw<T>
                                                        VectorEncoding.FLOAT32,
                                                        similarityFunction,
                                                        builder.getGraph(),
-                                                       bitsForQuery(toAccept),
+                                                       BitsUtil.bitsIgnoringDeleted(toAccept, deletedOrdinals),
                                                        visitedLimit);
         }
         catch (IOException e)
@@ -221,7 +221,7 @@ public class CassandraOnHeapHnsw<T>
             long vectorLength = vectorPosition - vectorOffset;
 
             long postingsOffset = postingsOutput.getFilePointer();
-            long postingsPosition = new VectorPostingsWriter<T>().writePostings(postingsOutput.asSequentialWriter(), vectorValues, postingsMap, postingTransformer);
+            long postingsPosition = new VectorPostingsWriter<T>().writePostings(postingsOutput.asSequentialWriter(), vectorValues, postingsMap, postingTransformer, deletedOrdinals);
             long postingsLength = postingsPosition - postingsOffset;
 
             long termsOffset = indexOutputWriter.getFilePointer();
@@ -253,59 +253,5 @@ public class CassandraOnHeapHnsw<T>
     private long exactRamBytesUsed()
     {
         return ObjectSizes.measureDeep(this);
-    }
-
-    private Bits bitsForQuery(Bits toAccept)
-    {
-        return deletedOrdinals.isEmpty()
-               ? toAccept
-               : toAccept == null ? new NoDeletedBits() : new NoDeletedIntersectingBits(toAccept);
-    }
-
-    private class NoDeletedBits implements Bits
-    {
-        private final int length;
-
-        private NoDeletedBits()
-        {
-            this.length = deletedOrdinals.stream().mapToInt(i -> i).max().orElse(0);
-        }
-
-        @Override
-        public boolean get(int i)
-        {
-            return !deletedOrdinals.contains(i);
-        }
-
-        @Override
-        public int length()
-        {
-            return length;
-        }
-    }
-
-    private class NoDeletedIntersectingBits implements Bits
-    {
-        private final Bits toAccept;
-        private final int length;
-
-        private NoDeletedIntersectingBits(Bits toAccept)
-        {
-            this.toAccept = toAccept;
-            this.length = Math.max(toAccept.length(),
-                                   deletedOrdinals.stream().mapToInt(i -> i).max().orElse(0));
-        }
-
-        @Override
-        public boolean get(int i)
-        {
-            return !deletedOrdinals.contains(i) && toAccept.get(i);
-        }
-
-        @Override
-        public int length()
-        {
-            return length;
-        }
     }
 }
