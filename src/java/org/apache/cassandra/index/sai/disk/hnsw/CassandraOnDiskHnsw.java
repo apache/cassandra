@@ -22,11 +22,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
@@ -43,7 +44,7 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 public class CassandraOnDiskHnsw
 {
     private final int vectorDimension;
-    private final Supplier<OnDiskVectors> vectorsSupplier;
+    private final Function<QueryContext, OnDiskVectors> vectorsSupplier;
     private final OnDiskOrdinalsMap ordinalsMap;
     private final OnDiskHnswGraph hnsw;
     private final VectorSimilarityFunction similarityFunction;
@@ -54,17 +55,18 @@ public class CassandraOnDiskHnsw
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
         long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
-        vectorsSupplier = () -> new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset);
+        vectorsSupplier = (qc) -> new OnDiskVectors(indexFiles.vectors(), vectorsSegmentOffset, qc);
 
         SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
 
         SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
         hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, CassandraRelevantProperties.SAI_HNSW_OFFSET_CACHE_BYTES.getInt());
-        try (var vectors = vectorsSupplier.get())
+        var mockContext = new QueryContext();
+        try (var vectors = vectorsSupplier.apply(mockContext))
         {
-            vectorDimension = vectors.dimension;
-            vectorCache = VectorCache.load(hnsw.getView(), vectors, CassandraRelevantProperties.SAI_HNSW_VECTOR_CACHE_BYTES.getInt());
+            vectorDimension = vectors.dimension();
+            vectorCache = VectorCache.load(hnsw.getView(mockContext), vectors, CassandraRelevantProperties.SAI_HNSW_VECTOR_CACHE_BYTES.getInt());
         }
     }
 
@@ -82,10 +84,10 @@ public class CassandraOnDiskHnsw
      * @return Row IDs associated with the topK vectors near the query
      */
     // TODO make this return something with a size
-    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit)
+    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit, QueryContext context)
     {
         NeighborQueue queue;
-        try (var vectors = vectorsSupplier.get(); var view = hnsw.getView())
+        try (var vectors = vectorsSupplier.apply(context); var view = hnsw.getView(context))
         {
             queue = HnswGraphSearcher.search(queryVector,
                                              topK,
@@ -171,9 +173,11 @@ public class CassandraOnDiskHnsw
         private final int dimension;
         private final int size;
         private final float[] vector;
+        private final QueryContext queryContext;
 
-        public OnDiskVectors(FileHandle fh, long segmentOffset)
+        public OnDiskVectors(FileHandle fh, long segmentOffset, QueryContext queryContext)
         {
+            this.queryContext = queryContext;
             try
             {
                 this.reader = fh.createReader();
@@ -205,9 +209,13 @@ public class CassandraOnDiskHnsw
         @Override
         public float[] vectorValue(int i) throws IOException
         {
+            queryContext.hnswVectorsAccessed++;
             var cached = vectorCache.get(i);
             if (cached != null)
+            {
+                queryContext.hnswVectorCacheHits++;
                 return cached;
+            }
 
             readVector(i, vector);
             return vector;

@@ -99,7 +99,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
-        return graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
+        return graph.search(queryVector, limit, bits, Integer.MAX_VALUE, context.queryContext);
     }
 
     private Bits bitsetForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
@@ -194,7 +194,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         // else ask hnsw to perform a search limited to the bits we created
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
-        var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE);
+        var results = graph.search(queryVector, limit, bits, Integer.MAX_VALUE, context.queryContext);
         return toPrimaryKeyIterator(results, context);
     }
 
