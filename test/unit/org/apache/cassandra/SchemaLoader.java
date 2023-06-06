@@ -758,7 +758,6 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
         }
     }
 
-
     public static void cleanupSavedCaches()
     {
         ServerTestUtils.cleanupSavedCaches();
