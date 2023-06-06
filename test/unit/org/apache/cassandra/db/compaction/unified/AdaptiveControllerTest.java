@@ -16,6 +16,7 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -73,6 +74,7 @@ public class AdaptiveControllerTest extends ControllerTest
                                       numShards,
                                       sstableSizeMB,
                                       0,
+                                      0,
                                       Controller.DEFAULT_MAX_SPACE_OVERHEAD,
                                       0,
                                       Controller.DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS,
@@ -86,7 +88,9 @@ public class AdaptiveControllerTest extends ControllerTest
                                       maxW,
                                       threshold,
                                       minCost,
-                                      maxAdaptiveCompactions);
+                                      maxAdaptiveCompactions,
+                                      keyspaceName,
+                                      tableName);
     }
 
     @Test
@@ -101,13 +105,38 @@ public class AdaptiveControllerTest extends ControllerTest
         options.put(AdaptiveController.MIN_COST, "5");
         options.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
 
+        int[] scalingParameters = new int[30];
+        Arrays.fill(scalingParameters, 1);
+        AdaptiveController.storeOptions(keyspaceName, tableName, scalingParameters, 10 << 20);
+
         Controller controller = testFromOptions(true, options);
         assertTrue(controller instanceof AdaptiveController);
 
         for (int i = 0; i < 10; i++)
         {
-            assertEquals(0, controller.getScalingParameter(i));
-            assertEquals(0, controller.getPreviousScalingParameter(i));
+            assertEquals(1, controller.getScalingParameter(i));
+            assertEquals(1, controller.getPreviousScalingParameter(i));
+        }
+        int[] emptyScalingParameters = {};
+        AdaptiveController.storeOptions(keyspaceName, tableName, emptyScalingParameters, 10 << 20);
+
+        Controller controller2 = testFromOptions(true, options);
+        assertTrue(controller2 instanceof AdaptiveController);
+
+        for (int i = 0; i < 10; i++)
+        {
+            assertEquals(0, controller2.getScalingParameter(i));
+            assertEquals(0, controller2.getPreviousScalingParameter(i));
+        }
+        AdaptiveController.getControllerConfigPath(keyspaceName, tableName).delete();
+
+        Controller controller3 = testFromOptions(true, options);
+        assertTrue(controller3 instanceof AdaptiveController);
+
+        for (int i = 0; i < 10; i++)
+        {
+            assertEquals(0, controller3.getScalingParameter(i));
+            assertEquals(0, controller3.getPreviousScalingParameter(i));
         }
     }
 

@@ -71,6 +71,7 @@ public abstract class ControllerTest
     static final boolean compactionEnabled = true;
     static final double readMultiplier = 0.5;
     static final double writeMultiplier = 1.0;
+    static final String tableName = "tbl";
 
     @Mock
     ColumnFamilyStore cfs;
@@ -130,7 +131,7 @@ public abstract class ControllerTest
         addOptions(adaptive, options);
         Controller.validateOptions(options);
 
-        Controller controller = Controller.fromOptions(cfs, options);
+        Controller controller = Controller.fromOptions(cfs, options, keyspaceName, tableName);
         assertNotNull(controller);
         assertNotNull(controller.toString());
 
@@ -275,7 +276,7 @@ public abstract class ControllerTest
         Map<String, String> options = new HashMap<>();
         options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
-        Controller controller = Controller.fromOptions(cfs, options);
+        Controller controller = Controller.fromOptions(cfs, options, keyspaceName, tableName);
 
         // Easy ones
         // x00 MiB = x * 100

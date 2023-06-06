@@ -31,6 +31,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.unified.AdaptiveController;
+import org.apache.cassandra.db.compaction.unified.Controller;
+import org.apache.cassandra.db.compaction.unified.StaticController;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
@@ -461,5 +464,22 @@ public class BackgroundCompactionsTest
 
         ucs.periodicReport();
         Mockito.verify(compactionLogger, times(1)).statistics(eq(ucs), eq("periodic"), any(CompactionStrategyStatistics.class));
+    }
+
+    @Test
+    public void controllerConfigTest()
+    {
+        UnifiedCompactionStrategy ucs = mock(UnifiedCompactionStrategy.class);
+        doCallRealMethod().when(ucs).storeControllerConfig();
+
+        AdaptiveController adaptiveController = mock(AdaptiveController.class);
+        when(ucs.getController()).thenReturn(adaptiveController);
+        ucs.storeControllerConfig();
+        Mockito.verify(adaptiveController, times(1)).storeControllerConfig();
+
+        StaticController staticController = mock(StaticController.class);
+        when(ucs.getController()).thenReturn(staticController);
+        ucs.storeControllerConfig();
+        Mockito.verify(staticController, times(1)).storeControllerConfig();
     }
 }
