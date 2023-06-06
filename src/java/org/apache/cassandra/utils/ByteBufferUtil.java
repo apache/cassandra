@@ -88,10 +88,6 @@ public class ByteBufferUtil
     public static final ByteBuffer UNSET_BYTE_BUFFER = ByteBuffer.wrap(new byte[]{});
 
     public static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
-    /**
-     * {@code 2^16 - 1}
-     */
-    public static final int UNSIGNED_SHORT_MAX = 65535;
 
     @Inline
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
@@ -738,8 +734,8 @@ public class ByteBufferUtil
     // changes bb position
     public static void writeShortLength(ByteBuffer bb, int length)
     {
-        if (length > UNSIGNED_SHORT_MAX)
-            throw new IllegalArgumentException(String.format("Length %d > max length %d", length, UNSIGNED_SHORT_MAX));
+        if (length > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new IllegalArgumentException(String.format("Length %d > max length %d", length, FBUtilities.MAX_UNSIGNED_SHORT));
         bb.put((byte) ((length >> 8) & 0xFF));
         bb.put((byte) (length & 0xFF));
     }

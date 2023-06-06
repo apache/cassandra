@@ -824,13 +824,19 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     private <V> void validateClustering(Clustering<V> clustering)
     {
         ValueAccessor<V> accessor = clustering.accessor();
+        int sum = 0;
         for (V v : clustering.getRawValues())
         {
             if (v != null && accessor.size(v) > FBUtilities.MAX_UNSIGNED_SHORT)
                 throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
                                                                 clustering.dataSize(),
                                                                 FBUtilities.MAX_UNSIGNED_SHORT));
+            sum += v == null ? 0 : accessor.size(v);
         }
+        if (sum > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                            sum,
+                                                            FBUtilities.MAX_UNSIGNED_SHORT));
     }
 
     public Slices createSlices(QueryOptions options)

@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -61,7 +62,11 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     {
         List<ByteBuffer> l = new ArrayList<>(clusterings.size());
         for (ClusteringPrefix clustering : clusterings)
+        {
+            for (int i = 0; i < clustering.size(); i++)
+                QueryProcessor.validateKey(clustering.bufferAt(i));
             l.add(clustering.serializeAsPartitionKey());
+        }
         return l;
     }
 
