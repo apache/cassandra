@@ -532,7 +532,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             PropertyUtils propertyUtils = new PropertyUtils();
             propertyUtils.setBeanAccess(BeanAccess.FIELD);
             propertyUtils.setAllowReadOnlyProperties(true);
-            return newYamlInstance(new ConfigWithValidationConstructor(root, Config.class.getClassLoader()), propertyUtils);
+            return newYamlInstance(new ConfigWithValidationConstructor(root,
+                                                                       root.getClassLoader() == null ?
+                                                                       Yaml.class.getClassLoader() :
+                                                                       root.getClassLoader()),
+                                   propertyUtils);
         }
 
         public Yaml newYamlInstance(BaseConstructor constructor, PropertyUtils propertyUtils)

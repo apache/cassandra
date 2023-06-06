@@ -256,7 +256,7 @@ public class DatabaseDescriptor
             return;
         daemonInitialized = true;
 
-        setConfig(config);
+        setConfig(config.get());
         applyAll();
         AuthConfig.applyAuth();
     }
@@ -295,7 +295,7 @@ public class DatabaseDescriptor
             return;
         toolInitialized = true;
 
-        setConfig(DatabaseDescriptor::loadConfig);
+        setConfig(loadConfig());
 
         applySSTableFormats();
 
@@ -351,7 +351,7 @@ public class DatabaseDescriptor
         clientInitialized = true;
         setDefaultFailureDetector();
         Config.setClientMode(true);
-        setConfig(configSupplier);
+        conf = configSupplier.get();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
     }
@@ -432,9 +432,9 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Supplier<Config> config)
+    private static void setConfig(Config config)
     {
-        conf = config.get();
+        conf = config;
     }
 
     private static void applyAll() throws ConfigurationException
