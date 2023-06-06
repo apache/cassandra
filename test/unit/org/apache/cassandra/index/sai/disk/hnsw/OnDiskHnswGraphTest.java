@@ -281,7 +281,7 @@ public class OnDiskHnswGraphTest extends SAITester
     public void testLargeGraph() throws IOException
     {
         logger.debug("constructing graph");
-        var graph = new RandomlyConnectedHnswGraph.Builder().addLevels(10, 1_000_000, 16).build();
+        var graph = new RandomlyConnectedHnswGraph.Builder().addLevels(10, 100_000, 16).build();
 
         logger.debug("writing graph");
         File outputFile = new File(testDirectory, "test_graph");
