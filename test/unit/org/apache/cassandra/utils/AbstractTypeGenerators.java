@@ -200,8 +200,13 @@ public final class AbstractTypeGenerators
         return PRIMITIVE_TYPE_GEN;
     }
 
+    public static Set<Class<? extends AbstractType<?>>> UNSAFE_EQUALITY = ImmutableSet.of(EmptyType.class,
+                                                                                          DurationType.class,
+                                                                                          DecimalType.class,
+                                                                                          CounterColumnType.class);
     public static TypeGenBuilder withoutUnsafeEquality()
     {
+        // make sure to keep UNSAFE_EQUALITY in-sync
         return AbstractTypeGenerators.builder()
                                      .withoutEmpty()
                                      .withoutPrimitive(DurationType.instance)
@@ -1242,6 +1247,13 @@ public final class AbstractTypeGenerators
         public TypeSupport<T> mapBytes(Function<ByteBuffer, ByteBuffer> fn)
         {
             return new TypeSupport<>(type, valueGen, bytesGen.map(fn), valueComparator);
+        }
+
+        public TypeSupport<T> withoutEmptyData()
+        {
+            if (!type.allowsEmpty())
+                return this;
+            return new TypeSupport<>(type, valueGen, Generators.filter(bytesGen, b -> !ByteBufferAccessor.instance.isEmpty(b)), valueComparator);
         }
 
         public TypeSupport<T> withValueDomain(@Nullable Gen<ValueDomain> valueDomainGen)

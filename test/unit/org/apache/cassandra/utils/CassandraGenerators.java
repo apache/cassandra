@@ -179,13 +179,16 @@ public final class CassandraGenerators
     public static class TableMetadataBuilder
     {
         private Gen<String> ksNameGen = IDENTIFIER_GEN;
-        private Gen<AbstractType<?>> defaultTypeGen = AbstractTypeGenerators.typeGen();
+        private Gen<AbstractType<?>> defaultTypeGen = AbstractTypeGenerators.builder()
+                                                                            .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
+                                                                            .withMaxDepth(1)
+                                                                            .build();
         private Gen<AbstractType<?>> partitionColTypeGen, clusteringColTypeGen, staticColTypeGen, regularColTypeGen;
-        private Gen<TableMetadata.Kind> tableKindGen = TABLE_KIND_GEN;
-        private Gen<Integer> numPartitionColumnsGen = SMALL_POSITIVE_SIZE_GEN;
-        private Gen<Integer> numClusteringColumnsGen = SMALL_POSITIVE_SIZE_GEN;
-        private Gen<Integer> numRegularColumnsGen = SMALL_POSITIVE_SIZE_GEN;
-        private Gen<Integer> numStaticColumnsGen = SMALL_POSITIVE_SIZE_GEN;
+        private Gen<TableMetadata.Kind> tableKindGen = SourceDSL.arbitrary().constant(TableMetadata.Kind.REGULAR);
+        private Gen<Integer> numPartitionColumnsGen = SourceDSL.integers().between(1, 2);
+        private Gen<Integer> numClusteringColumnsGen = SourceDSL.integers().between(1, 2);
+        private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
+        private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
 
         public TableMetadataBuilder withKeyspaceName(Gen<String> ksNameGen)
         {
@@ -297,6 +300,9 @@ public final class CassandraGenerators
 
         public TableMetadata build(RandomnessSource rnd)
         {
+            if (partitionColTypeGen == null && clusteringColTypeGen == null)
+                withPrimaryColumnTypeGen(Generators.filter(defaultTypeGen, t -> !AbstractTypeGenerators.UNSAFE_EQUALITY.contains(t.getClass())));
+
             String ks = ksNameGen.generate(rnd);
             String tableName = IDENTIFIER_GEN.generate(rnd);
             TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(Generators.UUID_RANDOM_GEN.generate(rnd)))
@@ -359,7 +365,7 @@ public final class CassandraGenerators
         ImmutableList<ColumnMetadata> columns = metadata.partitionKeyColumns();
         assert !columns.isEmpty() : "Unable to find partition key columns";
         if (columns.size() == 1)
-            return getTypeSupport(columns.get(0).type).bytesGen();
+            return getTypeSupport(columns.get(0).type).withoutEmptyData().bytesGen();
         List<Gen<ByteBuffer>> columnGens = new ArrayList<>(columns.size());
         for (ColumnMetadata cm : columns)
             columnGens.add(getTypeSupport(cm.type).bytesGen());
