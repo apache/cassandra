@@ -232,7 +232,7 @@ public class AggregationPagerTest extends QueryPagerTests
     private ReadCommand makeSliceQuery(int limit, int perPartitionLimit, boolean isReversed)
     {
         ColumnFamilyStore cfs = cfs(KEYSPACE1, CF_WITH_TWO_CLUSTERINGS);
-        return sliceQuery(limit, perPartitionLimit, PageSize.NONE, cfs, "k0", "c1", "c9", isReversed)
+        return sliceQuery(limit, perPartitionLimit, PageSize.NONE, cfs, key(0), "c1", "c9", isReversed)
                .withAggregationSpecification(AggregationSpecification.aggregatePkPrefixFactory(cfs.metadata().comparator, 1)
                                                                      .newInstance(QueryOptions.DEFAULT))
                .withSubPageSize(getSubPageSize())

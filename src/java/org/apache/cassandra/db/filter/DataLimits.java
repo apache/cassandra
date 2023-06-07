@@ -528,6 +528,7 @@ public abstract class DataLimits
             protected final boolean countPartitionsWithOnlyStaticData;
 
             protected int staticRowBytes;
+            protected int partitionKeyBytes;
 
             protected boolean hasLiveStaticRow;
 
@@ -546,6 +547,7 @@ public abstract class DataLimits
                 rowsInCurrentPartition = 0;
                 hasLiveStaticRow = !staticRow.isEmpty() && isLive(staticRow);
                 staticRowBytes = hasLiveStaticRow ? staticRow.dataSize() : 0;
+                partitionKeyBytes = partitionKey.getKeyLength();
             }
 
             @Override
@@ -559,7 +561,7 @@ public abstract class DataLimits
             @Override
             public void onPartitionClose()
             {
-                // Normally, we don't count static rows as from a CQL point of view, it will be merge with other
+                // Normally, we don't count static rows as from a CQL point of view, it will be merged with other
                 // rows in the partition. However, if we only have the static row, it will be returned as one row
                 // so count it.
                 if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && rowsInCurrentPartition == 0)
@@ -572,7 +574,7 @@ public abstract class DataLimits
              */
             protected void incrementRowCount(int rowSizeInBytes)
             {
-                bytesCounted += rowSizeInBytes;
+                bytesCounted += rowSizeInBytes + partitionKeyBytes;
                 rowsCounted++;
                 rowsInCurrentPartition++;
                 if (bytesCounted >= bytesLimit || rowsCounted >= rowLimit)
@@ -714,6 +716,7 @@ public abstract class DataLimits
                     // once more.
                     hasLiveStaticRow = false;
                     staticRowBytes = 0;
+                    partitionKeyBytes = partitionKey.getKeyLength();
                 }
                 else
                 {
@@ -1117,8 +1120,9 @@ public abstract class DataLimits
             {
                 rowsCountedInCurrentPartition++;
                 rowsCounted++;
-                bytesCounted += rowSizeInBytes;
-                maxRowSize = Math.max(maxRowSize, rowSizeInBytes);
+                int rowSizeWithPartitionKey = rowSizeInBytes + currentPartitionKey.getKeyLength();
+                bytesCounted += rowSizeWithPartitionKey;
+                maxRowSize = Math.max(maxRowSize, rowSizeWithPartitionKey);
                 if (rowsCounted >= rowLimit || bytesCounted >= bytesLimit)
                     stop();
             }
