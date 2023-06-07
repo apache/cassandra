@@ -27,9 +27,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import org.junit.Test;
+import org.slf4j.Logger;
 
 public class LongVectorTest extends SAITester
 {
+    private static final Logger logger = org.slf4j.LoggerFactory.getLogger(LongVectorTest.class);
+
     int dimension = 16; // getRandom().nextIntBetween(128, 768);
 
     KeySet keysInserted = new KeySet();
@@ -41,12 +44,14 @@ public class LongVectorTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
+        AtomicInteger counter = new AtomicInteger();
+        long start = System.currentTimeMillis();
         var fjp = new ForkJoinPool(12);
         var task = fjp.submit(() -> IntStream.range(0, 10_000_000).parallel().forEach(i ->
         {
             try
             {
-                oneOp(i);
+                oneOp(i, counter, start);
             }
             catch (Throwable e)
             {
@@ -57,7 +62,7 @@ public class LongVectorTest extends SAITester
         task.get(); // re-throw
     }
 
-    private void oneOp(int i) throws Throwable
+    private void oneOp(int i, AtomicInteger counter, long start) throws Throwable
     {
         var R = ThreadLocalRandom.current();
         var v = normalizedVector(R, dimension);
@@ -72,11 +77,15 @@ public class LongVectorTest extends SAITester
             execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
         }
 
-        if (R.nextDouble() < 0.01)
-            flush();
+// uncommenting makes it go faster for some reason
+//        if (R.nextDouble() < 0.001)
+//            flush();
 
-        if (R.nextDouble() < 0.0001)
-            compact();
+        if (counter.incrementAndGet() % 10_000 == 0)
+        {
+            var elapsed = System.currentTimeMillis() - start;
+            logger.info("{} ops in {}ms = {} ops/s", counter.get(), elapsed, counter.get() * 1000.0 / elapsed);
+        }
     }
 
     private Vector<Float> normalizedVector(ThreadLocalRandom r, int dimension)
