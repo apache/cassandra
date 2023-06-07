@@ -49,8 +49,10 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -68,6 +70,8 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.collect.ImmutableList.of;
@@ -184,12 +188,12 @@ public class Move extends MultiStepOperation<Epoch>
     @Override
     public SequenceState executeNext()
     {
+        ClusterMetadata metadata = ClusterMetadata.current();
         switch (next)
         {
             case START_MOVE:
                 try
                 {
-                    ClusterMetadata metadata = ClusterMetadata.current();
                     logger.info("Moving {} from {} to {}.",
                                 metadata.directory.endpoint(startMove.nodeId()),
                                 metadata.tokenMap.tokens(startMove.nodeId()),
@@ -218,6 +222,8 @@ public class Move extends MultiStepOperation<Epoch>
 
                     for (KeyspaceMetadata ks : keyspaces)
                     {
+                        if (AccordService.instance().isAccordManagedKeyspace(ks.name))
+                            continue;
                         ReplicationParams replicationParams = ks.params.replication;
                         if (replicationParams.isMeta())
                             continue;
@@ -242,7 +248,9 @@ public class Move extends MultiStepOperation<Epoch>
                         }
                     }
 
-                    streamPlan.execute().get();
+                    StreamResultFuture streamResult = streamPlan.execute();
+                    Future<Void> accordReady = AccordService.instance().epochReady(metadata.epoch);
+                    FutureCombiner.allOf(streamResult, accordReady).get();
                     StorageService.instance.repairPaxosForTopologyChange("move");
                 }
                 catch (InterruptedException e)

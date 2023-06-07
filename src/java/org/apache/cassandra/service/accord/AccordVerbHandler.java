@@ -33,18 +33,22 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     private static final Logger logger = LoggerFactory.getLogger(AccordVerbHandler.class);
 
     private final Node node;
+    private final AccordEndpointMapper endpointMapper;
 
-    public AccordVerbHandler(Node node)
+    public AccordVerbHandler(Node node, AccordEndpointMapper endpointMapper)
     {
         this.node = node;
+        this.endpointMapper = endpointMapper;
     }
 
     @Override
     public void doVerb(Message<T> message) throws IOException
     {
+        // TODO (desired): need a non-blocking way to inform CMS of an unknown epoch and add callback to it's receipt
+//        ClusterMetadataService.instance().maybeCatchup(message.epoch());
         logger.debug("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
-        Node.Id from = EndpointMapping.getId(message.from());
+        Node.Id from = endpointMapper.mappedId(message.from());
         long knownEpoch = request.knownEpoch();
         if (!node.topology().hasEpoch(knownEpoch))
         {

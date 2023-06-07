@@ -38,8 +38,6 @@ import accord.messages.ReplyContext;
 import accord.messages.Request;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.apache.cassandra.service.accord.EndpointMapping.getEndpoint;
-
 public class AccordMessageSink implements MessageSink
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordMessageSink.class);
@@ -77,6 +75,8 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.GET_DEPS_REQ,           Verb.ACCORD_GET_DEPS_REQ);
             mapping.put(MessageType.GET_DEPS_RSP,           Verb.ACCORD_GET_DEPS_RSP);
             mapping.put(MessageType.SIMPLE_RSP,             Verb.ACCORD_SIMPLE_RSP);
+            mapping.put(MessageType.FETCH_DATA_REQ,         Verb.ACCORD_FETCH_DATA_REQ);
+            mapping.put(MessageType.FETCH_DATA_RSP,         Verb.ACCORD_FETCH_DATA_RSP);
 
             for (MessageType type : MessageType.values())
             {
@@ -93,16 +93,18 @@ public class AccordMessageSink implements MessageSink
 
     private final Agent agent;
     private final MessageDelivery messaging;
+    private final AccordEndpointMapper endpointMapper;
 
-    public AccordMessageSink(Agent agent, MessageDelivery messaging)
+    public AccordMessageSink(Agent agent, MessageDelivery messaging, AccordEndpointMapper endpointMapper)
     {
         this.agent = agent;
         this.messaging = messaging;
+        this.endpointMapper = endpointMapper;
     }
 
-    public AccordMessageSink(Agent agent)
+    public AccordMessageSink(Agent agent, AccordConfigurationService endpointMapper)
     {
-        this(agent, MessagingService.instance());
+        this(agent, MessagingService.instance(), endpointMapper);
     }
 
     @Override
@@ -111,7 +113,7 @@ public class AccordMessageSink implements MessageSink
         Verb verb = getVerb(request.type());
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
-        InetAddressAndPort endpoint = getEndpoint(to);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
         messaging.send(message, endpoint);
     }
@@ -122,9 +124,9 @@ public class AccordMessageSink implements MessageSink
         Verb verb = getVerb(request.type());
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
-        InetAddressAndPort endpoint = getEndpoint(to);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
-        messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, (Callback<Reply>) callback));
+        messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, (Callback<Reply>) callback, endpointMapper));
     }
 
     @Override
@@ -135,7 +137,7 @@ public class AccordMessageSink implements MessageSink
         Verb verb = getVerb(reply.type());
         Preconditions.checkNotNull(verb, "Verb is null for type %s", reply.type());
         Preconditions.checkArgument(replyMsg.verb() == verb, "Expected reply message with verb %s but got %s; reply type was %s", replyMsg.verb(), verb, reply.type());
-        InetAddressAndPort endpoint = getEndpoint(replyingToNode);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
         logger.debug("Replying {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
         messaging.send(replyMsg, endpoint);
     }

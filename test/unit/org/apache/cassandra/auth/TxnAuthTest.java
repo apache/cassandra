@@ -35,7 +35,6 @@ import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.junit.Assert.assertEquals;
@@ -68,7 +67,6 @@ public class TxnAuthTest extends CQLTester
     public void setUpTest()
     {
         createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY(k))");
-        AccordService.instance().createEpochFromConfigUnsafe();
     }
 
     @Test

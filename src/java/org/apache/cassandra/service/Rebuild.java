@@ -44,11 +44,15 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.MovementMap;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -119,11 +123,16 @@ public class Rebuild
             if (keyspace == null)
             {
                 for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+                {
+                    if (AccordService.instance().isAccordManagedKeyspace(keyspaceName))
+                        continue;
                     streamer.addKeyspaceToFetch(keyspaceName);
+                }
             }
             else if (tokens == null)
             {
-                streamer.addKeyspaceToFetch(keyspace);
+                if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
+                    streamer.addKeyspaceToFetch(keyspace);
             }
             else
             {
@@ -150,10 +159,16 @@ public class Rebuild
                     streamer.addSourceFilter(new RangeStreamer.AllowedSourcesFilter(sources));
                 }
 
-                streamer.addKeyspaceToFetch(keyspace);
+                if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
+                    streamer.addKeyspaceToFetch(keyspace);
             }
 
-            streamer.fetchAsync().get();
+            StreamResultFuture resultFuture = streamer.fetchAsync();
+            // wait for result
+            Future<Void> accordReady = AccordService.instance().epochReady(metadata.epoch);
+            Future<?> ready = FutureCombiner.allOf(resultFuture, accordReady);
+            // wait for result
+            ready.get();
         }
         catch (InterruptedException e)
         {
