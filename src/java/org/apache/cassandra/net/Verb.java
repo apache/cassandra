@@ -79,10 +79,12 @@ import org.apache.cassandra.schema.SchemaVersionVerbHandler;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers;
+import org.apache.cassandra.service.accord.AccordLocalSyncNotifier;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
 import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.EnumSerializer;
+import org.apache.cassandra.service.accord.serializers.FetchSerializers;
 import org.apache.cassandra.service.accord.serializers.GetDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformHomeDurableSerializers;
@@ -91,6 +93,8 @@ import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitOnCommitSerializer;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosCommitAndPrepare;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
@@ -115,8 +119,6 @@ import org.apache.cassandra.tcm.serialization.MessageSerializers;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
-import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
@@ -288,6 +290,10 @@ public enum Verb
     ACCORD_CHECK_STATUS_REQ         (140, P2, writeTimeout, IMMEDIATE,          () -> CheckStatusSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_CHECK_STATUS_RSP       ),
     ACCORD_GET_DEPS_RSP             (143, P2, writeTimeout, REQUEST_RESPONSE,   () -> GetDepsSerializers.reply,             RESPONSE_HANDLER                                                            ),
     ACCORD_GET_DEPS_REQ             (142, P2, writeTimeout, IMMEDIATE,          () -> GetDepsSerializers.request,           () -> AccordService.instance().verbHandler(), ACCORD_GET_DEPS_RSP           ),
+    ACCORD_FETCH_DATA_RSP           (145, P2, writeTimeout, REQUEST_RESPONSE,   () -> FetchSerializers.reply,               RESPONSE_HANDLER                                                            ),
+    ACCORD_FETCH_DATA_REQ           (144, P2, writeTimeout, IMMEDIATE,          () -> FetchSerializers.request,             () -> AccordService.instance().verbHandler(), ACCORD_FETCH_DATA_RSP         ),
+    ACCORD_SYNC_NOTIFY_RSP          (147, P2, writeTimeout, REQUEST_RESPONSE,   () -> AccordLocalSyncNotifier.Acknowledgement.serializer, RESPONSE_HANDLER                                              ),
+    ACCORD_SYNC_NOTIFY_REQ          (146, P2, writeTimeout, IMMEDIATE,          () -> AccordLocalSyncNotifier.Notification.serializer, () -> AccordLocalSyncNotifier.verbHandler, ACCORD_SYNC_NOTIFY_RSP),
 
 
     // generic failure response

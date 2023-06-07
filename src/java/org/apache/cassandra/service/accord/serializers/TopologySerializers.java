@@ -19,13 +19,21 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 import accord.local.Node;
+import accord.primitives.Range;
+import accord.topology.Shard;
+import accord.topology.Topology;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.utils.ArraySerializers;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 public class TopologySerializers
 {
@@ -67,6 +75,66 @@ public class TopologySerializers
         public int serializedSize()
         {
             return TypeSizes.INT_SIZE;  // id.id
+        }
+    };
+
+    public static final IVersionedSerializer<Shard> shard = new IVersionedSerializer<Shard>()
+    {
+        @Override
+        public void serialize(Shard shard, DataOutputPlus out, int version) throws IOException
+        {
+            TokenRange.serializer.serialize((TokenRange) shard.range, out, version);
+            CollectionSerializers.serializeList(shard.nodes, out, version, nodeId);
+            CollectionSerializers.serializeCollection(shard.fastPathElectorate, out, version, nodeId);
+            CollectionSerializers.serializeCollection(shard.joining, out, version, nodeId);
+
+        }
+
+        @Override
+        public Shard deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Range range = TokenRange.serializer.deserialize(in, version);
+            List<Node.Id> nodes = CollectionSerializers.deserializeList(in, version, nodeId);
+            Set<Node.Id> fastPathElectorate = CollectionSerializers.deserializeSet(in, version, nodeId);
+            Set<Node.Id> joining = CollectionSerializers.deserializeSet(in, version, nodeId);
+            return new Shard(range, nodes, fastPathElectorate, joining);
+        }
+
+        @Override
+        public long serializedSize(Shard shard, int version)
+        {
+            long size = TokenRange.serializer.serializedSize((TokenRange) shard.range, version);
+            size += CollectionSerializers.serializedListSize(shard.nodes, version, nodeId);
+            size += CollectionSerializers.serializedCollectionSize(shard.fastPathElectorate, version, nodeId);
+            size += CollectionSerializers.serializedCollectionSize(shard.joining, version, nodeId);
+            return size;
+        }
+    };
+
+    public static final IVersionedSerializer<Topology> topology = new IVersionedSerializer<Topology>()
+    {
+        @Override
+        public void serialize(Topology topology, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeLong(topology.epoch());
+            ArraySerializers.serializeArray(topology.unsafeGetShards(), out, version, shard);
+        }
+
+        @Override
+        public Topology deserialize(DataInputPlus in, int version) throws IOException
+        {
+            long epoch = in.readLong();
+            Shard[] shards = ArraySerializers.deserializeArray(in, version, shard, Shard[]::new);
+            return new Topology(epoch, shards);
+        }
+
+        @Override
+        public long serializedSize(Topology topology, int version)
+        {
+            long size = 0;
+            size += TypeSizes.LONG_SIZE; // epoch
+            size += ArraySerializers.serializedArraySize(topology.unsafeGetShards(), version, shard);
+            return size;
         }
     };
 }

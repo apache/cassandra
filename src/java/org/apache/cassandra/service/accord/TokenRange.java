@@ -23,6 +23,10 @@ import java.io.IOException;
 import accord.api.RoutingKey;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.utils.Invariants;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -34,6 +38,14 @@ public class TokenRange extends Range.EndInclusive
     public TokenRange(AccordRoutingKey start, AccordRoutingKey end)
     {
         super(start, end);
+        Invariants.checkArgument(start.keyspace().equals(end.keyspace()),
+                                 "Token ranges cannot cover more than one keyspace start:%s, end:%s",
+                                 start, end);
+    }
+
+    public String keyspace()
+    {
+        return ((AccordRoutingKey) start()).keyspace();
     }
 
     public static TokenRange fullRange(String keyspace)
@@ -54,6 +66,16 @@ public class TokenRange extends Range.EndInclusive
         if (pick instanceof SentinelKey)
             pick = ((SentinelKey) pick).toTokenKey();
         return pick;
+    }
+
+    public org.apache.cassandra.dht.Range<Token> toKeyspaceRange ()
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        AccordRoutingKey start = (AccordRoutingKey) start();
+        AccordRoutingKey end = (AccordRoutingKey) end();
+        Token left = start instanceof SentinelKey ? partitioner.getMinimumToken() : start.token();
+        Token right = end instanceof SentinelKey ? partitioner.getMinimumToken() : end.token();
+        return new org.apache.cassandra.dht.Range<>(left, right);
     }
 
     public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<TokenRange>()

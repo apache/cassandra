@@ -65,6 +65,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Observable;
@@ -150,6 +151,16 @@ public class AccordCommandStore extends CommandStore
                                 this::loadCommandsForKey,
                                 this::saveCommandsForKey,
                                 AccordObjectSizes::commandsForKey);
+        AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, bootstrapBeganAt, safeToRead) -> {
+            executor.submit(() -> {
+                if (rejectBefore != null)
+                    super.setRejectBefore(rejectBefore);
+                if (bootstrapBeganAt != null)
+                    super.setBootstrapBeganAt(bootstrapBeganAt);
+                if (safeToRead != null)
+                    super.setSafeToRead(safeToRead);
+            });
+        }));
         executor.execute(() -> CommandStore.register(this));
         executor.execute(this::loadRangesToCommands);
     }
@@ -436,5 +447,26 @@ public class AccordCommandStore extends CommandStore
     public void shutdown()
     {
         executor.shutdown();
+    }
+
+    protected void setRejectBefore(ReducingRangeMap<Timestamp> newRejectBefore)
+    {
+        super.setRejectBefore(newRejectBefore);
+        // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
+        AccordKeyspace.updateRejectBefore(this, newRejectBefore);
+    }
+
+    protected void setBootstrapBeganAt(NavigableMap<TxnId, Ranges> newBootstrapBeganAt)
+    {
+        super.setBootstrapBeganAt(newBootstrapBeganAt);
+        // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
+        AccordKeyspace.updateBootstrapBeganAt(this, newBootstrapBeganAt);
+    }
+
+    protected void setSafeToRead(NavigableMap<Timestamp, Ranges> newSafeToRead)
+    {
+        super.setSafeToRead(newSafeToRead);
+        // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
+        AccordKeyspace.updateSafeToRead(this, newSafeToRead);
     }
 }

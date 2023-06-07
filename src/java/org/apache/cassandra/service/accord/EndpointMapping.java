@@ -18,119 +18,70 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.primitives.Ints;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableBiMap;
 
 import accord.local.Node;
+import accord.utils.Invariants;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 
-public class EndpointMapping
+class EndpointMapping implements AccordEndpointMapper
 {
-    static Node.Id endpointToId(InetAddressAndPort endpoint)
+    public static final EndpointMapping EMPTY = new EndpointMapping(0, ImmutableBiMap.of());
+    private final long epoch;
+    private final ImmutableBiMap<Node.Id, InetAddressAndPort> mapping;
+
+    private EndpointMapping(long epoch,
+                            ImmutableBiMap<Node.Id, InetAddressAndPort> mapping)
     {
-        Preconditions.checkArgument(endpoint.getAddress() instanceof Inet4Address);
-        Inet4Address address = (Inet4Address) endpoint.getAddress();
-        int id = Ints.fromByteArray(address.getAddress());
-        return new Node.Id(id);
+        this.epoch = epoch;
+        this.mapping = mapping;
     }
 
-    static InetAddressAndPort idToEndpoint(Node.Id node)
+    long epoch()
     {
-        byte[] bytes = Ints.toByteArray(node.id);
-        try
-        {
-            return InetAddressAndPort.getByAddress(InetAddress.getByAddress(bytes));
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return epoch;
     }
 
-    // TODO: Remove this if its one usage in AccordConfigurationService is removed.
-    public static ImmutableCollection<Node.Id> knownIds()
+    @Override
+    public Node.Id mappedId(InetAddressAndPort endpoint)
     {
-        return mapping.endpointToId.values();
+        return mapping.inverse().get(endpoint);
     }
 
-    private static class Mapping
+    @Override
+    public InetAddressAndPort mappedEndpoint(Node.Id id)
     {
-        private static final Mapping EMPTY = new Mapping(ImmutableMap.of(), ImmutableMap.of());
-        final ImmutableMap<Node.Id, InetAddressAndPort> idToEndpoint;
-        final ImmutableMap<InetAddressAndPort, Node.Id> endpointToId;
+        return mapping.get(id);
+    }
 
-        public Mapping(ImmutableMap<Node.Id, InetAddressAndPort> idToEndpoint,
-                       ImmutableMap<InetAddressAndPort, Node.Id> endpointToId)
+    static class Builder
+    {
+        private final long epoch;
+        private final BiMap<Node.Id, InetAddressAndPort> mapping = HashBiMap.create();
+
+        public Builder(long epoch)
         {
-            this.idToEndpoint = idToEndpoint;
-            this.endpointToId = endpointToId;
+            this.epoch = epoch;
         }
 
-        private static <K, V> ImmutableMap<K, V> put(ImmutableMap<K, V> current, K key, V val)
+        public Builder add(InetAddressAndPort endpoint, Node.Id id)
         {
-            return ImmutableMap.<K, V>builderWithExpectedSize(current.size() + 1).putAll(current).put(key, val).build();
+            Invariants.checkArgument(!mapping.containsKey(id), "Mapping already exists for Node.Id %s", id);
+            Invariants.checkArgument(!mapping.containsValue(endpoint), "Mapping already exists for %s", endpoint);
+            mapping.put(id, endpoint);
+            return this;
         }
 
-        public Mapping add(InetAddressAndPort endpoint)
+        public EndpointMapping build()
         {
-            if (endpointToId.containsKey(endpoint))
-                return this;
-            Node.Id id = endpointToId(endpoint);
-            return new Mapping(put(idToEndpoint, id, endpoint), put(endpointToId, endpoint, id));
-        }
-
-        public Mapping add(Node.Id id)
-        {
-            if (idToEndpoint.containsKey(id))
-                return this;
-
-            InetAddressAndPort endpoint = idToEndpoint(id);
-            return new Mapping(put(idToEndpoint, id, endpoint), put(endpointToId, endpoint, id));
+            return new EndpointMapping(epoch, ImmutableBiMap.copyOf(mapping));
         }
     }
 
-    private static volatile Mapping mapping = Mapping.EMPTY;
-
-    private EndpointMapping() {}
-
-    public static Node.Id getId(InetAddressAndPort endpoint)
+    static Builder builder(long epoch)
     {
-        Node.Id id = mapping.endpointToId.get(endpoint);
-        if (id == null)
-        {
-            synchronized (EndpointMapping.class)
-            {
-                mapping = mapping.add(endpoint);
-                id = mapping.endpointToId.get(endpoint);
-            }
-        }
-        return id;
-    }
-
-    // FIXME: put this stuff into the configuration service, where it will eventually live
-    public static Node.Id getId(Replica replica)
-    {
-        return getId(replica.endpoint());
-    }
-
-    public static InetAddressAndPort getEndpoint(Node.Id id)
-    {
-        InetAddressAndPort endpoint = mapping.idToEndpoint.get(id);
-        if (endpoint == null)
-        {
-            synchronized (EndpointMapping.class)
-            {
-                mapping = mapping.add(id);
-                endpoint = mapping.idToEndpoint.get(id);
-            }
-        }
-        return endpoint;
+        return new Builder(epoch);
     }
 }

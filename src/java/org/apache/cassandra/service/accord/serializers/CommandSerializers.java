@@ -22,6 +22,9 @@ import java.io.IOException;
 
 import com.google.common.base.Preconditions;
 
+import accord.api.Query;
+import accord.api.Read;
+import accord.api.Update;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
@@ -43,6 +46,7 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.utils.CastingSerializer;
 
 public class CommandSerializers
 {
@@ -118,19 +122,30 @@ public class CommandSerializers
         }
     }
 
-    public static final IVersionedSerializer<PartialTxn> partialTxn = new IVersionedSerializer<PartialTxn>()
+    public static class PartialTxnSerializer implements IVersionedSerializer<PartialTxn>
     {
+        private final IVersionedSerializer<Read> readSerializer;
+        private final IVersionedSerializer<Query> querySerializer;
+        private final IVersionedSerializer<Update> updateSerializer;
+
+        public PartialTxnSerializer(IVersionedSerializer<Read> readSerializer, IVersionedSerializer<Query> querySerializer, IVersionedSerializer<Update> updateSerializer)
+        {
+            this.readSerializer = readSerializer;
+            this.querySerializer = querySerializer;
+            this.updateSerializer = updateSerializer;
+        }
+
         @Override
         public void serialize(PartialTxn txn, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.kind.serialize(txn.kind(), out, version);
             KeySerializers.ranges.serialize(txn.covering(), out, version);
             KeySerializers.seekables.serialize(txn.keys(), out, version);
-            TxnRead.serializer.serialize((TxnRead) txn.read(), out, version);
-            TxnQuery.serializer.serialize((TxnQuery) txn.query(), out, version);
+            readSerializer.serialize(txn.read(), out, version);
+            querySerializer.serialize(txn.query(), out, version);
             out.writeBoolean(txn.update() != null);
             if (txn.update() != null)
-                TxnUpdate.serializer.serialize((TxnUpdate) txn.update(), out, version);
+                updateSerializer.serialize(txn.update(), out, version);
         }
 
         @Override
@@ -139,9 +154,9 @@ public class CommandSerializers
             Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
             Ranges covering = KeySerializers.ranges.deserialize(in, version);
             Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
-            TxnRead read = TxnRead.serializer.deserialize(in, version);
-            TxnQuery query = TxnQuery.serializer.deserialize(in, version);
-            TxnUpdate update = in.readBoolean() ? TxnUpdate.serializer.deserialize(in, version) : null;
+            Read read = readSerializer.deserialize(in, version);
+            Query query = querySerializer.deserialize(in, version);
+            Update update = in.readBoolean() ? updateSerializer.deserialize(in, version) : null;
             return new PartialTxn.InMemory(covering, kind, keys, read, query, update);
         }
 
@@ -151,14 +166,20 @@ public class CommandSerializers
             long size = CommandSerializers.kind.serializedSize(txn.kind(), version);
             size += KeySerializers.ranges.serializedSize(txn.covering(), version);
             size += KeySerializers.seekables.serializedSize(txn.keys(), version);
-            size += TxnRead.serializer.serializedSize((TxnRead) txn.read(), version);
-            size += TxnQuery.serializer.serializedSize((TxnQuery) txn.query(), version);
+            size += readSerializer.serializedSize(txn.read(), version);
+            size += querySerializer.serializedSize(txn.query(), version);
             size += TypeSizes.sizeof(txn.update() != null);
             if (txn.update() != null)
-                size += TxnUpdate.serializer.serializedSize((TxnUpdate) txn.update(), version);
+                size += updateSerializer.serializedSize(txn.update(), version);
             return size;
         }
-    };
+    }
+
+    private static final IVersionedSerializer<Read> read = new CastingSerializer<>(TxnRead.class, TxnRead.serializer);
+    private static final IVersionedSerializer<Query> query = new CastingSerializer<>(TxnQuery.class, TxnQuery.serializer);
+    private static final IVersionedSerializer<Update> update = new CastingSerializer<>(TxnUpdate.class, TxnUpdate.serializer);
+
+    public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
 
     public static final IVersionedSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
     public static final IVersionedSerializer<Status> status = new EnumSerializer<>(Status.class);

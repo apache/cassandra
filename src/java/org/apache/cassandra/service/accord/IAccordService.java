@@ -23,7 +23,10 @@ import accord.primitives.Txn;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,8 +34,6 @@ import java.util.concurrent.TimeoutException;
 public interface IAccordService
 {
     IVerbHandler<? extends Request> verbHandler();
-
-    void createEpochFromConfigUnsafe();
 
     TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel);
 
@@ -42,5 +43,22 @@ public interface IAccordService
 
     TopologyManager topology();
 
+    void startup();
+
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
+
+    /**
+     * Return a future that will complete once the accord has completed it's local bootstrap process
+     * for any ranges gained in the given epoch
+     */
+    Future<Void> epochReady(Epoch epoch);
+
+    void remoteSyncComplete(Message<AccordLocalSyncNotifier.Notification> message);
+
+    /**
+     * Temporary method to avoid double-streaming keyspaces
+     * @param keyspace
+     * @return
+     */
+    boolean isAccordManagedKeyspace(String keyspace);
 }

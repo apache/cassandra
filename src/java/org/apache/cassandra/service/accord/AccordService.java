@@ -40,6 +40,8 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
 import accord.utils.DefaultRandom;
+import accord.utils.Invariants;
+import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Shutdownable;
 import accord.utils.async.AsyncResult;
@@ -50,15 +52,22 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
@@ -70,12 +79,14 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
     public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
+    private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
     private final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
+    private final AccordDataStore dataStore;
     private final AccordVerbHandler<? extends Request> verbHandler;
 
     private static final IAccordService NOOP_SERVICE = new IAccordService()
@@ -85,9 +96,6 @@ public class AccordService implements IAccordService, Shutdownable
         {
             return null;
         }
-
-        @Override
-        public void createEpochFromConfigUnsafe() { }
 
         @Override
         public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
@@ -111,12 +119,36 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
+        public void startup() {}
+
+        @Override
         public void shutdownAndWait(long timeout, TimeUnit unit) { }
+
+        @Override
+        public Future<Void> epochReady(Epoch epoch)
+        {
+            return BOOTSTRAP_SUCCESS;
+        }
+
+        @Override
+        public void remoteSyncComplete(Message<AccordLocalSyncNotifier.Notification> message) {}
+
+        public boolean isAccordManagedKeyspace(String keyspace)
+        {
+            return false;
+        }
     };
 
+    private static Node.Id localId = null;
     private static class Handle
     {
         public static final AccordService instance = new AccordService();
+    }
+
+    public static void startup(NodeId tcmId)
+    {
+        localId = AccordTopologyUtils.tcmIdToAccord(tcmId);
+        instance().startup();
     }
 
     public static IAccordService instance()
@@ -131,17 +163,18 @@ public class AccordService implements IAccordService, Shutdownable
 
     private AccordService()
     {
-        Node.Id localId = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
+        Invariants.checkState(localId != null, "static localId must be set before instantiating AccordService");
         logger.info("Starting accord with nodeId {}", localId);
         AccordAgent agent = new AccordAgent();
-        this.messageSink = new AccordMessageSink(agent);
         this.configService = new AccordConfigurationService(localId);
+        this.messageSink = new AccordMessageSink(agent, configService);
         this.scheduler = new AccordScheduler();
+        this.dataStore = new AccordDataStore();
         this.node = new Node(localId,
                              messageSink,
                              configService,
                              AccordService::uniqueNow,
-                             () -> AccordDataStore.INSTANCE,
+                             () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
                              agent,
                              new DefaultRandom(),
@@ -150,20 +183,20 @@ public class AccordService implements IAccordService, Shutdownable
                              SimpleProgressLog::new,
                              AccordCommandStores.factory(new AccordJournal().start()));
         this.nodeShutdown = toShutdownable(node);
-        this.verbHandler = new AccordVerbHandler<>(this.node);
+        this.verbHandler = new AccordVerbHandler<>(this.node, configService);
+    }
+
+    @Override
+    public void startup()
+    {
+        configService.start();
+        ClusterMetadataService.instance().log().addListener(configService);
     }
 
     @Override
     public IVerbHandler<? extends Request> verbHandler()
     {
         return verbHandler;
-    }
-
-    @Override
-    @VisibleForTesting
-    public void createEpochFromConfigUnsafe()
-    {
-        configService.createEpochFromConfig();
     }
 
     public static long nowInMicros()
@@ -248,12 +281,6 @@ public class AccordService implements IAccordService, Shutdownable
                             : new ReadPreemptedException(consistencyLevel, 0, 0, false, txnId.toString());
     }
 
-    @VisibleForTesting
-    AccordMessageSink messageSink()
-    {
-        return messageSink;
-    }
-
     @Override
     public void setCacheSize(long kb)
     {
@@ -308,6 +335,26 @@ public class AccordService implements IAccordService, Shutdownable
         return node;
     }
 
+    @Override
+    public Future<Void> epochReady(Epoch epoch)
+    {
+        AsyncPromise<Void> promise = new AsyncPromise<>();
+        AsyncChain<Void> ready = configService.epochReady(epoch.getEpoch());
+        ready.begin((result, failure) -> {
+            if (failure == null) promise.trySuccess(result);
+            else promise.tryFailure(failure);
+        });
+        return promise;
+    }
+
+    @Override
+    public void remoteSyncComplete(Message<AccordLocalSyncNotifier.Notification> message)
+    {
+        Invariants.checkArgument(localId.equals(message.payload.to), "%s != %s", localId, message.payload.to);
+        configService.remoteSyncComplete(message.payload.from, message.payload.epoch);
+        MessagingService.instance().respond(new AccordLocalSyncNotifier.Acknowledgement(localId), message);
+    }
+
     private static Shutdownable toShutdownable(Node node)
     {
         return new Shutdownable() {
@@ -342,5 +389,16 @@ public class AccordService implements IAccordService, Shutdownable
                 return true;
             }
         };
+    }
+
+    @VisibleForTesting
+    public AccordConfigurationService configurationService()
+    {
+        return configService;
+    }
+
+    public boolean isAccordManagedKeyspace(String keyspace)
+    {
+        return configService.isAccordManagedKeyspace(keyspace);
     }
 }
