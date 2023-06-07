@@ -79,7 +79,8 @@ public class VectorPostingsWriter<T>
             var postings = postingsMap.get(vectorValues.vectorValue(i));
             writer.writeInt(postings.size());
             for (var key : postings.getPostings()) {
-                writer.writeInt(postingTransformer.apply(key));
+                var rowId = postingTransformer.apply(key);
+                writer.writeInt(rowId);
             }
         }
         assert writer.position() == nextOffset;

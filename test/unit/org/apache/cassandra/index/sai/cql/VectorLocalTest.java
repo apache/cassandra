@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,7 +39,6 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.hnsw.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.lucene.index.VectorEncoding;
@@ -155,7 +155,7 @@ public class VectorLocalTest extends VectorTester
         List<float[]> resultVectors = getVectorsFromResult(resultSet);
         assertDescendingScore(queryVector, resultVectors);
 
-        double recall = getRecall(allVectors, queryVector, resultVectors, limit);
+        double recall = indexedRecall(allVectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.8);
     }
 
@@ -328,6 +328,66 @@ public class VectorLocalTest extends VectorTester
         }
     }
 
+    // test retrieval of multiple rows that have the same vector value
+    @Test
+    public void multipleSegmentsMultiplePostingsTest() throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (pk int, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));
+        disableCompaction(KEYSPACE);
+
+        int sstableCount = getRandom().nextIntBetween(3, 6);
+        int vectorCountPerSSTable = getRandom().nextIntBetween(100, 200);
+        int pk = 0;
+
+        // create multiple sstables
+        int vectorCount = 0;
+        var population = new ArrayList<float[]>();
+        for (int i = 0; i < sstableCount; i++)
+        {
+            for (int row = 0; row < vectorCountPerSSTable; row++)
+            {
+                float[] v = word2vec.get(word2vec.words[vectorCount++]);
+                for (int j = 0; j < getRandom().nextIntBetween(1, 4); j++) {
+                    execute("INSERT INTO %s (pk, val) VALUES (?, ?)", pk++, vector(v));
+                    population.add(v);
+                }
+            }
+            flush();
+        }
+        assertThat(getCurrentColumnFamilyStore(keyspace()).getLiveSSTables()).hasSize(sstableCount);
+
+        // create index on existing sstable to produce multiple segments
+        SegmentBuilder.updateLastValidSegmentRowId(50); // 50 rows per segment
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // query multiple on-disk indexes
+        for (int i = vectorCount; i < word2vec.vectors.size(); i++)
+        {
+            var q = word2vec.get(word2vec.words[i]);
+            int limit = Math.min(getRandom().nextIntBetween(10, 50), vectorCountPerSSTable);
+            UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of ? LIMIT ?", vector(q), limit);
+            assertThat(result).hasSize(limit);
+
+            List<float[]> resultVectors = getVectorsFromResult(result);
+            assertDescendingScore(q, resultVectors);
+
+            double recall = bruteForceRecall(q, resultVectors, population, limit);
+            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+        }
+    }
+
+    private double bruteForceRecall(float[] q, List<float[]> resultVectors, List<float[]> population, int limit)
+    {
+        List<float[]> expected = population
+                                 .stream()
+                                 .sorted(Comparator.comparingDouble(v -> -VectorSimilarityFunction.COSINE.compare(q, v)))
+                                 .limit(limit)
+                                 .collect(Collectors.toList());
+        return recallMatch(expected, resultVectors, limit);
+    }
+
+    // search across multiple segments, combined with a non-ann predicate
     @Test
     public void multipleNonAnnSegmentsTest() throws Throwable
     {
@@ -354,7 +414,7 @@ public class VectorLocalTest extends VectorTester
         }
         assertThat(getCurrentColumnFamilyStore(keyspace()).getLiveSSTables()).hasSize(sstableCount);
 
-        // create indexes on existing sstable to flush multiple segments
+        // create indexes on existing sstable to produce multiple segments
         SegmentBuilder.updateLastValidSegmentRowId(50); // 50 rows per segment
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
@@ -371,7 +431,7 @@ public class VectorLocalTest extends VectorTester
             List<float[]> resultVectors = getVectorsFromResult(resultSet);
             assertDescendingScore(queryVector, resultVectors);
 
-            double recall = getRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors, limit);
+            double recall = indexedRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors, limit);
             assertThat(recall).isGreaterThanOrEqualTo(0.8);
         }
     }
@@ -442,7 +502,7 @@ public class VectorLocalTest extends VectorTester
         }
     }
 
-    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException
+    private double indexedRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException
     {
         ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
         int ordinal = 0;

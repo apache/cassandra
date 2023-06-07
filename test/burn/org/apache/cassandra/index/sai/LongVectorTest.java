@@ -111,7 +111,7 @@ public class LongVectorTest extends SAITester
     private void writeOp(int i) throws Throwable
     {
         var R = ThreadLocalRandom.current();
-        var v = normalizedVector(R, dimension);
+        var v = normalizedVector(dimension);
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
         if (R.nextDouble() < 0.001)
             flush();
@@ -120,7 +120,7 @@ public class LongVectorTest extends SAITester
     private void readWriteOp(int i) throws Throwable
     {
         var R = ThreadLocalRandom.current();
-        var v = normalizedVector(R, dimension);
+        var v = normalizedVector(dimension);
         if (R.nextDouble() < 0.1 || keysInserted.isEmpty())
         {
             execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
@@ -137,13 +137,14 @@ public class LongVectorTest extends SAITester
 //            flush();
     }
 
-    private Vector<Float> normalizedVector(ThreadLocalRandom r, int dimension)
+    private static Vector<Float> normalizedVector(int dimension)
     {
+        var R = ThreadLocalRandom.current();
         var vector = new Float[dimension];
         var sum = 0.0f;
         for (int i = 0; i < dimension; i++)
         {
-            vector[i] = r.nextFloat();
+            vector[i] = R.nextFloat();
             sum += vector[i] * vector[i];
         }
 

@@ -2116,9 +2116,17 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
-    protected <T> Vector<T> vector(T... values)
+    protected Vector<Float> vector(Float... values)
     {
         return new Vector<>(values);
+    }
+
+    protected Vector<Float> vector(float[] v)
+    {
+        var v2 = new Float[v.length];
+        for (int i = 0; i < v.length; i++)
+            v2[i] = v[i];
+        return new Vector<>(v2);
     }
 
     protected Object set(Object...values)
