@@ -75,12 +75,6 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public boolean allowsEmpty()
-    {
-        return false;
-    }
-
-    @Override
     public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
         return elements.referencesUserType(name, accessor);

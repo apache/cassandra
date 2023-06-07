@@ -77,6 +77,8 @@ public class SetSerializer<T> extends AbstractMapSerializer<Set<T>>
     @Override
     public <V> void validate(V input, ValueAccessor<V> accessor)
     {
+        if (accessor.isEmpty(input))
+            throw new MarshalException("Not enough bytes to read a set");
         try
         {
             // Empty values are still valid.
@@ -102,8 +104,6 @@ public class SetSerializer<T> extends AbstractMapSerializer<Set<T>>
     @Override
     public <V> Set<T> deserialize(V input, ValueAccessor<V> accessor)
     {
-        if (accessor.isEmpty(input))
-            return Collections.emptySet();
         try
         {
             int n = readCollectionSize(input, accessor);

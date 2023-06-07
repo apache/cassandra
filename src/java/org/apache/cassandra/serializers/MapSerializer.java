@@ -88,6 +88,8 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
     @Override
     public <T> void validate(T input, ValueAccessor<T> accessor)
     {
+        if (accessor.isEmpty(input))
+            throw new MarshalException("Not enough bytes to read a map");
         try
         {
             // Empty values are still valid.
@@ -117,8 +119,6 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
     @Override
     public <I> Map<K, V> deserialize(I input, ValueAccessor<I> accessor)
     {
-        if (accessor.isEmpty(input))
-            return Collections.emptyMap();
         try
         {
             int n = readCollectionSize(input, accessor);

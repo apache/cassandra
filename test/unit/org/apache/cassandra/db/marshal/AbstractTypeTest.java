@@ -106,6 +106,7 @@ public class AbstractTypeTest
             else
             {
                 assertThatThrownBy(() -> type.validate(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isInstanceOf(MarshalException.class);
+                assertThatThrownBy(() -> type.getSerializer().validate(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isInstanceOf(MarshalException.class);
                 // ByteSerializer returns null
 //                assertThatThrownBy(() -> type.compose(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isInstanceOf(MarshalException.class);
             }
