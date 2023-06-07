@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.NavigableSet;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -42,7 +44,6 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
-import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -51,7 +52,6 @@ import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.lucene.document.IntRange;
 import org.apache.lucene.util.Bits;
 
 public class VectorMemtableIndex implements MemtableIndex
@@ -64,6 +64,8 @@ public class VectorMemtableIndex implements MemtableIndex
 
     private PrimaryKey minimumKey;
     private PrimaryKey maximumKey;
+
+    private final NavigableSet<PrimaryKey> primaryKeys = new ConcurrentSkipListSet<>();
 
     public VectorMemtableIndex(IndexContext indexContext)
     {
@@ -97,6 +99,7 @@ public class VectorMemtableIndex implements MemtableIndex
             maximumKey = primaryKey;
 
         writeCount.increment();
+        primaryKeys.add(primaryKey);
         return graph.add(value, primaryKey);
     }
 
@@ -127,6 +130,10 @@ public class VectorMemtableIndex implements MemtableIndex
                 graph.add(newValue, primaryKey);
             if (oldRemaining > 0)
                 graph.remove(oldValue, primaryKey);
+
+            // remove primary key if it's no longer indexed
+            if (newRemaining <= 0 && oldRemaining > 0)
+                primaryKeys.remove(primaryKey);
         }
     }
 
@@ -139,9 +146,17 @@ public class VectorMemtableIndex implements MemtableIndex
         float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
 
         Bits bits = null;
-        // key range doesn't full token ring, we need to filter keys inside ANN search
+        // if key range doesn't cover full token ring, it's faster to use post-filtering top-k processor instead of ANN due to
+        // slow ordinal to primary keys mapping.
         if (!graph.isEmpty() && !RangeUtil.coversFullRing(keyRange))
-            bits = new KeyRangeFilteringBits(keyRange);
+        {
+            PrimaryKey left = indexContext.keyFactory().createTokenOnly(keyRange.left.getToken()); // lower bound
+            PrimaryKey right = indexContext.keyFactory().createTokenOnly(keyRange.right.getToken().nextValidToken()); // upper bound
+            Set<PrimaryKey> resultKeys = primaryKeys.subSet(left, true, right, false);
+            if (resultKeys.isEmpty())
+                return RangeIterator.emptyKeys();
+            return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
+        }
 
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
         if (keyQueue.isEmpty())
@@ -224,29 +239,6 @@ public class VectorMemtableIndex implements MemtableIndex
     public ByteBuffer getMaxTerm()
     {
         return null;
-    }
-
-    private class KeyRangeFilteringBits implements Bits
-    {
-        private final AbstractBounds<PartitionPosition> keyRange;
-
-        public KeyRangeFilteringBits(AbstractBounds<PartitionPosition> keyRange)
-        {
-            this.keyRange = keyRange;
-        }
-
-        @Override
-        public boolean get(int ordinal)
-        {
-            var keys = graph.keysFromOrdinal(ordinal);
-            return keys.stream().anyMatch(k -> keyRange.contains(k.partitionKey()));
-        }
-
-        @Override
-        public int length()
-        {
-            return graph.size();
-        }
     }
 
     private class ReorderingRangeIterator extends RangeIterator<PrimaryKey>
