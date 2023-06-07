@@ -339,7 +339,7 @@ public abstract class Controller
     /**
      * @return whether L0 should use shards
      */
-    public final boolean areL0ShardsEnabled()
+    public boolean areL0ShardsEnabled()
     {
         return false; // l0ShardsEnabled; FIXME VECTOR-23
     }
