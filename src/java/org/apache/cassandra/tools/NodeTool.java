@@ -21,7 +21,6 @@ import static com.google.common.base.Throwables.getStackTraceAsString;
 import static com.google.common.collect.Iterables.toArray;
 import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Integer.parseInt;
-import static java.lang.String.format;
 import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
@@ -46,11 +45,13 @@ import java.util.Scanner;
 import java.util.SortedMap;
 
 import javax.management.InstanceNotFoundException;
+import javax.management.Notification;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.tools.INodeProbeFactory.NodeProbeFactory;
 import org.apache.cassandra.tools.nodetool.*;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -68,7 +69,7 @@ import io.airlift.airline.ParseOptionConversionException;
 import io.airlift.airline.ParseOptionMissingException;
 import io.airlift.airline.ParseOptionMissingValueException;
 
-public class NodeTool
+public class NodeTool implements AutoCloseable
 {
     static
     {
@@ -77,6 +78,7 @@ public class NodeTool
 
     private static final String HISTORYFILE = "nodetool.history";
 
+    protected NodeProbe probe;
     private final INodeProbeFactory nodeProbeFactory;
     private final Output output;
 
@@ -89,6 +91,11 @@ public class NodeTool
     {
         this.nodeProbeFactory = nodeProbeFactory;
         this.output = output;
+    }
+
+    public List<Notification> getNotifications()
+    {
+        return Collections.emptyList();
     }
 
     public int execute(String... args)
@@ -259,7 +266,7 @@ public class NodeTool
         {
             NodeToolCmdRunnable parse = parser.parse(args);
             printHistory(args);
-            parse.run(nodeProbeFactory, output);
+            parse.run(this, nodeProbeFactory, output);
         } catch (IllegalArgumentException |
                 IllegalStateException |
                 ParseArgumentsMissingException |
@@ -279,6 +286,22 @@ public class NodeTool
         }
 
         return status;
+    }
+
+    @Override
+    public void close()
+    {
+        if (probe == null)
+            return;
+
+        try
+        {
+            probe.close();
+        }
+        catch (Exception e)
+        {
+            // ignored
+        }
     }
 
     private static void printHistory(String... args)
@@ -320,7 +343,7 @@ public class NodeTool
 
     public static class CassHelp extends Help implements NodeToolCmdRunnable
     {
-        public void run(INodeProbeFactory nodeProbeFactory, Output output)
+        public void run(NodeTool nodeTool, INodeProbeFactory nodeProbeFactory, Output output)
         {
             run();
         }
@@ -328,7 +351,7 @@ public class NodeTool
 
     interface NodeToolCmdRunnable
     {
-        void run(INodeProbeFactory nodeProbeFactory, Output output);
+        void run(NodeTool nodeTool, INodeProbeFactory nodeProbeFactory, Output output);
     }
 
     public static abstract class NodeToolCmd implements NodeToolCmdRunnable
@@ -353,11 +376,13 @@ public class NodeTool
         protected boolean printPort = false;
 
         private INodeProbeFactory nodeProbeFactory;
+        private NodeTool nodeTool;
         protected Output output;
 
         @Override
-        public void run(INodeProbeFactory nodeProbeFactory, Output output)
+        public void run(NodeTool nodeTool, INodeProbeFactory nodeProbeFactory, Output output)
         {
+            this.nodeTool = nodeTool;
             this.nodeProbeFactory = nodeProbeFactory;
             this.output = output;
             runInternal();
@@ -375,7 +400,21 @@ public class NodeTool
 
             try (NodeProbe probe = connect())
             {
-                execute(probe);
+                try
+                {
+                    if (nodeTool != null)
+                    {
+                        nodeTool.preExecute(probe);
+                        nodeTool.probe = probe;
+                    }
+                    execute(probe);
+                }
+                finally
+                {
+                    if (nodeTool != null)
+                        nodeTool.postExecute(probe);
+                }
+
                 if (probe.isFailed())
                     throw new RuntimeException("nodetool failed, check server logs");
             }
@@ -442,7 +481,7 @@ public class NodeTool
             } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
-                output.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));
+                output.err.printf("nodetool: Failed to connect to '%s:%s' - %s: '%s'.%n", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage());
                 System.exit(1);
             }
 
@@ -496,6 +535,16 @@ public class NodeTool
         {
             return cmdArgs.size() <= 2 ? EMPTY_STRING_ARRAY : toArray(cmdArgs.subList(2, cmdArgs.size()), String.class);
         }
+    }
+
+    public void preExecute(NodeProbe probe)
+    {
+
+    }
+
+    public void postExecute(NodeProbe probe)
+    {
+
     }
 
     public static SortedMap<String, SetHostStatWithPort> getOwnershipByDcWithPort(NodeProbe probe, boolean resolveIp,

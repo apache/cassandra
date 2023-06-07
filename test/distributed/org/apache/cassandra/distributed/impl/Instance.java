@@ -88,7 +88,6 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
@@ -123,7 +122,6 @@ import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
@@ -133,6 +131,8 @@ import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
+import org.apache.cassandra.tools.INodeProbeFactory;
+import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.SystemExitException;
@@ -975,7 +975,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         return sync(() -> {
             try (CapturingOutput output = new CapturingOutput();
-                 DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate))
+                 DTestNodeTool nodetool = new DTestNodeTool(config, withNotifications, output.delegate))
             {
                 // install security manager to get informed about the exit-code
                 System.setSecurityManager(new SecurityManager()
@@ -1062,17 +1062,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public static class DTestNodeTool extends NodeTool implements AutoCloseable
     {
-        private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
-        private final InternalNodeProbe internalNodeProbe;
+        private final boolean withNotifications;
         private Throwable latestError;
 
-        public DTestNodeTool(boolean withNotifications, Output output)
+        public DTestNodeTool(IInstanceConfig config, boolean withNotifications, Output output)
         {
-            super(new InternalNodeProbeFactory(withNotifications), output);
-            internalNodeProbe = new InternalNodeProbe(withNotifications);
-            storageProxy = internalNodeProbe.getStorageService();
-            storageProxy.addNotificationListener(notifications, null, null);
+            super(config.has(JMX) ? new INodeProbeFactory.NodeProbeFactory() : new InternalNodeProbeFactory(withNotifications), output);
+            this.withNotifications = withNotifications;
         }
 
         public List<Notification> getNotifications()
@@ -1085,22 +1082,26 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             return latestError;
         }
 
-        public int execute(String... args)
+        @Override
+        public void preExecute(NodeProbe probe)
         {
+            if (withNotifications)
+                probe.getStorageService().addNotificationListener(notifications, null, null);
+        }
+
+        @Override
+        public void postExecute(NodeProbe probe)
+        {
+            if (!withNotifications)
+                return;
+
             try
             {
-                return super.execute(args);
+                probe.getStorageService().removeNotificationListener(notifications, null, null);
             }
-            finally
+            catch (ListenerNotFoundException e)
             {
-                try
-                {
-                    storageProxy.removeNotificationListener(notifications, null, null);
-                }
-                catch (ListenerNotFoundException e)
-                {
-                    // ignored
-                }
+                // ignored
             }
         }
 
@@ -1116,12 +1117,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 return;
             super.err(e);
             latestError = e;
-        }
-
-        @Override
-        public void close()
-        {
-            internalNodeProbe.close();
         }
     }
 
