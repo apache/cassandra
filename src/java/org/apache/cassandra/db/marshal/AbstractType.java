@@ -502,6 +502,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return valueLengthIfFixed() != VARIABLE_LENGTH;
     }
 
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
     public boolean isNull(ByteBuffer bb)
     {
         return isNull(bb, ByteBufferAccessor.instance);

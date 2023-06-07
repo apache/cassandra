@@ -67,6 +67,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         // in accord branch there is a much cleaner api for this pattern...
         Gen<AbstractTypeGenerators.ValueDomain> domainGen = SourceDSL.integers().between(1, 100).map(i -> i < 2 ? AbstractTypeGenerators.ValueDomain.NULL : i < 4 ? AbstractTypeGenerators.ValueDomain.EMPTY_BYTES : AbstractTypeGenerators.ValueDomain.NORMAL);
+        // TODO (seed=1686092282977L) : map() == null, so CQLTEster fails as empty != null.... should/could we move this to AbstractType?
         qt().checkAssert(random -> {
             TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality().withUserTypeKeyspace(KEYSPACE);
             TableMetadata metadata = new TableMetadataBuilder()

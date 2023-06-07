@@ -53,6 +53,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
@@ -61,6 +62,7 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
+import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
@@ -70,6 +72,7 @@ import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.typeTree;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.quicktheories.QuickTheory.qt;
 
 public class AbstractTypeTest
@@ -90,6 +93,25 @@ public class AbstractTypeTest
     // isCompatibleWith/isValueCompatibleWith/isSerializationCompatibleWith,
     // withUpdatedUserType/expandUserTypes/referencesDuration - types that recursive check types
     // getMaskedValue
+
+    @Test
+    public void empty()
+    {
+        qt().forAll(genBuilder().build()).checkAssert(type -> {
+            if (type.allowsEmpty())
+            {
+                type.validate(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                // empty container or null is valid; only checks that this method doesn't fail
+                type.compose(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+            }
+            else
+            {
+                assertThatThrownBy(() -> type.validate(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isInstanceOf(MarshalException.class);
+                // ByteSerializer returns null
+//                assertThatThrownBy(() -> type.compose(ByteBufferUtil.EMPTY_BYTE_BUFFER)).isInstanceOf(MarshalException.class);
+            }
+        });
+    }
 
     @Test
     public void allTypesCovered()

@@ -45,7 +45,6 @@ import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.ArrayUtils;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -1247,7 +1246,7 @@ public final class AbstractTypeGenerators
 
         public TypeSupport<T> withValueDomain(@Nullable Gen<ValueDomain> valueDomainGen)
         {
-            if (valueDomainGen == null || type == ByteType.instance || type == SimpleDateType.instance)
+            if (valueDomainGen == null || !type.allowsEmpty())
                 return this;
             Gen<ByteBuffer> gen = rnd -> {
                 ValueDomain domain = valueDomainGen.generate(rnd);

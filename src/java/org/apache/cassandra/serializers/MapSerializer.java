@@ -21,6 +21,7 @@ package org.apache.cassandra.serializers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +117,8 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
     @Override
     public <I> Map<K, V> deserialize(I input, ValueAccessor<I> accessor)
     {
+        if (accessor.isEmpty(input))
+            return Collections.emptyMap();
         try
         {
             int n = readCollectionSize(input, accessor);
