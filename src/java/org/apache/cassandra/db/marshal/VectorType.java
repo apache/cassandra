@@ -96,6 +96,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                           new VariableLengthSerializer();
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> VectorType<T> getInstance(AbstractType<T> elements, int dimension)
     {
         Key key = new Key(elements, dimension);
