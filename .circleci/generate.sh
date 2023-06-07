@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -30,12 +30,15 @@ die ()
 
 print_help()
 {
-  echo "Usage: $0 [-f|-p|-a|-e|-i]"
+  echo "Usage: $0 [-f|-p|-a|-e|-i|-b]"
   echo "   -a Generate the config.yml, config.yml.FREE and config.yml.PAID expanded configuration"
   echo "      files from the main config_template.yml reusable configuration file."
   echo "      Use this for permanent changes in config that will be committed to the main repo."
   echo "   -f Generate config.yml for tests compatible with the CircleCI free tier resources"
   echo "   -p Generate config.yml for tests compatible with the CircleCI paid tier resources"
+  echo "   -b Specify the base git branch for comparison when determining changed tests to"
+  echo "      repeat. Defaults to ${BASE_BRANCH}. Note that this option is not used when"
+  echo "      the '-a' option is specified."
   echo "   -e <key=value> Environment variables to be used in the generated config.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git"
@@ -78,13 +81,15 @@ paid=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-while getopts "e:afpi" opt; do
+while getopts "e:afpib:" opt; do
   case $opt in
       a ) all=true
           ;;
       f ) free=true
           ;;
       p ) paid=true
+          ;;
+      b ) BASE_BRANCH="$OPTARG"
           ;;
       e ) if (! ($has_env_vars)); then
             env_vars="$OPTARG"
@@ -183,6 +188,13 @@ fi
 
 # add new or modified tests to the sets of tests to be repeated
 if (! ($all)); then
+  # Sanity check that the referenced branch exists
+  if ! git show ${BASE_BRANCH} -- >&/dev/null; then
+    echo -e "\n\nUnknown base branch: ${BASE_BRANCH}. Unable to detect changed tests.\n"
+    echo    "Please use the '-b' option to choose an existing branch name"
+    echo    "(e.g. origin/${BASE_BRANCH}, apache/${BASE_BRANCH}, etc.)."
+    exit 2
+  fi
   add_diff_tests ()
   {
     dir="${BASEDIR}/../${2}"
