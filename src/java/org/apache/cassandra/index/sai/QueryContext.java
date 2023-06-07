@@ -42,7 +42,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 @NotThreadSafe
 public class QueryContext
 {
-    private static final boolean DISABLE_TIMEOUT = true;
+    private static final boolean DISABLE_TIMEOUT = Boolean.getBoolean("cassandra.sai.test.disable.timeout");
 
     private final long queryStartTimeNanos;
 
