@@ -62,9 +62,9 @@ public class OnDiskOrdinalsMap
             reader.seek(segmentEnd - 8);
             this.rowOrdinalOffset = reader.readLong();
         }
-        catch (IOException e)
+        catch (Exception e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error initializing OnDiskOrdinalsMap at segment " + segmentOffset, e);
         }
     }
 

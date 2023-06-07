@@ -182,16 +182,16 @@ public class CassandraOnDiskHnsw implements AutoCloseable
             try
             {
                 this.reader = fh.createReader();
-                this.segmentOffset = segmentOffset;
                 reader.seek(segmentOffset);
+                this.segmentOffset = segmentOffset;
 
                 this.size = reader.readInt();
                 this.dimension = reader.readInt();
                 this.vector = new float[dimension];
             }
-            catch (IOException e)
+            catch (Exception e)
             {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Error initializing OnDiskVectors at segment offset" + segmentOffset, e);
             }
         }
 
