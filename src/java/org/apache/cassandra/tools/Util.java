@@ -342,7 +342,7 @@ public final class Util
             IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
             Indexes indexes = Indexes.of(indexMetadata);
             builder.indexes(indexes);
-            builder.kind(TableMetadata.Kind.INDEX); 
+            builder.kind(TableMetadata.Kind.INDEX);
         }
         return builder.build();
     }

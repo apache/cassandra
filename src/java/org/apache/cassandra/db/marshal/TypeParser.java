@@ -139,7 +139,7 @@ public class TypeParser
     }
 
     /**
-     * Parse PartitionOrdering from old version of PartitionOrdering' string format 
+     * Parse PartitionOrdering from old version of PartitionOrdering' string format
      */
     private static AbstractType<?> defaultParsePartitionOrdering(TypeParser typeParser)
     {
@@ -177,7 +177,7 @@ public class TypeParser
         {
             ++idx;
             skipBlank();
-            // must be PartitionerDefinedOrder 
+            // must be PartitionerDefinedOrder
             return partitioner.partitionOrdering(parse());
         }
         else if (str.charAt(idx) == ')')

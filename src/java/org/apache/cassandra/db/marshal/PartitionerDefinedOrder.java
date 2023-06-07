@@ -148,14 +148,14 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     {
         if (partitionKeyType != null)
         {
-            return String.format("%s(%s:%s)", getClass().getName(),  partitioner.getClass().getName(), partitionKeyType);
+            return String.format("%s(%s:%s)", getClass().getName(), partitioner.getClass().getName(), partitionKeyType);
         }
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
     
     @Nullable
     public AbstractType<?>  getPartitionKeyType()
-    { 
+    {
         return partitionKeyType;
     }
 

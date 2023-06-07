@@ -166,7 +166,7 @@ public interface CassandraIndexFunctions
         @Override
         public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
         {
-            assert indexedColumn.type.isCollection() ;
+            assert indexedColumn.type.isCollection();
             switch (((CollectionType<?>)indexedColumn.type).kind)
             {
                 case LIST:
@@ -216,7 +216,7 @@ public interface CassandraIndexFunctions
         @Override
         public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
         {
-            assert indexedColumn.type.isCollection() ;
+            assert indexedColumn.type.isCollection();
             switch (((CollectionType<?>) indexedColumn.type).kind)
             {
                 case LIST:

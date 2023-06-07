@@ -16,12 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.cql3;
 
 
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.tools.SSTableExport;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.Pair;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,23 +36,27 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
+import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SecondaryIndexSSTableExportTest extends CQLTester
 {
     private static final TypeReference<List<Map<String, Object>>> jacksonListOfMapsType = new TypeReference<List<Map<String, Object>>>() {};
+    private static boolean initValue;
 
     @BeforeClass
     public static void beforeClass()
     {
+        initValue = TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean();
         TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
     @AfterClass
     public static void afterClass()
     {
-        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(initValue);
     }
 
     @Test
@@ -134,6 +140,7 @@ public class SecondaryIndexSSTableExportTest extends CQLTester
         for (ColumnFamilyStore columnFamilyStore : cfs.indexManager.getAllIndexColumnFamilyStores())
         {
             assertTrue(columnFamilyStore.isIndex());
+            assertFalse(columnFamilyStore.getLiveSSTables().isEmpty());
             for (SSTableReader sst : columnFamilyStore.getLiveSSTables())
             {
                 String file = sst.getFilename();
