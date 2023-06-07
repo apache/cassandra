@@ -18,16 +18,27 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
+
+import org.apache.cassandra.db.memtable.TrieMemtable;
+import org.apache.cassandra.inject.ActionBuilder;
+import org.apache.cassandra.inject.Injections;
+import org.apache.cassandra.inject.InvokePointBuilder;
+import org.apache.cassandra.stress.StressAction;
 
 public class LongVectorTest extends SAITester
 {
@@ -36,33 +47,82 @@ public class LongVectorTest extends SAITester
     int dimension = 16; // getRandom().nextIntBetween(128, 768);
 
     KeySet keysInserted = new KeySet();
+    private final int threadCount = 12;
 
-    @Test
-    public void testConcurrentReadsWrites() throws ExecutionException, InterruptedException
+    @Before
+    public void setup() throws Throwable
+    {
+        // we don't get loaded until after TM, so we can't affect the very first memtable,
+        // but this will affect all subsequent ones
+        TrieMemtable.SHARD_COUNT = 4 * threadCount;
+    }
+
+    public void testConcurrentOps(Consumer<Integer> op) throws ExecutionException, InterruptedException
     {
         createTable(String.format("CREATE TABLE %%s (key int primary key, value vector<float, %s>)", dimension));
-        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' WITH OPTIONS = { 'similarity_function': 'dot_product' }");
         waitForIndexQueryable();
 
         AtomicInteger counter = new AtomicInteger();
         long start = System.currentTimeMillis();
-        var fjp = new ForkJoinPool(12);
-        var task = fjp.submit(() -> IntStream.range(0, 10_000_000).parallel().forEach(i ->
+        var fjp = new ForkJoinPool(threadCount);
+        var keys = IntStream.range(0, 10_000_000).boxed().collect(Collectors.toList());
+        Collections.shuffle(keys);
+        var task = fjp.submit(() -> keys.stream().parallel().forEach(i ->
         {
-            try
+            op.accept(i);
+            if (counter.incrementAndGet() % 10_000 == 0)
             {
-                oneOp(i, counter, start);
-            }
-            catch (Throwable e)
-            {
-                throw new RuntimeException(e);
+                var elapsed = System.currentTimeMillis() - start;
+                logger.info("{} ops in {}ms = {} ops/s", counter.get(), elapsed, counter.get() * 1000.0 / elapsed);
             }
         }));
         fjp.shutdown();
         task.get(); // re-throw
     }
 
-    private void oneOp(int i, AtomicInteger counter, long start) throws Throwable
+    @Test
+    public void testConcurrentReadsWrites() throws ExecutionException, InterruptedException
+    {
+        testConcurrentOps(i ->
+        {
+            try
+            {
+                readWriteOp(i);
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Test
+    public void testConcurrentWrites() throws ExecutionException, InterruptedException
+    {
+        testConcurrentOps(i ->
+        {
+            try
+            {
+                writeOp(i);
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void writeOp(int i) throws Throwable
+    {
+        var R = ThreadLocalRandom.current();
+        var v = normalizedVector(R, dimension);
+        execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
+        if (R.nextDouble() < 0.001)
+            flush();
+    }
+
+    private void readWriteOp(int i) throws Throwable
     {
         var R = ThreadLocalRandom.current();
         var v = normalizedVector(R, dimension);
@@ -80,12 +140,6 @@ public class LongVectorTest extends SAITester
 // uncommenting makes it go faster for some reason
 //        if (R.nextDouble() < 0.001)
 //            flush();
-
-        if (counter.incrementAndGet() % 10_000 == 0)
-        {
-            var elapsed = System.currentTimeMillis() - start;
-            logger.info("{} ops in {}ms = {} ops/s", counter.get(), elapsed, counter.get() * 1000.0 / elapsed);
-        }
     }
 
     private Vector<Float> normalizedVector(ThreadLocalRandom r, int dimension)
