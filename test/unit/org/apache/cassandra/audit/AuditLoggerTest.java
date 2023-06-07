@@ -64,7 +64,6 @@ import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.JMXServerUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
@@ -444,7 +443,6 @@ public class AuditLoggerTest extends CQLTester
     public void testTransactionAuditing()
     {
         createTable("CREATE TABLE %s (key int PRIMARY KEY, val int)");
-        AccordService.instance().createEpochFromConfigUnsafe();
 
         Session session = sessionNet();
         String fqTableName = KEYSPACE + "." + currentTable();

@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
@@ -415,6 +416,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId self = metadata.myNodeId();
+        AccordService.startup(self);
 
         // finish in-progress sequences first
         InProgressSequences.finishInProgressSequences(self, true);

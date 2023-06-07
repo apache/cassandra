@@ -141,9 +141,9 @@ public class AccordCommandStores extends CommandStores
     }
 
     @Override
-    public synchronized Supplier<EpochReady> updateTopology(Node node, Topology newTopology)
+    public synchronized Supplier<EpochReady> updateTopology(Node node, Topology newTopology, boolean startSync)
     {
-        Supplier<EpochReady> start = super.updateTopology(node, newTopology);
+        Supplier<EpochReady> start = super.updateTopology(node, newTopology, startSync);
         return () -> {
             EpochReady ready = start.get();
             ready.metadata.addCallback(() -> {

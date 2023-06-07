@@ -821,6 +821,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             ClusterMetadataService.instance().processor().fetchLogAndWait();
             NodeId self = Register.maybeRegister();
             RegistrationStatus.instance.onRegistration();
+            AccordService.startup(self);
             boolean joinRing = config.get(Constants.KEY_DTEST_JOIN_RING) == null || (boolean) config.get(Constants.KEY_DTEST_JOIN_RING);
             if (ClusterMetadata.current().directory.peerState(self) != NodeState.JOINED && joinRing)
             {

@@ -47,7 +47,6 @@ public class NewSchemaTest extends AccordTestBase
             String table = ks + ".tbl" + i;
             SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + ks + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
             SHARED_CLUSTER.schemaChange(String.format("CREATE TABLE %s (pk blob primary key)", table));
-            SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
             SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
             List<ByteBuffer> keys = tokensToKeys(tokens());

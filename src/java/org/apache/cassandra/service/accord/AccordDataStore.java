@@ -23,25 +23,14 @@ import accord.local.Node;
 import accord.local.SafeCommandStore;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
-import accord.primitives.Timestamp;
-import accord.utils.async.AsyncResults;
 
-public enum AccordDataStore implements DataStore
+public class AccordDataStore implements DataStore
 {
-    INSTANCE;
-
     @Override
     public FetchResult fetch(Node node, SafeCommandStore safeStore, Ranges ranges, SyncPoint syncPoint, FetchRanges callback)
     {
-        //TODO (implement): do real work
-        callback.starting(ranges).started(Timestamp.NONE);
-        callback.fetched(ranges);
-        return new ImmediateFetchFuture(ranges);
-    }
-
-    private static class ImmediateFetchFuture extends AsyncResults.SettableResult<Ranges> implements FetchResult
-    {
-        ImmediateFetchFuture(Ranges ranges) { setSuccess(ranges); }
-        @Override public void abort(Ranges abort) { }
+        AccordFetchCoordinator coordinator = new AccordFetchCoordinator(node, ranges, syncPoint, callback, safeStore.commandStore());
+        coordinator.start();
+        return coordinator.result();
     }
 }

@@ -75,10 +75,10 @@ public class CollectionSerializers
         return deserializeCollection(in, version, serializer, newHashSet());
     }
 
-    public static <K, V> Map<K,V> deserializeMap(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, IntFunction<Map<K,V>> factory) throws IOException
+    public static <K, V, M extends Map<K, V>> M deserializeMap(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, IntFunction<M> factory) throws IOException
     {
         int size = checkedCast(in.readUnsignedVInt32());
-        Map<K,V> result = factory.apply(size);
+        M result = factory.apply(size);
         while (size-- > 0)
         {
             K key = keySerializer.deserialize(in, version);
