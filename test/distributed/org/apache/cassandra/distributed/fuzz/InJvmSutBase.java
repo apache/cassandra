@@ -40,6 +40,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import harry.core.Configuration;
 import harry.model.sut.SystemUnderTest;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -129,7 +130,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
                 return Iterators.toArray(cluster
                                          // round-robin
                                          .coordinator(coordinator)
-                                         .executeWithPaging(statement, toApiCl(cl), 1, bindings),
+                                         .executeWithPaging(statement, toApiCl(cl), PageSize.inRows(1), bindings),
                                          Object[].class);
             }
             else

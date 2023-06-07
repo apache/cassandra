@@ -175,7 +175,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         //
 
         long offset = getOffset(pagingState, schemaVersion);
-        PageSize pageSize = PageSize.inRows(options.getPageSize());
+        PageSize pageSize = options.getPageSize();
 
         Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
 

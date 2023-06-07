@@ -23,6 +23,7 @@ import java.util.Iterator;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
 public class CompactStoragePagingTest extends UpgradeTestBase
@@ -42,7 +43,7 @@ public class CompactStoragePagingTest extends UpgradeTestBase
         .runAfterNodeUpgrade((cluster, i) -> {
             for (int coord = 1; coord <= 2; coord++)
             {
-                Iterator<Object[]> iter = cluster.coordinator(coord).executeWithPaging("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL, 2);
+                Iterator<Object[]> iter = cluster.coordinator(coord).executeWithPaging("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.ALL, PageSize.inRows(2));
                 for (int j = 1; j < 10; j++)
                 {
                     Assert.assertTrue(iter.hasNext());

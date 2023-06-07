@@ -24,6 +24,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -136,11 +137,11 @@ public class GuardrailPageSizeTest extends ThresholdTester
         QueryOptions options = QueryOptions.create(ConsistencyLevel.ONE,
                                                    Collections.emptyList(),
                                                    false,
-                                                   pageSize,
-                                                   null,
-                                                   null,
-                                                   ProtocolVersion.CURRENT,
-                                                   KEYSPACE);
+                                                   PageSize.inRows(pageSize),
+                                                                   null,
+                                                                   null,
+                                                                   ProtocolVersion.CURRENT,
+                                                                   KEYSPACE);
 
         statement.executeLocally(queryState, options);
     }

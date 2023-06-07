@@ -23,7 +23,9 @@ import java.util.StringJoiner;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.utils.Shared;
 
+@Shared
 public class PageSize
 {
     public static final PageSize NONE = new PageSize(DataLimits.NO_LIMIT, DataLimits.NO_LIMIT);
@@ -37,14 +39,6 @@ public class PageSize
         Preconditions.checkArgument(bytes >= 0);
         this.rows = rows;
         this.bytes = bytes;
-    }
-
-    public static PageSize fromOptions(QueryOptions options)
-    {
-        int rows = options.getPageSize();
-        if (rows <= 0)
-            return NONE;
-        return inRows(rows);
     }
 
     /**
@@ -104,5 +98,20 @@ public class PageSize
     public PageSize minus(int rows, int bytes)
     {
         return new PageSize(this.rows - rows, this.bytes - bytes);
+    }
+
+    public boolean isRowsDefined()
+    {
+        return rows != DataLimits.NO_LIMIT;
+    }
+
+    public boolean isBytesDefined()
+    {
+        return bytes != DataLimits.NO_LIMIT;
+    }
+
+    public boolean isZero()
+    {
+        return rows == 0 || bytes == 0;
     }
 }

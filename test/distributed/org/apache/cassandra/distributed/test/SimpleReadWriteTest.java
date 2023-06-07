@@ -37,6 +37,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.io.compress.DeflateCompressor;
@@ -275,7 +276,7 @@ public class SimpleReadWriteTest extends TestBaseImpl
             for (boolean paging : BOOLEANS)
             {
                 Object[][] rows = paging
-                                  ? Iterators.toArray(coordinator.executeWithPaging(query, QUORUM, 1, boundValues),
+                                  ? Iterators.toArray(coordinator.executeWithPaging(query, QUORUM, PageSize.inRows(1), boundValues),
                                                       Object[].class)
                                   : coordinator.execute(query, QUORUM, boundValues);
 

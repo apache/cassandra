@@ -152,7 +152,7 @@ public class ExecuteMessage extends Message.Request
             CQLStatement statement = prepared.statement;
             options.prepare(statement.getBindVariables());
 
-            if (options.getPageSize() == 0)
+            if (options.getPageSize().isZero())
                 throw new ProtocolException("The page size cannot be 0");
 
             if (traceRequest)
@@ -211,8 +211,10 @@ public class ExecuteMessage extends Message.Request
     private void traceQuery(QueryState state, QueryHandler.Prepared prepared)
     {
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        if (options.getPageSize() > 0)
-            builder.put("page_size", Integer.toString(options.getPageSize()));
+        if (options.getPageSize().isRowsDefined())
+            builder.put("page_size_in_rows", Integer.toString(options.getPageSize().rows));
+        if (options.getPageSize().isBytesDefined())
+            builder.put("page_size_in_bytes", Integer.toString(options.getPageSize().bytes));
         if (options.getConsistency() != null)
             builder.put("consistency_level", options.getConsistency().name());
         if (options.getSerialConsistency() != null)

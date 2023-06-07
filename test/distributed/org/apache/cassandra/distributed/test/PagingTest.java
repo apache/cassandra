@@ -24,6 +24,7 @@ import java.util.Iterator;
 import com.google.common.collect.Iterators;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
@@ -53,7 +54,14 @@ public class PagingTest extends TestBaseImpl
                 }
             }
 
-            int[] pageSizes = new int[]{ 1, 2, 3, 5, 10, 20, 50, Integer.MAX_VALUE };
+            PageSize[] pageSizes = new PageSize[]{ PageSize.inRows(1),
+                                                   PageSize.inRows(2),
+                                                   PageSize.inRows(3),
+                                                   PageSize.inRows(5),
+                                                   PageSize.inRows(10),
+                                                   PageSize.inRows(20),
+                                                   PageSize.inRows(50),
+                                                   PageSize.NONE };
             String[] statements = new String[]{ withKeyspace("SELECT * FROM %s.tbl WHERE pk = 1 AND ck > 5"),
                                                 withKeyspace("SELECT * FROM %s.tbl WHERE pk = 1 AND ck >= 5"),
                                                 withKeyspace("SELECT * FROM %s.tbl WHERE pk = 1 AND ck > 5 AND ck <= 10"),
@@ -73,7 +81,7 @@ public class PagingTest extends TestBaseImpl
             for (String statement : statements)
             {
                 Object[][] noPagingRows = singleNode.coordinator(1).execute(statement, QUORUM);
-                for (int pageSize : pageSizes)
+                for (PageSize pageSize : pageSizes)
                 {
                     Iterator<Object[]> pagingRows = cluster.coordinator(1).executeWithPaging(statement, QUORUM, pageSize);
                     assertRows(Iterators.toArray(pagingRows, Object[].class), noPagingRows);
@@ -95,7 +103,7 @@ public class PagingTest extends TestBaseImpl
             cluster.forEach((node) -> node.flush(KEYSPACE));
             Iterator<Object[]> iter = cluster.coordinator(1).executeWithPaging("SELECT pk,ck,regular FROM " + KEYSPACE + ".tbl " +
                                                                                "WHERE pk=? AND ck>=? ORDER BY ck DESC;",
-                                                                               ConsistencyLevel.QUORUM, 1,
+                                                                               ConsistencyLevel.QUORUM, PageSize.inRows(1),
                                                                                1, 1);
 
             assertRows(iter,

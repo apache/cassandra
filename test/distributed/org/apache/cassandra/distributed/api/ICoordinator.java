@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.distributed.shared.FutureUtils;
 
 // The cross-version API requires that a Coordinator can be constructed without any constructor arguments
@@ -44,12 +45,12 @@ public interface ICoordinator
         throw new UnsupportedOperationException();
     }
 
-    default Iterator<Object[]> executeWithPaging(String query, ConsistencyLevel consistencyLevel, int pageSize, Object... boundValues)
+    default Iterator<Object[]> executeWithPaging(String query, ConsistencyLevel consistencyLevel, PageSize pageSize, Object... boundValues)
     {
         return executeWithPagingWithResult(query, consistencyLevel, pageSize, boundValues).map(Row::toObjectArray);
     }
 
-    QueryResult executeWithPagingWithResult(String query, ConsistencyLevel consistencyLevel, int pageSize, Object... boundValues);
+    QueryResult executeWithPagingWithResult(String query, ConsistencyLevel consistencyLevel, PageSize pageSize, Object... boundValues);
 
     default Future<Object[][]> asyncExecuteWithTracing(UUID sessionId, String query, ConsistencyLevel consistencyLevel, Object... boundValues)
     {

@@ -28,13 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import io.netty.buffer.Unpooled;
-import io.netty.buffer.ByteBuf;
-
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -43,6 +42,7 @@ import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.Sets;
@@ -62,16 +62,16 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.Event.TopologyChange;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.StatusChange;
+import org.apache.cassandra.transport.Event.TopologyChange;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * Serialization/deserialization tests for protocol objects and messages.
@@ -384,7 +384,7 @@ public class SerDeserTest
                 QueryOptions.create(ConsistencyLevel.ALL,
                                     Collections.singletonList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 })),
                                     false,
-                                    5000,
+                                    PageSize.inRows(5000),
                                     Util.makeSomePagingState(version),
                                     ConsistencyLevel.SERIAL,
                                     version,
@@ -400,7 +400,7 @@ public class SerDeserTest
                                     Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
                                                   ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
                                     true,
-                                    10,
+                                    PageSize.inRows(10),
                                     Util.makeSomePagingState(version),
                                     ConsistencyLevel.SERIAL,
                                     version,
@@ -416,7 +416,7 @@ public class SerDeserTest
                                     Arrays.asList(ByteBuffer.wrap(new byte[] { 0x00, 0x01, 0x02 }),
                                                   ByteBuffer.wrap(new byte[] { 0x03, 0x04, 0x05, 0x03, 0x04, 0x05 })),
                                     true,
-                                    10,
+                                    PageSize.inRows(10),
                                     Util.makeSomePagingState(version),
                                     ConsistencyLevel.SERIAL,
                                     version,

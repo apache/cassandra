@@ -24,6 +24,7 @@ import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
@@ -115,7 +116,7 @@ public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
         String formattedQuery = String.format(query, qualifiedTableName);
         ICoordinator coordinator = cluster.coordinator(this.coordinator);
         return paging
-               ? Iterators.toArray(coordinator.executeWithPaging(formattedQuery, ALL, 1, boundValues), Object[].class)
+               ? Iterators.toArray(coordinator.executeWithPaging(formattedQuery, ALL, PageSize.inRows(1), boundValues), Object[].class)
                : coordinator.execute(formattedQuery, ALL, boundValues);
     }
 

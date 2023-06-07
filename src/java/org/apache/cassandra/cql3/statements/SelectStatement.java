@@ -319,7 +319,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         long nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
-        PageSize pageSize = PageSize.fromOptions(options);
+        PageSize pageSize = options.getPageSize();
         boolean unmask = !table.hasMaskedColumns() || state.getClientState().hasTablePermission(table, Permission.UNMASK);
 
         Selectors selectors = selection.newSelectors(options);
@@ -371,7 +371,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                         nowInSec,
                         getLimit(options),
                         getPerPartitionLimit(options),
-                        PageSize.fromOptions(options),
+                        options.getPageSize(),
                         getAggregationSpec(options));
     }
 
@@ -562,7 +562,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
-        PageSize pageSize = PageSize.fromOptions(options);
+        PageSize pageSize = options.getPageSize();
         boolean unmask = state.getClientState().hasTablePermission(table, Permission.UNMASK);
 
         Selectors selectors = selection.newSelectors(options);
@@ -615,7 +615,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
-        if (options.getPageSize() > 0)
+        if (options.getPageSize().isDefined())
             throw new IllegalStateException();
         if (aggregationSpecFactory != null)
             throw new IllegalStateException();
@@ -1768,7 +1768,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 sb.append(" AND ").append(filterString);
         }
 
-        DataLimits limits = getDataLimits(getLimit(options), getPerPartitionLimit(options), PageSize.fromOptions(options), getAggregationSpec(options));
+        DataLimits limits = getDataLimits(getLimit(options), getPerPartitionLimit(options), options.getPageSize(), getAggregationSpec(options));
         if (limits != DataLimits.NONE)
             sb.append(' ').append(limits);
         return sb.toString();

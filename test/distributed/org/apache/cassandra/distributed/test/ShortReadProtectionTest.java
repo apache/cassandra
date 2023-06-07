@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -57,7 +58,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 public class ShortReadProtectionTest extends TestBaseImpl
 {
     private static final int NUM_NODES = 3;
-    private static final int[] PAGE_SIZES = new int[]{ 1, 10 };
+    private static final PageSize[] PAGE_SIZES = new PageSize[]{ PageSize.inRows(1), PageSize.inRows(10) };
 
     private static Cluster cluster;
     private Tester tester;
@@ -518,7 +519,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
             cluster.coordinators().forEach(coordinator -> {
                 if (paging)
                 {
-                    for (int fetchSize : PAGE_SIZES)
+                    for (PageSize fetchSize : PAGE_SIZES)
                     {
                         Iterator<Object[]> actualRows = coordinator.executeWithPaging(formattedQuery, readConsistencyLevel, fetchSize);
                         AssertUtils.assertRows(toArray(actualRows, Object[].class),  expectedRows);
