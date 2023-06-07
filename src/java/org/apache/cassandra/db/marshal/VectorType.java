@@ -331,7 +331,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     private static  <V> void checkConsumedFully(V buffer, ValueAccessor<V> accessor, int offset)
     {
         if (!accessor.isEmptyFromOffset(buffer, offset))
-            throw new MarshalException("Unexpected extraneous bytes after list value");
+            throw new MarshalException("Unexpected extraneous bytes after vector value");
     }
 
     public abstract class VectorSerializer extends TypeSerializer<List<T>>
