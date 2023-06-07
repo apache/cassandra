@@ -174,7 +174,7 @@ public class Ordering
             @Override
             public Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames)
             {
-                ColumnMetadata column = table.getColumn(columnId);
+                ColumnMetadata column = table.getExistingColumn(columnId);
                 Term value = vectorValue.prepare(table.keyspace, column);
                 value.collectMarkerSpecification(boundNames);
                 return new Ordering.Ann(column, value);

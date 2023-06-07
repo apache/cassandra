@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Expression;
@@ -402,5 +405,14 @@ public class VectorTypeTest extends VectorTester
                              "SELECT similarity_cosine([1, 2, 3], value) FROM %s WHERE pk=0");
         assertInvalidMessage("Required 2 elements, but saw 3",
                              "SELECT similarity_cosine([1, 2], [3, 4, 5]) FROM %s WHERE pk=0");
+    }
+
+
+    @Test
+    public void testInvalidColumnNameWithAnn() throws Throwable
+    {
+        String table = createTable(KEYSPACE, "CREATE TABLE %s (k int, c int, v int, primary key (k, c))");
+        assertInvalidMessage(String.format("Undefined column name bad_col in table %s", KEYSPACE + "." + table),
+                             "SELECT k from %s ORDER BY bad_col ANN OF [1.0] LIMIT 1");
     }
 }
