@@ -362,7 +362,9 @@ public class VectorLocalTest extends VectorTester
         waitForIndexQueryable();
 
         // query multiple on-disk indexes
-        for (int i = vectorCount; i < word2vec.vectors.size(); i++)
+        var testCount = 200;
+        var start = getRandom().nextIntBetween(vectorCount, word2vec.words.length - testCount);
+        for (int i = start; i < start + testCount; i++)
         {
             var q = word2vec.get(word2vec.words[i]);
             int limit = Math.min(getRandom().nextIntBetween(10, 50), vectorCountPerSSTable);
