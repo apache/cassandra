@@ -62,7 +62,6 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
