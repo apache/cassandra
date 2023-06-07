@@ -136,7 +136,7 @@ public class AbstractTypeTest
 
     private boolean isTestType(Class<? extends AbstractType> klass)
     {
-        return "test".equals(new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath()).name());
+        return "test".equals(new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath()).name()) || klass.getCanonicalName().contains("Test");
     }
 
     @Test
