@@ -2211,7 +2211,6 @@ public class AccordCQLTest extends AccordTestBase
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
         SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "1 (k int, c int, v int, primary key (k, c))");
         SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "2 (k int, c int, v int, primary key (k, c))");
-        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
         SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + "1 (k, c, v) VALUES (1, 2, 3);", ConsistencyLevel.ALL);
         SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + "2 (k, c, v) VALUES (2, 2, 4);", ConsistencyLevel.ALL);
@@ -2389,7 +2388,6 @@ public class AccordCQLTest extends AccordTestBase
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
 
-        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
         SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'blake', 5, 777);\n", ConsistencyLevel.ALL);

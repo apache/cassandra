@@ -21,7 +21,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.service.accord.AccordService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -96,8 +95,6 @@ public class NodeLocalConsistencyTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key text, val int, PRIMARY KEY(key))");
         QueryProcessor.process(formatQuery("INSERT INTO %s (key, val) VALUES ('foo', 0)"), NODE_LOCAL);
-
-        AccordService.instance().createEpochFromConfigUnsafe();
 
         String query = "BEGIN TRANSACTION\n" +
                        "  SELECT * FROM %s WHERE key = 'foo';\n" +

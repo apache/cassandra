@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,13 +32,20 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -56,24 +64,33 @@ import accord.local.Status;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.topology.Topology;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import accord.utils.async.Observable;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -119,19 +136,24 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
+import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.db.rows.BufferCell.live;
 import static org.apache.cassandra.db.rows.BufferCell.tombstone;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -144,6 +166,9 @@ public class AccordKeyspace
 
     public static final String COMMANDS = "commands";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
+    public static final String TOPOLOGIES = "topologies";
+    public static final String EPOCH_METADATA = "epoch_metadata";
+    public static final String COMMAND_STORE_METADATA = "command_store_metadata";
 
     private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
     private static final String TIMESTAMP_TUPLE = TIMESTAMP_TYPE.asCQL3Type().toString();
@@ -226,7 +251,7 @@ public class AccordKeyspace
         .build();
 
     // TODO: naming is not very clearly distinct from the base serializers
-    private static class CommandsSerializers
+    private static class LocalVersionedSerializers
     {
         static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
         static final LocalVersionedSerializer<AccordRoutingKey> routingKey = localSerializer(AccordRoutingKey.serializer);
@@ -235,6 +260,10 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
         static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
         static final LocalVersionedSerializer<Command.DurableAndIdempotentListener> listeners = localSerializer(ListenerSerializers.listener);
+        static final LocalVersionedSerializer<Topology> topology = localSerializer(TopologySerializers.topology);
+        static final LocalVersionedSerializer<ReducingRangeMap<Timestamp>> rejectBefore = localSerializer(CommandStoreSerializers.rejectBefore);
+        static final LocalVersionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = localSerializer(CommandStoreSerializers.bootstrapBeganAt);
+        static final LocalVersionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = localSerializer(CommandStoreSerializers.safeToRead);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -246,7 +275,7 @@ public class AccordKeyspace
     {
         ColumnMetadata column = metadata.getColumn(new ColumnIdentifier(name, true));
         if (column == null)
-            throw new IllegalArgumentException(String.format("Unknown column %s for %s.%s", name, metadata.keyspace, metadata.name));
+            throw new IllegalArgumentException(format("Unknown column %s for %s.%s", name, metadata.keyspace, metadata.name));
         return column;
     }
 
@@ -339,12 +368,50 @@ public class AccordKeyspace
         }
     }
 
+    private static final TableMetadata Topologies =
+        parse(TOPOLOGIES,
+              "accord topologies",
+              "CREATE TABLE %s (" +
+              "epoch bigint primary key, " +
+              "topology blob, " +
+              "sync_state int, " +
+              "pending_sync_notify set<int>, " + // nodes that need to be told we're synced
+              "remote_sync_complete set<int> " +  // nodes that have told us they're synced
+              ')').build();
+
+    private static final TableMetadata EpochMetadata =
+        parse(EPOCH_METADATA,
+              "global epoch info",
+              "CREATE TABLE %s (" +
+              "key int primary key, " +
+              "min_epoch bigint, " +
+              "max_epoch bigint " +
+              ')').build();
+
+    private static final TableMetadata CommandStoreMetadata =
+        parse(COMMAND_STORE_METADATA,
+              "command store state",
+              "CREATE TABLE %s (" +
+              "store_id int, " +
+              "reject_before blob, " +
+              "bootstrap_began_at blob, " +
+              "safe_to_read blob, " +
+              "PRIMARY KEY(store_id)" +
+              ')').build();
+
+    private static final AtomicLong commandStoreMetadataTimestamp = new AtomicLong();
+
     private static TableMetadata.Builder parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), ACCORD_KEYSPACE_NAME)
                                    .id(TableId.forSystemTable(ACCORD_KEYSPACE_NAME, name))
                                    .comment(description)
                                    .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90));
+    }
+
+    private static void flush(TableMetadata table)
+    {
+        Keyspace.open(table.keyspace).getColumnFamilyStore(table.id).forceBlockingFlush(ColumnFamilyStore.FlushReason.ACCORD);
     }
 
     public static KeyspaceMetadata metadata()
@@ -354,7 +421,7 @@ public class AccordKeyspace
 
     private static Tables tables()
     {
-        return Tables.of(Commands, CommandsForKeys);
+        return Tables.of(Commands, CommandsForKeys, Topologies, EpochMetadata, CommandStoreMetadata);
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException
@@ -364,7 +431,7 @@ public class AccordKeyspace
         {
             serializer.serialize(obj, out);
             ByteBuffer bb = out.buffer();
-            assert size == bb.limit() : String.format("Expected to write %d but wrote %d", size, bb.limit());
+            assert size == bb.limit() : format("Expected to write %d but wrote %d", size, bb.limit());
             return bb;
         }
     }
@@ -422,7 +489,7 @@ public class AccordKeyspace
         Listeners result = new Listeners();
         for (ByteBuffer bytes : serialized)
         {
-            result.add(deserialize(bytes, CommandsSerializers.listeners));
+            result.add(deserialize(bytes, LocalVersionedSerializers.listeners));
         }
         return new Listeners.Immutable(result);
     }
@@ -458,7 +525,7 @@ public class AccordKeyspace
 
     private static <C extends Command, V> void addKeyCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, C original, C command) throws IOException
     {
-        addCellIfModified(column, get, v -> serializeOrNull((AccordRoutingKey) v, CommandsSerializers.routingKey), builder, timestampMicros, original, command);
+        addCellIfModified(column, get, v -> serializeOrNull((AccordRoutingKey) v, LocalVersionedSerializers.routingKey), builder, timestampMicros, original, command);
     }
 
     private static <C extends Command, V extends Enum<V>> void addEnumCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, C original, C command) throws IOException
@@ -545,17 +612,17 @@ public class AccordKeyspace
             addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, original, command);
             addKeyCellIfModified(CommandsColumns.home_key, Command::homeKey, builder, timestampMicros, original, command);
             addKeyCellIfModified(CommandsColumns.progress_key, Command::progressKey, builder, timestampMicros, original, command);
-            addCellIfModified(CommandsColumns.route, Command::route, CommandsSerializers.route, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, original, command);
             addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, original, command);
-            addCellIfModified(CommandsColumns.txn, Command::partialTxn, CommandsSerializers.partialTxn, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.txn, Command::partialTxn, LocalVersionedSerializers.partialTxn, builder, timestampMicros, original, command);
 
             addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, original, command);
             addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, original, command);
             addCellIfModified(CommandsColumns.accepted_ballot, Command::accepted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, original, command);
 
-            addCellIfModified(CommandsColumns.dependencies, Command::partialDeps, CommandsSerializers.partialDeps, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.dependencies, Command::partialDeps, LocalVersionedSerializers.partialDeps, builder, timestampMicros, original, command);
 
-            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, CommandsSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
+            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
 
             if (command.isCommitted())
             {
@@ -567,8 +634,8 @@ public class AccordKeyspace
                 {
                     Command.Executed executed = command.asExecuted();
                     Command.Executed originalExecuted = original != null && original.isExecuted() ? original.asExecuted() : null;
-                    addCellIfModified(CommandsColumns.writes, Command.Executed::writes, v -> serialize(v, CommandsSerializers.writes), builder, timestampMicros, originalExecuted, executed);
-                    addCellIfModified(CommandsColumns.result, Command.Executed::result, v -> serialize((TxnData) v, CommandsSerializers.result), builder, timestampMicros, originalExecuted, executed);
+                    addCellIfModified(CommandsColumns.writes, Command.Executed::writes, v -> serialize(v, LocalVersionedSerializers.writes), builder, timestampMicros, originalExecuted, executed);
+                    addCellIfModified(CommandsColumns.result, Command.Executed::result, v -> serialize((TxnData) v, LocalVersionedSerializers.result), builder, timestampMicros, originalExecuted, executed);
                 }
             }
 
@@ -663,7 +730,7 @@ public class AccordKeyspace
                      "AND domain = ? " +
                      "AND txn_id=(?, ?, ?)";
 
-        return executeInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
+        return executeInternal(format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
                                commandStore.id(),
                                txnId.domain().ordinal(),
                                txnId.msb, txnId.lsb, txnId.node.id);
@@ -741,7 +808,7 @@ public class AccordKeyspace
         @Override
         public String description()
         {
-            return String.format("Table Walker for %s; queries = %d", getClass().getSimpleName(), numQueries);
+            return format("Table Walker for %s; queries = %d", getClass().getSimpleName(), numQueries);
         }
     }
 
@@ -785,7 +852,7 @@ public class AccordKeyspace
             super(executor, callback);
             this.storeId = commandStore;
             this.domain = domain.ordinal();
-            cql = String.format("SELECT %s " +
+            cql = format("SELECT %s " +
                                 "FROM %s " +
                                 "WHERE store_id = ? " +
                                 "      AND domain = ? " +
@@ -839,14 +906,14 @@ public class AccordKeyspace
             this.end = end;
 
             String selection = selection(CommandsForKeys, requiredColumns, COLUMNS_FOR_ITERATION);
-            this.cqlFirst = String.format("SELECT DISTINCT %s\n" +
+            this.cqlFirst = format("SELECT DISTINCT %s\n" +
                                           "FROM %s\n" +
                                           "WHERE store_id = ?\n" +
                                           (startInclusive ? "  AND key_token >= ?\n" : "  AND key_token > ?\n") +
                                           (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
                                           "ALLOW FILTERING",
                                           selection, CommandsForKeys);
-            this.cqlContinue = String.format("SELECT DISTINCT %s\n" +
+            this.cqlContinue = format("SELECT DISTINCT %s\n" +
                                              "FROM %s\n" +
                                              "WHERE store_id = ?\n" +
                                              "  AND key_token > ?\n" +
@@ -891,9 +958,9 @@ public class AccordKeyspace
             CommonAttributes.Mutable attributes = new CommonAttributes.Mutable(txnId);
             // TODO: something less brittle than ordinal, more efficient than values()
             attributes.durability(Status.Durability.values()[row.getInt("durability", 0)]);
-            attributes.homeKey(deserializeOrNull(row.getBlob("home_key"), CommandsSerializers.routingKey));
-            attributes.progressKey(deserializeOrNull(row.getBlob("progress_key"), CommandsSerializers.routingKey));
-            attributes.route(deserializeOrNull(row.getBlob("route"), CommandsSerializers.route));
+            attributes.homeKey(deserializeOrNull(row.getBlob("home_key"), LocalVersionedSerializers.routingKey));
+            attributes.progressKey(deserializeOrNull(row.getBlob("progress_key"), LocalVersionedSerializers.routingKey));
+            attributes.route(deserializeOrNull(row.getBlob("route"), LocalVersionedSerializers.route));
             attributes.partialTxn(deserializeTxn(row));
             attributes.partialDeps(deserializeDependencies(row));
             attributes.setListeners(deserializeListeners(row, "listeners"));
@@ -903,8 +970,8 @@ public class AccordKeyspace
             Ballot accepted = deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits);
             ImmutableSortedSet<TxnId> waitingOnCommit = deserializeTxnIdNavigableSet(row, "waiting_on_commit");
             ImmutableSortedMap<Timestamp, TxnId> waitingOnApply = deserializeWaitingOnApply(row.getMap("waiting_on_apply", BytesType.instance, BytesType.instance));
-            Writes writes = deserializeWithVersionOr(row, "writes", CommandsSerializers.writes, () -> null);
-            Result result = deserializeWithVersionOr(row, "result", CommandsSerializers.result, () -> null);
+            Writes writes = deserializeWithVersionOr(row, "writes", LocalVersionedSerializers.writes, () -> null);
+            Result result = deserializeWithVersionOr(row, "result", LocalVersionedSerializers.result, () -> null);
 
             switch (status.status)
             {
@@ -941,7 +1008,7 @@ public class AccordKeyspace
 
     public static PartialDeps deserializeDependencies(UntypedResultSet.Row row) throws IOException
     {
-        return deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps);
+        return deserializeOrNull(row.getBlob("dependencies"), LocalVersionedSerializers.partialDeps);
     }
 
     public static Timestamp deserializeExecuteAt(UntypedResultSet.Row row)
@@ -961,7 +1028,7 @@ public class AccordKeyspace
 
     public static PartialTxn deserializeTxn(UntypedResultSet.Row row) throws IOException
     {
-        return deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn);
+        return deserializeOrNull(row.getBlob("txn"), LocalVersionedSerializers.partialTxn);
     }
 
     public static PartitionKey deserializeKey(UntypedResultSet.Row row)
@@ -1094,7 +1161,7 @@ public class AccordKeyspace
     private static ByteBuffer cellValue(Row row, ColumnMetadata column)
     {
         Cell<?> cell = row.getCell(column);
-        return  (cell != null && !cell.isTombstone()) ? cellValue(cell) : null;
+        return (cell != null && !cell.isTombstone()) ? cellValue(cell) : null;
     }
 
     private static <T> ByteBuffer clusteringValue(Clustering<T> clustering, int idx)
@@ -1124,8 +1191,8 @@ public class AccordKeyspace
         for (SeriesKind kind : SeriesKind.values())
             seriesMaps.put(kind, new ImmutableSortedMap.Builder<>(Comparator.naturalOrder()));
 
-        try(ReadExecutionController controller = command.executionController();
-            FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
+        try (ReadExecutionController controller = command.executionController();
+             FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
         {
             if (!partitions.hasNext())
             {
@@ -1174,5 +1241,298 @@ public class AccordKeyspace
             logger.error("Exception loading AccordCommandsForKey " + key, t);
             throw t;
         }
+    }
+
+    public static class EpochDiskState
+    {
+        public static final EpochDiskState EMPTY = new EpochDiskState(0, 0);
+        public final long minEpoch;
+        public final long maxEpoch;
+
+        public EpochDiskState(long minEpoch, long maxEpoch)
+        {
+            Invariants.checkArgument(minEpoch >= 0, "Min Epoch %d < 0", minEpoch);
+            Invariants.checkArgument(maxEpoch >= minEpoch, "Max epoch %d < min %d", maxEpoch, minEpoch);
+            this.minEpoch = minEpoch;
+            this.maxEpoch = maxEpoch;
+        }
+
+        private EpochDiskState withNewMaxEpoch(long epoch)
+        {
+            Invariants.checkArgument(epoch > maxEpoch, "Epoch %d <= %d (max)", epoch, maxEpoch);
+            return new EpochDiskState(Math.max(1, minEpoch), epoch);
+        }
+
+        private EpochDiskState withNewMinEpoch(long epoch)
+        {
+            Invariants.checkArgument(epoch > minEpoch, "epoch %d <= %d (min)", epoch, minEpoch);
+            Invariants.checkArgument(epoch <= maxEpoch, "epoch %d > %d (max)", epoch, maxEpoch);
+            return new EpochDiskState(epoch, maxEpoch);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "EpochDiskState{" +
+                   "minEpoch=" + minEpoch +
+                   ", maxEpoch=" + maxEpoch +
+                   '}';
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EpochDiskState diskState = (EpochDiskState) o;
+            return minEpoch == diskState.minEpoch && maxEpoch == diskState.maxEpoch;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static void saveEpochDiskState(EpochDiskState diskState)
+    {
+        String cql = "INSERT INTO %s.%s (key, min_epoch, max_epoch) VALUES (0, ?, ?);";
+        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, EPOCH_METADATA),
+                        diskState.minEpoch, diskState.maxEpoch);
+    }
+
+    @Nullable
+    @VisibleForTesting
+    public static EpochDiskState loadEpochDiskState()
+    {
+        String cql = "SELECT * FROM %s.%s WHERE key=0";
+        UntypedResultSet result = executeInternal(format(cql, ACCORD_KEYSPACE_NAME, EPOCH_METADATA));
+        if (result.isEmpty())
+            return null;
+        UntypedResultSet.Row row = result.one();
+        return new EpochDiskState(row.getLong("min_epoch"), row.getLong("max_epoch"));
+    }
+
+    /**
+     * Update the disk state for this epoch, if it's higher than the one we have one disk.
+     *
+     * This is meant to be called before any update involving the new epoch, not after. This way if the update
+     * fails, we can detect and cleanup. If we updated disk state after an update and it failed, we could "forget"
+     * about (now acked) topology updates after a restart.
+     */
+    private static EpochDiskState maybeUpdateMaxEpoch(EpochDiskState diskState, long epoch)
+    {
+        Invariants.checkArgument(epoch >= diskState.minEpoch, "Epoch %d < %d (min)", epoch, diskState.minEpoch);
+        if (epoch > diskState.maxEpoch)
+        {
+            diskState = diskState.withNewMaxEpoch(epoch);
+            saveEpochDiskState(diskState);
+        }
+        return diskState;
+    }
+
+    public static EpochDiskState saveTopology(Topology topology, EpochDiskState diskState)
+    {
+        diskState = maybeUpdateMaxEpoch(diskState, topology.epoch());
+
+        try
+        {
+            String cql = "UPDATE %s.%s SET topology=? WHERE epoch=?";
+            executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+                            serialize(topology, LocalVersionedSerializers.topology), topology.epoch());
+            flush(Topologies);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+
+        return diskState;
+    }
+
+    public static EpochDiskState markRemoteTopologySync(Node.Id node, long epoch, EpochDiskState diskState)
+    {
+        diskState = maybeUpdateMaxEpoch(diskState, epoch);
+        String cql = "UPDATE %s.%s SET remote_sync_complete = remote_sync_complete + ? WHERE epoch = ?";
+        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+                        Collections.singleton(node.id), epoch);
+        flush(Topologies);
+        return diskState;
+    }
+
+    public static EpochDiskState setNotifyingLocalSync(long epoch, Set<Node.Id> pending, EpochDiskState diskState)
+    {
+        diskState = maybeUpdateMaxEpoch(diskState, epoch);
+        String cql = "UPDATE %s.%s SET sync_state = ?, pending_sync_notify = ? WHERE epoch = ?";
+        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+                        SyncStatus.NOTIFYING.ordinal(),
+                        pending.stream().map(i -> i.id).collect(Collectors.toSet()),
+                        epoch);
+        return diskState;
+    }
+
+    public static EpochDiskState markLocalSyncAck(Node.Id node, long epoch, EpochDiskState diskState)
+    {
+        diskState = maybeUpdateMaxEpoch(diskState, epoch);
+        String cql = "UPDATE %s.%s SET pending_sync_notify = pending_sync_notify - ? WHERE epoch = ?";
+        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+                        Collections.singleton(node.id), epoch);
+        return diskState;
+    }
+
+    public static EpochDiskState setCompletedLocalSync(long epoch, EpochDiskState diskState)
+    {
+        diskState = maybeUpdateMaxEpoch(diskState, epoch);
+        String cql = "UPDATE %s.%s SET sync_state = ?, pending_sync_notify = {} WHERE epoch = ?";
+        executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES),
+                        SyncStatus.COMPLETED.ordinal(),
+                        epoch);
+        return diskState;
+    }
+
+    public static EpochDiskState truncateTopologyUntil(final long epoch, EpochDiskState diskState)
+    {
+        while (diskState.minEpoch < epoch)
+        {
+            long delete = diskState.minEpoch;
+            diskState = diskState.withNewMinEpoch(delete + 1);
+            saveEpochDiskState(diskState);
+            String cql = "DELETE FROM %s.%s WHERE epoch = ?";
+            executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TOPOLOGIES), delete);
+        }
+        return diskState;
+    }
+
+    public interface TopologyLoadConsumer
+    {
+        void load(long epoch, Topology topology, SyncStatus syncStatus, Set<Node.Id> pendingSyncNotify, Set<Node.Id> remoteSyncComplete);
+    }
+
+    @VisibleForTesting
+    public static void loadEpoch(long epoch, TopologyLoadConsumer consumer) throws IOException
+    {
+        String cql = format("SELECT * FROM %s.%s WHERE epoch=?", ACCORD_KEYSPACE_NAME, TOPOLOGIES);
+
+        UntypedResultSet result = executeInternal(cql, epoch);
+        Invariants.checkState(!result.isEmpty(), "Nothing found for epoch %d", epoch);
+        UntypedResultSet.Row row = result.one();
+        Topology topology = row.has("topology")
+                            ? deserialize(row.getBytes("topology"), LocalVersionedSerializers.topology)
+                            : null;
+
+        SyncStatus syncStatus = row.has("sync_state")
+                                ? SyncStatus.values()[row.getInt("sync_state")]
+                                : SyncStatus.NOT_STARTED;
+        Set<Node.Id> pendingSyncNotify = row.has("pending_sync_notify")
+                                         ? row.getSet("pending_sync_notify", Int32Type.instance).stream().map(Node.Id::new).collect(Collectors.toSet())
+                                         : Collections.emptySet();
+        Set<Node.Id> remoteSyncComplete = row.has("remote_sync_complete")
+                                          ? row.getSet("remote_sync_complete", Int32Type.instance).stream().map(Node.Id::new).collect(Collectors.toSet())
+                                          : Collections.emptySet();
+
+        consumer.load(epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete);
+
+    }
+
+    public static EpochDiskState loadTopologies(TopologyLoadConsumer consumer)
+    {
+        try
+        {
+            EpochDiskState diskState = loadEpochDiskState();
+            if (diskState == null)
+                return EpochDiskState.EMPTY;
+
+            for (long epoch=diskState.minEpoch; epoch<=diskState.maxEpoch; epoch++)
+                loadEpoch(epoch, consumer);
+
+            return diskState;
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static IMutation getCommandStoreMetadataMutation(String cql, ByteBuffer... values)
+    {
+        ClientState clientState = ClientState.forInternalCalls();
+        ModificationStatement statement = (ModificationStatement) QueryProcessor.parseStatement(cql).prepare(ClientState.forInternalCalls());
+        QueryOptions options = QueryOptions.forInternalCalls(Arrays.asList(values));
+
+        long tsMicros = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
+
+        while (true)
+        {
+            long prev = commandStoreMetadataTimestamp.get();
+            if (prev >= tsMicros)
+                tsMicros = prev + 1;
+
+            if (commandStoreMetadataTimestamp.compareAndSet(prev, tsMicros))
+                break;
+        }
+
+        return Iterables.getOnlyElement(statement.getMutations(clientState, options, true, tsMicros, (int) TimeUnit.MICROSECONDS.toSeconds(tsMicros), Clock.Global.nanoTime()));
+    }
+
+
+    private static <T> Future<?> updateCommandStoreMetadata(CommandStore commandStore, String column, T value, LocalVersionedSerializer<T> serializer)
+    {
+        String cql = format("UPDATE %s.%s SET %s=? WHERE store_id=?", ACCORD_KEYSPACE_NAME, COMMAND_STORE_METADATA, column);
+        try
+        {
+            IMutation mutation = getCommandStoreMetadataMutation(cql, serialize(value, serializer), bytes(commandStore.id()));
+            return Stage.MUTATION.submit(mutation::apply);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static Future<?> updateRejectBefore(CommandStore commandStore, ReducingRangeMap<Timestamp> rejectBefore)
+    {
+        return updateCommandStoreMetadata(commandStore, "reject_before", rejectBefore, LocalVersionedSerializers.rejectBefore);
+    }
+
+    public static Future<?> updateBootstrapBeganAt(CommandStore commandStore, NavigableMap<TxnId, Ranges> bootstrapBeganAt)
+    {
+        return updateCommandStoreMetadata(commandStore, "bootstrap_began_at", bootstrapBeganAt, LocalVersionedSerializers.bootstrapBeganAt);
+    }
+
+    public static Future<?> updateSafeToRead(CommandStore commandStore, NavigableMap<Timestamp, Ranges> safeToRead)
+    {
+        return updateCommandStoreMetadata(commandStore, "safe_to_read", safeToRead, LocalVersionedSerializers.safeToRead);
+    }
+
+    public interface CommandStoreMetadataConsumer
+    {
+        void accept(ReducingRangeMap<Timestamp> rejectBefore, NavigableMap<TxnId, Ranges> bootstrapBeganAt, NavigableMap<Timestamp, Ranges> safeToRead);
+
+    }
+    public static void loadCommandStoreMetadata(int id, CommandStoreMetadataConsumer consumer)
+    {
+        UntypedResultSet result = executeOnceInternal(format("SELECT * FROM %s.%s WHERE store_id=?", ACCORD_KEYSPACE_NAME, COMMAND_STORE_METADATA), id);
+        ReducingRangeMap<Timestamp> rejectBefore = null;
+        NavigableMap<TxnId, Ranges> bootstrapBeganAt = null;
+        NavigableMap<Timestamp, Ranges> safeToRead = null;
+        if (!result.isEmpty())
+        {
+            UntypedResultSet.Row row = Iterables.getOnlyElement(result);
+            try
+            {
+                if (row.has("reject_before"))
+                    rejectBefore = deserialize(row.getBlob("reject_before"), LocalVersionedSerializers.rejectBefore);
+                if (row.has("bootstrap_began_at"))
+                    bootstrapBeganAt = deserialize(row.getBlob("bootstrap_began_at"), LocalVersionedSerializers.bootstrapBeganAt);
+                if (row.has("safe_to_read"))
+                    safeToRead = deserialize(row.getBlob("safe_to_read"), LocalVersionedSerializers.safeToRead);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+        }
+        consumer.accept(rejectBefore, bootstrapBeganAt, safeToRead);
     }
 }

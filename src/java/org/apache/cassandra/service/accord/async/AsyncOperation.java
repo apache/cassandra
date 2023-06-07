@@ -170,8 +170,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     {
         Invariants.nonNull(throwable);
         if (state.isComplete())
-            throw new IllegalStateException("Unexpected state " + state, throwable);
-
+            return;
         try
         {
             switch (state)

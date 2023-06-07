@@ -18,25 +18,24 @@
 
 package org.apache.cassandra.service.accord;
 
-import org.junit.Assert;
 import org.junit.Test;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import accord.local.Node;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.CassandraGenerators;
+import org.assertj.core.api.Assertions;
+import static org.quicktheories.QuickTheory.qt;
+
+import org.quicktheories.generators.SourceDSL;
+
 
 public class EndpointMappingTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(EndpointMappingTest.class);
-
     @Test
     public void identityTest() throws Throwable
     {
-        InetAddressAndPort endpoint = InetAddressAndPort.getByName("127.0.0.1");
-        Node.Id id = EndpointMapping.endpointToId(endpoint);
-        Assert.assertEquals(endpoint, EndpointMapping.idToEndpoint(id));
-        logger.info("{} -> {}", endpoint, id);
+        qt().forAll(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN, SourceDSL.integers().between(1, Integer.MAX_VALUE).map(Node.Id::new)).checkAssert((endpoint, id) -> {
+            EndpointMapping mapping = EndpointMapping.builder(1).add(endpoint, id).build();
+            Assertions.assertThat(mapping.mappedEndpoint(id)).isEqualTo(endpoint);
+        });
     }
 }

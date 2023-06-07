@@ -774,8 +774,6 @@ public class PreparedStatementsTest extends CQLTester
 
     private static void updateTxnState()
     {
-        //TODO Remove this method once CEP-21 and CEP-15 integrate
-        AccordService.instance().createEpochFromConfigUnsafe();
         AccordService.instance().setCacheSize(0);
     }
 }

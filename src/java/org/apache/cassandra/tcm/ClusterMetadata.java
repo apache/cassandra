@@ -424,6 +424,12 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer register(NodeId nodeId, NodeAddresses addresses, Location location, NodeVersion version)
+        {
+            directory = directory.with(nodeId, addresses, location, version);
+            return this;
+        }
+
         public Transformer withNodeState(NodeId id, NodeState state)
         {
             directory = directory.withNodeState(id, state);
