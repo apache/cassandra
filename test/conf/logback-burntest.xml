@@ -59,6 +59,8 @@
   <logger name="org.apache.hadoop" level="WARN"/>
   <logger name="io.netty.handler.ssl.SslHandler" level="WARN"/>
 
+  <logger name="org.apache.cassandra.index.sai" level="DEBUG"/>
+
   <root level="INFO">
     <appender-ref ref="ASYNCFILE" />
     <appender-ref ref="STDOUT" />

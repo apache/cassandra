@@ -113,7 +113,7 @@ public class LongVectorTest extends SAITester
         var R = ThreadLocalRandom.current();
         var v = normalizedVector(dimension);
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
-        if (R.nextDouble() < 0.001)
+        if (R.nextDouble() < 0.0001)
             flush();
     }
 
@@ -131,10 +131,6 @@ public class LongVectorTest extends SAITester
         } else {
             execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
         }
-
-// uncommenting makes it go faster for some reason
-//        if (R.nextDouble() < 0.001)
-//            flush();
     }
 
     private static Vector<Float> normalizedVector(int dimension)
