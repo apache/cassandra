@@ -64,7 +64,6 @@ public class AccordVirtualTables
         public DataSet data()
         {
             IAccordService accord = AccordService.instance();
-            accord.createEpochFromConfigUnsafe();
 
             long epoch = accord.currentEpoch();
 

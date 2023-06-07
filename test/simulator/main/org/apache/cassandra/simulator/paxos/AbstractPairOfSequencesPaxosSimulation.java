@@ -43,7 +43,6 @@ import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.impl.FileLogAction;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionPlan;
@@ -191,9 +190,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
 
         plan = plan.encapsulate(ActionPlan.setUpTearDown(
             ActionList.of(
-                cluster.stream().map(i -> simulated.run("Insert Partitions", i, executeForPrimaryKeys(preInsertStmt(), primaryKeys))),
-                // TODO (now): this is temporary until we have correct epoch handling
-                cluster.stream().map(i -> simulated.run("Create Accord Epoch", i, () -> AccordService.instance().createEpochFromConfigUnsafe()))
+                cluster.stream().map(i -> simulated.run("Insert Partitions", i, executeForPrimaryKeys(preInsertStmt(), primaryKeys)))
             ),
             ActionList.of(
                 cluster.stream().map(i -> checkErrorLogs(i)),

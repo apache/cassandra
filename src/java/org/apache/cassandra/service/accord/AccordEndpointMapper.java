@@ -16,18 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool;
+package org.apache.cassandra.service.accord;
 
-import io.airlift.airline.Command;
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool;
+import accord.local.Node;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
-@Command(name="createepochunsafe", description = "manually create an Accord epoch from current topology")
-public class CreateEpochUnsafe extends NodeTool.NodeToolCmd
+/**
+ * Maps network addresses to accord ids
+ */
+public interface AccordEndpointMapper
 {
-    @Override
-    protected void execute(NodeProbe probe)
-    {
-        probe.getStorageService().createEpochUnsafe();
-    }
+    Node.Id mappedId(InetAddressAndPort endpoint);
+    InetAddressAndPort mappedEndpoint(Node.Id id);
 }

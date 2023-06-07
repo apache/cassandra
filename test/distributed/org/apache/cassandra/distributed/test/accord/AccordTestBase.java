@@ -117,7 +117,6 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         for (String ddl : ddls)
             SHARED_CLUSTER.schemaChange(ddl);
-        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
 
         // Evict commands from the cache immediately to expose problems loading from disk.
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
@@ -182,7 +181,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     }
 
     // TODO: Retry on preemption may become unnecessary after the Unified Log is integrated.
-    protected SimpleQueryResult assertRowEqualsWithPreemptedRetry(Cluster cluster, Object[] row, String check, Object... boundValues)
+    protected static SimpleQueryResult assertRowEqualsWithPreemptedRetry(Cluster cluster, Object[] row, String check, Object... boundValues)
     {
         return assertRowWithPreemptedRetry(cluster, QueryResults.builder().row(row).build(), check, boundValues);
     }
@@ -192,7 +191,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return assertRowWithPreemptedRetry(cluster, QueryResults.builder().build(), check, boundValues);
     }
 
-    private SimpleQueryResult assertRowWithPreemptedRetry(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
+    private static SimpleQueryResult assertRowWithPreemptedRetry(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
     {
         SimpleQueryResult result = executeWithRetry(cluster, check, boundValues);
         QueryResultUtil.assertThat(result).isEqualTo(expected);
@@ -217,7 +216,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         }
     }
 
-    protected static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
+    public static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
     {
         check = wrapInTxn(check);
 
