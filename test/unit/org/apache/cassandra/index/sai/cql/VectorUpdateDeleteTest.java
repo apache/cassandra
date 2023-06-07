@@ -329,4 +329,30 @@ public class VectorUpdateDeleteTest extends VectorTester
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 1);
     }
+
+
+    @Test
+    public void shadowedPrimaryKeyInDifferentSSTable() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, val vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(KEYSPACE);
+
+        // flush a sstable with one vector
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        flush();
+
+        // flush another sstable to shadow the vector row
+        execute("DELETE FROM %s where pk = 0");
+        flush();
+
+        // flush another sstable with one new vector row
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        flush();
+
+        // the shadow vector has the highest score
+        var result = execute("SELECT * FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 1");
+        assertThat(result).hasSize(1);
+    }
 }

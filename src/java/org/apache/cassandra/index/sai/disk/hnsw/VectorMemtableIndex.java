@@ -144,6 +144,8 @@ public class VectorMemtableIndex implements MemtableIndex
             bits = new KeyRangeFilteringBits(keyRange);
 
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
+        if (keyQueue.isEmpty())
+            return RangeIterator.emptyKeys();
         return new ReorderingRangeIterator(keyQueue);
     }
 
@@ -159,12 +161,18 @@ public class VectorMemtableIndex implements MemtableIndex
 
         int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
         if (results.size() <= maxBruteForceRows)
+        {
+            if (results.isEmpty())
+                return RangeIterator.emptyKeys();
             return new ReorderingRangeIterator(new PriorityQueue<>(results));
+        }
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
+        if (keyQueue.isEmpty())
+            return RangeIterator.emptyKeys();
         return new ReorderingRangeIterator(keyQueue);
     }
 
@@ -247,7 +255,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         ReorderingRangeIterator(PriorityQueue<PrimaryKey> keyQueue)
         {
-            super(minimumKey, maximumKey, writeCount.longValue());
+            super(minimumKey, maximumKey, keyQueue.size());
             this.keyQueue = keyQueue;
         }
 

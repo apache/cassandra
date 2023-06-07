@@ -69,7 +69,14 @@ public class SSTableQueryContext
         {
             for (PrimaryKey primaryKey : queryContext.getShadowedPrimaryKeys())
             {
+                // not in current segment
+                if (primaryKey.compareTo(metadata.minKey) < 0 || primaryKey.compareTo(metadata.maxKey) > 0)
+                    continue;
+
                 long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
+                if (sstableRowId == Long.MAX_VALUE) // not found
+                    continue;
+
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
                 // not in segment yet
                 if (segmentRowId < 0)
