@@ -50,6 +50,7 @@ public class OnDiskOrdinalsMap
         this.fh = fh;
         try (var reader = fh.createReader())
         {
+            reader.seek(segmentOffset);
             int deletedCount = reader.readInt();
             for (var i = 0; i < deletedCount; i++)
             {
