@@ -288,9 +288,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
             if (accessor.sizeFromOffset(input, offset) < 2)
                 throw new MarshalException("Not enough bytes to read value size of component " + i);
-            int length = accessor.getShort(input, offset);
-            if (length < 0)
-                throw new MarshalException(String.format("Length was negative: %d", length));
+            int length = accessor.getUnsignedShort(input, offset);
             offset += 2;
 
             if (accessor.sizeFromOffset(input, offset) < length)
