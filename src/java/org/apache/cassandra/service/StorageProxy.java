@@ -1856,7 +1856,8 @@ public class StorageProxy implements StorageProxyMBean
     private static PartitionIterator readWithConsensus(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == accord)
+        // TCM explicitly relies on paxos and doesn't work with accord
+        if (DatabaseDescriptor.getLegacyPaxosStrategy() == accord && !group.metadata().keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
         {
             return readWithAccord(group, consistencyLevel);
         }

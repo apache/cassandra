@@ -859,6 +859,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId self = metadata.myNodeId();
+        AccordService.startup(self);
 
         // finish in-progress sequences first
         finishInProgressSequences(self);
@@ -5909,11 +5910,5 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getCommitsPaused()
     {
         return ClusterMetadataService.instance().commitsPaused();
-    }
-
-    @Override
-    public void createEpochUnsafe()
-    {
-        AccordService.instance().createEpochFromConfigUnsafe();
     }
 }

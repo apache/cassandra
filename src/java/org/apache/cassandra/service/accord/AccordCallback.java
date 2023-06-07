@@ -34,17 +34,19 @@ import org.apache.cassandra.net.RequestCallback;
 class AccordCallback<T extends Reply> extends SafeCallback<T> implements RequestCallback<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
+    private final AccordEndpointMapper endpointMapper;
 
-    public AccordCallback(AgentExecutor executor, Callback<T> callback)
+    public AccordCallback(AgentExecutor executor, Callback<T> callback, AccordEndpointMapper endpointMapper)
     {
         super(executor, callback);
+        this.endpointMapper = endpointMapper;
     }
 
     @Override
     public void onResponse(Message<T> msg)
     {
         logger.debug("Received response {} from {}", msg.payload, msg.from());
-        success(EndpointMapping.endpointToId(msg.from()), msg.payload);
+        success(endpointMapper.mappedId(msg.from()), msg.payload);
     }
 
     private static Throwable convertReason(RequestFailureReason reason)
@@ -59,7 +61,7 @@ class AccordCallback<T extends Reply> extends SafeCallback<T> implements Request
     {
         logger.debug("Received failure {} from {} for {}", failureReason, from, this);
         // TODO (now): we should distinguish timeout failures with some placeholder Exception
-        failure(EndpointMapping.endpointToId(from), convertReason(failureReason));
+        failure(endpointMapper.mappedId(from), convertReason(failureReason));
     }
 
     @Override

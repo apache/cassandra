@@ -24,9 +24,6 @@ import com.google.common.collect.Iterators;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.gms.IFailureDetectionEventListener;
-import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
@@ -90,45 +87,5 @@ final class HintsTestUtil
             HintsService.instance.write(hostId, hint);
         }
         return spy;
-    }
-
-    static class MockFailureDetector implements IFailureDetector
-    {
-        boolean isAlive = true;
-
-        public boolean isAlive(InetAddressAndPort ep)
-        {
-            return isAlive;
-        }
-
-        public void interpret(InetAddressAndPort ep)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void report(InetAddressAndPort ep)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void remove(InetAddressAndPort ep)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void forceConviction(InetAddressAndPort ep)
-        {
-            throw new UnsupportedOperationException();
-        }
     }
 }

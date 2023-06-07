@@ -19,84 +19,128 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
+
+import accord.local.Node;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import org.apache.cassandra.db.Keyspace;
+import accord.utils.Invariants;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 
 public class AccordTopologyUtils
 {
-    private static Shard createShard(TokenRange range, EndpointsForToken natural, EndpointsForToken pending)
+    static Node.Id tcmIdToAccord(NodeId nodeId)
     {
-        return new Shard(range,
-                         natural.stream().map(EndpointMapping::getId).collect(Collectors.toList()),
-                         natural.stream().map(EndpointMapping::getId).collect(Collectors.toSet()),
-                         pending.stream().map(EndpointMapping::getId).collect(Collectors.toSet()));
+        return new Node.Id(nodeId.id());
     }
 
-    private static TokenRange minRange(String keyspace, Token token)
+    private static Shard createShard(TokenRange range, Directory directory, EndpointsForRange reads, EndpointsForRange writes)
+    {
+        Function<InetAddressAndPort, Node.Id> endpointMapper = e -> {
+            NodeId tcmId = directory.peerId(e);
+            return tcmIdToAccord(tcmId);
+        };
+        Set<InetAddressAndPort> endpoints = reads.endpoints();
+        Set<InetAddressAndPort> writeEndpoints = writes.endpoints();
+        List<Node.Id> nodes = endpoints.stream().map(endpointMapper).sorted().collect(Collectors.toList());
+        Set<Node.Id> fastPath = new HashSet<>(nodes);  // TODO: support fast path updates
+        Set<Node.Id> pending = endpoints.equals(writeEndpoints) ?
+                               Collections.emptySet() :
+                               writeEndpoints.stream().filter(e -> !endpoints.contains(e)).map(endpointMapper).collect(Collectors.toSet());
+
+        Sets.SetView<InetAddressAndPort> readOnly = Sets.difference(endpoints, writeEndpoints);
+        Invariants.checkState(readOnly.isEmpty(), "Read only replicas detected: %s", readOnly);
+        return new Shard(range, nodes, fastPath, pending);
+    }
+
+    static TokenRange minRange(String keyspace, Token token)
     {
         return new TokenRange(SentinelKey.min(keyspace), new TokenKey(keyspace, token));
     }
 
-    private static TokenRange maxRange(String keyspace, Token token)
+    static TokenRange maxRange(String keyspace, Token token)
     {
         return new TokenRange(new TokenKey(keyspace, token), SentinelKey.max(keyspace));
     }
 
-    private static TokenRange range(String keyspace, Token left, Token right)
+    static TokenRange fullRange(String keyspace)
     {
-        return new TokenRange(new TokenKey(keyspace, left), new TokenKey(keyspace, right));
+        return new TokenRange(SentinelKey.min(keyspace), SentinelKey.max(keyspace));
     }
 
-    public static List<Shard> createShards(String keyspace, ClusterMetadata clusterMetadata)
+    static TokenRange range(String keyspace, Range<Token> range)
     {
-        KeyspaceMetadata keyspaceMetadata = Keyspace.open(keyspace).getMetadata();
-        List<Token> tokens = new ArrayList<>(clusterMetadata.tokenMap.tokens());
-        tokens.sort(Comparator.naturalOrder());
+        Token minToken = range.left.minValue();
+        return new TokenRange(range.left.equals(minToken) ? SentinelKey.min(keyspace) : new TokenKey(keyspace, range.left),
+                              range.right.equals(minToken) ? SentinelKey.max(keyspace) : new TokenKey(keyspace, range.right));
+    }
 
-        List<Shard> shards = new ArrayList<>(tokens.size() + 1);
-        Shard finalShard = null;
-        for (int i = 0, mi = tokens.size(); i < mi; i++)
+    public static List<Shard> createShards(KeyspaceMetadata keyspace, DataPlacements placements, Directory directory)
+    {
+        ReplicationParams replication = keyspace.params.replication;
+        DataPlacement placement = placements.get(replication);
+
+        List<Range<Token>> ranges = placement.reads.ranges();
+        List<Shard> shards = new ArrayList<>(ranges.size());
+        for (Range<Token> range : ranges)
         {
-            Token token = tokens.get(i);
-            EndpointsForToken natural = clusterMetadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token);
-            EndpointsForToken pending = clusterMetadata.pendingEndpointsFor(keyspaceMetadata, token);
-            if (i == 0)
-            {
-                shards.add(createShard(minRange(keyspace, token), natural, pending));
-                finalShard = createShard(maxRange(keyspace, tokens.get(mi - 1)), natural, pending);
-            }
-            else
-            {
-                Token prev = tokens.get(i - 1);
-                shards.add(createShard(range(keyspace, prev, token), natural, pending));
-            }
+            EndpointsForRange reads = placement.reads.forRange(range);
+            EndpointsForRange writes = placement.reads.forRange(range);
+
+            // TCM doesn't create wrap around ranges
+            Invariants.checkArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),
+                                     "wrap around range %s found", range);
+            shards.add(createShard(range(keyspace.name, range), directory, reads, writes));
         }
-        shards.add(finalShard);
 
         return shards;
     }
 
-    public static Topology createTopology(long epoch)
+    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, Directory directory, Predicate<String> keyspacePredicate)
     {
-        List<String> keyspaces = new ArrayList<>(Schema.instance.distributedKeyspaces().names());
-        keyspaces.sort(String::compareTo);
-
         List<Shard> shards = new ArrayList<>();
-        for (String keyspace : keyspaces)
-            shards.addAll(createShards(keyspace, ClusterMetadata.current()));
+        for (KeyspaceMetadata keyspace : schema.getKeyspaces())
+        {
+            if (!keyspacePredicate.test(keyspace.name))
+                continue;
+            shards.addAll(createShards(keyspace, placements, directory));
+        }
+        shards.sort((a, b) -> a.range.compare(b.range));
+        return new Topology(epoch.getEpoch(), shards.toArray(new Shard[0]));
+    }
 
-        return new Topology(epoch, shards.toArray(new Shard[0]));
+    public static EndpointMapping directoryToMapping(long epoch, Directory directory)
+    {
+        EndpointMapping.Builder builder = EndpointMapping.builder(epoch);
+        for (NodeId id : directory.peerIds())
+            builder.add(directory.endpoint(id), tcmIdToAccord(id));
+        return builder.build();
+    }
+
+    public static Topology createAccordTopology(ClusterMetadata metadata, Predicate<String> keyspacePredicate)
+    {
+        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, keyspacePredicate);
     }
 }

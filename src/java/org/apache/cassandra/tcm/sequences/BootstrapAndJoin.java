@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +42,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -58,6 +60,7 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -121,13 +124,14 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
             SystemKeyspace.resetAvailableStreamedRanges();
         }
         Future<StreamState> bootstrapStream = StorageService.instance.startBootstrap(metadata, beingReplaced, movements, strictMovements);
+        Future<Void> accordReady = AccordService.instance().epochReady(metadata.epoch);
+        Future<?> ready = FutureCombiner.allOf(Lists.newArrayList(bootstrapStream, accordReady));
         try
         {
             if (bootstrapTimeoutMillis > 0)
-                bootstrapStream.get(bootstrapTimeoutMillis, MILLISECONDS);
+                ready.get(bootstrapTimeoutMillis, MILLISECONDS);
             else
-                bootstrapStream.get();
-
+                ready.get();
             StorageService.instance.markViewsAsBuilt();
             logger.info("Bootstrap completed for tokens {}", tokens);
             return true;

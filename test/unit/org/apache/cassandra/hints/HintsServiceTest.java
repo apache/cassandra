@@ -49,7 +49,7 @@ import org.apache.cassandra.service.StorageService;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
-import static org.apache.cassandra.hints.HintsTestUtil.MockFailureDetector;
+import org.apache.cassandra.utils.MockFailureDetector;
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;

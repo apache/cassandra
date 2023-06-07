@@ -156,6 +156,11 @@ public class Directory implements MetadataValue<Directory>
         return with(addresses, location, CURRENT);
     }
 
+    public Directory with(NodeId id, NodeAddresses addresses, Location location, NodeVersion nodeVersion)
+    {
+        return with(addresses, id, id.toUUID(), location, nodeVersion);
+    }
+
     public Directory with(NodeAddresses addresses, Location location, NodeVersion nodeVersion)
     {
         NodeId id = new NodeId(nextId);

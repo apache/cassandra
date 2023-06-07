@@ -1245,6 +1245,4 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setCommitsPaused(boolean paused);
     public boolean getCommitsPaused();
-
-    public void createEpochUnsafe();
 }
