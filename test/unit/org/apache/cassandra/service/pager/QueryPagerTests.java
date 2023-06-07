@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -91,8 +92,8 @@ public abstract class QueryPagerTests
     public static final long nowInSec = FBUtilities.nowInSeconds();
     public static List<String> tokenOrderedKeys;
 
-    static final int ONE_CLUSTERING_ROW_BYTES = 43;
-    static final int TWO_CLUSTERINGS_ROW_BYTES = 47;
+    static final int ONE_CLUSTERING_ROW_BYTES = 53;
+    static final int TWO_CLUSTERINGS_ROW_BYTES = 57;
 
     static PageSize pageSizeInRows(int n)
     {
@@ -174,20 +175,25 @@ public abstract class QueryPagerTests
         // *
         for (int i = 0; i < nbKeys; i++)
         {
-            tokens.add("k" + i);
+            tokens.add(key(i));
             for (int j = 0; j < nbCols; j++)
             {
-                RowUpdateBuilder builder = new RowUpdateBuilder(cfs(KEYSPACE1, CF_WITH_ONE_CLUSTERING).metadata(), FBUtilities.timestampMicros(), "k" + i);
+                RowUpdateBuilder builder = new RowUpdateBuilder(cfs(KEYSPACE1, CF_WITH_ONE_CLUSTERING).metadata(), FBUtilities.timestampMicros(), key(i));
                 builder.clustering("c" + j).add("val", "").build().applyUnsafe();
                 for (int k = 0; k < nbCols2; k++)
                 {
-                    RowUpdateBuilder builder2 = new RowUpdateBuilder(cfs(KEYSPACE1, CF_WITH_TWO_CLUSTERINGS).metadata(), FBUtilities.timestampMicros(), "k" + i);
+                    RowUpdateBuilder builder2 = new RowUpdateBuilder(cfs(KEYSPACE1, CF_WITH_TWO_CLUSTERINGS).metadata(), FBUtilities.timestampMicros(), key(i));
                     builder2.clustering("c" + j, k).add("val", "").build().applyUnsafe();
                 }
             }
         }
 
         tokenOrderedKeys = Lists.newArrayList(tokens);
+    }
+
+    static String key(int i)
+    {
+        return "k" + StringUtils.leftPad(String.valueOf(i), 9, '0');
     }
 
     @After

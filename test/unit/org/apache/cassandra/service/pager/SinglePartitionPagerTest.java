@@ -49,14 +49,14 @@ public class SinglePartitionPagerTest extends QueryPagerTests
 
     protected ReadCommand makeSliceQuery(int limit, int perPartitionLimit, boolean isReversed)
     {
-        SinglePartitionBuilder builder = makeBuilder(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_WITH_ONE_CLUSTERING), "k0");
+        SinglePartitionBuilder builder = makeBuilder(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_WITH_ONE_CLUSTERING), key(0));
         setSliceFilter(builder, "c1", "c9", isReversed);
         return builder.build();
     }
 
     protected ReadCommand makeNamesQuery(int limit, int perPartitionLimit)
     {
-        SinglePartitionBuilder builder = makeBuilder(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_WITH_ONE_CLUSTERING), "k0");
+        SinglePartitionBuilder builder = makeBuilder(limit, perPartitionLimit, PageSize.NONE, cfs(KEYSPACE1, CF_WITH_ONE_CLUSTERING), key(0));
         setNamesFilter(builder, "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8");
         return builder.build();
     }
@@ -79,11 +79,11 @@ public class SinglePartitionPagerTest extends QueryPagerTests
 
     public void queryTest(boolean testPagingState, ReadCommand cmd)
     {
-        checkAllPages(cmd, testPagingState, PageSize.inRows(3), 3, 8, "k0", "c1", "k0", "c8");
+        checkAllPages(cmd, testPagingState, PageSize.inRows(3), 3, 8, key(0), "c1", key(0), "c8");
         QueryPager pager = null;
-        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), "k0", "c1", "c2", "c3"));
-        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), "k0", "c4", "c5", "c6"));
-        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 2, p -> assertRow(p.get(0), "k0", "c7", "c8"));
+        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), key(0), "c1", "c2", "c3"));
+        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), key(0), "c4", "c5", "c6"));
+        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 2, p -> assertRow(p.get(0), key(0), "c7", "c8"));
         assertTrue(pager.isExhausted());
     }
 
@@ -111,7 +111,7 @@ public class SinglePartitionPagerTest extends QueryPagerTests
         int limit = 1;
         int perPartitionLimit = 2;
         cmd = cmdSupplier.apply(limit, perPartitionLimit);
-        pager = checkNextPage(null, cmd, testPagingState, PageSize.NONE, 1, p -> assertRow(p.get(0), "k0", "c1"));
+        pager = checkNextPage(null, cmd, testPagingState, PageSize.NONE, 1, p -> assertRow(p.get(0), key(0), "c1"));
         assertTrue(pager.isExhausted());
 
         // Test with count > partitionCount
@@ -119,7 +119,7 @@ public class SinglePartitionPagerTest extends QueryPagerTests
         limit = 2;
         perPartitionLimit = 1;
         cmd = cmdSupplier.apply(limit, perPartitionLimit);
-        pager = checkNextPage(null, cmd, testPagingState, PageSize.NONE, 1, p -> assertRow(p.get(0), "k0", "c1"));
+        pager = checkNextPage(null, cmd, testPagingState, PageSize.NONE, 1, p -> assertRow(p.get(0), key(0), "c1"));
         assertTrue(pager.isExhausted());
     }
 
@@ -159,17 +159,17 @@ public class SinglePartitionPagerTest extends QueryPagerTests
         int limit = 10;
         int perPartitionLimit = 5;
         cmd = cmdSupplier.apply(limit, perPartitionLimit);
-        checkAllPages(cmd, testPagingState, pageSizeSupplier.apply(3), 2, 5, "k0", "c1", "k0", "c5");
-        pager = checkNextPage(null, cmd, testPagingState, pageSizeSupplier.apply(3), 3, p -> assertRow(p.get(0), "k0", "c1", "c2", "c3"));
-        pager = checkNextPage(pager, cmd, testPagingState, pageSizeSupplier.apply(3), 2, p -> assertRow(p.get(0), "k0", "c4", "c5"));
+        checkAllPages(cmd, testPagingState, pageSizeSupplier.apply(3), 2, 5, key(0), "c1", key(0), "c5");
+        pager = checkNextPage(null, cmd, testPagingState, pageSizeSupplier.apply(3), 3, p -> assertRow(p.get(0), key(0), "c1", "c2", "c3"));
+        pager = checkNextPage(pager, cmd, testPagingState, pageSizeSupplier.apply(3), 2, p -> assertRow(p.get(0), key(0), "c4", "c5"));
         assertTrue(pager.isExhausted());
 
         limit = 5;
         perPartitionLimit = 10;
         cmd = cmdSupplier.apply(limit, perPartitionLimit);
-        checkAllPages(cmd, testPagingState, pageSizeSupplier.apply(3), 2, 5, "k0", "c1", "k0", "c5");
-        pager = checkNextPage(null, cmd, testPagingState, pageSizeSupplier.apply(3), 3, p -> assertRow(p.get(0), "k0", "c1", "c2", "c3"));
-        pager = checkNextPage(pager, cmd, testPagingState, pageSizeSupplier.apply(3), 2, p -> assertRow(p.get(0), "k0", "c4", "c5"));
+        checkAllPages(cmd, testPagingState, pageSizeSupplier.apply(3), 2, 5, key(0), "c1", key(0), "c5");
+        pager = checkNextPage(null, cmd, testPagingState, pageSizeSupplier.apply(3), 3, p -> assertRow(p.get(0), key(0), "c1", "c2", "c3"));
+        pager = checkNextPage(pager, cmd, testPagingState, pageSizeSupplier.apply(3), 2, p -> assertRow(p.get(0), key(0), "c4", "c5"));
         assertTrue(pager.isExhausted());
     }
 
@@ -184,9 +184,9 @@ public class SinglePartitionPagerTest extends QueryPagerTests
     public void reversedQueryTest(boolean testPagingState, ReadCommand cmd)
     {
         QueryPager pager;
-        pager = checkNextPage(null, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), "k0", "c6", "c7", "c8"));
-        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), "k0", "c3", "c4", "c5"));
-        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 2, p -> assertRow(p.get(0), "k0", "c1", "c2"));
+        pager = checkNextPage(null, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), key(0), "c6", "c7", "c8"));
+        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 3, p -> assertRow(p.get(0), key(0), "c3", "c4", "c5"));
+        pager = checkNextPage(pager, cmd, testPagingState, PageSize.inRows(3), 2, p -> assertRow(p.get(0), key(0), "c1", "c2"));
         assertTrue(pager.isExhausted());
     }
 
@@ -225,11 +225,11 @@ public class SinglePartitionPagerTest extends QueryPagerTests
 
         // insert some rows into a single partition
         for (int i = 0; i < 5; i++)
-            executeInternal(String.format("INSERT INTO %s.%s (k, c, st, v1, v2) VALUES ('k0', '%3$s', %3$s, %3$s, %3$s)",
-                                          KEYSPACE_CQL, PER_TEST_CF_CQL_WITH_STATIC, i));
+            executeInternal(String.format("INSERT INTO %s.%s (k, c, st, v1, v2) VALUES ('%s', '%4$s', %4$s, %4$s, %4$s)",
+                                          KEYSPACE_CQL, PER_TEST_CF_CQL_WITH_STATIC, key(0), i));
 
         // query the table in reverse with page size = 1 & check that the returned rows contain the correct cells
         TableMetadata table = Keyspace.open(KEYSPACE_CQL).getColumnFamilyStore(PER_TEST_CF_CQL_WITH_STATIC).metadata();
-        queryAndVerifyCells(table, true, "k0");
+        queryAndVerifyCells(table, true, key(0));
     }
 }
