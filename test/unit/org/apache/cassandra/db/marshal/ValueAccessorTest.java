@@ -30,7 +30,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
-import org.quicktheories.generators.SourceDSL;
 
 import static org.apache.cassandra.utils.ByteArrayUtil.bytesToHex;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
