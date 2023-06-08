@@ -23,6 +23,10 @@ import java.util.Random;
 import org.quicktheories.core.DetatchedRandomnessSource;
 import org.quicktheories.core.RandomnessSource;
 
+/**
+ * The {@link Constraint} class does not expose {@link Constraint#min()} or {@link Constraint#max()} outside the package, so
+ * the only way to build a {@link RandomnessSource} is to define it in the package "org.quicktheories.impl"
+ */
 public class JavaRandom implements RandomnessSource, DetatchedRandomnessSource
 {
     private final Random random;
