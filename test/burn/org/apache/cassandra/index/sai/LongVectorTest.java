@@ -77,6 +77,24 @@ public class LongVectorTest extends SAITester
     }
 
     @Test
+    public void testConcurrentReadsWritesDeletes() throws ExecutionException, InterruptedException
+    {
+        testConcurrentOps(i ->
+                          {
+                              try
+                              {
+                                  readWriteDeleteOp(i);
+                                  if (ThreadLocalRandom.current().nextDouble() < 0.0001)
+                                      flush();
+                              }
+                              catch (Throwable e)
+                              {
+                                  throw new RuntimeException(e);
+                              }
+                          });
+    }
+
+    @Test
     public void testConcurrentReadsWrites() throws ExecutionException, InterruptedException
     {
         testConcurrentOps(i ->
@@ -113,8 +131,6 @@ public class LongVectorTest extends SAITester
         var R = ThreadLocalRandom.current();
         var v = normalizedVector(dimension);
         execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
-        if (R.nextDouble() < 0.0001)
-            flush();
     }
 
     private void readWriteOp(int i) throws Throwable
@@ -125,6 +141,25 @@ public class LongVectorTest extends SAITester
         {
             execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
             keysInserted.add(i);
+        } else if (R.nextDouble() < 0.5) {
+            var key = keysInserted.getRandom();
+            execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
+        } else {
+            execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
+        }
+    }
+
+    private void readWriteDeleteOp(int i) throws Throwable
+    {
+        var R = ThreadLocalRandom.current();
+        var v = normalizedVector(dimension);
+        if (R.nextDouble() < 0.2 || keysInserted.isEmpty())
+        {
+            execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
+            keysInserted.add(i);
+        } else if (R.nextDouble() < 0.1) {
+            var key = keysInserted.getRandom();
+            execute("DELETE FROM %s WHERE key = ?", key);
         } else if (R.nextDouble() < 0.5) {
             var key = keysInserted.getRandom();
             execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
