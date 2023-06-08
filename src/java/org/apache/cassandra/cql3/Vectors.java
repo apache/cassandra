@@ -47,6 +47,52 @@ public class Vectors
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
     }
 
+    /**
+     * Tests that the list with the specified elements can be assigned to the specified column.
+     *
+     * @param receiver the receiving column
+     * @param elements the list elements
+     */
+    public static AssignmentTestable.TestResult testVectorAssignment(ColumnSpecification receiver,
+                                                                     List<? extends AssignmentTestable> elements)
+    {
+        if (!(receiver.type instanceof VectorType))
+            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+
+        // If there is no elements, we can't say it's an exact match (an empty list if fundamentally polymorphic).
+        if (elements.isEmpty())
+            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+
+        ColumnSpecification valueSpec = valueSpecOf(receiver);
+        return AssignmentTestable.TestResult.testAll(receiver.ksName, valueSpec, elements);
+    }
+
+    /**
+     * Returns the exact ListType from the items if it can be known.
+     *
+     * @param items the items mapped to the list elements
+     * @param mapper the mapper used to retrieve the element types from the items
+     * @return the exact ListType from the items if it can be known or <code>null</code>
+     */
+    public static <T> VectorType<?> getExactListTypeIfKnown(List<T> items,
+                                                            java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
+        // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
+        Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
+        return type.isPresent() ? VectorType.getInstance(type.get(), items.size()) : null;
+    }
+
+    public static <T> VectorType<?> getPreferredCompatibleType(List<T> items,
+                                                               java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
+        // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
+        Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
+        return type == null ? null : VectorType.getInstance(type, items.size());
+    }
+
     public static class Literal extends Term.Raw
     {
         private final List<Term.Raw> elements;
@@ -105,26 +151,13 @@ public class Vectors
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
-            // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
-            Optional<? extends AbstractType<?>> opt = elements.stream()
-                                                              .map(e -> e.getCompatibleTypeIfKnown(keyspace))
-                                                              .filter(Objects::nonNull)
-                                                              .findFirst();
-            return opt.isPresent() ? VectorType.getInstance(opt.get(), elements.size()) : null;
+            return getExactListTypeIfKnown(elements, e -> e.getCompatibleTypeIfKnown(keyspace));
         }
 
         @Override
         public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
         {
-            // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
-            // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
-            Set<AbstractType<?>> types = elements.stream()
-                                                           .map(e -> e.getCompatibleTypeIfKnown(keyspace))
-                                                           .filter(Objects::nonNull)
-                                                           .collect(Collectors.toSet());
-            AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
-            return type == null ? null : VectorType.getInstance(type, elements.size());
+            return getPreferredCompatibleType(elements, e -> e.getCompatibleTypeIfKnown(keyspace));
         }
     }
 

@@ -18,9 +18,17 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.functions.NativeFunctions;
+import org.apache.cassandra.cql3.functions.NativeScalarFunction;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class CQLVectorTest extends CQLTester.InMemory
 {
@@ -147,5 +155,28 @@ public class CQLVectorTest extends CQLTester.InMemory
 
         execute("UPDATE %s set VALUE = [1, 1 + (int) ?] WHERE pk = 0", 1);
         test.run();
+    }
+
+    @Test
+    public void functions()
+    {
+        VectorType<Integer> type = VectorType.getInstance(Int32Type.instance, 2);
+        Vector<Integer> vector = vector(1, 2);
+
+        NativeFunctions.instance.add(new NativeScalarFunction("f", type, type)
+        {
+            @Override
+            public ByteBuffer execute(ProtocolVersion protocol, List<ByteBuffer> parameters)
+            {
+                return parameters.get(0);
+            }
+        });
+
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector);
+
+        assertRows(execute("SELECT f(value) FROM %s WHERE pk=0"), row(vector));
+        // TODO org.apache.cassandra.cql3.selection.Selectable.WithList isn't vector aware, so the below function will fail
+//        assertRows(execute("SELECT f([1, 2]) FROM %s WHERE pk=0"), row(vector));
     }
 }
