@@ -1,4 +1,5 @@
 3.11.16
+ * Fix error message handling when trying to use CLUSTERING ORDER with non-clustering column (CASSANDRA-17818
  * Add keyspace and table name to exception message during ColumnSubselection deserialization (CASSANDRA-18346)
  * Remove unnecessary String.format invocation in QueryProcessor when getting a prepared statement from cache (CASSANDRA-17202)
 Merged from 3.0:
