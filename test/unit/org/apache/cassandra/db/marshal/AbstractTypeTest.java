@@ -159,9 +159,13 @@ public class AbstractTypeTest
         // For all types, make sure the serializer returned is unique to that type,
         // this is required as some places, such as SetSerializer, cache at this level!
         Map<TypeSerializer<?>, AbstractType<?>> lookup = new HashMap<>();
-        qt().withFixedSeed(103165005033541L).forAll(genBuilder().withMaxDepth(0).build()).checkAssert(t -> {
+        qt().forAll(genBuilder().withMaxDepth(0).build()).checkAssert(t -> {
             AbstractType<?> old = lookup.put(t.getSerializer(), t);
-            if (old != null && !old.equals(t))
+            // for frozen types, ignore the fact that the mapping breaks...  The reason this test exists is that
+            // org.apache.cassandra.db.marshal.AbstractType.comparatorSet needs to match the serializer, but when serialziers
+            // break this mapping they may cause the wrong comparator (happened in cases like uuid and lexecal uuid; which have different orderings!).
+            // Frozen types (as of this writing) do not change the sort ordering, so this simplification is fine...
+            if (old != null && !old.unfreeze().equals(t.unfreeze()))
                 throw new AssertionError(String.format("Different types detected that shared the same serializer: %s != %s", old.asCQL3Type(), t.asCQL3Type()));
         });
     }
