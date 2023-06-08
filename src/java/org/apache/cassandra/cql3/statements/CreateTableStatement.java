@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import org.apache.commons.lang3.StringUtils;
@@ -342,8 +344,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
             // If we give a clustering order, we must explicitly do so for all aliases and in the order of the PK
             if (!properties.definedOrdering.isEmpty())
             {
-                if (properties.definedOrdering.size() > columnAliases.size())
-                    throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive");
+                List<ColumnIdentifier> nonClusterColumn = properties.definedOrdering.keySet().stream()
+                                                                                    .filter((id) -> !columnAliases.contains(id))
+                                                                                    .collect(Collectors.toList());
+
+                if (!nonClusterColumn.isEmpty())
+                {
+                    throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering columns");
+                }
 
                 int i = 0;
                 for (ColumnIdentifier id : properties.definedOrdering.keySet())
