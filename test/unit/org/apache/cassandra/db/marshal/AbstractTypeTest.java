@@ -139,7 +139,12 @@ public class AbstractTypeTest
 
     private boolean isTestType(Class<? extends AbstractType> klass)
     {
-        if (klass.getCanonicalName().contains("Test"))
+        String name = klass.getCanonicalName();
+        if (name == null)
+            name = klass.getName();
+        if (name == null)
+            name = klass.toString();
+        if (name.contains("Test"))
             return true;
         ProtectionDomain domain = klass.getProtectionDomain();
         if (domain == null) return false;
