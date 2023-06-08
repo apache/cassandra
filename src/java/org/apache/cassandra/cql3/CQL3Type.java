@@ -860,7 +860,7 @@ public interface CQL3Type
             @Override
             public Raw freeze()
             {
-                return super.freeze();
+                return this;
             }
 
             @Override
