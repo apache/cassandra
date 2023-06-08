@@ -340,7 +340,7 @@ public class TupleTypeTest extends CQLTester
                                                                 .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE)
                                                                 // ordering doesn't make sense for duration
                                                                 .withoutPrimitive(DurationType.instance)
-                                                                // data is "normalzied" causing equality matches to fail
+                                                                // data is "normalized" causing equality matches to fail
                                                                 .withoutPrimitive(DecimalType.instance)
                                                                 .build();
         Gen<TupleType> typeGen = tupleTypeGen(subTypeGen, SourceDSL.integers().between(1, 10));
