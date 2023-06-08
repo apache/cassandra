@@ -39,23 +39,26 @@ public class CQLVectorTest extends CQLTester.InMemory
 
         execute("INSERT INTO %s (pk) VALUES ([1, 2])");
 
-        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 2]"), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk = ?", vector(1, 2)), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 1 + 1]"), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk = [1, ?]", 2), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk = [1, (int) ?]", 2), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 1 + (int) ?]", 1), row(list(1, 2)));
+        Vector<Integer> vector = vector(1, 2);
+        Object[] row = row(vector);
 
-        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2])"), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2], [1, 2])"), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk IN (?)", vector(1, 2)), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + 1])"), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, ?])", 2), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, (int) ?])", 2), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + (int) ?])", 1), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 2]"), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", vector), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 1 + 1]"), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, ?]", 2), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, (int) ?]", 2), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk = [1, 1 + (int) ?]", 1), row);
 
-        assertRows(execute("SELECT * FROM %s WHERE pk > [0, 0] AND pk < [1, 3] ALLOW FILTERING"), row(list(1, 2)));
-        assertRows(execute("SELECT * FROM %s WHERE token(pk) = token([1, 2])"), row(list(1, 2)));
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2])"), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2], [1, 2])"), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN (?)", vector), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + 1])"), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, ?])", 2), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, (int) ?])", 2), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + (int) ?])", 1), row);
+
+        assertRows(execute("SELECT * FROM %s WHERE pk > [0, 0] AND pk < [1, 3] ALLOW FILTERING"), row);
+        assertRows(execute("SELECT * FROM %s WHERE token(pk) = token([1, 2])"), row);
     }
 
     @Test
