@@ -158,6 +158,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public final Parameters parameters;
     private final Selection selection;
     private final Term limit;
+    private final Term bytesLimit;
     private final Term perPartitionLimit;
 
     private final StatementRestrictions restrictions;
@@ -190,6 +191,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                            AggregationSpecification.Factory aggregationSpecFactory,
                            Comparator<List<ByteBuffer>> orderingComparator,
                            Term limit,
+                           Term bytesLimit,
                            Term perPartitionLimit)
     {
         this.table = table;
@@ -201,6 +203,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         this.orderingComparator = orderingComparator;
         this.parameters = parameters;
         this.limit = limit;
+        this.bytesLimit = bytesLimit;
         this.perPartitionLimit = perPartitionLimit;
     }
 
@@ -235,6 +238,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (limit != null)
             limit.addFunctionsTo(functions);
 
+        if (bytesLimit != null)
+            bytesLimit.addFunctionsTo(functions);
+
         if (perPartitionLimit != null)
             perPartitionLimit.addFunctionsTo(functions);
     }
@@ -259,6 +265,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                    selection,
                                    StatementRestrictions.empty(StatementType.SELECT, table),
                                    false,
+                                   null,
                                    null,
                                    null,
                                    null,
@@ -318,6 +325,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         long nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
+        int userBytesLimit = getBytesLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         PageSize pageSize = options.getPageSize();
         boolean unmask = !table.hasMaskedColumns() || state.getClientState().hasTablePermission(table, Permission.UNMASK);
@@ -325,7 +333,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         Selectors selectors = selection.newSelectors(options);
         AggregationSpecification aggregationSpec = getAggregationSpec(options);
         ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
-                                   nowInSec, userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
+                                   nowInSec, userLimit, userBytesLimit, userPerPartitionLimit, pageSize, aggregationSpec);
 
         if (options.isReadThresholdsEnabled())
             query.trackWarnings();
@@ -370,6 +378,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                         selectors.getColumnFilter(),
                         nowInSec,
                         getLimit(options),
+                        getBytesLimit(options),
                         getPerPartitionLimit(options),
                         options.getPageSize(),
                         getAggregationSpec(options));
@@ -380,13 +389,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               ColumnFilter columnFilter,
                               long nowInSec,
                               int userLimit,
+                              int userBytesLimit,
                               int perPartitionLimit,
                               PageSize pageSize,
                               AggregationSpecification aggregationSpec)
     {
         boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
 
-        DataLimits limit = getDataLimits(userLimit, perPartitionLimit, pageSize, aggregationSpec);
+        DataLimits limit = getDataLimits(userLimit, userBytesLimit, perPartitionLimit, pageSize, aggregationSpec);
 
         if (isPartitionRangeQuery)
             return getRangeCommand(options, state, columnFilter, limit, nowInSec);
@@ -561,6 +571,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                               long queryStartNanoTime)
     {
         int userLimit = getLimit(options);
+        int userBytesLimit = getBytesLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         PageSize pageSize = options.getPageSize();
         boolean unmask = state.getClientState().hasTablePermission(table, Permission.UNMASK);
@@ -572,6 +583,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                    selectors.getColumnFilter(),
                                    nowInSec,
                                    userLimit,
+                                   userBytesLimit,
                                    userPerPartitionLimit,
                                    pageSize,
                                    aggregationSpec);
@@ -614,6 +626,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public Map<DecoratedKey, List<Row>> executeRawInternal(QueryOptions options, ClientState state, long nowInSec) throws RequestExecutionException, RequestValidationException
     {
         int userLimit = getLimit(options);
+        int userBytesLimit = getBytesLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         if (options.getPageSize().isDefined())
             throw new IllegalStateException();
@@ -621,7 +634,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             throw new IllegalStateException();
 
         Selectors selectors = selection.newSelectors(options);
-        ReadQuery query = getQuery(options, state, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, PageSize.NONE, null);
+        ReadQuery query = getQuery(options, state, selectors.getColumnFilter(), nowInSec, userLimit, userBytesLimit, userPerPartitionLimit, PageSize.NONE, null);
 
         Map<DecoratedKey, List<Row>> result = Collections.emptyMap();
         try (ReadExecutionController executionController = query.executionController())
@@ -855,18 +868,23 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     private DataLimits getDataLimits(int userLimit,
+                                     int userBytesLimit,
                                      int perPartitionLimit,
                                      PageSize pageSize,
                                      AggregationSpecification aggregationSpec)
     {
         int cqlRowLimit = DataLimits.NO_LIMIT;
+        int cqlBytesLimit = DataLimits.NO_LIMIT;
         int cqlPerPartitionLimit = DataLimits.NO_LIMIT;
 
         // If we do post ordering we need to get all the results sorted before we can trim them.
         if (aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
         {
             if (!needsPostQueryOrdering())
+            {
                 cqlRowLimit = userLimit;
+                cqlBytesLimit = userBytesLimit;
+            }
             cqlPerPartitionLimit = perPartitionLimit;
         }
 
@@ -875,18 +893,19 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (aggregationSpec != null && aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
         {
             if (parameters.isDistinct)
-                return DataLimits.distinctLimits(cqlRowLimit);
+                return DataLimits.distinctLimits(cqlRowLimit, cqlBytesLimit);
 
             return DataLimits.groupByLimits(cqlRowLimit,
+                                            cqlBytesLimit,
                                             cqlPerPartitionLimit,
                                             DatabaseDescriptor.getAggregationSubPageSize(),
                                             aggregationSpec);
         }
 
         if (parameters.isDistinct)
-            return cqlRowLimit == DataLimits.NO_LIMIT ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(cqlRowLimit);
+            return cqlRowLimit == DataLimits.NO_LIMIT && cqlBytesLimit ==  DataLimits.NO_LIMIT ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(cqlRowLimit, cqlBytesLimit);
 
-        return DataLimits.cqlLimits(cqlRowLimit, cqlPerPartitionLimit);
+        return DataLimits.cqlLimits(cqlRowLimit, cqlBytesLimit, cqlPerPartitionLimit);
     }
 
     /**
@@ -899,6 +918,18 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public int getLimit(QueryOptions options)
     {
         return getLimit(limit, options);
+    }
+
+    /**
+     * Returns the limit specified by the user.
+     * May be used by custom QueryHandler implementations
+     *
+     * @param options the query options provided by the user
+     * @return
+     */
+    public int getBytesLimit(QueryOptions options)
+    {
+        return getLimit(bytesLimit, options);
     }
 
     /**
@@ -1137,6 +1168,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         public final List<RawSelector> selectClause;
         public final WhereClause whereClause;
         public final Term.Raw limit;
+        public final Term.Raw bytesLimit;
         public final Term.Raw perPartitionLimit;
         private ClientState state;
 
@@ -1145,6 +1177,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                             List<RawSelector> selectClause,
                             WhereClause whereClause,
                             Term.Raw limit,
+                            Term.Raw bytesLimit,
                             Term.Raw perPartitionLimit)
         {
             super(cfName);
@@ -1152,6 +1185,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             this.selectClause = selectClause;
             this.whereClause = whereClause;
             this.limit = limit;
+            this.bytesLimit = bytesLimit;
             this.perPartitionLimit = perPartitionLimit;
         }
 
@@ -1223,6 +1257,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                        aggregationSpecFactory,
                                        orderingComparator,
                                        prepareLimit(bindVariables, limit, keyspace(), limitReceiver()),
+                                       prepareLimit(bindVariables, bytesLimit, keyspace(), bytesLimitReceiver()),
                                        prepareLimit(bindVariables, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
         }
 
@@ -1539,6 +1574,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             return new ColumnSpecification(keyspace(), name(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
         }
 
+        private ColumnSpecification bytesLimitReceiver()
+        {
+            return new ColumnSpecification(keyspace(), name(), new ColumnIdentifier("[limit_bytes]", true), Int32Type.instance);
+        }
+
         private ColumnSpecification perPartitionLimitReceiver()
         {
             return new ColumnSpecification(keyspace(), name(), new ColumnIdentifier("[per_partition_limit]", true), Int32Type.instance);
@@ -1768,7 +1808,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 sb.append(" AND ").append(filterString);
         }
 
-        DataLimits limits = getDataLimits(getLimit(options), getPerPartitionLimit(options), options.getPageSize(), getAggregationSpec(options));
+        DataLimits limits = getDataLimits(getLimit(options), getBytesLimit(options), getPerPartitionLimit(options), options.getPageSize(), getAggregationSpec(options));
         if (limits != DataLimits.NONE)
             sb.append(' ').append(limits);
         return sb.toString();

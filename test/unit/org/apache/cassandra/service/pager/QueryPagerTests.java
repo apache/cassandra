@@ -314,10 +314,11 @@ public abstract class QueryPagerTests
     {
         if (pager == null || pager.state() == null)
             return null;
-        return String.format("%s:%s, remaining=%s, remainingInPartition=%s",
+        return String.format("%s:%s, remaining=%s, remainingBytes=%s, remainingInPartition=%s",
                              pager.state().partitionKey != null ? metadata.partitioner.decorateKey(pager.state().partitionKey).toCQLString(metadata) : null,
                              pager.state().rowMark != null ? pager.state().rowMark.clustering(metadata).toString(metadata) : null,
                              pager.state().remaining,
+                             pager.state().remainingBytes,
                              pager.state().remainingInPartition);
     }
 

@@ -48,7 +48,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
         {
             lastReturnedKey = query.metadata().partitioner.decorateKey(state.partitionKey);
             lastReturnedRow = state.rowMark;
-            restoreState(lastReturnedKey, state.remaining, query.limits().bytes(), state.remainingInPartition);
+            restoreState(lastReturnedKey, state.remaining, state.remainingBytes, state.remainingInPartition);
         }
     }
 
@@ -81,7 +81,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     {
         return lastReturnedKey == null
              ? null
-             : new PagingState(lastReturnedKey.getKey(), lastReturnedRow, maxRemaining(), remainingInPartition());
+             : new PagingState(lastReturnedKey.getKey(), lastReturnedRow, maxRemaining(), maxRemainingBytes(), remainingInPartition());
     }
 
     @Override

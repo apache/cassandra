@@ -43,7 +43,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
         if (state != null)
         {
             lastReturned = state.rowMark;
-            restoreState(query.partitionKey(), state.remaining, query.limits().bytes(), state.remainingInPartition);
+            restoreState(query.partitionKey(), state.remaining, state.remainingBytes, state.remainingInPartition);
         }
     }
 
@@ -84,7 +84,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     {
         return lastReturned == null
              ? null
-             : new PagingState(null, lastReturned, maxRemaining(), remainingInPartition());
+             : new PagingState(null, lastReturned, maxRemaining(), maxRemainingBytes(), remainingInPartition());
     }
 
     @Override

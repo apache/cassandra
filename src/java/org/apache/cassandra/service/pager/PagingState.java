@@ -19,11 +19,16 @@ package org.apache.cassandra.service.pager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -40,7 +45,14 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
-import static org.apache.cassandra.utils.ByteBufferUtil.*;
+import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
+import static org.apache.cassandra.utils.ByteBufferUtil.readWithShortLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithShortLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.writeWithShortLength;
+import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
 
@@ -50,13 +62,15 @@ public class PagingState
     public final ByteBuffer partitionKey;  // Can be null for single partition queries.
     public final RowMark rowMark;          // Can be null if not needed.
     public final int remaining;
+    public final int remainingBytes;
     public final int remainingInPartition;
 
-    public PagingState(ByteBuffer partitionKey, RowMark rowMark, int remaining, int remainingInPartition)
+    public PagingState(ByteBuffer partitionKey, RowMark rowMark, int remaining, int remainingBytes, int remainingInPartition)
     {
         this.partitionKey = partitionKey;
         this.rowMark = rowMark;
         this.remaining = remaining;
+        this.remainingBytes = remainingBytes;
         this.remainingInPartition = remainingInPartition;
     }
 
@@ -65,7 +79,7 @@ public class PagingState
         assert rowMark == null || protocolVersion == rowMark.protocolVersion;
         try
         {
-            return protocolVersion.isGreaterThan(ProtocolVersion.V3) ? modernSerialize() : legacySerialize(true);
+            return protocolVersion.isGreaterThan(ProtocolVersion.V3) ? modernSerialize(protocolVersion) : legacySerialize(true);
         }
         catch (IOException e)
         {
@@ -77,7 +91,8 @@ public class PagingState
     {
         assert rowMark == null || protocolVersion == rowMark.protocolVersion;
 
-        return protocolVersion.isGreaterThan(ProtocolVersion.V3) ? modernSerializedSize() : legacySerializedSize(true);
+        return protocolVersion.isGreaterThan(ProtocolVersion.V3) ? modernSerializedSize(protocolVersion)
+                                                                 : legacySerializedSize(true);
     }
 
     /**
@@ -124,13 +139,15 @@ public class PagingState
      */
 
     @SuppressWarnings({ "resource", "RedundantSuppression" })
-    private ByteBuffer modernSerialize() throws IOException
+    private ByteBuffer modernSerialize(ProtocolVersion protocolVersion) throws IOException
     {
-        DataOutputBuffer out = new DataOutputBufferFixed(modernSerializedSize());
+        DataOutputBuffer out = new DataOutputBufferFixed(modernSerializedSize(protocolVersion));
         writeWithVIntLength(null == partitionKey ? EMPTY_BYTE_BUFFER : partitionKey, out);
         writeWithVIntLength(null == rowMark ? EMPTY_BYTE_BUFFER : rowMark.mark, out);
         out.writeUnsignedVInt32(remaining);
         out.writeUnsignedVInt32(remainingInPartition);
+        if (protocolVersion.isGreaterOrEqualTo(ProtocolVersion.V6))
+            out.writeUnsignedVInt32(remainingBytes);
         return out.buffer(false);
     }
 
@@ -208,19 +225,28 @@ public class PagingState
         ByteBuffer rawMark = readWithVIntLength(in);
         int remaining = in.readUnsignedVInt32();
         int remainingInPartition = in.readUnsignedVInt32();
+        int remainingBytes = DataLimits.NO_LIMIT;
+        if (protocolVersion.isGreaterOrEqualTo(ProtocolVersion.V6))
+            remainingBytes = in.readUnsignedVInt32();
 
         return new PagingState(partitionKey.hasRemaining() ? partitionKey : null,
                                rawMark.hasRemaining() ? new RowMark(rawMark, protocolVersion) : null,
                                remaining,
+                               remainingBytes,
                                remainingInPartition);
     }
 
-    private int modernSerializedSize()
+    private int modernSerializedSize(ProtocolVersion protocolVersion)
     {
-        return serializedSizeWithVIntLength(null == partitionKey ? EMPTY_BYTE_BUFFER : partitionKey)
+        int size = serializedSizeWithVIntLength(null == partitionKey ? EMPTY_BYTE_BUFFER : partitionKey)
              + serializedSizeWithVIntLength(null == rowMark ? EMPTY_BYTE_BUFFER : rowMark.mark)
              + sizeofUnsignedVInt(remaining)
              + sizeofUnsignedVInt(remainingInPartition);
+
+        if (protocolVersion.isGreaterOrEqualTo(ProtocolVersion.V6))
+            size += sizeofUnsignedVInt(remainingBytes);
+
+        return size;
     }
 
     /*
@@ -302,6 +328,7 @@ public class PagingState
         return new PagingState(partitionKey.hasRemaining() ? partitionKey : null,
                                rawMark.hasRemaining() ? new RowMark(rawMark, protocolVersion) : null,
                                remaining,
+                                 DataLimits.NO_LIMIT,
                                remainingInPartition);
     }
 
@@ -317,7 +344,7 @@ public class PagingState
     @Override
     public final int hashCode()
     {
-        return Objects.hash(partitionKey, rowMark, remaining, remainingInPartition);
+        return Objects.hash(partitionKey, rowMark, remaining, remainingBytes, remainingInPartition);
     }
 
     @Override
@@ -329,16 +356,18 @@ public class PagingState
         return Objects.equals(this.partitionKey, that.partitionKey)
             && Objects.equals(this.rowMark, that.rowMark)
             && this.remaining == that.remaining
+               && this.remainingBytes == that.remainingBytes
             && this.remainingInPartition == that.remainingInPartition;
     }
 
     @Override
     public String toString()
     {
-        return String.format("PagingState(key=%s, cellname=%s, remaining=%d, remainingInPartition=%d",
+        return String.format("PagingState(key=%s, cellname=%s, remaining=%d, remainingBytes=%d, remainingInPartition=%d",
                              partitionKey != null ? bytesToHex(partitionKey) : null,
                              rowMark,
                              remaining,
+                             remainingBytes,
                              remainingInPartition);
     }
 

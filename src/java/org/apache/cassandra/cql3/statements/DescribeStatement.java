@@ -226,6 +226,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
             return new PagingState(out.asNewBuffer(),
                                    null,
                                    Integer.MAX_VALUE,
+                                   Integer.MAX_VALUE,
                                    Integer.MAX_VALUE);
         }
         catch (IOException e)

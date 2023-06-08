@@ -111,31 +111,32 @@ public abstract class DataLimits
         return cqlRowLimit == NO_LIMIT ? NONE : new CQLLimits(cqlRowLimit, NO_LIMIT, NO_LIMIT, false);
     }
 
-    public static DataLimits cqlLimits(int cqlRowLimit, int perPartitionLimit)
+    public static DataLimits cqlLimits(int cqlRowLimit, int cqlBytesLimit, int perPartitionLimit)
     {
-        return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT
+        return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT && cqlBytesLimit == NO_LIMIT
              ? NONE
-             : new CQLLimits(cqlRowLimit, NO_LIMIT, perPartitionLimit, false);
+             : new CQLLimits(cqlRowLimit, cqlBytesLimit, perPartitionLimit, false);
     }
 
-    private static DataLimits cqlLimits(int cqlRowLimit, int perPartitionLimit, boolean isDistinct)
+    private static DataLimits cqlLimits(int cqlRowLimit, int cqlBytesLimit, int perPartitionLimit, boolean isDistinct)
     {
-        return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT && !isDistinct
+        return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT && cqlBytesLimit == NO_LIMIT && !isDistinct
              ? NONE
-             : new CQLLimits(cqlRowLimit, NO_LIMIT, perPartitionLimit, isDistinct);
+             : new CQLLimits(cqlRowLimit, cqlBytesLimit, perPartitionLimit, isDistinct);
     }
 
     public static DataLimits groupByLimits(int groupLimit,
+                                           int groupBytesLimit,
                                            int groupPerPartitionLimit,
                                            PageSize subPageSize,
                                            AggregationSpecification groupBySpec)
     {
-        return new CQLGroupByLimits(groupLimit, NO_LIMIT, groupPerPartitionLimit, subPageSize.rows, subPageSize.bytes, groupBySpec, GroupingState.EMPTY_STATE);
+        return new CQLGroupByLimits(groupLimit, groupBytesLimit, groupPerPartitionLimit, subPageSize.rows, subPageSize.bytes, groupBySpec, GroupingState.EMPTY_STATE);
     }
 
-    public static DataLimits distinctLimits(int cqlRowLimit)
+    public static DataLimits distinctLimits(int cqlRowLimit, int cqlBytesLimit)
     {
-        return CQLLimits.distinct(cqlRowLimit);
+        return CQLLimits.distinct(cqlRowLimit, cqlBytesLimit);
     }
 
     public abstract Kind kind();
@@ -401,9 +402,9 @@ public abstract class DataLimits
             this.isDistinct = isDistinct;
         }
 
-        private static CQLLimits distinct(int rowLimit)
+        private static CQLLimits distinct(int rowLimit, int cqlBytesLimit)
         {
-            return new CQLLimits(rowLimit, NO_LIMIT, 1, true);
+            return new CQLLimits(rowLimit, cqlBytesLimit, 1, true);
         }
 
         @Override

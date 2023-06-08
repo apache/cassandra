@@ -88,7 +88,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             pagers[j - i] = group.queries.get(j).getPager(null, protocolVersion);
 
         remaining = state == null ? limit.count() : state.remaining;
-        remainingBytes = limit.bytes();
+        remainingBytes = state == null ? limit.bytes() : state.remainingBytes;
     }
 
     private MultiPartitionPager(SinglePartitionPager[] pagers,
@@ -135,7 +135,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             return null;
 
         PagingState state = pagers[current].state();
-        return new PagingState(pagers[current].key(), state == null ? null : state.rowMark, remaining, pagers[current].remainingInPartition());
+        return new PagingState(pagers[current].key(), state == null ? null : state.rowMark, remaining, remainingBytes, pagers[current].remainingInPartition());
     }
 
     public boolean isExhausted()

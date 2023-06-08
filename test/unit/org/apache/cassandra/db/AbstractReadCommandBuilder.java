@@ -56,6 +56,7 @@ public abstract class AbstractReadCommandBuilder<T extends ReadQuery>
     protected long nowInSeconds;
 
     private int cqlLimit = -1;
+    private int cqlBytesLimit = -1;
     private PageSize pageSize = PageSize.NONE;
     private PageSize subPageSize = PageSize.NONE;
     private int perPartitionLimit = -1;
@@ -255,6 +256,7 @@ public abstract class AbstractReadCommandBuilder<T extends ReadQuery>
         if (aggregationSpecification != null)
         {
             limits = DataLimits.groupByLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                              cqlBytesLimit < 0 ? DataLimits.NO_LIMIT : cqlBytesLimit,
                                               perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit,
                                               subPageSize,
                                               aggregationSpecification);
@@ -262,6 +264,7 @@ public abstract class AbstractReadCommandBuilder<T extends ReadQuery>
         else
         {
             limits = DataLimits.cqlLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                          cqlBytesLimit < 0 ? DataLimits.NO_LIMIT : cqlBytesLimit,
                                           perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit);
         }
         if (pageSize.isDefined())

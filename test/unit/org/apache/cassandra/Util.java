@@ -827,7 +827,7 @@ public class Util
         Clustering<?> c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
-        return new PagingState(pk, mark, 10, remainingInPartition);
+        return new PagingState(pk, mark, 10, Integer.MAX_VALUE, remainingInPartition);
     }
 
     public static void assertRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
