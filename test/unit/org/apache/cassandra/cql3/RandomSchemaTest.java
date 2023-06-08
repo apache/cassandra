@@ -171,8 +171,13 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         StringBuilder sb = new StringBuilder();
         sb.append("SELECT * FROM ").append(metadata).append(" WHERE ");
-        for (ColumnMetadata column : ImmutableList.<ColumnMetadata>builder().addAll(metadata.partitionKeyColumns()).addAll(metadata.clusteringColumns()).build())
+        for (ColumnMetadata column : ImmutableList.<ColumnMetadata>builder()
+                                                  .addAll(metadata.partitionKeyColumns())
+                                                  .addAll(metadata.clusteringColumns())
+                                                  .build())
+        {
             sb.append(column.name.toCQLString()).append(" = ? AND ");
+        }
         sb.setLength(sb.length() - " AND ".length());
         return sb.toString();
     }
