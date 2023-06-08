@@ -63,11 +63,6 @@ public abstract class TypeSerializer<T>
 
     public abstract Class<T> getType();
 
-    protected String toCQLLiteralNonNull(@Nonnull ByteBuffer buffer)
-    {
-        return toString(deserialize(buffer));
-    }
-
     public final boolean isNull(@Nullable ByteBuffer buffer)
     {
         return isNull(buffer, ByteBufferAccessor.instance);
@@ -76,6 +71,11 @@ public abstract class TypeSerializer<T>
     public <V> boolean isNull(@Nullable V buffer, ValueAccessor<V> accessor)
     {
         return buffer == null || accessor.isEmpty(buffer);
+    }
+
+    protected String toCQLLiteralNonNull(@Nonnull ByteBuffer buffer)
+    {
+        return toString(deserialize(buffer));
     }
 
     public final @Nonnull String toCQLLiteral(@Nullable ByteBuffer buffer)
