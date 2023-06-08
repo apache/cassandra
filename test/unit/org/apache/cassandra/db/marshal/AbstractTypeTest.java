@@ -23,6 +23,8 @@ import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -137,7 +139,13 @@ public class AbstractTypeTest
 
     private boolean isTestType(Class<? extends AbstractType> klass)
     {
-        return "test".equals(new File(klass.getProtectionDomain().getCodeSource().getLocation().getPath()).name()) || klass.getCanonicalName().contains("Test");
+        if (klass.getCanonicalName().contains("Test"))
+            return true;
+        ProtectionDomain domain = klass.getProtectionDomain();
+        if (domain == null) return false;
+        CodeSource src = domain.getCodeSource();
+        if (src == null) return false;
+        return "test".equals(new File(src.getLocation().getPath()).name());
     }
 
     @Test
