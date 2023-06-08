@@ -250,7 +250,7 @@ public class IndexDescriptor
 
     public boolean validatePerIndexComponents(IndexContext indexContext)
     {
-        logger.info("validatePerIndexComponents called for " + indexContext.getIndexName());
+        logger.debug("validatePerIndexComponents called for " + indexContext.getIndexName());
         registerPerIndexComponents(indexContext);
         return version.onDiskFormat().validatePerIndexComponents(this, indexContext, false);
     }
