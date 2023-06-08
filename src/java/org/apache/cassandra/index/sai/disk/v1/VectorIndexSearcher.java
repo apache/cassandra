@@ -129,7 +129,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
         // create a bitset of ordinals corresponding to the rows in the given key range
-        SparseFixedBitSet bits = new SparseFixedBitSet(1 + metadata.segmentedRowId(metadata.maxSSTableRowId));
+        SparseFixedBitSet bits = new SparseFixedBitSet(graph.size());
         try (var ordinalsView = graph.getOrdinalsView())
         {
             for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
@@ -157,7 +157,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
         // are from our own token range so we can use row ids to order the results by vector similarity.
         var maxSegmentRowId = metadata.segmentedRowId(metadata.maxSSTableRowId);
-        SparseFixedBitSet bits = new SparseFixedBitSet(1 + maxSegmentRowId);
+        SparseFixedBitSet bits = new SparseFixedBitSet(graph.size());
         int[] bruteForceRows = new int[Math.min(limit, maxBruteForceRows)];
         int n = 0;
         try (var ordinalsView = graph.getOrdinalsView())
