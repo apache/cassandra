@@ -75,7 +75,7 @@ public class InetAddressSerializer extends TypeSerializer<InetAddress>
     }
 
     @Override
-    public boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQLLiterals()
     {
         return true;
     }

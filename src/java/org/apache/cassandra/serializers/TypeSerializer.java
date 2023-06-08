@@ -92,14 +92,14 @@ public abstract class TypeSerializer<T>
                :  toCQLLiteralNonNull(buffer);
     }
 
-    public boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQLLiterals()
     {
         return false;
     }
 
     private String maybeQuote(String value)
     {
-        if (shouldQuoteCQL())
+        if (shouldQuoteCQLLiterals())
             return "'" + PATTERN_SINGLE_QUOTE.matcher(value).replaceAll(ESCAPED_SINGLE_QUOTE) + "'";
         return value;
     }

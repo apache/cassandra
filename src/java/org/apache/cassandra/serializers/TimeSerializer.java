@@ -75,7 +75,7 @@ public class TimeSerializer extends TypeSerializer<Long>
     }
 
     @Override
-    public boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQLLiterals()
     {
         return true;
     }

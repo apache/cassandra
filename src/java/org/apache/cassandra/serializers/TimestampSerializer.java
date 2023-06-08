@@ -198,7 +198,7 @@ public class TimestampSerializer extends TypeSerializer<Date>
     }
 
     @Override
-    public boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQLLiterals()
     {
         return true;
     }

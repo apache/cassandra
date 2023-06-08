@@ -135,7 +135,7 @@ public class SimpleDateSerializer extends TypeSerializer<Integer>
     }
 
     @Override
-    public boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQLLiterals()
     {
         return true;
     }

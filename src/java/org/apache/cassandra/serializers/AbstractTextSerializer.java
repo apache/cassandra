@@ -64,7 +64,7 @@ public abstract class AbstractTextSerializer extends TypeSerializer<String>
     }
 
     @Override
-    public boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQLLiterals()
     {
         return true;
     }
