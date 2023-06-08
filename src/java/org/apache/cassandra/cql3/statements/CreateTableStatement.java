@@ -345,6 +345,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 if (properties.definedOrdering.size() > columnAliases.size())
                     throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive");
 
+                for (ColumnIdentifier orderId: properties.definedOrdering.keySet())
+                {
+                    if (!columnAliases.contains(orderId))
+                    {
+                        throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive");
+                    }
+                }
+
                 int i = 0;
                 for (ColumnIdentifier id : properties.definedOrdering.keySet())
                 {
