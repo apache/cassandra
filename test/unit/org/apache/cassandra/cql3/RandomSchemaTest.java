@@ -56,9 +56,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         // make sure blob is always the same
         CassandraRelevantProperties.TEST_BLOB_SHARED_SEED.setInt(42);
-    }
 
-    {
         requireNetwork();
     }
 

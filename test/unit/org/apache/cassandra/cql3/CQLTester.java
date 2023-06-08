@@ -2316,7 +2316,8 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
-    protected <T> Vector<T> vector(T... values)
+    @SafeVarargs
+    protected final <T> Vector<T> vector(T... values)
     {
         return new Vector<>(values);
     }
