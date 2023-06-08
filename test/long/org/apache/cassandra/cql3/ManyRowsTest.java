@@ -26,6 +26,7 @@ import java.util.Set;
 
 import org.junit.Test;
 
+
 public class ManyRowsTest extends CQLTester
 {
     /**
