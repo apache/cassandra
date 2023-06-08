@@ -287,10 +287,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public UserType freeze()
     {
-        if (isMultiCell)
-            return new UserType(keyspace, name, fieldNames, fieldTypes(), false);
-        else
-            return this;
+        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false) : this;
     }
 
     @Override

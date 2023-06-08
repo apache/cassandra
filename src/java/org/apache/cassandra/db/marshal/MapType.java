@@ -150,10 +150,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public AbstractType<?> freeze()
     {
-        if (isMultiCell)
-            return getInstance(this.keys, this.values, false);
-        else
-            return this;
+        return isMultiCell ? getInstance(this.keys, this.values, false) : this;
     }
 
     @Override
