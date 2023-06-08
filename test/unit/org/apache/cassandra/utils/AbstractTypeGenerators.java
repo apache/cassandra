@@ -400,7 +400,7 @@ public final class AbstractTypeGenerators
             assert level >= 0 : "max depth must be positive or zero; given " + level;
             boolean atBottom = level == 0;
             boolean atTop = maxDepth == level;
-            Gen<Boolean> multiCell = atTop ? Generators.cached(multiCellGen) : multiCellGen;
+            Gen<Boolean> multiCell = multiCellGen;
             return rnd -> {
                 Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, multiCell);
 
@@ -424,7 +424,7 @@ public final class AbstractTypeGenerators
                             return mapTypeGen(defaultSetKeyFunc.apply(level - 1), next.get(), multiCell).generate(rnd);
                         return mapTypeGen(next.get(), next.get(), multiCell).generate(rnd);
                     case TUPLE:
-                        return tupleTypeGen(next.get().map(AbstractType::freeze), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
+                        return tupleTypeGen(next.get(), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
                         return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCell).generate(rnd);
                     case VECTOR:
@@ -1151,7 +1151,7 @@ public final class AbstractTypeGenerators
             for (AbstractType<?> subtype : ct.subTypes())
             {
                 newline(sb, indent);
-                sb.append(idx++).append(':');
+                sb.append(idx++).append(": ");
                 typeTree(sb, subtype, indent);
             }
         }

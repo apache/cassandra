@@ -240,7 +240,7 @@ public class AbstractTypeTest
     {
         qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build()).checkAssert(type -> {
             AbstractType<?> parsed = TypeParser.parse(type.toString());
-            assertThat(parsed).describedAs("TypeParser mismatch:\nExpected: %s\nActual: %s", AbstractTypeGenerators.typeTree(type), AbstractTypeGenerators.typeTree(parsed)).isEqualTo(type);
+            assertThat(parsed).describedAs("TypeParser mismatch:\nExpected: %s\nActual: %s", typeTree(type), typeTree(parsed)).isEqualTo(type);
         });
     }
 
@@ -415,7 +415,7 @@ public class AbstractTypeTest
             cqlType = cqlType.replaceAll("org.apache.cassandra.db.marshal.", "");
             AbstractType<?> fromCQLTypeParser = CQLTypeParser.parse(null, cqlType, toTypes(extractUDTs(type)));
             assertThat(fromCQLTypeParser)
-            .describedAs("CQL type %s parse did not match the expected type", cqlType)
+            .describedAs("CQL type %s parse did not match the expected type:\nExpected: %s\nActual: %s", cqlType, typeTree(type), typeTree(fromCQLTypeParser))
             .isEqualTo(type);
         });
     }
