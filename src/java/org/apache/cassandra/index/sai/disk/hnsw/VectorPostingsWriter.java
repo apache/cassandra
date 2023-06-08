@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Pair;
@@ -33,7 +32,7 @@ import org.apache.cassandra.utils.Pair;
 public class VectorPostingsWriter<T>
 {
     public long writePostings(SequentialWriter writer,
-                              ConcurrentVectorValues vectorValues,
+                              RamAwareVectorValues vectorValues,
                               Map<float[], VectorPostings<T>> postingsMap,
                               Function<T, Integer> postingTransformer,
                               Set<Integer> deletedOrdinals) throws IOException
@@ -54,7 +53,7 @@ public class VectorPostingsWriter<T>
     }
 
     public void writeNodeOrdinalToRowIdMapping(SequentialWriter writer,
-                                               ConcurrentVectorValues vectorValues,
+                                               RamAwareVectorValues vectorValues,
                                                Map<float[], VectorPostings<T>> postingsMap,
                                                Function<T, Integer> postingTransformer) throws IOException
     {
@@ -87,7 +86,7 @@ public class VectorPostingsWriter<T>
     }
 
     public void writeRowIdToNodeOrdinalMapping(SequentialWriter writer,
-                                               ConcurrentVectorValues vectorValues,
+                                               RamAwareVectorValues vectorValues,
                                                Map<float[], VectorPostings<T>> postingsMap,
                                                Function<T, Integer> postingTransformer) throws IOException
     {

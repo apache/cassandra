@@ -20,21 +20,24 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
-public class ConcurrentVectorValues implements RamAwareVectorValues
+public class CompactionVectorValues implements RamAwareVectorValues
 {
-    private final int dimensions;
-    private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
+    private final int dimension;
+    private final Map<Integer, ByteBuffer> values = new HashMap<>();
+    private final VectorType<Float> type;
 
-    public ConcurrentVectorValues(int dimensions)
+    public CompactionVectorValues(VectorType<Float> type)
     {
-        this.dimensions = dimensions;
+        this.dimension = type.dimension;
+        this.type = type;
     }
 
     @Override
@@ -46,19 +49,19 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
     @Override
     public int dimension()
     {
-        return dimensions;
+        return dimension;
     }
 
     @Override
     public float[] vectorValue(int i)
     {
-        return values.get(i);
+        return type.getSerializer().deserializeFloatArray(values.get(i));
     }
 
     /** return approximate bytes used by the new vector */
-    public long add(int ordinal, float[] vector)
+    public long add(int ordinal, ByteBuffer value)
     {
-        values.put(ordinal, vector);
+        values.put(ordinal, value);
         return RamEstimation.concurrentHashMapRamUsed(1) + oneVectorBytesUsed();
     }
 
@@ -73,15 +76,9 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
         writer.writeInt(size());
         writer.writeInt(dimension());
 
-        // we will re-use this buffer
-        var byteBuffer = ByteBuffer.allocate(dimension() * Float.BYTES);
-        var floatBuffer = byteBuffer.asFloatBuffer();
-
         for (var i = 0; i < size(); i++) {
-            floatBuffer.put(vectorValue(i));
-            // bytebuffer and floatBuffer track their positions separately, and we never changed BB's, so don't need to rewind it
-            floatBuffer.rewind();
-            writer.write(byteBuffer);
+            var bb = values.get(i);
+            writer.write(bb);
         }
 
         return writer.position();
@@ -97,6 +94,6 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
 
     private long oneVectorBytesUsed()
     {
-        return Integer.BYTES + Integer.BYTES + (long) dimension() * Float.BYTES;
+        return RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 }
