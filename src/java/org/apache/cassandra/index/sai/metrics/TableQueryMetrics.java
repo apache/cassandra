@@ -170,8 +170,6 @@ public class TableQueryMetrics extends AbstractMetrics
 
         private void recordHnswIndexMetrics(QueryContext queryContext)
         {
-            hnswNodesAccessed.add(queryContext.hnswNodesAccessed);
-            hnswNodeCacheHits.add(queryContext.hnswNodeCacheHits);
             hnswVectorsAccessed.add(queryContext.hnswVectorsAccessed);
             hnswVectorCacheHits.add(queryContext.hnswVectorCacheHits);
         }

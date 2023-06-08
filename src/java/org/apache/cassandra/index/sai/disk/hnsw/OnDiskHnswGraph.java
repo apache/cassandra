@@ -229,7 +229,6 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                 return;
             }
 
-            queryContext.hnswNodesAccessed++;
             currentCachedLevelNode = -1;
             currentCachedNeighbors = null;
             currentNeighborsRead = 0;
@@ -243,7 +242,6 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                     currentCachedNeighbors = cachedLevel.neighborsFor(target);
                     currentCachedLevelNode = levelNodeOf(level, target);
                     currentNeighborCount = currentCachedNeighbors.length;
-                    queryContext.hnswNodeCacheHits++;
                     return;
                 }
 

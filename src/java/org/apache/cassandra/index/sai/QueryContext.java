@@ -72,8 +72,6 @@ public class QueryContext
     private final Map<SSTableReader, SSTableQueryContext> sstableQueryContexts = new HashMap<>();
     public int hnswVectorsAccessed;
     public int hnswVectorCacheHits;
-    public int hnswNodesAccessed;
-    public int hnswNodeCacheHits;
 
     private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
 
