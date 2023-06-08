@@ -54,7 +54,7 @@ public class ListType<T> extends CollectionType<List<T>>
         if (l.size() != 1)
             throw new ConfigurationException("ListType takes exactly 1 type parameter");
 
-        return getInstance(l.get(0), true);
+        return getInstance(l.get(0).freeze(), true);
     }
 
     public static <T> ListType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
@@ -126,7 +126,8 @@ public class ListType<T> extends CollectionType<List<T>>
     @Override
     public AbstractType<?> freeze()
     {
-        return isMultiCell ?getInstance(this.elements, false) : this;
+        // freeze elements to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
+        return isMultiCell ? getInstance(this.elements.freeze(), false) : this;
     }
 
     @Override

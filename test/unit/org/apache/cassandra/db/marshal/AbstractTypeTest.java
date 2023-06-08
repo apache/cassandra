@@ -159,7 +159,7 @@ public class AbstractTypeTest
         // For all types, make sure the serializer returned is unique to that type,
         // this is required as some places, such as SetSerializer, cache at this level!
         Map<TypeSerializer<?>, AbstractType<?>> lookup = new HashMap<>();
-        qt().forAll(genBuilder().withMaxDepth(0).build()).checkAssert(t -> {
+        qt().withFixedSeed(103165005033541L).forAll(genBuilder().withMaxDepth(0).build()).checkAssert(t -> {
             AbstractType<?> old = lookup.put(t.getSerializer(), t);
             if (old != null && !old.equals(t))
                 throw new AssertionError(String.format("Different types detected that shared the same serializer: %s != %s", old.asCQL3Type(), t.asCQL3Type()));
@@ -408,7 +408,7 @@ public class AbstractTypeTest
         Gen<AbstractType<?>> gen = genBuilder()
                                    .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
                                    .build();
-        qt().withFixedSeed(34880539340291L).withShrinkCycles(0).forAll(gen).checkAssert(type -> {
+        qt().withShrinkCycles(0).forAll(gen).checkAssert(type -> {
             // to -> from cql
             String cqlType = cqlFunc.apply(type);
             // just easier to read this way...

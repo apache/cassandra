@@ -291,7 +291,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public UserType freeze()
     {
-        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false) : this;
+        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes().stream().map(AbstractType::freeze).collect(Collectors.toList()), false) : this;
     }
 
     @Override

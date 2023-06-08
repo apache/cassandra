@@ -424,7 +424,7 @@ public final class AbstractTypeGenerators
                             return mapTypeGen(defaultSetKeyFunc.apply(level - 1), next.get(), multiCell).generate(rnd);
                         return mapTypeGen(next.get(), next.get(), multiCell).generate(rnd);
                     case TUPLE:
-                        return tupleTypeGen(next.get(), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
+                        return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, SourceDSL.arbitrary().constant(false)), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
                         return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCell).generate(rnd);
                     case VECTOR:
@@ -480,11 +480,11 @@ public final class AbstractTypeGenerators
     {
         return rnd -> {
             int dimention = dimentionGen.generate(rnd);
-            AbstractType<?> element = typeGen.generate(rnd).unfreeze();
+            AbstractType<?> element = typeGen.generate(rnd);
             // empty type not supported
             while (element == EmptyType.instance)
-                element = typeGen.generate(rnd).unfreeze();
-            return VectorType.getInstance(element, dimention);
+                element = typeGen.generate(rnd);
+            return VectorType.getInstance(element.freeze(), dimention);
         };
     }
 
@@ -546,11 +546,7 @@ public final class AbstractTypeGenerators
         return rnd -> {
             boolean isMultiCell = multiCell.generate(rnd);
             AbstractType<?> element = typeGen.generate(rnd);
-            if (isMultiCell)
-                element = element.freeze();
-            else
-                element = element.unfreeze();
-            return SetType.getInstance(element, isMultiCell);
+            return SetType.getInstance(element.freeze(), isMultiCell);
         };
     }
 
@@ -570,9 +566,7 @@ public final class AbstractTypeGenerators
         return rnd -> {
             boolean isMultiCell = multiCell.generate(rnd);
             AbstractType<?> element = typeGen.generate(rnd);
-            if (!isMultiCell)
-                element = element.unfreeze();
-            return ListType.getInstance(element, isMultiCell);
+            return ListType.getInstance(element.freeze(), isMultiCell);
         };
     }
 
@@ -598,17 +592,7 @@ public final class AbstractTypeGenerators
             boolean isMultiCell = multiCell.generate(rnd);
             AbstractType<?> key = keyGen.generate(rnd);
             AbstractType<?> value = valueGen.generate(rnd);
-            if (isMultiCell)
-            {
-                key = key.freeze();
-                value = value.freeze();
-            }
-            else
-            {
-                key = key.unfreeze();
-                value = value.unfreeze();
-            }
-            return MapType.getInstance(key, value, isMultiCell);
+            return MapType.getInstance(key.freeze(), value.freeze(), isMultiCell);
         };
     }
 
@@ -628,7 +612,7 @@ public final class AbstractTypeGenerators
             int numElements = sizeGen.generate(rnd);
             List<AbstractType<?>> elements = new ArrayList<>(numElements);
             for (int i = 0; i < numElements; i++)
-                elements.add(elementGen.generate(rnd).unfreeze());
+                elements.add(elementGen.generate(rnd));
             return new TupleType(elements);
         };
     }
@@ -667,25 +651,25 @@ public final class AbstractTypeGenerators
             List<AbstractType<?>> fieldTypes = new ArrayList<>(numElements);
             LinkedHashSet<FieldIdentifier> fieldNames = new LinkedHashSet<>(numElements);
             String ks = ksGen.generate(rnd);
-            ByteBuffer name = AsciiType.instance.decompose(nameGen.generate(rnd));
+            String name = nameGen.generate(rnd);
+            ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
             Gen<FieldIdentifier> distinctNameGen = Generators.filter(fieldNameGen, 30, e -> !fieldNames.contains(e));
             // UDTs don't allow duplicate names, so make sure all names are unique
             for (int i = 0; i < numElements; i++)
             {
+                FieldIdentifier fieldName = distinctNameGen.generate(rnd);
+                fieldNames.add(fieldName);
+
                 AbstractType<?> element = elementGen.generate(rnd);
                 if (!multiCell)
-                    element = element.unfreeze();
-                else
-                    // as defined by CreateTable
                     element = element.freeze();
                 // a UDT cannot contain a non-frozen UDT; as defined by CreateType
                 if (element.isUDT())
                     element = element.freeze();
                 fieldTypes.add(element);
-                fieldNames.add(distinctNameGen.generate(rnd));
             }
-            return new UserType(ks, name, new ArrayList<>(fieldNames), fieldTypes, multiCell);
+            return new UserType(ks, nameBB, new ArrayList<>(fieldNames), fieldTypes, multiCell);
         };
     }
 

@@ -106,7 +106,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     public static VectorType<?> getInstance(TypeParser parser)
     {
         TypeParser.Vector v = parser.getVectorParameters();
-        return getInstance(v.type, v.dimension);
+        return getInstance(v.type.freeze(), v.dimension);
     }
 
     @Override
