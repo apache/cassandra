@@ -319,22 +319,27 @@ public interface ValueAccessor<V>
     int toInt(V value);
     /** returns an int from offset {@param offset} */
     int getInt(V value, int offset);
+    
     default long getUnsignedVInt(V value, int offset)
     {
         return VIntCoding.getUnsignedVInt(value, this, offset);
     }
+
     default int getUnsignedVInt32(V value, int offset)
     {
         return VIntCoding.getUnsignedVInt32(value, this, offset);
     }
+
     default long getVInt(V value, int offset)
     {
         return VIntCoding.getVInt(value, this, offset);
     }
+
     default int getVInt32(V value, int offset)
     {
         return VIntCoding.getVInt32(value, this, offset);
     }
+
     float getFloat(V value, int offset);
     double getDouble(V value, int offset);
     /** returns a long from offset 0 */
