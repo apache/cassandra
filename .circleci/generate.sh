@@ -30,7 +30,7 @@ die ()
 
 print_help()
 {
-  echo "Usage: $0 [-f|-p|-a|-e|-i|-b]"
+  echo "Usage: $0 [-f|-p|-a|-e|-i|-b|-s]"
   echo "   -a Generate the config.yml, config.yml.FREE and config.yml.PAID expanded configuration"
   echo "      files from the main config_template.yml reusable configuration file."
   echo "      Use this for permanent changes in config that will be committed to the main repo."
@@ -39,6 +39,8 @@ print_help()
   echo "   -b Specify the base git branch for comparison when determining changed tests to"
   echo "      repeat. Defaults to ${BASE_BRANCH}. Note that this option is not used when"
   echo "      the '-a' option is specified."
+  echo "   -s Skip automatic detection of changed tests. Useful when you need to repeat a few ones,"
+  echo "      or when there are too many changed tests for CircleCI."
   echo "   -e <key=value> Environment variables to be used in the generated config.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git"
@@ -78,9 +80,11 @@ paid=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-while getopts "e:afpib:" opt; do
+detect_changed_tests=true
+while getopts "e:afpib:s" opt; do
   case $opt in
       a ) all=true
+          detect_changed_tests=false
           ;;
       f ) free=true
           ;;
@@ -96,6 +100,8 @@ while getopts "e:afpib:" opt; do
       b ) BASE_BRANCH="$OPTARG"
           ;;
       i ) check_env_vars=false
+          ;;
+      s ) detect_changed_tests=false
           ;;
       \?) die "Invalid option: -$OPTARG"
           ;;
@@ -181,7 +187,7 @@ elif (!($has_env_vars)); then
 fi
 
 # add new or modified tests to the sets of tests to be repeated
-if (!($all)); then
+if $detect_changed_tests; then
   # Sanity check that the referenced branch exists
   if ! git show ${BASE_BRANCH} -- >&/dev/null; then
     echo -e "\n\nUnknown base branch: ${BASE_BRANCH}. Unable to detect changed tests.\n"
