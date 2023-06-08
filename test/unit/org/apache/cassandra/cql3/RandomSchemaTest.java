@@ -153,7 +153,9 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 }
                 else
                 {
-                    logger.warn("Unable to create UDT {}; following sub-types still not created: {}", next.getCqlTypeName(), subTypes.stream().filter(t -> !created.contains(t.name)).collect(Collectors.toSet()));
+                    logger.warn("Unable to create UDT {}; following sub-types still not created: {}",
+                                next.getCqlTypeName(),
+                                subTypes.stream().filter(t -> !created.contains(t.name)).collect(Collectors.toSet()));
                     pending.add(next);
                 }
             }
