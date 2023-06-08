@@ -103,6 +103,7 @@ public class DynamicCompositeType extends AbstractCompositeType
     private static final ByteSource[] EMPTY_BYTE_SOURCE_ARRAY = new ByteSource[0];
     private static final String REVERSED_TYPE = ReversedType.class.getSimpleName();
 
+    @VisibleForTesting
     public final Map<Byte, AbstractType<?>> aliases;
     private final Map<AbstractType<?>, Byte> inverseMapping;
     private final Serializer serializer;
