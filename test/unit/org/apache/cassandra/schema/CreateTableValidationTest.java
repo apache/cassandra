@@ -32,6 +32,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -101,6 +102,91 @@ public class CreateTableValidationTest extends CQLTester
         {
             DatabaseDescriptor.setTableCountWarnThreshold(tableCountWarn);
             DatabaseDescriptor.setKeyspaceCountWarnThreshold(keyspaceCountWarn);
+        }
+    }
+
+    @Test
+    public void testCreateTableErrorOnNonClusterKey()
+    {
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, v ASC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk ASC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk ASC, ck1 DESC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, pk DESC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk DESC, v DESC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk DESC, v DESC, ck1 DESC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, v ASC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
+        }
+
+        try
+        {
+            createTableMayThrow("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC, ck1 DESC);");
+        }
+        catch (Throwable ex)
+        {
+            assertEquals(ex.getMessage(), "Only clustering columns can be defined in CLUSTERING ORDER directive");
         }
     }
 }

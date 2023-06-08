@@ -218,6 +218,13 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (clusteringOrder.size() > clusteringColumns.size())
             throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
 
+        for (ColumnIdentifier orederId: clusteringOrder.keySet())
+        {
+            if (!clusteringColumns.contains(orederId)){
+                throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
+            }
+        }
+
         int n = 0;
         for (ColumnIdentifier id : clusteringOrder.keySet())
         {
