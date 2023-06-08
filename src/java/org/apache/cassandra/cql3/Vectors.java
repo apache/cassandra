@@ -21,6 +21,10 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -101,8 +105,26 @@ public class Vectors
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            // not enough information to know dimension
-            return null;
+            // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
+            // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
+            Optional<? extends AbstractType<?>> opt = elements.stream()
+                                                              .map(e -> e.getCompatibleTypeIfKnown(keyspace))
+                                                              .filter(Objects::nonNull)
+                                                              .findFirst();
+            return opt.isPresent() ? VectorType.getInstance(opt.get(), elements.size()) : null;
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
+            // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
+            Set<AbstractType<?>> types = elements.stream()
+                                                           .map(e -> e.getCompatibleTypeIfKnown(keyspace))
+                                                           .filter(Objects::nonNull)
+                                                           .collect(Collectors.toSet());
+            AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
+            return type == null ? null : VectorType.getInstance(type, elements.size());
         }
     }
 
