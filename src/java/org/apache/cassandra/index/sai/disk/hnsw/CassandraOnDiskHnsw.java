@@ -50,6 +50,8 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     private final VectorSimilarityFunction similarityFunction;
     private final VectorCache vectorCache;
 
+    private static final int OFFSET_CACHE_MIN_BYTES = 100_000;
+
     public CassandraOnDiskHnsw(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
@@ -61,7 +63,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
 
         SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
-        hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, CassandraRelevantProperties.SAI_HNSW_OFFSET_CACHE_BYTES.getInt());
+        hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, OFFSET_CACHE_MIN_BYTES);
         var mockContext = new QueryContext();
         try (var vectors = vectorsSupplier.apply(mockContext))
         {

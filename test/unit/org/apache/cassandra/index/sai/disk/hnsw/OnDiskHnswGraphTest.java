@@ -215,7 +215,6 @@ public class OnDiskHnswGraphTest extends SAITester
         File outputFile = new File(testDirectory, "test_graph");
         writeGraph(threeLevelGraph, outputFile);
 
-        var onDiskGraph = createOnDiskGraph(outputFile, 0);
         BiFunction<OnDiskHnswGraph, Integer, Integer> nodeIdBytes = (g, i) -> {
             try (var v = g.getView(new QueryContext()))
             {
@@ -238,35 +237,10 @@ public class OnDiskHnswGraphTest extends SAITester
         };
         BiFunction<OnDiskHnswGraph, Integer, Long> neighborBytes = (g, i) -> g.levelSize(i) - (nodeIdBytes.apply(g, i) + offsetBytes.apply(g, i));
 
-        // test graph that caches just the offsets of the top level
-        int ramBudget = Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 2) + offsetBytes.apply(onDiskGraph, 2));
-        onDiskGraph.close();
-
-        onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
+        // test graph that caches just the offsets of the top levels
+        var onDiskGraph = createOnDiskGraph(outputFile, 0);
         validateGraph(threeLevelGraph, onDiskGraph);
         assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isFalse();
-        assertThat(onDiskGraph.cachedLevels[1]).isNull();
-        assertThat(onDiskGraph.getCacheSizeInBytes()).isEqualTo(ramBudget);
-        onDiskGraph.close();
-
-        // test graph that caches just the entire top level
-        ramBudget = Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 2) + neighborBytes.apply(onDiskGraph, 2));
-        onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
-        validateGraph(threeLevelGraph, onDiskGraph);
-        assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
-        assertThat(onDiskGraph.cachedLevels[1]).isNull();
-        assertThat(onDiskGraph.getCacheSizeInBytes()).isEqualTo(ramBudget);
-
-        // test graph that caches the entire top level, and offsets from the next
-        ramBudget += Math.toIntExact(nodeIdBytes.apply(onDiskGraph, 1) + offsetBytes.apply(onDiskGraph, 1));
-        onDiskGraph.close();
-
-        onDiskGraph = createOnDiskGraph(outputFile, ramBudget);
-        validateGraph(threeLevelGraph, onDiskGraph);
-        assertThat(onDiskGraph.cachedLevels[2].containsNeighbors()).isTrue();
-        assertThat(onDiskGraph.cachedLevels[1].containsNeighbors()).isFalse();
-        assertThat(onDiskGraph.cachedLevels[0]).isNull();
-        assertThat(onDiskGraph.getCacheSizeInBytes()).isEqualTo(ramBudget);
         onDiskGraph.close();
 
         // test graph that caches the entire structure
