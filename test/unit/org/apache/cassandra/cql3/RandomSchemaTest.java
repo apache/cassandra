@@ -137,8 +137,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
         Set<UserType> udts = CassandraGenerators.extractUDTs(metadata);
         if (!udts.isEmpty())
         {
-            Deque<UserType> pending = new ArrayDeque<>();
-            pending.addAll(udts);
+            Deque<UserType> pending = new ArrayDeque<>(udts);
             Set<ByteBuffer> created = new HashSet<>();
             while (!pending.isEmpty())
             {
