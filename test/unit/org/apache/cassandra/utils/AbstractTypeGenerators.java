@@ -608,7 +608,7 @@ public final class AbstractTypeGenerators
                 key = key.unfreeze();
                 value = value.unfreeze();
             }
-            return MapType.getInstance(key.freeze(), value.freeze(), isMultiCell);
+            return MapType.getInstance(key, value, isMultiCell);
         };
     }
 
@@ -1049,6 +1049,7 @@ public final class AbstractTypeGenerators
                 newline(sb, indent);
             }
             UserType ut = (UserType) type;
+            if (!type.isMultiCell()) sb.append("frozen ");
             sb.append("udt[").append(ColumnIdentifier.maybeQuote(ut.elementName())).append("]:");
             int elementIndent = indent + 2;
             for (int i = 0; i < ut.size(); i++)
@@ -1099,6 +1100,7 @@ public final class AbstractTypeGenerators
                 indent += 2;
                 newline(sb, indent);
             }
+            if (!type.isMultiCell()) sb.append("frozen ");
             switch (ct.kind)
             {
                 case MAP:

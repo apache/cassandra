@@ -238,9 +238,10 @@ public class AbstractTypeTest
     @Test
     public void typeParser()
     {
-        qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build())
-            .checkAssert(type ->
-                         assertThat(TypeParser.parse(type.toString())).describedAs("TypeParser mismatch for type %s", type.asCQL3Type().toString()).isEqualTo(type));
+        qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build()).checkAssert(type -> {
+            AbstractType<?> parsed = TypeParser.parse(type.toString());
+            assertThat(parsed).describedAs("TypeParser mismatch:\nExpected: %s\nActual: %s", AbstractTypeGenerators.typeTree(type), AbstractTypeGenerators.typeTree(parsed)).isEqualTo(type);
+        });
     }
 
     @Test
