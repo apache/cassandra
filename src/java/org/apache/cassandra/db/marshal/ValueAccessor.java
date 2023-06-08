@@ -319,7 +319,7 @@ public interface ValueAccessor<V>
     int toInt(V value);
     /** returns an int from offset {@param offset} */
     int getInt(V value, int offset);
-    
+
     default long getUnsignedVInt(V value, int offset)
     {
         return VIntCoding.getUnsignedVInt(value, this, offset);
