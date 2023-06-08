@@ -157,7 +157,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
      * Partial port of cqlsh_tests.test_cqlsh_copy.TestCqlshCopy#test_reading_empty_strings_for_different_types
      */
     @Test
-    public void test_reading_empty_strings_for_different_types() throws IOException
+    public void readingEmptyStringsForDifferentTypes() throws IOException
     {
         createTable(KEYSPACE, "CREATE TABLE %s (\n" +
                               "                a text,\n" +
@@ -186,10 +186,5 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         // didn't break things.
         ToolRunner.invokeCqlsh(String.format(template, table, csv.absolutePath(), true)).assertOnCleanExit();
         assertRowsNet(executeNet("SELECT * FROM %s"), row("", "", "", "a1", UUID.fromString("645e7d3c-aef7-4e3c-b834-24b792cf2e55"), null, null, null, "r1"));
-    }
-
-    private static int compositeElementCost(int elementSize)
-    {
-        return elementSize + 2 + 1;
     }
 }
