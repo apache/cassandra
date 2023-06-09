@@ -31,6 +31,7 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -82,18 +83,18 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(context, exp, keyRange, limit);
+        var results = searchPosting(context, exp, keyRange, limit);
         return toPrimaryKeyIterator(results, context);
     }
 
     @Override
     public RangeIterator<Long> searchSSTableRowIds(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(context, exp, keyRange, limit);
+        var results = searchPosting(context, exp, keyRange, limit);
         return toSSTableRowIdsIterator(results, context);
     }
 
-    private ReorderingPostingList searchPosting(SSTableQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
+    private PostingList searchPosting(SSTableQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -102,12 +103,17 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
         Bits bits = bitsetForKeyRange(context, keyRange);
+        if (bits == null)
+            return new PostingList.EmptyPostingsList();
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
         return graph.search(queryVector, limit, bits, Integer.MAX_VALUE, context.queryContext);
     }
 
+    /**
+     * @return a Bits holding the rowIds of keys in the given range, or null if there are no such rows
+     */
     private Bits bitsetForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
     {
         // not restricted
@@ -148,7 +154,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             throw new RuntimeException(e);
         }
 
-        return bits;
+        return bits.cardinality() > 0 ? bits : null;
     }
 
     @Override

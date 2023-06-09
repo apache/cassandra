@@ -194,4 +194,25 @@ public interface PostingList extends Closeable
             wrapped.close();
         }
     }
+
+    public class EmptyPostingsList implements PostingList
+    {
+        @Override
+        public long nextPosting() throws IOException
+        {
+            return END_OF_STREAM;
+        }
+
+        @Override
+        public long size()
+        {
+            return 0;
+        }
+
+        @Override
+        public long advance(long targetRowID) throws IOException
+        {
+            return END_OF_STREAM;
+        }
+    }
 }
