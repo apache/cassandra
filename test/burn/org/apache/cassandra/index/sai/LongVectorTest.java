@@ -37,6 +37,8 @@ import org.slf4j.Logger;
 
 import org.apache.cassandra.db.memtable.TrieMemtable;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class LongVectorTest extends SAITester
 {
     private static final Logger logger = org.slf4j.LoggerFactory.getLogger(LongVectorTest.class);
@@ -146,9 +148,11 @@ public class LongVectorTest extends SAITester
             keysInserted.add(i);
         } else if (R.nextDouble() < 0.5) {
             var key = keysInserted.getRandom();
-            execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
+            var results = execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
+            assertThat(results).hasSize(1);
         } else {
-            execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
+            var results = execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
+            assertThat(results).hasSizeGreaterThan(0); // TODO can we make a stronger assertion?
         }
     }
 

@@ -315,6 +315,35 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void primaryKeySearchTest() throws Throwable
+    {
+        // check that we correctly get back the two rows with str_val=B even when those are not
+        // the closest rows to the query vector
+        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        var N = 5;
+        for (int i = 0; i < N; i++)
+            execute("INSERT INTO %s (pk, val) VALUES (?, ?)", i, vector(1.0f + i, 2.0f + i, 3.0f + i));
+
+        for (int i = 0; i < N; i++)
+        {
+            UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = ? ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2", i);
+            assertThat(result).hasSize(1);
+            assertRows(result, row(i));
+        }
+
+        flush();
+        for (int i = 0; i < N; i++)
+        {
+            UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = ? ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2", i);
+            assertThat(result).hasSize(1);
+            assertRows(result, row(i));
+        }
+    }
+
+    @Test
     public void selectFloatVectorFunctions() throws Throwable
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
