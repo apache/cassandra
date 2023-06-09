@@ -601,6 +601,11 @@ public interface CQL3Type
             return false;
         }
 
+        public boolean isImplicitlyFrozen()
+        {
+            return isTuple() || isVector();
+        }
+
         public boolean isVector()
         {
             return false;
@@ -763,8 +768,7 @@ public interface CQL3Type
             {
                 assert values != null : "Got null values type for a collection";
 
-                // skip if innerType is tuple, since tuple is implicitly forzen
-                if (!frozen && values.supportsFreezing() && !values.frozen && !values.isTuple())
+                if (!frozen && values.supportsFreezing() && !values.frozen)
                     throwNestedNonFrozenError(values);
 
                 // we represent supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
@@ -847,12 +851,6 @@ public interface CQL3Type
 
             @Override
             public boolean supportsFreezing()
-            {
-                return false;
-            }
-
-            @Override
-            public boolean isFrozen()
             {
                 return true;
             }

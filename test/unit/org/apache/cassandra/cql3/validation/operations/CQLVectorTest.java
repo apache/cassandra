@@ -21,11 +21,13 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.NativeFunctions;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
+import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -181,5 +183,34 @@ public class CQLVectorTest extends CQLTester.InMemory
         assertRows(execute("SELECT f(value) FROM %s WHERE pk=0"), row(vector));
         // TODO org.apache.cassandra.cql3.selection.Selectable.WithList isn't vector aware, so the below function will fail
 //        assertRows(execute("SELECT f([1, 2]) FROM %s WHERE pk=0"), row(vector));
+    }
+
+    @Test
+    public void token()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk vector<int, 2> primary key)");
+        execute("INSERT INTO %s (pk) VALUES (?)", vector(1, 2));
+        long tokenColumn = execute("SELECT token(pk) as t FROM %s").one().getLong("t");
+        long tokenTerminal = execute("SELECT token([1, 2]) as t FROM %s").one().getLong("t"); // Type error
+        Assert.assertEquals(tokenColumn, tokenTerminal);
+    }
+
+    @Test
+    public void udf() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
+        String function = createFunction(KEYSPACE,
+                                         "",
+                                         "CREATE FUNCTION %s (x vector<int, 2>) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS vector<int, 2> " +
+                                         "LANGUAGE java " +
+                                         "AS 'return x;'");
+
+        Vector<Integer> value = vector(1, 2);
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", value);
+
+        assertRows(execute("SELECT " + function + "(value) FROM %s WHERE pk=0"), row(value));
+        assertRows(execute("SELECT " + function + "([1, 2]) FROM %s WHERE pk=0"), row(value)); // Type error
     }
 }

@@ -98,11 +98,11 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             throw ire("Aggregate name '%s' is invalid", aggregateName);
 
         rawArgumentTypes.stream()
-                        .filter(raw -> !raw.isTuple() && raw.isFrozen())
+                        .filter(raw -> !raw.isImplicitlyFrozen() && raw.isFrozen())
                         .findFirst()
                         .ifPresent(t -> { throw ire("Argument '%s' cannot be frozen; remove frozen<> modifier from '%s'", t, t); });
 
-        if (!rawStateType.isTuple() && rawStateType.isFrozen())
+        if (!rawStateType.isImplicitlyFrozen() && rawStateType.isFrozen())
             throw ire("State type '%s' cannot be frozen; remove frozen<> modifier from '%s'", rawStateType, rawStateType);
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
