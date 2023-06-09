@@ -65,8 +65,10 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         // in accord branch there is a much cleaner api for this pattern...
         Gen<AbstractTypeGenerators.ValueDomain> domainGen = SourceDSL.integers().between(1, 100).map(i -> i < 2 ? AbstractTypeGenerators.ValueDomain.NULL : i < 4 ? AbstractTypeGenerators.ValueDomain.EMPTY_BYTES : AbstractTypeGenerators.ValueDomain.NORMAL);
-        // TODO (seed=1686092282977L) : map() == null, so CQLTEster fails as empty != null.... should/could we move this to AbstractType?
+        // TODO : map() == null, so CQLTEster fails as empty != null.... should/could we move this to AbstractType?
         qt().checkAssert(random -> {
+            resetSchema();
+
             TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality().withUserTypeKeyspace(KEYSPACE);
             TableMetadata metadata = new TableMetadataBuilder()
                                      .withKeyspaceName(KEYSPACE)
@@ -209,6 +211,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
     public static class Builder
     {
         private long seed = System.currentTimeMillis();
+        private int examples = 10;
 
         public Builder withFixedSeed(long seed)
         {
@@ -216,16 +219,33 @@ public class RandomSchemaTest extends CQLTester.InMemory
             return this;
         }
 
+        public Builder withExamples(int examples)
+        {
+            this.examples = examples;
+            return this;
+        }
+
+        // copied from java.util.Random
+        private static final long multiplier = 0x5DEECE66DL;
+        private static final long addend = 0xBL;
+        private static final long mask = (1L << 48) - 1;
+
         public void checkAssert(FailingConsumer<RandomnessSource> test)
         {
             JavaRandom random = new JavaRandom(seed);
-            try
+            for (int i = 0; i < examples; i++)
             {
-                test.doAccept(random);
-            }
-            catch (Throwable e)
-            {
-                throw new PropertyError(seed, e);
+                if (i > 0)
+                    seed = (seed * multiplier + addend) & mask;
+                random.setSeed(seed);
+                try
+                {
+                    test.doAccept(random);
+                }
+                catch (Throwable e)
+                {
+                    throw new PropertyError(seed, e);
+                }
             }
         }
     }

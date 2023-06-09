@@ -36,6 +36,11 @@ public class JavaRandom implements RandomnessSource, DetatchedRandomnessSource
         this.random = new Random(seed);
     }
 
+    public void setSeed(long seed)
+    {
+        this.random.setSeed(seed);
+    }
+
     public static JavaRandom wrap(RandomnessSource rnd)
     {
         if (rnd instanceof JavaRandom)

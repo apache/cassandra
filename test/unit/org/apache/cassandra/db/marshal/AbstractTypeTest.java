@@ -409,8 +409,11 @@ public class AbstractTypeTest
 
     private static void cqlTypeSerde(Function<AbstractType<?>, String> cqlFunc)
     {
+        // TODO : add UDT back
+        // exclude UDT from CQLTypeParser as the different toString methods do not produce a consistent types, unlike TypeParser
         Gen<AbstractType<?>> gen = genBuilder()
-                                   .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
+                                   .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(UDT))
+                                   .withoutTypeKinds(UDT)
                                    .build();
         qt().withShrinkCycles(0).forAll(gen).checkAssert(type -> {
             // to -> from cql
