@@ -18,19 +18,9 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.inject.ActionBuilder;
-import org.apache.cassandra.inject.Expression;
-import org.apache.cassandra.inject.Injection;
-import org.apache.cassandra.inject.Injections;
-import org.apache.cassandra.inject.InvokePointBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,12 +41,10 @@ public class VectorTypeTest extends VectorTester
 
         UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
-        System.out.println(makeRowStrings(result));
 
         flush();
         result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
-        System.out.println(makeRowStrings(result));
 
         execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', [5.0, 2.0, 3.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (5, 'F', [6.0, 3.0, 4.0])");
@@ -166,7 +154,6 @@ public class VectorTypeTest extends VectorTester
 
         result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
-        System.out.println(makeRowStrings(result));
     }
 
     @Test
@@ -241,12 +228,10 @@ public class VectorTypeTest extends VectorTester
 
         UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
-        System.out.println(makeRowStrings(result));
 
         flush();
         result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
         assertThat(result).hasSize(3);
-        System.out.println(makeRowStrings(result));
 
         execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', [5.0, 2.0, 3.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (5, 'F', [6.0, 3.0, 4.0])");
@@ -258,7 +243,6 @@ public class VectorTypeTest extends VectorTester
 
         result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 5");
         assertThat(result).hasSize(5);
-        System.out.println(makeRowStrings(result));
     }
 
     @Test
@@ -275,7 +259,6 @@ public class VectorTypeTest extends VectorTester
 
         UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of ? LIMIT 3", vector(2.5f, 3.5f, 4.5f));
         assertThat(result).hasSize(3);
-        System.out.println(makeRowStrings(result));
     }
 
     @Test
@@ -296,12 +279,10 @@ public class VectorTypeTest extends VectorTester
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
-        System.out.println(makeRowStrings(result));
 
         flush();
         result = execute("SELECT * FROM %s WHERE str_val = 'B' ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
-        System.out.println(makeRowStrings(result));
     }
 
     @Test
