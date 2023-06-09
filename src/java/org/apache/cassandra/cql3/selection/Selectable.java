@@ -764,15 +764,17 @@ public interface Selectable extends AssignmentTestable
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            // not clear if List or Vector
-            return null;
+            // TODO try to pass in a target to this API
+            // default to list when type is being infered
+            return new WithList(selectables).getExactTypeIfKnown(keyspace);
         }
 
         @Override
         public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
         {
-            // not clear if List or Vector
-            return null;
+            // TODO try to pass in a target to this API
+            // default to list when type is being infered
+            return new WithList(selectables).getCompatibleTypeIfKnown(keyspace);
         }
 
         @Override
