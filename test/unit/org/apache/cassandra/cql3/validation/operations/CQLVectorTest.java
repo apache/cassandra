@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.NativeFunctions;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
-import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.transport.ProtocolVersion;
