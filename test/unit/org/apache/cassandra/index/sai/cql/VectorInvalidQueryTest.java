@@ -128,4 +128,12 @@ public class VectorInvalidQueryTest extends SAITester
                              "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5]");
 
     }
+
+    @Test
+    public void testInvalidColumnNameWithAnn() throws Throwable
+    {
+        String table = createTable(KEYSPACE, "CREATE TABLE %s (k int, c int, v int, primary key (k, c))");
+        assertInvalidMessage(String.format("Undefined column name bad_col in table %s", KEYSPACE + "." + table),
+                             "SELECT k from %s ORDER BY bad_col ANN OF [1.0] LIMIT 1");
+    }
 }
