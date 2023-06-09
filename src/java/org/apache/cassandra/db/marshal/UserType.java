@@ -94,11 +94,7 @@ public class UserType extends TupleType implements SchemaElement
         for (Pair<ByteBuffer, AbstractType> p : params.right)
         {
             columnNames.add(new FieldIdentifier(p.left));
-            AbstractType type = p.right;
-            // a UDT cannot contain a non-frozen UDT; as defined by CreateType
-            if (type.isUDT())
-                type = type.freeze();
-            columnTypes.add(type);
+            columnTypes.add(p.right);
         }
 
         return new UserType(keyspace, name, columnNames, columnTypes, true);

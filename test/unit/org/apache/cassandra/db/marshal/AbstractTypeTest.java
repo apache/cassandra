@@ -389,7 +389,13 @@ public class AbstractTypeTest
     @Test
     public void typeParser()
     {
-        qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build()).checkAssert(type -> {
+        Gen<AbstractType<?>> gen = genBuilder()
+                                   .withMaxDepth(1)
+                                   // UDTs produce bad type strings, which is required by org.apache.cassandra.io.sstable.SSTableHeaderFix
+                                   // fixing this may have bad side effects between 3.6 upgrading to 5.0...
+                                   .withoutTypeKinds(UDT)
+                                   .build();
+        qt().withShrinkCycles(0).forAll(gen).checkAssert(type -> {
             AbstractType<?> parsed = TypeParser.parse(type.toString());
             assertThat(parsed).describedAs("TypeParser mismatch:\nExpected: %s\nActual: %s", typeTree(type), typeTree(parsed)).isEqualTo(type);
         });
