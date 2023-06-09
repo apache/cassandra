@@ -226,7 +226,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
 
         void readVector(int i, float[] v) throws IOException
         {
-            reader.readVectorAt(segmentOffset + 8L + i * dimension * 4L, v);
+            reader.readFloatsAt(segmentOffset + 8L + i * dimension * 4L, v);
         }
 
         @Override

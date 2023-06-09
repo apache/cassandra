@@ -43,7 +43,8 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
     final CachedLevel[] cachedLevels;
     private final int cacheSizeInBytes;
 
-    public OnDiskHnswGraph(FileHandle fh, long segmentOffset, long segmentLength, int neighborsRamBudget) throws IOException {
+    public OnDiskHnswGraph(FileHandle fh, long segmentOffset, long segmentLength, int neighborsRamBudget)
+    {
         this.fh = fh;
         try (var reader = fh.createReader())
         {
@@ -136,7 +137,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                     offsets[i] = reader.readLong();
                 }
                 cachedLevels[level] = new CachedLevel(level, nodeIds, offsets);
-                cacheSizeInBytes += nodeIdsSize + offsetsSize;;
+                cacheSizeInBytes += nodeIdsSize + offsetsSize;
             }
         }
         catch (Exception e)
@@ -208,10 +209,9 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
     {
         private final RandomAccessReader reader;
         private final QueryContext queryContext;
-        private int currentNeighborCount;
         private int currentNeighborsRead;
         private long currentCachedLevelNode = -1;
-        private int[] currentCachedNeighbors;
+        private int[] currentNeighbors;
 
         public OnDiskView(RandomAccessReader reader, QueryContext queryContext)
         {
@@ -230,7 +230,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
             }
 
             currentCachedLevelNode = -1;
-            currentCachedNeighbors = null;
+            currentNeighbors = null;
             currentNeighborsRead = 0;
             long neighborsOffset;
 
@@ -239,9 +239,8 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
             {
                 if (cachedLevel.containsNeighbors())
                 {
-                    currentCachedNeighbors = cachedLevel.neighborsFor(target);
+                    currentNeighbors = cachedLevel.neighborsFor(target);
                     currentCachedLevelNode = levelNodeOf(level, target);
-                    currentNeighborCount = currentCachedNeighbors.length;
                     return;
                 }
 
@@ -253,16 +252,14 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
                 assert level == 0 : level; // other levels should all have a cache entry
                 // level 0 ordinals are consecutive so we can easily compute the location from which to read the offset
                 long neighborsOffsetOffset = levelOffsets[0] + Integer.BYTES + (long) target * (Integer.BYTES + Long.BYTES);
-                reader.seek(neighborsOffsetOffset);
-                // TODO we can optimize out the readInt + assert here
-                int ordinal = reader.readInt();
-                assert ordinal == target : "expected " + target + " but got " + ordinal + " at offset " + neighborsOffsetOffset;
+                reader.seek(neighborsOffsetOffset + 4);
                 neighborsOffset = reader.readLong();
             }
 
             // seek to the neighbor list
             reader.seek(neighborsOffset);
-            currentNeighborCount = reader.readInt();
+            currentNeighbors = new int[reader.readInt()];
+            reader.readIntsAt(reader.getPosition(), currentNeighbors);
         }
 
         @Override
@@ -272,18 +269,11 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
         }
 
         @Override
-        public int nextNeighbor() throws IOException
+        public int nextNeighbor()
         {
-            if (currentNeighborsRead++ < currentNeighborCount)
+            if (currentNeighborsRead++ < currentNeighbors.length)
             {
-                if (currentCachedNeighbors != null)
-                    return currentCachedNeighbors[currentNeighborsRead - 1];
-                else
-                {
-                    var n = reader.readInt();
-                    assert n < size() : "neighbor " + n + " is out of bounds for graph of size " + size();
-                    return n;
-                }
+                return currentNeighbors[currentNeighborsRead - 1];
             }
             return NO_MORE_DOCS;
         }
@@ -362,7 +352,7 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
     }
 
     @Override
-    public NodesIterator getNodesOnLevel(int level) throws IOException
+    public NodesIterator getNodesOnLevel(int level)
     {
         throw new UnsupportedOperationException();
     }
