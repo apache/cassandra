@@ -229,12 +229,21 @@ public class RandomSchemaTest extends CQLTester.InMemory
         private long seed = System.currentTimeMillis();
         private int examples = 10;
 
+        /**
+         * Used to reproduce the test with a fixed seed; main use case is to rerun the same test that failed in CI.
+         *
+         * This function is dead code, it exists to help authors debug when a failing test is found.
+         */
         public Builder withFixedSeed(long seed)
         {
             this.seed = seed;
             return this;
         }
 
+        /**
+         * Used to override how many examples to run with.  This is dead code, but exists to allow authors to run the test
+         * many times to make sure its stable before committing.
+         */
         public Builder withExamples(int examples)
         {
             this.examples = examples;
