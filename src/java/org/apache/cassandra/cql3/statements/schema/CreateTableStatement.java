@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -215,14 +216,11 @@ public final class CreateTableStatement extends AlterSchemaStatement
             clusteringTypes.add(reverse ? ReversedType.getInstance(type.getType()) : type.getType());
         });
 
-        if (clusteringOrder.size() > clusteringColumns.size())
-            throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
-
-        for (ColumnIdentifier orederId: clusteringOrder.keySet())
+        List<ColumnIdentifier> nonClusterColumn = clusteringOrder.keySet().stream()
+                                                  .filter((id) -> !clusteringColumns.contains(id)).collect(Collectors.toList());
+        if (!nonClusterColumn.isEmpty())
         {
-            if (!clusteringColumns.contains(orederId)){
-                throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
-            }
+            throw ire("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering column");
         }
 
         int n = 0;
