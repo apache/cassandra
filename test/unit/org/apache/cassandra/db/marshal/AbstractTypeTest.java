@@ -240,15 +240,6 @@ public class AbstractTypeTest
     }
 
     @Test
-    public void typeParser()
-    {
-        qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build()).checkAssert(type -> {
-            AbstractType<?> parsed = TypeParser.parse(type.toString());
-            assertThat(parsed).describedAs("TypeParser mismatch:\nExpected: %s\nActual: %s", typeTree(type), typeTree(parsed)).isEqualTo(type);
-        });
-    }
-
-    @Test
     public void comparableBytes()
     {
         Gen<AbstractType<?>> gen = genBuilder()
@@ -393,6 +384,15 @@ public class AbstractTypeTest
                 return true;
         }
         return false;
+    }
+
+    @Test
+    public void typeParser()
+    {
+        qt().withShrinkCycles(0).forAll(genBuilder().withMaxDepth(1).build()).checkAssert(type -> {
+            AbstractType<?> parsed = TypeParser.parse(type.toString());
+            assertThat(parsed).describedAs("TypeParser mismatch:\nExpected: %s\nActual: %s", typeTree(type), typeTree(parsed)).isEqualTo(type);
+        });
     }
 
     @Test
