@@ -116,12 +116,22 @@ public class CassandraOnHeapHnsw<T>
     /**
      * @return the incremental bytes ysed by adding the given vector to the index
      */
-    public long add(ByteBuffer term, T key)
+    public long add(ByteBuffer term, T key, InvalidVectorBehavior behavior)
     {
         assert term != null && term.remaining() != 0;
 
         var vector = serializer.deserializeFloatArray(term);
-        verifyIndexable(vector);
+        var invalidMessage = validateIndexable(vector);
+        if (invalidMessage != null)
+        {
+            switch (behavior)
+            {
+                case IGNORE:
+                    return 0;
+                case FAIL:
+                    throw new InvalidRequestException(invalidMessage);
+            }
+        }
 
         var bytesUsed = new AtomicLong();
         var newVector = new AtomicBoolean();
@@ -161,15 +171,15 @@ public class CassandraOnHeapHnsw<T>
         return bytesUsed.get();
     }
 
-    private void verifyIndexable(float[] vector)
+    private String validateIndexable(float[] vector)
     {
         for (int i = 0; i < vector.length; i++)
         {
             if (vector[i] != 0)
-                return;
+                return null;
         }
 
-        throw new InvalidRequestException("Zero vectors cannot be indexed");
+        return "Zero vectors cannot be indexed";
     }
 
     public Collection<T> keysFromOrdinal(int node)
@@ -274,5 +284,11 @@ public class CassandraOnHeapHnsw<T>
     private long exactRamBytesUsed()
     {
         return ObjectSizes.measureDeep(this);
+    }
+
+    public enum InvalidVectorBehavior
+    {
+        IGNORE,
+        FAIL
     }
 }

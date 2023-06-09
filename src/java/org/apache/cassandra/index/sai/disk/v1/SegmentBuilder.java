@@ -46,6 +46,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.StringHelper;
 
+import static org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw.InvalidVectorBehavior.IGNORE;
+
 /**
  * Creates an on-heap index data structure to be flushed to an SSTable index.
  */
@@ -187,7 +189,7 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            return graphIndex.add(term, segmentRowId);
+            return graphIndex.add(term, segmentRowId, IGNORE);
         }
 
         @Override

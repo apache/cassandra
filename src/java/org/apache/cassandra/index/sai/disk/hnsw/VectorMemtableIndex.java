@@ -54,6 +54,8 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.util.Bits;
 
+import static org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw.InvalidVectorBehavior.FAIL;
+
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final Logger logger = LoggerFactory.getLogger(VectorMemtableIndex.class);
@@ -100,7 +102,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         writeCount.increment();
         primaryKeys.add(primaryKey);
-        return graph.add(value, primaryKey);
+        return graph.add(value, primaryKey, FAIL);
     }
 
     @Override
@@ -127,7 +129,7 @@ public class VectorMemtableIndex implements MemtableIndex
             var primaryKey = indexContext.keyFactory().create(key, clustering);
             // make the changes in this order so we don't have a window where the row is not in the index at all
             if (newRemaining > 0)
-                graph.add(newValue, primaryKey);
+                graph.add(newValue, primaryKey, FAIL);
             if (oldRemaining > 0)
                 graph.remove(oldValue, primaryKey);
 
