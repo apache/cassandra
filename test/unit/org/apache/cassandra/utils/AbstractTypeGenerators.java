@@ -662,7 +662,7 @@ public final class AbstractTypeGenerators
                 fieldNames.add(fieldName);
 
                 AbstractType<?> element = elementGen.generate(rnd);
-                if (!multiCell)
+                if (multiCell)
                     element = element.freeze();
                 // a UDT cannot contain a non-frozen UDT; as defined by CreateType
                 if (element.isUDT())
