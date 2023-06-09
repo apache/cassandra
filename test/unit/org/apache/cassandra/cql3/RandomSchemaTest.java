@@ -96,24 +96,29 @@ public class RandomSchemaTest extends CQLTester.InMemory
 
             Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata, domainGen);
             String insertStmt = insertStmt(metadata);
+            int partitionColumnCount = metadata.partitionKeyColumns().size();
             int primaryColumnCount = primaryColumnCount(metadata);
             String selectStmt = selectStmt(metadata);
+            String tokenStmt = tokenStmt(metadata);
 
             for (int i = 0; i < 100; i++)
             {
                 ByteBuffer[] expected = dataGen.generate(random);
                 try
                 {
+                    ByteBuffer[] partitionKeys = Arrays.copyOf(expected, partitionColumnCount);
                     ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
                     execute(insertStmt, expected);
                     // check memtable
                     assertRows(execute(selectStmt, rowKey), expected);
+                    assertRows(execute(tokenStmt, partitionKeys), partitionKeys);
                     assertRowsNet(executeNet(selectStmt, rowKey), expected);
 
                     // check sstable
                     flush(KEYSPACE, metadata.name);
                     compact(KEYSPACE, metadata.name);
                     assertRows(execute(selectStmt, rowKey), expected);
+                    assertRows(execute(tokenStmt, partitionKeys), partitionKeys);
                     assertRowsNet(executeNet(selectStmt, rowKey), expected);
 
                     execute("TRUNCATE " + metadata);
@@ -167,6 +172,17 @@ public class RandomSchemaTest extends CQLTester.InMemory
     private static int primaryColumnCount(TableMetadata metadata)
     {
         return metadata.partitionKeyColumns().size() + metadata.clusteringColumns().size();
+    }
+
+    private static String tokenStmt(TableMetadata metadata)
+    {
+        StringBuilder sb = new StringBuilder();
+        List<String> columns = metadata.partitionKeyColumns().stream().map(column -> column.name.toCQLString()).collect(Collectors.toList());
+        List<String> binds = columns.stream().map(ignore -> "?").collect(Collectors.toList());
+        sb.append("SELECT ").append(String.join(", ", columns));
+        sb.append(" FROM ").append(metadata);
+        sb.append(" WHERE token(").append(String.join(", ", columns)).append(") = token(").append(String.join(", ", binds)).append(")");
+        return sb.toString();
     }
 
     private String selectStmt(TableMetadata metadata)
