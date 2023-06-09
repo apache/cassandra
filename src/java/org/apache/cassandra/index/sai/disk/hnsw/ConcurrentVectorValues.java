@@ -26,11 +26,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+import org.jctools.maps.NonBlockingHashMapLong;
 
 public class ConcurrentVectorValues implements RamAwareVectorValues
 {
     private final int dimensions;
-    private final Map<Integer, float[]> values = new ConcurrentHashMap<>();
+    private final NonBlockingHashMapLong<float[]> values = new NonBlockingHashMapLong<>();
 
     public ConcurrentVectorValues(int dimensions)
     {
