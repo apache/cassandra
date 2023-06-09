@@ -113,11 +113,17 @@ public class CassandraOnHeapHnsw<T>
         return size() == 0;
     }
 
+    /**
+     * @return the incremental bytes ysed by adding the given vector to the index
+     */
     public long add(ByteBuffer term, T key)
     {
         assert term != null && term.remaining() != 0;
 
         var vector = serializer.deserializeFloatArray(term);
+        if (!isIndexable(vector))
+            return 0;
+
         var bytesUsed = new AtomicLong();
         var newVector = new AtomicBoolean();
         // if the vector is already in the graph, all that happens is that the postings list is updated
@@ -154,6 +160,19 @@ public class CassandraOnHeapHnsw<T>
             }
         }
         return bytesUsed.get();
+    }
+
+    private boolean isIndexable(float[] vector)
+    {
+        if (similarityFunction != VectorSimilarityFunction.COSINE)
+            return true;
+
+        for (int i = 0; i < vector.length; i++)
+        {
+            if (vector[i] != 0)
+                return true;
+        }
+        return false;
     }
 
     public Collection<T> keysFromOrdinal(int node)
