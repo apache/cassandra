@@ -95,6 +95,14 @@ default_env_vars: &default_env_vars
     # The number of times that new, modified or manually specified JVM dtests should be run.
     REPEATED_JVM_DTESTS_COUNT: 500
 
+    # Comma-separated list of tests that should be included in the repeated run for JVM upgrade dtests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_JVM_UPGRADE_DTESTS: org.apache.cassandra.distributed.upgrade.GroupByTest
+    # REPEATED_JVM_UPGRADE_DTESTS: org.apache.cassandra.distributed.upgrade.GroupByTest#testReads
+    REPEATED_JVM_UPGRADE_DTESTS:
+    # The number of times that new, modified or manually specified JVM upgrade dtests should be run.
+    REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
+
     # Comma-separated list of Python dtests that should be repeatedly run, for example:
     # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py
     # REPEATED_DTESTS: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke
@@ -112,6 +120,14 @@ default_env_vars: &default_env_vars
     REPEATED_LARGE_DTESTS:
     # The number of times that the manually specified Python large dtests should be run.
     REPEATED_LARGE_DTESTS_COUNT: 100
+
+    # Comma-separated list of Python dtests that should be repeatedly run, for example:
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py::TestCQLNodes2RF1_Upgrade_current_4_0_x_To_indev_4_0_x
+    # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py,upgrade_tests/paging_test.py
+    REPEATED_UPGRADE_DTESTS:
+    # The number of times that the manually specified Python upgrade dtests should be run.
+    REPEATED_UPGRADE_DTESTS_COUNT: 25
 
     # The Ant test target to run, for example:
     # REPEATED_ANT_TEST_TARGET: testsome
@@ -1636,6 +1652,7 @@ executors:
       <<: *default_env_vars
       JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       JDK_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+      CASSANDRA_USE_JDK11: true
 
   java17-executor:
     parameters:
