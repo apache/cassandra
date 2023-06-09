@@ -34,6 +34,7 @@ import java.util.function.Function;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -48,7 +49,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class CassandraOnHeapHnsw<T>
 {
@@ -121,8 +121,7 @@ public class CassandraOnHeapHnsw<T>
         assert term != null && term.remaining() != 0;
 
         var vector = serializer.deserializeFloatArray(term);
-        if (!isIndexable(vector))
-            return 0;
+        verifyIndexable(vector);
 
         var bytesUsed = new AtomicLong();
         var newVector = new AtomicBoolean();
@@ -162,17 +161,15 @@ public class CassandraOnHeapHnsw<T>
         return bytesUsed.get();
     }
 
-    private boolean isIndexable(float[] vector)
+    private void verifyIndexable(float[] vector)
     {
-        if (similarityFunction != VectorSimilarityFunction.COSINE)
-            return true;
-
         for (int i = 0; i < vector.length; i++)
         {
             if (vector[i] != 0)
-                return true;
+                return;
         }
-        return false;
+
+        throw new InvalidRequestException("Zero vectors cannot be indexed");
     }
 
     public Collection<T> keysFromOrdinal(int node)
