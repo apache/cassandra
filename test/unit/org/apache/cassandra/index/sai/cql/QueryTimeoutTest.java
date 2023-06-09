@@ -19,6 +19,10 @@ package org.apache.cassandra.index.sai.cql;
 
 import javax.management.ObjectName;
 
+import com.datastax.driver.core.exceptions.ReadFailureException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher;
+import org.apache.cassandra.inject.ActionBuilder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -128,6 +132,28 @@ public class QueryTimeoutTest extends SAITester
         Injections.inject(token_lookup_delay);
 
         assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE v2 = '1'")).isInstanceOf(ReadTimeoutException.class);
+
+        waitForEquals(queryCountName, queryTimeoutsName);
+    }
+
+    @Test
+    public void abortedOperationExceptionShouldProvokeQueryFailureWithTimeoutCode() throws Throwable
+    {
+        Injection abortedOperationException = Injections.newCustom("throw_aborted_operation_exception")
+                .add(newInvokePoint()
+                        .onClass(StorageAttachedIndexSearcher.class)
+                        .onMethod("search")
+                        .atEntry())
+                .add(ActionBuilder.newActionBuilder()
+                        .actions()
+                        .doAction("throw new org.apache.cassandra.index.sai.utils.AbortedOperationException();"))
+                .build();
+        Injections.inject(abortedOperationException);
+
+        assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE v2 = '1'"))
+                .matches(e -> e instanceof ReadFailureException
+                    && ((ReadFailureException) e).getFailuresMap().containsValue(RequestFailureReason.TIMEOUT.code)
+        );
 
         waitForEquals(queryCountName, queryTimeoutsName);
     }

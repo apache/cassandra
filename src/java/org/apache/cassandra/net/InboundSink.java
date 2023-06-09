@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Predicate;
 
+import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.core.util.ThrowingConsumer;
@@ -99,6 +100,10 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
         catch (Throwable t)
         {
             fail(message.header, t);
+
+            // The site throwing AbortedOperationException is responsible for logging it.
+            if (t instanceof AbortedOperationException)
+                return;
 
             if (t instanceof TombstoneOverwhelmingException || t instanceof IndexNotAvailableException)
                 noSpamLogger.error(t.getMessage());
