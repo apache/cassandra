@@ -103,6 +103,9 @@ generate.sh -p \
   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py \
   -e REPEATED_JVM_UPGRADE_DTESTS=org.apache.cassandra.distributed.upgrade.GroupByTest
 ```
+If you need to repeat a particular set of tests and avoid automatic detection of changed tests 
+use the -s command line option.
+
 For particular Ant test targets that are not included in the regular test suites, you can
 use the `run_repeated_utest` job:
 ```
