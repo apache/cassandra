@@ -191,7 +191,7 @@ public class CQLVectorTest extends CQLTester.InMemory
         createTable(KEYSPACE, "CREATE TABLE %s (pk vector<int, 2> primary key)");
         execute("INSERT INTO %s (pk) VALUES (?)", vector(1, 2));
         long tokenColumn = execute("SELECT token(pk) as t FROM %s").one().getLong("t");
-        long tokenTerminal = execute("SELECT token([1, 2]) as t FROM %s").one().getLong("t"); // Type error
+        long tokenTerminal = execute("SELECT token([1, 2]) as t FROM %s").one().getLong("t");
         Assert.assertEquals(tokenColumn, tokenTerminal);
     }
 
@@ -211,6 +211,6 @@ public class CQLVectorTest extends CQLTester.InMemory
         execute("INSERT INTO %s (pk, value) VALUES (0, ?)", value);
 
         assertRows(execute("SELECT " + function + "(value) FROM %s WHERE pk=0"), row(value));
-        assertRows(execute("SELECT " + function + "([1, 2]) FROM %s WHERE pk=0"), row(value)); // Type error
+        assertRows(execute("SELECT " + function + "([1, 2]) FROM %s WHERE pk=0"), row(value));
     }
 }
