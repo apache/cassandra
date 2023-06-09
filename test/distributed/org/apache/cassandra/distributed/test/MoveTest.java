@@ -32,6 +32,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class MoveTest extends TestBaseImpl
@@ -49,7 +50,7 @@ public class MoveTest extends TestBaseImpl
     {
         // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(4)
-                                      .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").with(NETWORK).with(GOSSIP))
+                                      .withConfig(config -> config.set("paxos_variant", "v2_without_linearizable_reads").with(NETWORK).with(GOSSIP).with(JMX))
                                       .withoutVNodes()
                                       .start())
         {

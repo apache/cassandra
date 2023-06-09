@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.QueryResult;
 import org.assertj.core.api.Assertions;
@@ -38,7 +39,7 @@ public class TableEstimatesTest extends TestBaseImpl
     @BeforeClass
     public static void setupCluster() throws IOException
     {
-        CLUSTER = init(Cluster.build(1).start());
+        CLUSTER = init(Cluster.build(1).withConfig(c -> c.with(Feature.JMX)).start());
     }
 
     @AfterClass

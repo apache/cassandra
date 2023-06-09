@@ -31,6 +31,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -48,7 +49,7 @@ public class FqlReplayDDLExclusionTest extends TestBaseImpl
     public void test() throws Throwable
     {
         try (final Cluster cluster = init(builder().withNodes(1)
-                                                   .withConfig(updater -> updater.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                                   .withConfig(updater -> updater.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX))
                                                    .start()))
         {
             final IInvokableInstance node = cluster.get(1);

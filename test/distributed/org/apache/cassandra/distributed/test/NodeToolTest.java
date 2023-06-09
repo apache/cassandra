@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
@@ -41,7 +42,7 @@ public class NodeToolTest extends TestBaseImpl
     @BeforeClass
     public static void before() throws IOException
     {
-        CLUSTER = init(Cluster.build().withNodes(1).start());
+        CLUSTER = init(Cluster.build().withNodes(1).withConfig(c -> c.with(Feature.JMX)).start());
         NODE = CLUSTER.get(1);
     }
 

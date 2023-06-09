@@ -37,6 +37,7 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.dht.Murmur3Partitioner.*;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.service.StorageService.instance;
@@ -168,7 +169,8 @@ public class RepairBoundaryTest extends TestBaseImpl
                                                      .set("num_tokens", 1)
                                                      .set("initial_token", Long.toString(config.num() * 1000))
                                                      .with(NETWORK)
-                                                     .with(GOSSIP))
+                                                     .with(GOSSIP)
+                                                     .with(JMX))
                          .start();
         cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
                                           "{'class': 'SimpleStrategy', 'replication_factor': 2};"));

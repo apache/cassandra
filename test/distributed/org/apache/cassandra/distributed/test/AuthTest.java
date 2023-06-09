@@ -43,6 +43,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.awaitility.Awaitility.await;
@@ -78,7 +79,7 @@ public class AuthTest extends TestBaseImpl
         try (Cluster cluster = builder().withDCs(2)
                                         .withNodes(1)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2, 1))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL, JMX)
                                                                     .set("authenticator", "PasswordAuthenticator"))
                                         .start())
         {

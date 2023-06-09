@@ -247,7 +247,7 @@ public class GossipTest extends TestBaseImpl
     {
         // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withInstanceInitializer(FailureHelper::installMoveFailure)
                                       .withoutVNodes()
                                       .start())

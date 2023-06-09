@@ -28,6 +28,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToDecommission;
@@ -45,7 +46,7 @@ public class CleanupFailureTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(2)
                                         .withTokenSupplier(evenlyDistributedTokens(2))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX))
                                         .start())
         {
             IInvokableInstance nodeToDecommission = cluster.get(1);

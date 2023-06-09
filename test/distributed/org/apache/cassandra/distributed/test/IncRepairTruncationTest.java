@@ -39,6 +39,7 @@ import org.apache.cassandra.net.Verb;
 
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher;
 import static org.apache.cassandra.distributed.test.PreviewRepairTest.insert;
@@ -52,7 +53,8 @@ public class IncRepairTruncationTest extends TestBaseImpl
         ExecutorService es = Executors.newFixedThreadPool(3);
         try(Cluster cluster = init(Cluster.build(2)
                                           .withConfig(config -> config.with(GOSSIP)
-                                                                      .with(NETWORK))
+                                                                      .with(NETWORK)
+                                                                      .with(JMX))
                                           .start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");

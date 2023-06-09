@@ -70,6 +70,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher;
 import static org.apache.cassandra.distributed.impl.Instance.deserializeMessage;
@@ -100,7 +101,7 @@ public class PreviewRepairTest extends TestBaseImpl
     @Test
     public void testWithMismatchingPending() throws Throwable
     {
-        try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK)).start()))
+        try(Cluster cluster = init(Cluster.build(2).withConfig(config -> config.with(GOSSIP).with(NETWORK).with(JMX)).start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
             insert(cluster.coordinator(1), 0, 100);
@@ -317,7 +318,8 @@ public class PreviewRepairTest extends TestBaseImpl
         ExecutorService es = Executors.newSingleThreadExecutor();
         try(Cluster cluster = init(Cluster.build(2).withConfig(config ->
                                                                config.with(GOSSIP)
-                                                                     .with(NETWORK))
+                                                                     .with(NETWORK)
+                                                                     .with(JMX))
                                           .start()))
         {
             int tokenCount = ClusterUtils.getTokenCount(cluster.get(1));

@@ -35,6 +35,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
@@ -107,7 +108,7 @@ public class NetworkTopologyTest extends TestBaseImpl
     @Test
     public void noWarningForNetworkTopologyStategyConfigOnRestart() throws Exception {
         int nodesPerDc = 2;
-        try (Cluster cluster = builder().withConfig(c -> c.with(GOSSIP, NETWORK))
+        try (Cluster cluster = builder().withConfig(c -> c.with(GOSSIP, NETWORK, JMX))
                                         .withRacks(2, 1, nodesPerDc)
                                         .start()) {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE +

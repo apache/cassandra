@@ -41,7 +41,7 @@ public class ClientNetworkStopStartTest extends TestBaseImpl
     public void stopStartNative() throws IOException
     {
         //TODO why does trunk need GOSSIP for native to work but no other branch does?
-        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)).start()))
+        try (Cluster cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL, Feature.JMX)).start()))
         {
             IInvokableInstance node = cluster.get(1);
             assertTransportStatus(node, "binary", true);

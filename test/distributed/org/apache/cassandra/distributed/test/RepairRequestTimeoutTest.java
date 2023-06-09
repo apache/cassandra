@@ -32,6 +32,7 @@ import org.apache.cassandra.net.Verb;
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.net.Verb.SYNC_REQ;
 import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
@@ -45,7 +46,7 @@ public class RepairRequestTimeoutTest extends TestBaseImpl
     public static void setup() throws IOException
     {
         CLUSTER = init(Cluster.build(3)
-                              .withConfig(config -> config.with(GOSSIP, NETWORK).set("repair_request_timeout_in_ms", timeoutMillis))
+                              .withConfig(config -> config.with(GOSSIP, NETWORK, JMX).set("repair_request_timeout_in_ms", timeoutMillis))
                               .start());
         CLUSTER.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
     }
