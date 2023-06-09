@@ -100,76 +100,53 @@ public class LongVectorTest extends SAITester
     @Test
     public void testConcurrentReadsWritesDeletes() throws ExecutionException, InterruptedException
     {
-        testConcurrentOps(this::readWriteDeleteOp);
+        testConcurrentOps(i -> {
+            var R = ThreadLocalRandom.current();
+            var v = normalizedVector(dimension);
+            if (R.nextDouble() < 0.2 || keysInserted.isEmpty())
+            {
+                execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
+                keysInserted.add(i);
+            } else if (R.nextDouble() < 0.1) {
+                var key = keysInserted.getRandom();
+                execute("DELETE FROM %s WHERE key = ?", key);
+            } else if (R.nextDouble() < 0.5) {
+                var key = keysInserted.getRandom();
+                execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
+            } else {
+                execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
+            }
+        });
     }
 
     @Test
     public void testConcurrentReadsWrites() throws ExecutionException, InterruptedException
     {
-        testConcurrentOps(this::readWriteOp);
+        testConcurrentOps(i -> {
+            var R = ThreadLocalRandom.current();
+            var v = normalizedVector(dimension);
+            if (R.nextDouble() < 0.1 || keysInserted.isEmpty())
+            {
+                execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
+                keysInserted.add(i);
+            } else if (R.nextDouble() < 0.5) {
+                var key = keysInserted.getRandom();
+                var results = execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
+                assertThat(results).hasSize(1);
+            } else {
+                var results = execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
+                assertThat(results).hasSizeGreaterThan(0); // TODO can we make a stronger assertion?
+            }
+        });
     }
 
     @Test
     public void testConcurrentWrites() throws ExecutionException, InterruptedException
     {
-        testConcurrentOps(this::writeOp);
-    }
-
-    private void writeOp(int i) throws Throwable
-    {
-        var v = normalizedVector(dimension);
-        execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
-    }
-
-    private void partitionReadWriteOp(int i) throws Throwable
-    {
-        var R = ThreadLocalRandom.current();
-        var v = normalizedVector(dimension);
-        if (R.nextDouble() < 0.9 || keysInserted.isEmpty())
-        {
+        testConcurrentOps(i -> {
+            var v = normalizedVector(dimension);
             execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
-            keysInserted.add(i);
-        } else {
-            var key = keysInserted.getRandom();
-            execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
-        }
-    }
-
-    private void readWriteOp(int i) throws Throwable
-    {
-        var R = ThreadLocalRandom.current();
-        var v = normalizedVector(dimension);
-        if (R.nextDouble() < 0.1 || keysInserted.isEmpty())
-        {
-            execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
-            keysInserted.add(i);
-        } else if (R.nextDouble() < 0.5) {
-            var key = keysInserted.getRandom();
-            var results = execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
-            assertThat(results).hasSize(1);
-        } else {
-            var results = execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
-            assertThat(results).hasSizeGreaterThan(0); // TODO can we make a stronger assertion?
-        }
-    }
-
-    private void readWriteDeleteOp(int i) throws Throwable
-    {
-        var R = ThreadLocalRandom.current();
-        var v = normalizedVector(dimension);
-        if (R.nextDouble() < 0.2 || keysInserted.isEmpty())
-        {
-            execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
-            keysInserted.add(i);
-        } else if (R.nextDouble() < 0.1) {
-            var key = keysInserted.getRandom();
-            execute("DELETE FROM %s WHERE key = ?", key);
-        } else if (R.nextDouble() < 0.5) {
-            var key = keysInserted.getRandom();
-            execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
-        } else {
-            execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
-        }
+        });
     }
 
     private static Vector<Float> normalizedVector(int dimension)
