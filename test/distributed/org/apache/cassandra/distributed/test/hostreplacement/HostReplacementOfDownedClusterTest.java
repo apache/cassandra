@@ -70,7 +70,7 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
@@ -123,7 +123,7 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         int numStartNodes = 3;
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {

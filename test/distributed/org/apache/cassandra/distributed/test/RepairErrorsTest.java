@@ -45,6 +45,7 @@ import org.apache.cassandra.streaming.StreamSession;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -59,6 +60,7 @@ public class RepairErrorsTest extends TestBaseImpl
         try (Cluster cluster = init(Cluster.build(3)
                                            .withConfig(config -> config.with(GOSSIP)
                                                                        .with(NETWORK)
+                                                                       .with(JMX)
                                                                        .set("disk_failure_policy", "stop")
                                                                        .set("disk_access_mode", "mmap_index_only"))
                                            .withInstanceInitializer(ByteBuddyHelper::installStreamPlanExecutionFailure).start()))
@@ -103,7 +105,7 @@ public class RepairErrorsTest extends TestBaseImpl
     public void testRemoteStreamFailure() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(3)
-                                           .withConfig(config -> config.with(GOSSIP, NETWORK)
+                                           .withConfig(config -> config.with(GOSSIP, NETWORK, JMX)
                                                                        .set("disk_failure_policy", "stop")
                                                                        .set("disk_access_mode", "mmap_index_only"))
                                            .withInstanceInitializer(ByteBuddyHelperStreamFailure::installStreamHandlingFailure).start()))

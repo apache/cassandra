@@ -46,6 +46,7 @@ import static org.apache.cassandra.distributed.action.GossipHelper.disseminateGo
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class PendingWritesTest extends TestBaseImpl
@@ -59,7 +60,7 @@ public class PendingWritesTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(originalNodeCount)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX))
                                         .start())
         {
             BootstrapTest.populate(cluster, 0, 100);

@@ -39,6 +39,7 @@ import org.apache.cassandra.distributed.impl.INodeProvisionStrategy.Strategy;
 import org.apache.cassandra.distributed.test.TopologyChangeTest.EventStateListener.Event;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
@@ -149,7 +150,7 @@ public class TopologyChangeTest extends TestBaseImpl
     public void testDecommission() throws Throwable
     {
         try (Cluster control = init(Cluster.build().withNodes(3).withNodeProvisionStrategy(strategy)
-                                           .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)).start());
+                                           .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL, JMX)).start());
              com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
              Session session = cluster.connect())
         {

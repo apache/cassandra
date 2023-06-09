@@ -865,4 +865,6 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public Long getRepairRpcTimeout();
     public void setRepairRpcTimeout(Long timeoutInMillis);
+
+    public boolean skipNotificationListeners(boolean skip);
 }

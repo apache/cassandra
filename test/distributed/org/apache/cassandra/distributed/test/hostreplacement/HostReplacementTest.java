@@ -70,7 +70,7 @@ public class HostReplacementTest extends TestBaseImpl
         // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
@@ -115,7 +115,7 @@ public class HostReplacementTest extends TestBaseImpl
         // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX)
                                                         .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
@@ -154,7 +154,7 @@ public class HostReplacementTest extends TestBaseImpl
         // start with 3 nodes, stop both nodes, start the seed, host replace the down node)
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(3);
         try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK, Feature.JMX))
                                       .withTokenSupplier(node -> even.token(node == 4 ? 2 : node))
                                       .start())
         {

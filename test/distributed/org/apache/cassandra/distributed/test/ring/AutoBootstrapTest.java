@@ -29,6 +29,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.ring.BootstrapTest.count;
 import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
@@ -46,7 +47,7 @@ public class AutoBootstrapTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(originalNodeCount)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX))
                                         .start())
         {
             populate(cluster,0, 100);

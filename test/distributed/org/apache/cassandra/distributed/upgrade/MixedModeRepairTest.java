@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
@@ -55,7 +56,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(UPGRADED_NODE)
         .upgradesFrom(v3X)
-        .withConfig(config -> config.with(NETWORK, GOSSIP))
+        .withConfig(config -> config.with(NETWORK, GOSSIP, JMX))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
             cluster.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException);

@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 
@@ -41,7 +41,7 @@ public class NodeToolTest extends TestBaseImpl
     @BeforeClass
     public static void before() throws IOException
     {
-        CLUSTER = init(Cluster.build().withNodes(1).start());
+        CLUSTER = init(Cluster.build().withNodes(1).withConfig(c -> c.set("row_cache_size_in_mb", "0").with(Feature.JMX)).start());
         NODE = CLUSTER.get(1);
     }
 
@@ -108,12 +108,9 @@ public class NodeToolTest extends TestBaseImpl
     }
 
     @Test
-    public void testSetCacheCapacityWhenDisabled() throws Throwable
+    public void testSetCacheCapacityWhenDisabled()
     {
-        try (ICluster cluster = init(builder().withNodes(1).withConfig(c->c.set("row_cache_size_in_mb", "0")).start()))
-        {
-            NodeToolResult ringResult = cluster.get(1).nodetoolResult("setcachecapacity", "1", "1", "1");
-            ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
-        }
+        NodeToolResult ringResult = NODE.nodetoolResult("setcachecapacity", "1", "1", "1");
+        ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
     }
 }

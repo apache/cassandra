@@ -44,6 +44,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.junit.Assert.assertFalse;
 
@@ -56,7 +57,8 @@ public class ClearSnapshotTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3).withConfig(config ->
                                                                 config.with(GOSSIP)
-                                                                      .with(NETWORK))
+                                                                      .with(NETWORK)
+                                                                      .with(JMX))
                                           .withInstanceInitializer(BB::install)
                                           .start()))
         {
@@ -156,7 +158,8 @@ public class ClearSnapshotTest extends TestBaseImpl
     {
         try(Cluster cluster = init(Cluster.build(3).withConfig(config ->
                                                                config.with(GOSSIP)
-                                                                     .with(NETWORK))
+                                                                     .with(NETWORK)
+                                                                     .with(JMX))
                                           .withInstanceInitializer(BB::install)
                                           .start()))
         {

@@ -57,14 +57,29 @@ public class Info extends NodeToolCmd
             out.printf("%-23s: %s%n", "Generation No", 0);
 
         // Uptime
-        long secondsUp = probe.getUptime() / 1000;
-        out.printf("%-23s: %d%n", "Uptime (seconds)", secondsUp);
+        try
+        {
+            long secondsUp = probe.getUptime() / 1000;
+            out.printf("%-23s: %d%n", "Uptime (seconds)", secondsUp);
+        }
+        catch (Exception ex)
+        {
+            out.printf("%-23s: N/A%n", "Uptime (seconds)");
+        }
 
         // Memory usage
-        MemoryUsage heapUsage = probe.getHeapMemoryUsage();
-        double memUsed = (double) heapUsage.getUsed() / (1024 * 1024);
-        double memMax = (double) heapUsage.getMax() / (1024 * 1024);
-        out.printf("%-23s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
+        try
+        {
+            MemoryUsage heapUsage = probe.getHeapMemoryUsage();
+            double memUsed = (double) heapUsage.getUsed() / (1024 * 1024);
+            double memMax = (double) heapUsage.getMax() / (1024 * 1024);
+            out.printf("%-23s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
+        }
+        catch (Exception ex)
+        {
+            out.printf("%-23s: N/A", "Heap Memory (MB)");
+        }
+
         try
         {
             out.printf("%-23s: %.2f%n", "Off Heap Memory (MB)", getOffHeapMemoryUsed(probe));
