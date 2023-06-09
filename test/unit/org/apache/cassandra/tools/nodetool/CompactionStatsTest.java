@@ -130,13 +130,19 @@ public class CompactionStatsTest extends CQLTester
                                                     CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
         Assertions.assertThat(stdout).containsPattern(expectedStatsPattern);
 
-        Assertions.assertThat(stdout).containsPattern("[0-9]* concurrent compactors, [0-9]* pending tasks");
-        Assertions.assertThat(stdout).containsPattern("compactions completed: [0-9]*");
-        Assertions.assertThat(stdout).containsPattern("minute rate:    [0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("5 minute rate:    [0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("15 minute rate:    [0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("Mean rate:    [0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("compaction throughput");
+        assertThat(stdout).containsPattern("concurrent compactors\\s+[0-9]*");
+        assertThat(stdout).containsPattern("pending compaction tasks\\s+[0-9]*");
+        assertThat(stdout).containsPattern("compactions completed\\s+[0-9]*");
+        assertThat(stdout).containsPattern("minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("5 minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("15 minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("mean rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("compaction throughput \\(MBps\\)     throttling disabled \\(0\\)");
+        assertThat(stdout).containsPattern("compactions completed\\s+[0-9]*");
+        assertThat(stdout).containsPattern("data compacted\\s+[0-9]*");
+        assertThat(stdout).containsPattern("compactions aborted\\s+[0-9]*");
+        assertThat(stdout).containsPattern("compactions reduced\\s+[0-9]*");
+        assertThat(stdout).containsPattern("sstables dropped from compaction\\s+[0-9]*");
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
         waitForNumberOfPendingTasks(0, "compactionstats");
@@ -304,7 +310,7 @@ public class CompactionStatsTest extends CQLTester
             tool.assertOnCleanExit();
             String output = tool.getStdout();
             stdout.set(output);
-            return output.contains(pendingTasksToWaitFor + " pending tasks" );
+            return output.contains("pending compaction tasks         "+ pendingTasksToWaitFor);
         });
 
         return stdout.get();
