@@ -749,7 +749,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            return target(receiver.type).testAssignment(keyspace, receiver);
+            return target(receiver == null ? null : receiver.type).testAssignment(keyspace, receiver);
         }
 
         @Override
