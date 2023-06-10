@@ -84,12 +84,6 @@ public class OnDiskHnswGraphTest extends SAITester
         org.apache.commons.io.FileUtils.deleteQuietly(testDirectory.toFile());
     }
 
-    private FullyConnectedHnswGraph buildGraph(int entryNode, Map<Integer, List<Integer>> nodes) {
-        FullyConnectedHnswGraph.Builder builder = new FullyConnectedHnswGraph.Builder().setEntryNode(entryNode);
-        nodes.forEach(builder::addLevel);
-        return builder.build();
-    }
-
     private void validateGraph(HnswGraph original, OnDiskHnswGraph onDisk) throws IOException {
         try (var view = onDisk.getView(new QueryContext()))
         {
@@ -144,7 +138,7 @@ public class OnDiskHnswGraphTest extends SAITester
 
     private static OnDiskHnswGraph createOnDiskGraph(File outputFile, int cacheRamBudget) throws IOException
     {
-        try (var builder = new FileHandle.Builder(outputFile))
+        try (var builder = new FileHandle.Builder(outputFile).mmapped(true))
         {
             return new OnDiskHnswGraph(builder.complete(), 0, outputFile.length(), cacheRamBudget);
         }
@@ -201,7 +195,7 @@ public class OnDiskHnswGraphTest extends SAITester
         }
         for (var g: graphOffsets)
         {
-            try (var builder = new FileHandle.Builder(outputFile);
+            try (var builder = new FileHandle.Builder(outputFile).mmapped(true);
                  var onDiskGraph = new OnDiskHnswGraph(builder.complete(), g.startOffset, g.endOffset, 0))
             {
                 validateGraph(g.hnsw, onDiskGraph);
