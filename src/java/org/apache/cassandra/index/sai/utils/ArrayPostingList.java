@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.index.sai.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.OrdinalPostingList;
 
-//TODO Change this whole lot to use longs
 public class ArrayPostingList implements OrdinalPostingList
 {
     private final int[] postings;
@@ -81,6 +81,7 @@ public class ArrayPostingList implements OrdinalPostingList
                           .toString();
     }
 
+    @VisibleForTesting
     public void reset()
     {
         idx = 0;
@@ -89,13 +90,5 @@ public class ArrayPostingList implements OrdinalPostingList
     public int getPostingAt(int i)
     {
         return postings[i];
-    }
-
-    public static class LookupException extends RuntimeException
-    {
-        public LookupException(long idx)
-        {
-            super("Failed on lookup at index " + idx + "!");
-        }
     }
 }

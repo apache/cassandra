@@ -22,15 +22,20 @@ import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -82,18 +87,18 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(context, exp, keyRange, limit);
+        PostingList results = searchPosting(context, exp, keyRange, limit);
         return toPrimaryKeyIterator(results, context);
     }
 
     @Override
     public RangeIterator<Long> searchSSTableRowIds(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        ReorderingPostingList results = searchPosting(context, exp, keyRange, limit);
+        PostingList results = searchPosting(context, exp, keyRange, limit);
         return toSSTableRowIdsIterator(results, context);
     }
 
-    private ReorderingPostingList searchPosting(SSTableQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
+    private PostingList searchPosting(SSTableQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -101,18 +106,23 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         if (exp.getOp() != Expression.Op.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
-        Bits bits = bitsetForKeyRange(context, keyRange);
+        BitSetOrPostingList bitsOrPostingList = bitsetOrPostingListForKeyRange(context, keyRange, limit);
+        if (bitsOrPostingList.skipANN())
+            return bitsOrPostingList.postingList();
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
-        return graph.search(queryVector, limit, bits, Integer.MAX_VALUE, context.queryContext);
+        return graph.search(queryVector, limit, bitsOrPostingList.getBits(), Integer.MAX_VALUE, context.queryContext);
     }
 
-    private Bits bitsetForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
+    /**
+     * Return bit set if needs to search HNSW; otherwise return posting list to bypass HNSW
+     */
+    private BitSetOrPostingList bitsetOrPostingListForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
     {
         // not restricted
         if (RangeUtil.coversFullRing(keyRange))
-            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph);
+            return new BitSetOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
         PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
         PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
@@ -121,25 +131,44 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         long minSSTableRowId = primaryKeyMap.firstRowIdFromPrimaryKey(firstPrimaryKey);
         long maxSSTableRowId = primaryKeyMap.lastRowIdFromPrimaryKey(lastPrimaryKey);
 
+        if (minSSTableRowId > maxSSTableRowId)
+            return new BitSetOrPostingList(PostingList.EMPTY);
+
         // if it covers entire segment, skip bit set
         if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
-            return context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph);
+            return new BitSetOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
+        // if num of matches are not bigger than limit, skip ANN
+        if (maxSSTableRowId - minSSTableRowId + 1 <= limit)
+        {
+            IntArrayList postings = new IntArrayList(Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1), -1);
+            for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
+            {
+                if (context.shouldInclude(sstableRowId, primaryKeyMap))
+                    postings.addInt(metadata.segmentedRowId(sstableRowId));
+            }
+            return new BitSetOrPostingList(new ArrayPostingList(postings.toIntArray()));
+        }
+
         // create a bitset of ordinals corresponding to the rows in the given key range
         SparseFixedBitSet bits = new SparseFixedBitSet(graph.size());
+        boolean hasMatches = false;
         try (var ordinalsView = graph.getOrdinalsView())
         {
             for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
             {
+                if (!context.shouldInclude(sstableRowId, primaryKeyMap))
+                    continue;
+
                 int segmentRowId = metadata.segmentedRowId(sstableRowId);
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                 if (ordinal >= 0)
                 {
-                    if (context.shouldInclude(sstableRowId, primaryKeyMap))
-                        bits.set(ordinal);
+                    bits.set(ordinal);
+                    hasMatches = true;
                 }
             }
         }
@@ -148,7 +177,10 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             throw new RuntimeException(e);
         }
 
-        return bits;
+        if (!hasMatches)
+            return new BitSetOrPostingList(PostingList.EMPTY);
+
+        return new BitSetOrPostingList(bits);
     }
 
     @Override
@@ -216,5 +248,44 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     {
         graph.close();
         primaryKeyMap.close();
+    }
+
+    private static class BitSetOrPostingList
+    {
+        private final Bits bits;
+        private final PostingList postingList;
+
+        private final boolean skipANN;
+        public BitSetOrPostingList(@Nullable Bits bits)
+        {
+            this.bits = bits;
+            this.postingList = null;
+            this.skipANN = false;
+        }
+
+        public BitSetOrPostingList(PostingList postingList)
+        {
+            this.bits = null;
+            this.postingList = Preconditions.checkNotNull(postingList);
+            this.skipANN = true;
+        }
+
+        @Nullable
+        public Bits getBits()
+        {
+            Preconditions.checkState(!skipANN);
+            return bits;
+        }
+
+        public PostingList postingList()
+        {
+            Preconditions.checkState(skipANN);
+            return postingList;
+        }
+
+        public boolean skipANN()
+        {
+            return skipANN;
+        }
     }
 }

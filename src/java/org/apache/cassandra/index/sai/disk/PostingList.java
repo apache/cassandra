@@ -31,6 +31,8 @@ import org.apache.cassandra.utils.Throwables;
 @NotThreadSafe
 public interface PostingList extends Closeable
 {
+    PostingList EMPTY = new EmptyPostingList();
+
     long OFFSET_NOT_FOUND = -1;
     long END_OF_STREAM = Long.MAX_VALUE;
 
@@ -192,6 +194,27 @@ public interface PostingList extends Closeable
         public void close() throws IOException
         {
             wrapped.close();
+        }
+    }
+
+    class EmptyPostingList implements PostingList
+    {
+        @Override
+        public long nextPosting() throws IOException
+        {
+            return END_OF_STREAM;
+        }
+
+        @Override
+        public long size()
+        {
+            return 0;
+        }
+
+        @Override
+        public long advance(long targetRowID) throws IOException
+        {
+            return END_OF_STREAM;
         }
     }
 }

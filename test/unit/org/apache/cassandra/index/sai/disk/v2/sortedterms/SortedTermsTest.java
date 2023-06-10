@@ -173,6 +173,29 @@ public class SortedTermsTest extends SaiRandomizedTest
     }
 
     @Test
+    public void testSeekToTermMinMaxPrefixNoMatch() throws Exception
+    {
+        IndexDescriptor descriptor = newIndexDescriptor();
+
+        List<ByteSource> termsMinPrefixNoMatch = new ArrayList<>();
+        List<ByteSource> termsMaxPrefixNoMatch = new ArrayList<>();
+        int valuesPerPrefix = 10;
+        writeTerms(descriptor, termsMinPrefixNoMatch, termsMaxPrefixNoMatch, valuesPerPrefix, false);
+
+        // iterate on terms ascending
+        withSortedTermsReader(descriptor, reader ->
+        {
+            for (int x = 0; x < termsMaxPrefixNoMatch.size(); x++)
+            {
+                int index = x;
+                long pointIdStart = reader.getPointId(v -> termsMinPrefixNoMatch.get(index));
+                long pointIdEnd = reader.getLastPointId(v -> termsMaxPrefixNoMatch.get(index));
+                assertTrue(pointIdStart > pointIdEnd);
+            }
+        });
+    }
+
+    @Test
     public void testSeekToTermMinMaxPrefix() throws Exception
     {
         IndexDescriptor descriptor = newIndexDescriptor();
@@ -180,7 +203,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         List<ByteSource> termsMinPrefix = new ArrayList<>();
         List<ByteSource> termsMaxPrefix = new ArrayList<>();
         int valuesPerPrefix = 10;
-        writeTerms(descriptor, termsMinPrefix, termsMaxPrefix, valuesPerPrefix);
+        writeTerms(descriptor, termsMinPrefix, termsMaxPrefix, valuesPerPrefix, true);
 
         // iterate on terms ascending
         withSortedTermsReader(descriptor, reader ->
@@ -338,7 +361,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         }
     }
 
-    private void writeTerms(IndexDescriptor indexDescriptor, List<ByteSource> termsMinPrefix, List<ByteSource> termsMaxPrefix, int numPerPrefix) throws IOException
+    private void writeTerms(IndexDescriptor indexDescriptor, List<ByteSource> termsMinPrefix, List<ByteSource> termsMaxPrefix, int numPerPrefix, boolean matchesData) throws IOException
     {
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
         {
@@ -355,12 +378,12 @@ public class SortedTermsTest extends SaiRandomizedTest
             {
                 for (int x = 0; x < 1000 ; x++)
                 {
-                    int component1 = x;
+                    int component1 = x * 2;
                     for (int i = 0; i < numPerPrefix; i++)
                     {
                         String component2 = "v" + i;
-                        termsMinPrefix.add(ByteSource.withTerminator(ByteSource.LT_NEXT_COMPONENT, intByteSource(component1)));
-                        termsMaxPrefix.add(ByteSource.withTerminator(ByteSource.GT_NEXT_COMPONENT, intByteSource(component1)));
+                        termsMinPrefix.add(ByteSource.withTerminator(ByteSource.LT_NEXT_COMPONENT, intByteSource(component1 + (matchesData ? 0 : 1))));
+                        termsMaxPrefix.add(ByteSource.withTerminator(ByteSource.GT_NEXT_COMPONENT, intByteSource(component1 + (matchesData ? 0 : 1))));
                         writer.add(v -> ByteSource.withTerminator(ByteSource.TERMINATOR, intByteSource(component1), utfByteSource(component2)));
                     }
                 }
