@@ -94,7 +94,7 @@ public class IndexContext
     private final String keyspace;
     private final String table;
     private final ColumnMetadata column;
-    private final IndexTarget.Type indexType;;
+    private final IndexTarget.Type indexType;
     private final AbstractType<?> validator;
     private final Memtable.Owner owner;
 

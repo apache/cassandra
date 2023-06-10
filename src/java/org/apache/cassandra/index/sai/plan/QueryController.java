@@ -219,16 +219,18 @@ public class QueryController
         if (isAnnHybridSearch)
             expressions = expressions.stream().filter(e -> e != annExpressionInHybridSearch).collect(Collectors.toList());
 
-        var queryView = new QueryViewBuilder(expressions, mergeRange).build();
-        // in case of ANN query in hybrid search, we have to reference ANN sstable indexes separately because queryView doesn't include ANN sstable indexes
-        var annQueryViewInHybridSearch = isAnnHybridSearch ? new QueryViewBuilder(Collections.singleton(annExpressionInHybridSearch), mergeRange).build() : null;
-
+        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         Map<Memtable, List<RangeIterator<PrimaryKey>>> iteratorsByMemtable = expressions
                                                                     .stream()
                                                                     .flatMap(expr -> {
                                                                         return expr.context.iteratorsForSearch(queryContext, expr, mergeRange, getLimit()).stream();
                                                                     }).collect(Collectors.groupingBy(pair -> pair.left,
                                                                                                      Collectors.mapping(pair -> pair.right, Collectors.toList())));
+
+        var queryView = new QueryViewBuilder(expressions, mergeRange).build();
+        // in case of ANN query in hybrid search, we have to reference ANN sstable indexes separately because queryView doesn't include ANN sstable indexes
+        var annQueryViewInHybridSearch = isAnnHybridSearch ? new QueryViewBuilder(Collections.singleton(annExpressionInHybridSearch), mergeRange).build() : null;
+
         try
         {
             List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
@@ -246,7 +248,7 @@ public class QueryController
                                                                                        .stream()
                                                                                        .map(e -> {
                                                                                            // we need to do all the intersections at the index level, or ordering won't work
-                                                                                           RangeIterator<PrimaryKey> it = buildIterator(op, e.getValue(), annExpressionInHybridSearch != null);
+                                                                                           RangeIterator<PrimaryKey> it = buildIterator(op, e.getValue(), isAnnHybridSearch);
                                                                                            if (isAnnHybridSearch)
                                                                                                it = reorderAndLimitBy(it, e.getKey(), annExpressionInHybridSearch);
                                                                                            return it;
@@ -329,6 +331,9 @@ public class QueryController
         return expressions.stream().filter(e -> e.operation == Expression.Op.ANN).findFirst().orElse(null);
     }
 
+    /**
+     * Create row id iterator from different indexes' on-disk searcher of the same sstable
+     */
     private RangeIterator<Long> createRowIdIterator(Operation.OperationType op, List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer, boolean hasAnn)
     {
         var subIterators = indexExpressions
@@ -339,7 +344,7 @@ public class QueryController
                                         {
                                             var sstContext = queryContext.getSSTableQueryContext(ie.index.getSSTable());
                                             List<RangeIterator<Long>> iterators = ie.index.searchSSTableRowIds(ie.expression, mergeRange, sstContext, defer, getLimit());
-                                            // union the result from multiple segments for the same index
+                                            // concate the result from multiple segments for the same index
                                             return RangeConcatIterator.build(iterators);
                                         }
                                         catch (Throwable ex)
@@ -354,13 +359,13 @@ public class QueryController
         return buildIterator(op, subIterators, hasAnn);
     }
 
-    private static <T extends Comparable<T>> RangeIterator<T> buildIterator(Operation.OperationType op, List<RangeIterator<T>> subIterators, boolean hasAnn)
+    private static <T extends Comparable<T>> RangeIterator<T> buildIterator(Operation.OperationType op, List<RangeIterator<T>> subIterators, boolean isAnnHybridSearch)
     {
         RangeIterator.Builder<T> builder = null;
         if (op == Operation.OperationType.OR)
             builder = RangeUnionIterator.<T>builder(subIterators.size());
-        else if (hasAnn)
-            // if there is ANN, intersect all available indexes so result will be correct top-k
+        else if (isAnnHybridSearch)
+            // if it's ANN with other indexes, intersect all available indexes so result will be correct top-k
             builder = RangeIntersectionIterator.<T>builder(subIterators.size(), subIterators.size());
         else
             // Otherwise, pick 2 most selective indexes for better performance

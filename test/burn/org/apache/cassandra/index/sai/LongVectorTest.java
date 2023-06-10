@@ -183,7 +183,8 @@ public class LongVectorTest extends SAITester
             if (isEmpty())
                 throw new IllegalStateException();
             var i = ThreadLocalRandom.current().nextInt(ordinal.get());
-            return keys.get(i);
+            // in case there is race with add(key), retry another random
+            return keys.containsKey(i) ? keys.get(i) : getRandom();
         }
 
         public boolean isEmpty()
