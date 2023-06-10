@@ -146,7 +146,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
 
         // if num of matches are not bigger than limit, skip ANN
         var nRows = maxSSTableRowId - minSSTableRowId + 1;
-        if (nRows <= maxBruteForceRows)
+        if (nRows <= Math.max(maxBruteForceRows, limit))
         {
             IntArrayList postings = new IntArrayList(Math.toIntExact(nRows), -1);
             for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
@@ -194,7 +194,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         // are from our own token range so we can use row ids to order the results by vector similarity.
         var maxSegmentRowId = metadata.segmentedRowId(metadata.maxSSTableRowId);
         SparseFixedBitSet bits = new SparseFixedBitSet(graph.size());
-        int[] bruteForceRows = new int[Math.min(limit, maxBruteForceRows)];
+        int[] bruteForceRows = new int[Math.max(limit, this.maxBruteForceRows)];
         int n = 0;
         try (var ordinalsView = graph.getOrdinalsView())
         {
