@@ -344,7 +344,7 @@ public class QueryController
                                         {
                                             var sstContext = queryContext.getSSTableQueryContext(ie.index.getSSTable());
                                             List<RangeIterator<Long>> iterators = ie.index.searchSSTableRowIds(ie.expression, mergeRange, sstContext, defer, getLimit());
-                                            // concate the result from multiple segments for the same index
+                                            // concat the result from multiple segments for the same index
                                             return RangeConcatIterator.build(iterators);
                                         }
                                         catch (Throwable ex)
