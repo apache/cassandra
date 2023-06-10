@@ -41,6 +41,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.ArrayPostingList;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
@@ -255,37 +256,34 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         private final Bits bits;
         private final PostingList postingList;
 
-        private final boolean skipANN;
         public BitSetOrPostingList(@Nullable Bits bits)
         {
             this.bits = bits;
             this.postingList = null;
-            this.skipANN = false;
         }
 
         public BitSetOrPostingList(PostingList postingList)
         {
             this.bits = null;
             this.postingList = Preconditions.checkNotNull(postingList);
-            this.skipANN = true;
         }
 
         @Nullable
         public Bits getBits()
         {
-            Preconditions.checkState(!skipANN);
+            Preconditions.checkState(!skipANN());
             return bits;
         }
 
         public PostingList postingList()
         {
-            Preconditions.checkState(skipANN);
+            Preconditions.checkState(skipANN());
             return postingList;
         }
 
         public boolean skipANN()
         {
-            return skipANN;
+            return postingList != null;
         }
     }
 }
