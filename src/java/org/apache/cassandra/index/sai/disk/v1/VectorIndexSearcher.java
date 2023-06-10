@@ -107,7 +107,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         if (exp.getOp() != Expression.Op.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
-        BitSetOrPostingList bitsOrPostingList = bitsetOrPostingListForKeyRange(context, keyRange, limit);
+        BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context, keyRange, limit);
         if (bitsOrPostingList.skipANN())
             return bitsOrPostingList.postingList();
 
@@ -119,11 +119,11 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     /**
      * Return bit set if needs to search HNSW; otherwise return posting list to bypass HNSW
      */
-    private BitSetOrPostingList bitsetOrPostingListForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
+    private BitsOrPostingList bitsOrPostingListForKeyRange(SSTableQueryContext context, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
     {
         // not restricted
         if (RangeUtil.coversFullRing(keyRange))
-            return new BitSetOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
+            return new BitsOrPostingList(context.bitsForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
         PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
         PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
@@ -133,11 +133,11 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         long maxSSTableRowId = primaryKeyMap.lastRowIdFromPrimaryKey(lastPrimaryKey);
 
         if (minSSTableRowId > maxSSTableRowId)
-            return new BitSetOrPostingList(PostingList.EMPTY);
+            return new BitsOrPostingList(PostingList.EMPTY);
 
         // if it covers entire segment, skip bit set
         if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
-            return new BitSetOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
+            return new BitsOrPostingList(context.bitsForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
         minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
@@ -151,7 +151,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
                 if (context.shouldInclude(sstableRowId, primaryKeyMap))
                     postings.addInt(metadata.segmentedRowId(sstableRowId));
             }
-            return new BitSetOrPostingList(new ArrayPostingList(postings.toIntArray()));
+            return new BitsOrPostingList(new ArrayPostingList(postings.toIntArray()));
         }
 
         // create a bitset of ordinals corresponding to the rows in the given key range
@@ -179,9 +179,9 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         }
 
         if (!hasMatches)
-            return new BitSetOrPostingList(PostingList.EMPTY);
+            return new BitsOrPostingList(PostingList.EMPTY);
 
-        return new BitSetOrPostingList(bits);
+        return new BitsOrPostingList(bits);
     }
 
     @Override
@@ -251,18 +251,18 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         primaryKeyMap.close();
     }
 
-    private static class BitSetOrPostingList
+    private static class BitsOrPostingList
     {
         private final Bits bits;
         private final PostingList postingList;
 
-        public BitSetOrPostingList(@Nullable Bits bits)
+        public BitsOrPostingList(@Nullable Bits bits)
         {
             this.bits = bits;
             this.postingList = null;
         }
 
-        public BitSetOrPostingList(PostingList postingList)
+        public BitsOrPostingList(PostingList postingList)
         {
             this.bits = null;
             this.postingList = Preconditions.checkNotNull(postingList);
