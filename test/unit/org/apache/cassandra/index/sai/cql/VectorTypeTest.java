@@ -26,7 +26,6 @@ import java.util.Map;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -360,7 +359,7 @@ public class VectorTypeTest extends VectorTester
     public void partitionKeySearchTest() throws Throwable
     {
         createTable("CREATE TABLE %s (partition int, row int, val vector<float, 2>, PRIMARY KEY(partition, row))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
         waitForIndexQueryable();
 
         var nPartitions = 5;
@@ -378,44 +377,25 @@ public class VectorTypeTest extends VectorTester
             }
         }
 
-        float[] queryVector = { (float) 1.5, (float) 1.5 };
+        var queryVector = vector(new float[] { 1.5f, 1.5f });
         for (int i = 1; i <= nPartitions; i++)
         {
-            List<float[]> vectors = vectorsByPartition.get(i);
-            vectors.sort((a, b) -> Float.compare(score(queryVector, b), score(queryVector, a)));
-        }
-
-        for (int i = 1; i <= nPartitions; i++)
-        {
-            UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of [1.5, 1.5] LIMIT 2", i);
-
-            int ckRow0 = (int) vectorsByPartition.get(i).get(0)[1];
-            int ckRow1 = (int) vectorsByPartition.get(i).get(1)[1];
-
+            UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of ? LIMIT 2", i, queryVector);
             assertThat(result).hasSize(2);
             assertRowsIgnoringOrder(result,
-                                    row(i, ckRow0),
-                                    row(i, ckRow1));
+                                    row(i, 1),
+                                    row(i, 2));
         }
 
         flush();
         for (int i = 1; i <= nPartitions; i++)
         {
-            UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of [1.5, 1.5] LIMIT 2", i);
-
-            int ckRow0 = (int) vectorsByPartition.get(i).get(0)[1];
-            int ckRow1 = (int) vectorsByPartition.get(i).get(1)[1];
-
+            UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of ? LIMIT 2", i, queryVector);
             assertThat(result).hasSize(2);
             assertRowsIgnoringOrder(result,
-                                    row(i, ckRow0),
-                                    row(i, ckRow1));
+                                    row(i, 1),
+                                    row(i, 2));
         }
-    }
-
-    private float score(float[] queryVector, float[] a)
-    {
-        return VectorSimilarityFunction.COSINE.compare(a, queryVector);
     }
 
     @Test
