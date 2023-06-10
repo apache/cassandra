@@ -315,9 +315,18 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void twoVectorFieldsTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, v2 vector<float, 2>, v3 vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v2) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v3) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+    }
+
+    @Test
     public void primaryKeySearchTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, i int, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
@@ -350,32 +359,32 @@ public class VectorTypeTest extends VectorTester
 
         var nPartitions = 5;
         var rowsPerPartition = 10;
-        for (int i = 1; i < nPartitions; i++)
+        for (int i = 1; i <= nPartitions; i++)
         {
-            for (int j = 1; j < rowsPerPartition; j++)
+            for (int j = 1; j <= rowsPerPartition; j++)
             {
                 logger.debug("Inserting partition {} row {}", i, j);
                 execute("INSERT INTO %s (partition, row, val) VALUES (?, ?, ?)", i, j, vector((float) i, (float) j));
             }
         }
 
-        for (int i = 0; i < nPartitions; i++)
+        for (int i = 1; i <= nPartitions; i++)
         {
             UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of [1.5, 1.5] LIMIT 2", i);
             assertThat(result).hasSize(2);
             assertRowsIgnoringOrder(result,
-                                    row(i, 0),
-                                    row(i, 1));
+                                    row(i, 1),
+                                    row(i, 2));
         }
 
         flush();
-        for (int i = 0; i < nPartitions; i++)
+        for (int i = 1; i <= nPartitions; i++)
         {
             UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of [1.5, 1.5] LIMIT 2", i);
             assertThat(result).hasSize(2);
             assertRowsIgnoringOrder(result,
-                                    row(i, 0),
-                                    row(i, 1));
+                                    row(i, 1),
+                                    row(i, 2));
         }
     }
 
