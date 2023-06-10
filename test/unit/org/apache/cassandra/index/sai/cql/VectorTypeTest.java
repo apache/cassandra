@@ -18,9 +18,15 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -336,7 +342,7 @@ public class VectorTypeTest extends VectorTester
 
         for (int i = 0; i < N; i++)
         {
-            UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = ? ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2", i);
+            UntypedResultSet result = execute("SELECT pk FROM %s WHERE pk = ? ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2", i);
             assertThat(result).hasSize(1);
             assertRows(result, row(i));
         }
@@ -344,7 +350,7 @@ public class VectorTypeTest extends VectorTester
         flush();
         for (int i = 0; i < N; i++)
         {
-            UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = ? ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2", i);
+            UntypedResultSet result = execute("SELECT pk FROM %s WHERE pk = ? ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2", i);
             assertThat(result).hasSize(1);
             assertRows(result, row(i));
         }
@@ -359,33 +365,57 @@ public class VectorTypeTest extends VectorTester
 
         var nPartitions = 5;
         var rowsPerPartition = 10;
+        Map<Integer, List<float[]>> vectorsByPartition = new HashMap<>();
+
         for (int i = 1; i <= nPartitions; i++)
         {
             for (int j = 1; j <= rowsPerPartition; j++)
             {
-                logger.debug("Inserting partition {} row {}", i, j);
+                logger.debug("Inserting partition {} row {}: [{}, {}]", i, j, i, j);
                 execute("INSERT INTO %s (partition, row, val) VALUES (?, ?, ?)", i, j, vector((float) i, (float) j));
+                float[] vector = {(float) i, (float) j};
+                vectorsByPartition.computeIfAbsent(i, k -> new ArrayList<>()).add(vector);
             }
+        }
+
+        float[] queryVector = { (float) 1.5, (float) 1.5 };
+        for (int i = 1; i <= nPartitions; i++)
+        {
+            List<float[]> vectors = vectorsByPartition.get(i);
+            vectors.sort((a, b) -> Float.compare(score(queryVector, b), score(queryVector, a)));
         }
 
         for (int i = 1; i <= nPartitions; i++)
         {
             UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of [1.5, 1.5] LIMIT 2", i);
+
+            int ckRow0 = (int) vectorsByPartition.get(i).get(0)[1];
+            int ckRow1 = (int) vectorsByPartition.get(i).get(1)[1];
+
             assertThat(result).hasSize(2);
             assertRowsIgnoringOrder(result,
-                                    row(i, 1),
-                                    row(i, 2));
+                                    row(i, ckRow0),
+                                    row(i, ckRow1));
         }
 
         flush();
         for (int i = 1; i <= nPartitions; i++)
         {
             UntypedResultSet result = execute("SELECT partition, row FROM %s WHERE partition = ? ORDER BY val ann of [1.5, 1.5] LIMIT 2", i);
+
+            int ckRow0 = (int) vectorsByPartition.get(i).get(0)[1];
+            int ckRow1 = (int) vectorsByPartition.get(i).get(1)[1];
+
             assertThat(result).hasSize(2);
             assertRowsIgnoringOrder(result,
-                                    row(i, 1),
-                                    row(i, 2));
+                                    row(i, ckRow0),
+                                    row(i, ckRow1));
         }
+    }
+
+    private float score(float[] queryVector, float[] a)
+    {
+        return VectorSimilarityFunction.COSINE.compare(a, queryVector);
     }
 
     @Test
