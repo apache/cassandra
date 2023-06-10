@@ -75,6 +75,8 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         this.primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
         type = (VectorType<float[]>) indexContext.getValidator();
 
+        // estimate the number of comparisons that a search would require; use brute force if we have
+        // fewer rows involved than that
         maxBruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
     }
 
@@ -143,9 +145,10 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
 
         // if num of matches are not bigger than limit, skip ANN
-        if (maxSSTableRowId - minSSTableRowId + 1 <= limit)
+        var nRows = maxSSTableRowId - minSSTableRowId + 1;
+        if (nRows <= maxBruteForceRows)
         {
-            IntArrayList postings = new IntArrayList(Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1), -1);
+            IntArrayList postings = new IntArrayList(Math.toIntExact(nRows), -1);
             for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
             {
                 if (context.shouldInclude(sstableRowId, primaryKeyMap))
