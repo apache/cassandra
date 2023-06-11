@@ -202,6 +202,12 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
                 forEach(indexer -> indexer.updateRow(oldRow, newRow));
             }
 
+            @Override
+            public void removeRow(Row row)
+            {
+                forEach(indexer -> indexer.removeRow(row));
+            }
+
             private void forEach(Consumer<Index.Indexer> action)
             {
                 indexers.forEach(action::accept);

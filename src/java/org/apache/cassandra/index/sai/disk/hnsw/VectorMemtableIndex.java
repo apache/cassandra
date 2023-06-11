@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 
@@ -140,14 +141,13 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator<PrimaryKey> search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public RangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
         float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
 
-        Bits bits = null;
         // if key range doesn't cover full token ring, it's faster to use post-filtering top-k processor instead of ANN due to
         // slow ordinal to primary keys mapping.
         if (!graph.isEmpty() && !RangeUtil.coversFullRing(keyRange))
@@ -155,11 +155,16 @@ public class VectorMemtableIndex implements MemtableIndex
             PrimaryKey left = indexContext.keyFactory().createTokenOnly(keyRange.left.getToken()); // lower bound
             PrimaryKey right = indexContext.keyFactory().createTokenOnly(keyRange.right.getToken().nextValidToken()); // upper bound
             Set<PrimaryKey> resultKeys = primaryKeys.subSet(left, true, right, false);
+            if (!queryContext.getShadowedPrimaryKeys().isEmpty())
+                resultKeys = resultKeys.stream().filter(pk -> !queryContext.containsShadowedPrimaryKey(pk)).collect(Collectors.toSet());
+
             if (resultKeys.isEmpty())
                 return RangeIterator.emptyKeys();
             return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
         }
 
+        // partition/range deletion won't trigger index update, so we have to filter shadow primary keys in memtable index
+        Bits bits = queryContext.bitsetForShadowedPrimaryKeys(graph);
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
         if (keyQueue.isEmpty())
             return RangeIterator.emptyKeys();
@@ -173,7 +178,8 @@ public class VectorMemtableIndex implements MemtableIndex
         while (iterator.hasNext())
         {
             var key = iterator.next();
-            results.add(key);
+            if (!context.containsShadowedPrimaryKey(key))
+                results.add(key);
         }
 
         int maxBruteForceRows = Math.max(limit, (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));

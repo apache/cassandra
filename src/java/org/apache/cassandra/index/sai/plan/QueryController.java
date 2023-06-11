@@ -226,7 +226,7 @@ public class QueryController
         Map<Memtable, List<RangeIterator<PrimaryKey>>> iteratorsByMemtable = expressions
                                                                     .stream()
                                                                     .flatMap(expr -> {
-                                                                        return expr.context.iteratorsForSearch(expr, mergeRange, getLimit()).stream();
+                                                                        return expr.context.iteratorsForSearch(queryContext, expr, mergeRange, getLimit()).stream();
                                                                     }).collect(Collectors.groupingBy(pair -> pair.left,
                                                                                                      Collectors.mapping(pair -> pair.right, Collectors.toList())));
         try

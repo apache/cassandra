@@ -20,13 +20,19 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
 
+import com.google.common.base.Preconditions;
+
+import org.agrona.collections.IntArrayList;
 import org.apache.lucene.util.RamUsageEstimator;
 
 public class VectorPostings<T>
 {
     private final List<T> postings;
     private final int ordinal;
+
+    private volatile IntArrayList rowIds;
 
     // TODO refactor this so we can add the first posting at construction time instead of having
     // to append it separately (which will require a copy of the list)
@@ -44,6 +50,44 @@ public class VectorPostings<T>
                 return false;
         postings.add(key);
         return true;
+    }
+
+    /**
+     * @return true if current ordinal is removed by partition/range deletion.
+     * Must be called after computeRowIds.
+     */
+    public boolean shouldAppendDeletedOrdinal()
+    {
+        return !postings.isEmpty() && (rowIds != null && rowIds.isEmpty());
+    }
+
+    /**
+     * Compute the rowIds corresponding to the <T> keys in this postings list.
+     */
+    public void computeRowIds(Function<T, Integer> postingTransformer)
+    {
+        Preconditions.checkState(rowIds == null);
+
+        IntArrayList ids = new IntArrayList(postings.size(), -1);
+        for (T key : postings)
+        {
+            int rowId = postingTransformer.apply(key);
+            // partition deletion and range deletion won't trigger index update. There is no row id for given key during flush
+            if (rowId >= 0)
+                ids.add(rowId);
+        }
+
+        rowIds = ids;
+    }
+
+    /**
+     * @return rowIds corresponding to the <T> keys in this postings list.
+     * Must be called after computeRowIds.
+     */
+    public IntArrayList getRowIds()
+    {
+        Preconditions.checkNotNull(rowIds);
+        return rowIds;
     }
 
     public void remove(T key)

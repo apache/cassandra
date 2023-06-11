@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -30,9 +33,14 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.lucene.util.Bits;
 
 /**
  * Tracks state relevant to the execution of a single query, including metrics and timeout monitoring.
@@ -123,6 +131,11 @@ public class QueryContext
         return shadowedPrimaryKeys != null && shadowedPrimaryKeys.contains(supplier.get());
     }
 
+    public boolean containsShadowedPrimaryKey(PrimaryKey primaryKey)
+    {
+        return shadowedPrimaryKeys != null && shadowedPrimaryKeys.contains(primaryKey);
+    }
+
     /**
      * @return shadowed primary keys, in ascending order
      */
@@ -132,4 +145,103 @@ public class QueryContext
             return Collections.emptyNavigableSet();
         return shadowedPrimaryKeys;
     }
+
+    public Bits bitsetForShadowedPrimaryKeys(CassandraOnHeapHnsw<PrimaryKey> graph)
+    {
+        if (shadowedPrimaryKeys == null)
+            return null;
+
+        return new IgnoredKeysBits(graph, shadowedPrimaryKeys);
+    }
+
+    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraOnDiskHnsw graph) throws IOException
+    {
+        Set<Integer> ignoredOrdinals = null;
+        try (var ordinalsView = graph.getOrdinalsView())
+        {
+            for (PrimaryKey primaryKey : getShadowedPrimaryKeys())
+            {
+                // not in current segment
+                if (primaryKey.compareTo(metadata.minKey) < 0 || primaryKey.compareTo(metadata.maxKey) > 0)
+                    continue;
+
+                long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
+                if (sstableRowId == Long.MAX_VALUE) // not found
+                    continue;
+
+                int segmentRowId = metadata.segmentedRowId(sstableRowId);
+                // not in segment yet
+                if (segmentRowId < 0)
+                    continue;
+                // end of segment
+                if (segmentRowId > metadata.maxSSTableRowId)
+                    break;
+
+                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                if (ordinal >= 0)
+                {
+                    if (ignoredOrdinals == null)
+                        ignoredOrdinals = new HashSet<>();
+                    ignoredOrdinals.add(ordinal);
+                }
+            }
+        }
+
+        if (ignoredOrdinals == null)
+            return null;
+
+        return new IgnoringBits(graph, ignoredOrdinals, metadata);
+    }
+
+    private static class IgnoringBits implements Bits
+    {
+        private final CassandraOnDiskHnsw graph;
+        private final Set<Integer> ignoredOrdinals;
+        private final int length;
+
+        public IgnoringBits(CassandraOnDiskHnsw graph, Set<Integer> ignoredOrdinals, SegmentMetadata metadata)
+        {
+            this.graph = graph;
+            this.ignoredOrdinals = ignoredOrdinals;
+            this.length = 1 + metadata.segmentedRowId(metadata.maxSSTableRowId);
+        }
+
+        @Override
+        public boolean get(int index)
+        {
+            return !ignoredOrdinals.contains(index);
+        }
+
+        @Override
+        public int length()
+        {
+            return length;
+        }
+    }
+
+    private static class IgnoredKeysBits implements Bits
+    {
+        private final CassandraOnHeapHnsw<PrimaryKey> graph;
+        private final NavigableSet<PrimaryKey> ignored;
+
+        public IgnoredKeysBits(CassandraOnHeapHnsw<PrimaryKey> graph, NavigableSet<PrimaryKey> ignored)
+        {
+            this.graph = graph;
+            this.ignored = ignored;
+        }
+
+        @Override
+        public boolean get(int ordinal)
+        {
+            var keys = graph.keysFromOrdinal(ordinal);
+            return keys.stream().anyMatch(k -> !ignored.contains(k));
+        }
+
+        @Override
+        public int length()
+        {
+            return graph.size();
+        }
+    }
+
 }

@@ -64,64 +64,6 @@ public class SSTableQueryContext
      */
     public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraOnDiskHnsw graph) throws IOException
     {
-        Set<Integer> ignoredOrdinals = null;
-        try (var ordinalsView = graph.getOrdinalsView())
-        {
-            for (PrimaryKey primaryKey : queryContext.getShadowedPrimaryKeys())
-            {
-                // not in current segment
-                if (primaryKey.compareTo(metadata.minKey) < 0 || primaryKey.compareTo(metadata.maxKey) > 0)
-                    continue;
-
-                long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
-                if (sstableRowId == Long.MAX_VALUE) // not found
-                    continue;
-
-                int segmentRowId = metadata.segmentedRowId(sstableRowId);
-                // not in segment yet
-                if (segmentRowId < 0)
-                    continue;
-                // end of segment
-                if (segmentRowId > metadata.maxSSTableRowId)
-                    break;
-
-                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
-                if (ordinal >= 0)
-                {
-                    if (ignoredOrdinals == null)
-                        ignoredOrdinals = new HashSet<>();
-                    ignoredOrdinals.add(ordinal);
-                }
-            }
-        }
-
-        if (ignoredOrdinals == null)
-            return null;
-
-        return new IgnoringBits(ignoredOrdinals, metadata);
-    }
-
-    private static class IgnoringBits implements Bits
-    {
-        private final Set<Integer> ignoredOrdinals;
-        private final int length;
-
-        public IgnoringBits(Set<Integer> ignoredOrdinals, SegmentMetadata metadata)
-        {
-            this.ignoredOrdinals = ignoredOrdinals;
-            this.length = 1 + metadata.segmentedRowId(metadata.maxSSTableRowId);
-        }
-
-        @Override
-        public boolean get(int index)
-        {
-            return !ignoredOrdinals.contains(index);
-        }
-
-        @Override
-        public int length()
-        {
-            return length;
-        }
+        return queryContext.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph);
     }
 }

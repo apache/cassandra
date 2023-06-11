@@ -21,15 +21,16 @@ package org.apache.cassandra.index.sai.cql;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.index.sai.SAITester;
 
 import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsInt;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorUpdateDeleteTest extends VectorTester
 {
+
+    // partition delete won't trigger UpdateTransaction#onUpdated
     @Test
-    public void deleteVectorInMemoryTest() throws Throwable
+    public void partitionDeleteVectorInMemoryTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -37,19 +38,95 @@ public class VectorUpdateDeleteTest extends VectorTester
 
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
         execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', [3.0, 4.0, 5.0])");
 
-        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
-        assertThat(result).hasSize(2);
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
+        assertThat(result).hasSize(3);
 
         execute("UPDATE %s SET val = null WHERE pk = 0");
 
-        result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
+        result = execute("SELECT * FROM %s ORDER BY val ann of [1.1, 2.1, 3.1] LIMIT 1"); // closer to row 0
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 1);
 
         execute("DELETE from %s WHERE pk = 1");
-        result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
-        assertThat(result).isEmpty();
+        result = execute("SELECT * FROM %s ORDER BY val ann of [2.1, 3.1, 4.1] LIMIT 1"); // closer to row 1
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 2);
+
+        flush();
+
+        result = execute("SELECT * FROM %s ORDER BY val ann of [2.1, 3.1, 4.1] LIMIT 1");  // closer to row 1
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 2);
+    }
+
+    // row delete will trigger UpdateTransaction#onUpdated
+    @Test
+    public void rowDeleteVectorInMemoryAndFlushTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, str_val text, val vector<float, 3>, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, ck, str_val, val) VALUES (0, 0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, ck, str_val, val) VALUES (1, 1, 'B', [2.0, 3.0, 4.0])");
+        execute("DELETE from %s WHERE pk = 1 and ck = 1");
+
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+
+        flush();
+
+        result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+    }
+
+    // range delete won't trigger UpdateTransaction#onUpdated
+    @Test
+    public void rangeDeleteVectorInMemoryAndFlushTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, ck2 int, str_val text, val vector<float, 3>, PRIMARY KEY(pk, ck, ck2))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, ck, ck2, str_val, val) VALUES (0, 0, 0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, ck, ck2, str_val, val) VALUES (1, 1, 1, 'B', [2.0, 3.0, 4.0])");
+        execute("DELETE from %s WHERE pk = 1 and ck = 1");
+
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+
+        flush();
+
+        result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+    }
+
+    @Test
+    public void updateVectorInMemoryAndFlushTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        execute("UPDATE %s SET val = null WHERE pk = 1");
+
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+
+        flush();
+
+        result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
     }
 
     @Test

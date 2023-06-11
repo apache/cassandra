@@ -276,10 +276,10 @@ public class IndexContext
                             .orElse(null);
     }
 
-    public List<Pair<Memtable, RangeIterator<PrimaryKey>>> iteratorsForSearch(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
+    public List<Pair<Memtable, RangeIterator<PrimaryKey>>> iteratorsForSearch(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
         return liveMemtables.entrySet()
                                    .stream()
-                                   .map(e -> Pair.create(e.getKey(), e.getValue().search(expression, keyRange, limit))).collect(Collectors.toList());
+                                   .map(e -> Pair.create(e.getKey(), e.getValue().search(queryContext, expression, keyRange, limit))).collect(Collectors.toList());
     }
 
     public RangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)

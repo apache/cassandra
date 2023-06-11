@@ -49,6 +49,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -137,7 +138,7 @@ public class VectorMemtableIndexTest extends SAITester
 
             Set<Integer> foundKeys = new HashSet<>();
             int limit = getRandom().nextIntBetween(1, 100);
-            try (RangeIterator<PrimaryKey> iterator = memtableIndex.search(expression, keyRange, limit))
+            try (RangeIterator<PrimaryKey> iterator = memtableIndex.search(new QueryContext(), expression, keyRange, limit))
             {
                 while (iterator.hasNext())
                 {
