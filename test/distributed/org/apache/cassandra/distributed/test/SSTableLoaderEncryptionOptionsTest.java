@@ -96,6 +96,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                                                             "--truststore", validTrustStorePath,
                                                             "--truststore-password", validTrustStorePassword,
                                                             "--conf-path", "test/conf/sstableloader_with_encryption.yaml",
+                                                            "--ssl-ciphers", "TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA",
                                                             sstables_to_upload.getAbsolutePath());
         tool.assertOnCleanExit();
         assertTrue(tool.getStdout().contains("Summary statistics"));
