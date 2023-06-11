@@ -218,7 +218,7 @@ public class VectorDistributedTest extends TestBaseImpl
         // query memtable index
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
-            int key = getRandom().nextIntBetween(1, vectorCount);
+            int key = getRandom().nextIntBetween(0, vectorCount - 1);
             float[] queryVector = randomVector();
             searchByKeyWithLimit(key, queryVector, 1, vectors);
         }
@@ -228,7 +228,7 @@ public class VectorDistributedTest extends TestBaseImpl
         // query on-disk index
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
-            int key = getRandom().nextIntBetween(1, vectorCount);
+            int key = getRandom().nextIntBetween(0, vectorCount - 1);
             float[] queryVector = randomVector();
             searchByKeyWithLimit(key, queryVector, 1, vectors);
         }
