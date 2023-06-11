@@ -288,7 +288,7 @@ public class EncryptionOptions
 
     public String[] cipherSuitesArray()
     {
-        return cipher_suites == null ? new String[0] : cipher_suites.toArray(new String[0]);
+        return cipher_suites == null ? null : cipher_suites.toArray(new String[0]);
     }
 
     public TlsEncryptionPolicy tlsEncryptionPolicy()
