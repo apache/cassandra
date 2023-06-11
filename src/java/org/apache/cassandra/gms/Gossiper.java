@@ -39,6 +39,8 @@ import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -134,6 +136,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /* live member set */
     private final Set<InetAddress> liveEndpoints = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
+
+    /* Inflight echo requests. */
+    private final Set<InetAddress> inflightEcho = new ConcurrentSkipListSet<>(inetcomparator);
 
     /* unreachable member set */
     private final Map<InetAddress, Long> unreachableEndpoints = new ConcurrentHashMap<InetAddress, Long>();
@@ -529,6 +534,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         liveEndpoints.remove(endpoint);
+        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         MessagingService.instance().resetVersion(endpoint);
         quarantineEndpoint(endpoint);
@@ -1126,12 +1132,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
         }
 
+        if (inflightEcho.contains(addr))
+        {
+            return;
+        }
+        inflightEcho.add(addr);
+
         localState.markDead();
 
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
         logger.trace("Sending a EchoMessage to {}", addr);
-        IAsyncCallback echoHandler = new IAsyncCallback()
+        IAsyncCallbackWithFailure echoHandler = new IAsyncCallbackWithFailure()
         {
+            public void onFailure(InetAddress from, RequestFailureReason failureReason)
+            {
+                inflightEcho.remove(addr);
+            }
+
             public boolean isLatencyForSnitch()
             {
                 return false;
@@ -1139,11 +1156,20 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             public void response(MessageIn msg)
             {
-                runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
+                runInGossipStageBlocking(() -> {
+                    try
+                    {
+                        realMarkAlive(addr, localState);
+                    }
+                    finally
+                    {
+                        inflightEcho.remove(addr);
+                    }
+                });
             }
         };
 
-        MessagingService.instance().sendRR(echoMessage, addr, echoHandler);
+        MessagingService.instance().sendRRWithFailure(echoMessage, addr, echoHandler);
     }
 
     @VisibleForTesting
@@ -1173,6 +1199,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("marking as down {}", addr);
         localState.markDead();
         liveEndpoints.remove(addr);
+        inflightEcho.remove(addr);
         unreachableEndpoints.put(addr, System.nanoTime());
         logger.info("InetAddress {} is now DOWN", addr);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
@@ -1862,21 +1889,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             return;
         }
-        final int GOSSIP_SETTLE_MIN_WAIT_MS = 5000;
-        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = 1000;
-        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = 3;
+        final int GOSSIP_SETTLE_MIN_WAIT_MS = Integer.getInteger("cassandra.gossip_settle_min_wait_ms", 5000);
+        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = Integer.getInteger("cassandra.gossip_settle_interval_ms", 1000);
+        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = Integer.getInteger("cassandra.gossip_settle_poll_success_required", 3);
 
         logger.info("Waiting for gossip to settle...");
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
         int totalPolls = 0;
         int numOkay = 0;
         int epSize = Gossiper.instance.getEndpointStates().size();
+        int liveSize = Gossiper.instance.getLiveMembers().size();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
             int currentSize = Gossiper.instance.getEndpointStates().size();
+            int currentLive = Gossiper.instance.getLiveMembers().size();
             totalPolls++;
-            if (currentSize == epSize)
+            if (currentSize == epSize && currentLive == liveSize)
             {
                 logger.debug("Gossip looks settled.");
                 numOkay++;
@@ -1887,6 +1916,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 numOkay = 0;
             }
             epSize = currentSize;
+            liveSize = currentLive;
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
                 logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip total polls: {}",
