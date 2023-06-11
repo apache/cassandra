@@ -47,6 +47,7 @@
     <ecj.version>@ecj.version@</ecj.version>
     <jacoco.version>@jacoco.version@</jacoco.version>
     <jflex.version>@jflex.version@</jflex.version>
+    <checkstyle.version>@checkstyle.version@</checkstyle.version>
   </properties>
   <developers>
     <developer>
@@ -490,6 +491,12 @@
         <groupId>org.apache.cassandra</groupId>
         <artifactId>dtest-api</artifactId>
         <version>0.0.15</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.puppycrawl.tools</groupId>
+        <artifactId>checkstyle</artifactId>
+        <version>${checkstyle.version}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
