@@ -47,6 +47,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.Index;
@@ -303,7 +304,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable(CREATE_TABLE_TEMPLATE);
 
-        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': 'CONTAINS',\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'org.apache.cassandra.index.sasi.SASIIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v2) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'mode': 'CONTAINS',\n" +
                     "'analyzer_class': 'org.apache.cassandra.index.sasi.analyzer.StandardAnalyzer',\n" +
                     "'tokenization_enable_stemming': 'true',\n" +
                     "'tokenization_locale': 'en',\n" +
@@ -311,9 +313,12 @@ public class StorageAttachedIndexDDLTest extends SAITester
                     "'analyzed': 'true',\n" +
                     "'tokenization_normalize_lowercase': 'true'};");
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0' ALLOW FILTERING");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(1, rows.all().size());
+
+        rows = executeNet("SELECT id1 FROM %s WHERE v2 like '0'");
         assertEquals(1, rows.all().size());
     }
 
@@ -363,11 +368,12 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         int rowCount = 10;
         for (int i = 0; i < rowCount; i++)
-            execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0')");
+            execute("INSERT INTO %s (id1, v1, v2) VALUES ('" + i + "', " + i + ", '0')");
 
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        waitForTableIndexesQueryable();
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
         assertEquals(rowCount, rows.all().size());
     }
 
@@ -407,12 +413,12 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         int rowCount = 10;
         for (int i = 0; i < rowCount; i++)
-            execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0')");
+            execute("INSERT INTO %s (id1, v1, v2) VALUES ('" + i + "', " + i + ", '0')");
 
         Injections.inject(forceFlushPause);
         createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
 
-        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1='0'")).isInstanceOf(ReadFailureException.class);
+        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1>=0")).isInstanceOf(ReadFailureException.class);
     }
 
     @Test
@@ -423,7 +429,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         int rowCount = 10;
         for (int i = 0; i < rowCount; i++)
-            execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0')");
+            execute("INSERT INTO %s (id1, v1, v2) VALUES ('" + i + "', " + i + ", '0')");
         flush();
 
         Injections.inject(failSAIInitialializaion);
@@ -431,7 +437,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         waitForAssert(() -> assertEquals(1, indexBuildCounter.get()));
         waitForCompactions();
 
-        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1='0'")).isInstanceOf(ReadFailureException.class);
+        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1>=0")).isInstanceOf(ReadFailureException.class);
     }
 
     @Test
@@ -439,28 +445,50 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable(CREATE_TABLE_TEMPLATE);
 
-        String literalIndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String numericIndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String literalIndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexContext numericIndexContext = createIndexContext(numericIndexName, Int32Type.instance);
         IndexContext literalIndexContext = createIndexContext(literalIndexName, UTF8Type.instance);
-        verifyIndexFiles(literalIndexContext, 0);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 0, 0);
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0')");
         flush();
-        verifyIndexFiles(literalIndexContext, 1);
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 1);
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(1, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(1, rows.all().size());
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0')");
         flush();
-        verifyIndexFiles(literalIndexContext, 2);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 2, 2);
+        verifySSTableIndexes(numericIndexName, 2, 2);
         verifySSTableIndexes(literalIndexName, 2, 2);
-        rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(2, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(2, rows.all().size());
 
+        dropIndex("DROP INDEX %s." + numericIndexName);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 0, 2);
+        verifySSTableIndexes(numericIndexName, 2, 0);
+        verifySSTableIndexes(literalIndexName, 2, 2);
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
+        assertEquals(2, rows.all().size());
+
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('2', 2, '0')");
+        flush();
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 0, 3);
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
+        assertEquals(3, rows.all().size());
+
         dropIndex("DROP INDEX %s." + literalIndexName);
-        verifyIndexFiles(literalIndexContext, 0);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 0, 0);
+        verifySSTableIndexes(numericIndexName, 0);
         verifySSTableIndexes(literalIndexName, 0);
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero on drop.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -469,20 +497,25 @@ public class StorageAttachedIndexDDLTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
         flush();
         verifyNoIndexFiles();
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        verifyIndexFiles(literalIndexContext, 2);
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
+        waitForTableIndexesQueryable();
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 2, 2);
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(2, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(2, rows.all().size());
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -491,20 +524,30 @@ public class StorageAttachedIndexDDLTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
         flush();
         verifyNoIndexFiles();
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        verifyIndexFiles(literalIndexContext, 2);
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        waitForTableIndexesQueryable();
+        verifyIndexFiles(numericIndexContext, null, 2, 0);
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
         assertEquals(2, rows.all().size());
 
-        assertZeroSegmentBuilderUsage();
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
+        waitForTableIndexesQueryable();
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 2, 2);
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(2, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
+        assertEquals(2, rows.all().size());
+
+        assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -513,28 +556,36 @@ public class StorageAttachedIndexDDLTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
-        verifyIndexFiles(literalIndexContext, 1);
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 1);
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(1, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(1, rows.all().size());
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
         flush();
-        verifyIndexFiles(literalIndexContext, 2);
-        rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 2, 2);
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(2, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(2, rows.all().size());
 
         compact();
-        waitForAssert(() -> verifyIndexFiles(literalIndexContext, 1));
+        waitForAssert(() -> verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 1));
 
-        rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(2, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(2, rows.all().size());
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero after compaction.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -556,6 +607,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         if (!concurrentTruncate)
         {
             createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+            createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
         }
 
         // create 100 rows, half in sstable and half in memtable
@@ -564,12 +616,13 @@ public class StorageAttachedIndexDDLTest extends SAITester
         {
             if (i == num / 2)
                 flush();
-            execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0');");
+            execute("INSERT INTO %s (id1, v1, v2) VALUES ('" + i + "', 0, '0');");
         }
 
         if (concurrentTruncate)
         {
-            createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+            createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+            createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
             truncate(true);
             waitForTableIndexesQueryable();
         }
@@ -582,8 +635,10 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // verify index-view-manager has been cleaned up
         verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), 0);
+        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER), 0);
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero after truncate.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -591,41 +646,51 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         // prepare schema and data
         createTable(CREATE_TABLE_TEMPLATE);
-        String literalIndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String numericIndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String stringIndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
         flush();
 
         for (CorruptionType corruptionType : CorruptionType.values())
         {
-            verifyRebuildCorruptedFiles(literalIndexName, corruptionType, false);
-            verifyRebuildCorruptedFiles(literalIndexName, corruptionType, true);
+            verifyRebuildCorruptedFiles(numericIndexName, stringIndexName, corruptionType, false);
+            verifyRebuildCorruptedFiles(numericIndexName, stringIndexName, corruptionType, true);
         }
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero following rebuild.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
-    private void verifyRebuildCorruptedFiles(String literalIndexName,
+    private void verifyRebuildCorruptedFiles(String numericIndexName,
+                                             String stringIndexName,
                                              CorruptionType corruptionType,
                                              boolean rebuild) throws Throwable
     {
-        IndexContext LiteralIndexContext = createIndexContext(literalIndexName, UTF8Type.instance);
+        IndexContext numericIndexContext = createIndexContext(numericIndexName, Int32Type.instance);
+        IndexContext stringIndexContext = createIndexContext(stringIndexName, UTF8Type.instance);
 
         for (IndexComponent component : Version.LATEST.onDiskFormat().perSSTableIndexComponents())
-            verifyRebuildIndexComponent(LiteralIndexContext, component, null, corruptionType, rebuild);
+            verifyRebuildIndexComponent(numericIndexContext, stringIndexContext, component, null, corruptionType, true, true, rebuild);
 
-        for (IndexComponent component : Version.LATEST.onDiskFormat().perColumnIndexComponents(LiteralIndexContext))
-            verifyRebuildIndexComponent(LiteralIndexContext, component, LiteralIndexContext, corruptionType, rebuild);
+        for (IndexComponent component : Version.LATEST.onDiskFormat().perColumnIndexComponents(numericIndexContext))
+            verifyRebuildIndexComponent(numericIndexContext, stringIndexContext, component, numericIndexContext, corruptionType, false, true, rebuild);
+
+        for (IndexComponent component : Version.LATEST.onDiskFormat().perColumnIndexComponents(stringIndexContext))
+            verifyRebuildIndexComponent(numericIndexContext, stringIndexContext, component, stringIndexContext, corruptionType, true, false, rebuild);
     }
 
-    private void verifyRebuildIndexComponent(IndexContext literalIndexContext,
+    private void verifyRebuildIndexComponent(IndexContext numericIndexContext,
+                                             IndexContext stringIndexContext,
                                              IndexComponent component,
                                              IndexContext corruptionContext,
                                              CorruptionType corruptionType,
+                                             boolean failedStringIndex,
+                                             boolean failedNumericIndex,
                                              boolean rebuild) throws Throwable
     {
-        // The completion markers are valid if they exist on the file system, so we only need to test
+        // The completion markers are valid if they exist on the file system so we only need to test
         // their removal. If we are testing with encryption then we don't want to test any components
         // that are encryptable unless they have been removed because encrypted components aren't
         // checksum validated.
@@ -641,11 +706,15 @@ public class StorageAttachedIndexDDLTest extends SAITester
         int rowCount = 2;
 
         // initial verification
-        verifySSTableIndexes(literalIndexContext.getIndexName(), 1);
-        verifyIndexFiles(literalIndexContext, 1, 1, 1);
-        assertTrue(verifyChecksum(literalIndexContext));
+        verifySSTableIndexes(numericIndexContext.getIndexName(), 1);
+        verifySSTableIndexes(stringIndexContext.getIndexName(), 1);
+        verifyIndexFiles(numericIndexContext, stringIndexContext, 1, 1, 1, 1, 1);
+        assertTrue(verifyChecksum(numericIndexContext));
+        assertTrue(verifyChecksum(numericIndexContext));
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(rowCount, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(rowCount, rows.all().size());
 
         // corrupt file
@@ -656,19 +725,17 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // If we are removing completion markers then the rest of the components should still have
         // valid checksums.
-        boolean expectedLiteralState = isBuildCompletionMarker(component);
+        boolean expectedNumericState = !failedNumericIndex || isBuildCompletionMarker(component);
+        boolean expectedLiteralState = !failedStringIndex || isBuildCompletionMarker(component);
 
-        assertEquals("Validation for " + component + " should be " + expectedLiteralState + " but was " + !expectedLiteralState,
-                     expectedLiteralState,
-                     validateComponents(literalIndexContext));
-
-        assertEquals("Checksum verification for " + component + " should be " + expectedLiteralState + " but was " + !expectedLiteralState,
-                     expectedLiteralState,
-                     verifyChecksum(literalIndexContext));
+        assertEquals("Checksum verification for " + component + " should be " + expectedNumericState + " but was " + !expectedNumericState,
+                     expectedNumericState,
+                     verifyChecksum(numericIndexContext));
+        assertEquals(expectedLiteralState, verifyChecksum(stringIndexContext));
 
         if (rebuild)
         {
-            rebuildIndexes(literalIndexContext.getIndexName());
+            rebuildIndexes(numericIndexContext.getIndexName(), stringIndexContext.getIndexName());
         }
         else
         {
@@ -676,13 +743,25 @@ public class StorageAttachedIndexDDLTest extends SAITester
             reloadSSTableIndex();
 
             // Verify the index cannot be read:
-            verifySSTableIndexes(literalIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, 0);
+            verifySSTableIndexes(numericIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, failedNumericIndex ? 0 : 1);
+            verifySSTableIndexes(stringIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, failedStringIndex ? 0 : 1);
 
             try
             {
                 // If the corruption is that a file is missing entirely, the index won't be marked non-queryable...
-                rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
-                assertEquals(0, rows.all().size());
+                rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+                assertEquals(failedNumericIndex ? 0 : rowCount, rows.all().size());
+            }
+            catch (ReadFailureException e)
+            {
+                // ...but most kind of corruption will result in the index being non-queryable.
+            }
+
+            try
+            {
+                // If the corruption is that a file is missing entirely, the index won't be marked non-queryable...
+                rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
+                assertEquals(failedStringIndex ? 0 : rowCount, rows.all().size());
             }
             catch (ReadFailureException e)
             {
@@ -694,10 +773,13 @@ public class StorageAttachedIndexDDLTest extends SAITester
         }
 
         // verify indexes are recovered
-        verifySSTableIndexes(literalIndexContext.getIndexName(), 1);
-        verifyIndexFiles(literalIndexContext, 1, 1, 1);
+        verifySSTableIndexes(numericIndexContext.getIndexName(), 1);
+        verifySSTableIndexes(numericIndexContext.getIndexName(), 1);
+        verifyIndexFiles(numericIndexContext, stringIndexContext, 1, 1, 1, 1, 1);
 
-        rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(rowCount, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(rowCount, rows.all().size());
     }
 
@@ -707,9 +789,9 @@ public class StorageAttachedIndexDDLTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
         flush();
 
         // Inject failure
@@ -719,17 +801,16 @@ public class StorageAttachedIndexDDLTest extends SAITester
         try
         {
             // Create a new index, which will actuate a build compaction and fail, but leave the node running...
-            IndexContext literalIndexContext = createIndexContext(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+            IndexContext numericIndexContext = createIndexContext(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
             // two index builders running in different compaction threads because of parallelised index initial build
             waitForAssert(() -> assertEquals(2, indexBuildCounter.get()));
             waitForCompactionsFinished();
 
-            // Only token/primary key files for the first SSTable in the compaction task should exist, while column-specific files are blown away:
-            verifyIndexFiles(literalIndexContext, 2, 0, 0);
+            // Only token/offset files for the first SSTable in the compaction task should exist, while column-specific files are blown away:
+            verifyIndexFiles(numericIndexContext, null, 2, 0, 0, 0, 0);
 
-            Assertions.assertThat(getNotQueryableIndexes()).isNotEmpty();
-
-            assertZeroSegmentBuilderUsage();
+            assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
+            assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
         }
         finally
         {
@@ -738,14 +819,14 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void verifyCleanupFailedTokenPrimaryKeyFiles() throws Throwable
+    public void verifyCleanupFailedPrimaryKeyFiles() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '0');");
         flush();
 
         // Inject failure
@@ -763,9 +844,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
             // SSTable-level token/offset file(s) should be removed, while column-specific files never existed:
             verifyNoIndexFiles();
 
-            Assertions.assertThat(getNotQueryableIndexes()).isNotEmpty();
-
-            assertZeroSegmentBuilderUsage();
+            assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
+            assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
         }
         finally
         {
@@ -779,7 +859,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
 
         // flush empty index
         execute("INSERT INTO %s (id1) VALUES ('0');");
@@ -788,19 +869,24 @@ public class StorageAttachedIndexDDLTest extends SAITester
         execute("INSERT INTO %s (id1) VALUES ('1');");
         flush();
 
-        verifyIndexFiles(literalIndexContext, 2, 0, 2);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 2, 0, 0, 2, 2);
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(0, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(0, rows.all().size());
 
         // compact empty index
         compact();
-        waitForAssert(() -> verifyIndexFiles(literalIndexContext, 1, 0, 1));
+        waitForAssert(() -> verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 0, 0, 1, 1));
 
-        rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(0, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(0, rows.all().size());
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -854,24 +940,33 @@ public class StorageAttachedIndexDDLTest extends SAITester
         disableCompaction(KEYSPACE);
 
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
+        waitForTableIndexesQueryable();
 
         populateData.run();
         verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), 2, 0);
-        verifyIndexFiles(literalIndexContext, 2, 0, 2);
+        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER), 2, 0);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 2, 0, 0, 2, 2);
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(0, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(0, rows.all().size());
 
         // compact empty index
         compact();
         verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), 1, 0);
-        waitForAssert(() -> verifyIndexFiles(literalIndexContext, 1, 0, 1));
+        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER), 1, 0);
+        waitForAssert(() -> verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 0, 0, 1, 1));
 
-        rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(0, rows.all().size());
+        rows = executeNet("SELECT id1 FROM %s WHERE v2='0'");
         assertEquals(0, rows.all().size());
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
     }
 
     @Test
@@ -883,7 +978,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         int num = 100;
         for (int i = 0; i < num; i++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '0')", Integer.toString(i));
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 0, '0')", Integer.toString(i));
         }
         flush();
 
@@ -892,7 +987,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                                                    .build();
 
         Injections.inject(delayIndexBuilderCompletion);
-        String indexName = createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String indexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
         waitForAssert(() -> assertEquals(1, delayIndexBuilderCompletion.getCount()));
 
         dropIndex("DROP INDEX %s." + indexName);
@@ -908,9 +1003,10 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // create index again, it should succeed
         indexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        waitForTableIndexesQueryable();
         verifySSTableIndexes(indexName, 1);
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
         assertEquals(num, rows.all().size());
     }
 
@@ -926,7 +1022,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         int sstable = 1;
         for (int i = 0; i < num; i++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES ('" + i + "', '0');");
+            execute("INSERT INTO %s (id1, v1, v2) VALUES ('" + i + "', 0, '0');");
         }
         flush();
 
@@ -936,7 +1032,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         Injections.inject(delayIndexBuilderCompletion);
 
-        IndexContext literalIndexContext = createIndexContext(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+        IndexContext numericIndexContext = createIndexContext(createIndexAsync(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
 
         waitForAssert(() -> assertTrue(getCompactionTasks() > 0), 1000, TimeUnit.MILLISECONDS);
 
@@ -944,6 +1040,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
         int attempt = 20;
         while (getCompactionTasks() > 0 && attempt > 0)
         {
+            System.out.println("Attempt " + attempt + " at stopping the compaction tasks");
+
             // only interrupts active compactions, not pending compactions.
             CompactionManager.instance.stopCompaction(OperationType.INDEX_BUILD.name());
             // let blocked builder to continue, but still block pending builder threads
@@ -958,7 +1056,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         delayIndexBuilderCompletion.disable();
 
         // initial index builder should have stopped abruptly resulting in the index not being queryable
-        verifyInitialIndexFailed(literalIndexContext.getIndexName());
+        verifyInitialIndexFailed(numericIndexContext.getIndexName());
         Assertions.assertThat(getNotQueryableIndexes()).isNotEmpty();
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
@@ -971,18 +1069,20 @@ public class StorageAttachedIndexDDLTest extends SAITester
             assertTrue("Expect index build stopped", view.getIndexes().isEmpty());
         }
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero on interrupted compactions.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
         // rebuild index
-        ColumnFamilyStore.rebuildSecondaryIndex(KEYSPACE, currentTable(), literalIndexContext.getIndexName());
+        ColumnFamilyStore.rebuildSecondaryIndex(KEYSPACE, currentTable(), numericIndexContext.getIndexName());
 
-        verifyIndexFiles(literalIndexContext, sstable);
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1='0'");
+        verifyIndexFiles(numericIndexContext, null, sstable, 0);
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
         assertEquals(num, rows.all().size());
 
-        assertZeroSegmentBuilderUsage();
+        assertEquals("Segment memory limiter should revert to zero following rebuild.", 0L, getSegmentBufferUsedBytes());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
-        assertTrue(verifyChecksum(literalIndexContext));
+        assertTrue(verifyChecksum(numericIndexContext));
     }
 
     @Test
@@ -992,7 +1092,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         String index = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
 
-        assertThatThrownBy(() -> executeNet(String.format("SELECT * FROM %%s WHERE expr(%s, '0')", index)))
+        assertThatThrownBy(() -> executeNet(String.format("SELECT * FROM %%s WHERE expr(%s, 0)", index)))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessage(String.format(IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, index));
     }
@@ -1068,7 +1168,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         assertEquals(Arrays.asList(2L, 1L), toSize.apply(iterator.next()));
     }
 
-    private void assertZeroSegmentBuilderUsage() throws Exception
+    private void assertZeroSegmentBuilderUsage()
     {
         assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
         assertEquals("There should be no segment builders in progress.", 0, getColumnIndexBuildsInProgress());

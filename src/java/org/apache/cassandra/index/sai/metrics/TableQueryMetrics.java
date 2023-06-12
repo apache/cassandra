@@ -78,6 +78,16 @@ public class TableQueryMetrics extends AbstractMetrics
         private final Histogram rowsFiltered;
 
         /**
+         * Balanced tree index metrics.
+         */
+        private final Histogram balancedTreePostingsNumPostings;
+        /**
+         * Balanced tree index posting lists metrics.
+         */
+        private final Histogram balancedTreePostingsSkips;
+        private final Histogram balancedTreePostingsDecodes;
+
+        /**
          * Trie index posting lists metrics.
          */
         private final Histogram postingsSkips;
@@ -92,6 +102,11 @@ public class TableQueryMetrics extends AbstractMetrics
             sstablesHit = Metrics.histogram(createMetricName("SSTableIndexesHit"), false);
             segmentsHit = Metrics.histogram(createMetricName("IndexSegmentsHit"), false);
 
+            balancedTreePostingsSkips = Metrics.histogram(createMetricName("BalancedTreePostingsSkips"), false);
+
+            balancedTreePostingsNumPostings = Metrics.histogram(createMetricName("BalancedTreePostingsNumPostings"), false);
+            balancedTreePostingsDecodes = Metrics.histogram(createMetricName("BalancedTreePostingsDecodes"), false);
+
             postingsSkips = Metrics.histogram(createMetricName("PostingsSkips"), false);
             postingsDecodes = Metrics.histogram(createMetricName("PostingsDecodes"), false);
 
@@ -103,6 +118,14 @@ public class TableQueryMetrics extends AbstractMetrics
         {
             postingsSkips.update(events.triePostingsSkips);
             postingsDecodes.update(events.triePostingsDecodes);
+        }
+
+        private void recordNumericIndexCacheMetrics(QueryContext events)
+        {
+            balancedTreePostingsNumPostings.update(events.balancedTreePostingListsHit);
+
+            balancedTreePostingsSkips.update(events.balancedTreePostingsSkips);
+            balancedTreePostingsDecodes.update(events.balancedTreePostingsDecodes);
         }
 
         public void record(QueryContext queryContext)
@@ -131,6 +154,11 @@ public class TableQueryMetrics extends AbstractMetrics
             if (queryContext.trieSegmentsHit > 0)
             {
                 recordStringIndexCacheMetrics(queryContext);
+            }
+
+            if (queryContext.balancedTreeSegmentsHit > 0)
+            {
+                recordNumericIndexCacheMetrics(queryContext);
             }
 
             totalQueriesCompleted.inc();

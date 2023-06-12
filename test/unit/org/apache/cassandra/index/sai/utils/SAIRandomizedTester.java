@@ -121,6 +121,11 @@ public class SAIRandomizedTester extends SAITester
         return between(min, max - 1);
     }
 
+    public static int between(int min, int max)
+    {
+        return getRandom().nextIntBetween(min, max - 1);
+    }
+
     public static long between(long min, long max)
     {
         return randomLongBetween(min, max);

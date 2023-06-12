@@ -68,6 +68,11 @@ public class Expression
         {
             return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE;
         }
+
+        public boolean isEqualityOrRange()
+        {
+            return isEquality() || this == RANGE;
+        }
     }
 
     public final AbstractAnalyzer.AnalyzerFactory analyzerFactory;

@@ -41,13 +41,9 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(KeyRangeIntersectionIterator.class);
 
-    // The cassandra.sai.intersection.clause.limit (default: 2) controls the maximum number of range iterator that
-    // will be used in the final intersection of a query operation.
-    private static final int INTERSECTION_CLAUSE_LIMIT = CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.getInt();
-
     static
     {
-        logger.info(String.format("Storage attached index intersection clause limit is %d", INTERSECTION_CLAUSE_LIMIT));
+        logger.info(String.format("Storage attached index intersection clause limit is %d", CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.getInt()));
     }
 
     private final List<KeyRangeIterator> ranges;
@@ -133,7 +129,7 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
 
     public static Builder builder(int size)
     {
-        return builder(size, INTERSECTION_CLAUSE_LIMIT);
+        return new Builder(size);
     }
 
     @VisibleForTesting
@@ -145,6 +141,9 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
     @VisibleForTesting
     public static class Builder extends KeyRangeIterator.Builder
     {
+        // This controls the maximum number of range iterators that will be used in the final
+        // intersection of a query operation. It is set from cassandra.sai.intersection_clause_limit
+        // and defaults to 2
         private final int limit;
         // tracks if any of the added ranges are disjoint with the other ranges, which is useful
         // in case of intersection, as it gives a direct answer whether the iterator is going
@@ -152,6 +151,11 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
         private boolean isDisjoint;
 
         protected final List<KeyRangeIterator> rangeIterators;
+
+        Builder(int size)
+        {
+            this(size, CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.getInt());
+        }
 
         Builder(int size, int limit)
         {

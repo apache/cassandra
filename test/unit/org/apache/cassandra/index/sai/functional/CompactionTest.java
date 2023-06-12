@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import com.google.common.collect.Lists;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
@@ -71,19 +72,19 @@ public class CompactionTest extends SAITester
     public void testAntiCompaction() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
         verifyNoIndexFiles();
 
         // create 100 rows in 1 sstable
         int num = 100;
         for (int i = 0; i < num; i++)
-            execute( "INSERT INTO %s (id1, v1) VALUES (?, '0')", Integer.toString(i));
+            execute( "INSERT INTO %s (id1, v1) VALUES (?, 0)", Integer.toString(i));
         flush();
 
         // verify 1 sstable index
-        assertNumRows(num, "SELECT * FROM %%s WHERE v1 = '0'");
-        verifyIndexFiles(literalIndexContext, 1);
-        verifySSTableIndexes(literalIndexContext.getIndexName(), 1);
+        assertNumRows(num, "SELECT * FROM %%s WHERE v1 >= 0");
+        verifyIndexFiles(numericIndexContext, null, 1, 0);
+        verifySSTableIndexes(numericIndexContext.getIndexName(), 1);
 
         // split sstable into repaired and unrepaired
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
@@ -108,24 +109,26 @@ public class CompactionTest extends SAITester
         }
 
         // verify 2 sstable indexes
-        assertNumRows(num, "SELECT * FROM %%s WHERE v1 = '0'");
-        waitForAssert(() -> verifyIndexFiles(literalIndexContext, 2));
-        verifySSTableIndexes(literalIndexContext.getIndexName(), 2);
+        assertNumRows(num, "SELECT * FROM %%s WHERE v1 >= 0");
+        waitForAssert(() -> verifyIndexFiles(numericIndexContext, null, 2, 0));
+        verifySSTableIndexes(numericIndexContext.getIndexName(), 2);
 
         // index components are included after anti-compaction
         verifyIndexComponentsIncludedInSSTable();
     }
 
     @Test
-    public void testConcurrentQueryWithCompaction() throws Throwable
+    public void testConcurrentQueryWithCompaction()
     {
         createTable(CREATE_TABLE_TEMPLATE);
         String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        waitForTableIndexesQueryable();
 
         int num = 10;
         for (int i = 0; i < num; i++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '0')", Integer.toString(i));
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 0, '0')", Integer.toString(i));
             flush();
         }
 
@@ -134,7 +137,8 @@ public class CompactionTest extends SAITester
             {
                 try
                 {
-                    assertNumRows(num, "SELECT id1 FROM %s WHERE v1='0'");
+                    assertNumRows(num, "SELECT id1 FROM %s WHERE v1>=0");
+                    assertNumRows(num, "SELECT id1 FROM %s WHERE v2='0'");
                 }
                 catch (Throwable e)
                 {
@@ -146,6 +150,7 @@ public class CompactionTest extends SAITester
         compactionTest.start();
 
         verifySSTableIndexes(v1IndexName, num);
+        verifySSTableIndexes(v2IndexName, num);
     }
 
     @Test
@@ -153,6 +158,7 @@ public class CompactionTest extends SAITester
     {
         createTable(CREATE_TABLE_TEMPLATE);
         String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
 
         int sstables = 2;
         int num = 10;
@@ -161,7 +167,7 @@ public class CompactionTest extends SAITester
             if (i == num / sstables)
                 flush();
 
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '0')", Integer.toString(i));
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 0, '0')", Integer.toString(i));
         }
         flush();
 
@@ -186,11 +192,10 @@ public class CompactionTest extends SAITester
         }
         catch (Throwable e)
         {
-            Throwable cause = e;
-            while (cause.getCause() != null)
-                cause = cause.getCause();
+            while (e.getCause() != null)
+                e = e.getCause();
 
-            assertTrue(String.format("Expected %s, but got %s", errMessage, cause.getMessage()), cause.getMessage().contains(errMessage));
+            assertTrue(String.format("Expected %s, but got %s", errMessage, e.getMessage()), e.getMessage().contains(errMessage));
         }
         finally
         {
@@ -200,8 +205,10 @@ public class CompactionTest extends SAITester
         assertNotEquals(0, earlyOpenCounter.get());
 
         // verify indexes are working
-        assertNumRows(num, "SELECT id1 FROM %%s WHERE v1='0'");
+        assertNumRows(num, "SELECT id1 FROM %%s WHERE v1=0");
+        assertNumRows(num, "SELECT id1 FROM %%s WHERE v2='0'");
         verifySSTableIndexes(v1IndexName, sstables);
+        verifySSTableIndexes(v2IndexName, sstables);
     }
 
     @Test
@@ -214,7 +221,7 @@ public class CompactionTest extends SAITester
         int num = 100;
         for (int i = 0; i < num; i++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '0')", Integer.toString(i));
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 0, '0')", Integer.toString(i));
         }
         flush();
 
@@ -229,34 +236,36 @@ public class CompactionTest extends SAITester
             Injections.inject(compactionLatch);
 
             TestWithConcurrentVerification compactionTask = new TestWithConcurrentVerification(
-                    () -> {
-                        try
-                        {
-                            upgradeSSTables();
-                            fail("Expected CompactionInterruptedException");
-                        }
-                        catch (Exception e)
-                        {
-                            assertTrue("Expected CompactionInterruptedException, but got " + e,
-                                       Throwables.isCausedBy(e, CompactionInterruptedException.class::isInstance));
-                        }
-                    },
-                    () -> {
-                        try
-                        {
-                            waitForAssert(() -> assertEquals(1, compactionLatch.getCount()));
+            () -> {
+                try
+                {
+                    upgradeSSTables();
+                    fail("Expected CompactionInterruptedException");
+                }
+                catch (Exception e)
+                {
+                    assertTrue("Expected CompactionInterruptedException, but got " + e,
+                               Throwables.isCausedBy(e, CompactionInterruptedException.class::isInstance));
+                }
+            },
+            () -> {
+                try
+                {
+                    waitForAssert(() -> Assert.assertEquals(1, compactionLatch.getCount()));
 
-                            // build indexes on SSTables that will be compacted soon
-                            createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+                    // build indexes on SSTables that will be compacted soon
+                    createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+                    createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+                    waitForTableIndexesQueryable();
 
-                            // continue in-progress compaction
-                            compactionLatch.countDown();
-                        }
-                        catch (Exception e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    }, -1 // run verification task once
+                    // continue in-progress compaction
+                    compactionLatch.countDown();
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }, -1 // run verification task once
             );
 
             compactionTask.start();
@@ -266,8 +275,10 @@ public class CompactionTest extends SAITester
             compactionLatch.disable();
         }
 
-        assertNumRows(num, "SELECT id1 FROM %%s WHERE v1='0'");
+        assertNumRows(num, "SELECT id1 FROM %%s WHERE v1>=0");
+        assertNumRows(num, "SELECT id1 FROM %%s WHERE v2='0'");
         verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), sstables);
+        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER), sstables);
     }
 
     @Test
@@ -275,12 +286,14 @@ public class CompactionTest extends SAITester
     {
         createTable(CREATE_TABLE_TEMPLATE);
         String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+
 
         // Load data into a single SSTable...
         int num = 100;
         for (int i = 0; i < num; i++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '0')", Integer.toString(i));
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 0, '0')", Integer.toString(i));
         }
         flush();
 
@@ -288,32 +301,33 @@ public class CompactionTest extends SAITester
         assertNotEquals(0, getDiskUsage());
 
         Injections.Barrier compactionLatch =
-                Injections.newBarrier("pause_compaction_for_drop", 2, false)
-                          .add(InvokePointBuilder.newInvokePoint().onClass(SSTableIndexWriter.class).onMethod("addRow"))
-                          .build();
+        Injections.newBarrier("pause_compaction_for_drop", 2, false)
+                  .add(InvokePointBuilder.newInvokePoint().onClass(SSTableIndexWriter.class).onMethod("addRow"))
+                  .build();
         try
         {
             // pause in-progress compaction
             Injections.inject(compactionLatch);
 
             TestWithConcurrentVerification compactionTask = new TestWithConcurrentVerification(
-                    this::upgradeSSTables,
-                    () -> {
-                        try
-                        {
-                            waitForAssert(() -> assertEquals(1, compactionLatch.getCount()));
+            this::upgradeSSTables,
+            () -> {
+                try
+                {
+                    waitForAssert(() -> Assert.assertEquals(1, compactionLatch.getCount()));
 
-                            // drop all indexes
-                            dropIndex("DROP INDEX %s." + v1IndexName);
+                    // drop all indexes
+                    dropIndex("DROP INDEX %s." + v1IndexName);
+                    dropIndex("DROP INDEX %s." + v2IndexName);
 
-                            // continue in-progress compaction
-                            compactionLatch.countDown();
-                        }
-                        catch (Throwable e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    }, -1 // run verification task once
+                    // continue in-progress compaction
+                    compactionLatch.countDown();
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }, -1 // run verification task once
             );
 
             compactionTask.start();
@@ -330,8 +344,11 @@ public class CompactionTest extends SAITester
 
         // verify indexes are dropped
         // verify indexes are dropped
-        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1='0'"))
-                .isInstanceOf(InvalidQueryException.class)
-                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1>=0"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v2='0'"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
     }
 }

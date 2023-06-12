@@ -23,38 +23,57 @@ package org.apache.cassandra.index.sai.functional;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 
 import static org.junit.Assert.assertEquals;
 
 public class FlushingTest extends SAITester
 {
     @Test
+    public void testFlushingLargeStaleMemtableIndex() throws Throwable
+    {
+        createTable(CREATE_TABLE_TEMPLATE);
+        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+
+        int overwrites = NumericIndexWriter.MAX_POINTS_IN_LEAF_NODE + 1;
+        for (int j = 0; j < overwrites; j++)
+        {
+            execute("INSERT INTO %s (id1, v1) VALUES ('1', ?)", j);
+        }
+
+        flush();
+
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1>=0");
+        assertEquals(1, rows.all().size());
+    }
+
+    @Test
     public void testFlushingOverwriteDelete() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
 
         int sstables = 3;
         for (int j = 0; j < sstables; j++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '1')", Integer.toString(j));
+            execute("INSERT INTO %s (id1, v1) VALUES (?, 1)", Integer.toString(j));
             execute("DELETE FROM %s WHERE id1 = ?", Integer.toString(j));
             flush();
         }
 
-        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1 = '1'");
+        ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1 >= 0");
         assertEquals(0, rows.all().size());
-        verifyIndexFiles(literalIndexContext, sstables, 0, 3);
-        verifySSTableIndexes(literalIndexContext.getIndexName(), sstables, 0);
+        verifyIndexFiles(numericIndexContext, null, sstables, 0, 0, sstables, 0);
+        verifySSTableIndexes(numericIndexContext.getIndexName(), sstables, 0);
 
         compact();
-        waitForAssert(() -> verifyIndexFiles(literalIndexContext, 1, 0, 1));
+        waitForAssert(() -> verifyIndexFiles(numericIndexContext, null, 1, 0, 0, 1, 0));
 
-        rows = executeNet("SELECT id1 FROM %s WHERE v1 = '1'");
+        rows = executeNet("SELECT id1 FROM %s WHERE v1 >= 0");
         assertEquals(0, rows.all().size());
-        verifySSTableIndexes(literalIndexContext.getIndexName(), 1, 0);
+        verifySSTableIndexes(numericIndexContext.getIndexName(), 1, 0);
     }
 }

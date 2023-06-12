@@ -30,7 +30,7 @@ public class MapDecimalTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateNumericParameters(new CollectionDataSet.MapDataSet<>(new DataSet.DecimalDataSet()));
+        return generateParameters(new CollectionDataSet.MapDataSet<>(new DataSet.DecimalDataSet()));
     }
 }
 

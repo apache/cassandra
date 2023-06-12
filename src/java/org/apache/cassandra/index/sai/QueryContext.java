@@ -48,9 +48,13 @@ public class QueryContext
     public long rowsFiltered = 0;
 
     public long trieSegmentsHit = 0;
-
     public long triePostingsSkips = 0;
     public long triePostingsDecodes = 0;
+
+    public long balancedTreePostingListsHit = 0;
+    public long balancedTreeSegmentsHit = 0;
+    public long balancedTreePostingsSkips = 0;
+    public long balancedTreePostingsDecodes = 0;
 
     public boolean queryTimedOut = false;
 

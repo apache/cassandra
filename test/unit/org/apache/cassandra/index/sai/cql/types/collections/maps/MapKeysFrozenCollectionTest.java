@@ -32,6 +32,6 @@ public class MapKeysFrozenCollectionTest extends IndexingTypeSupport
     public static Collection<Object[]> generateParameters()
     {
         DataSet<Map<Integer, Integer>> frozen = new CollectionDataSet.FrozenMapValuesDataSet<>(new DataSet.IntDataSet());
-        return generateLiteralParameters(new CollectionDataSet.MapKeysDataSet<>(frozen));
+        return generateParameters(new CollectionDataSet.MapKeysDataSet<>(frozen));
     }
 }
