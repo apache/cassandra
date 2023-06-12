@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -32,6 +33,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -130,13 +132,8 @@ public class CreateTableValidationTest extends CQLTester
 
     private void expectedFailure(String statement, String errorMsg)
     {
-        try
-        {
-            createTableMayThrow(statement);
-        }
-        catch (Throwable ex)
-        {
-            assertTrue(ex.getMessage().contains(errorMsg));
-        }
+
+        assertThatExceptionOfType(InvalidRequestException.class)
+        .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
     }
 }
