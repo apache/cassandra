@@ -1,4 +1,5 @@
 5.0
+ * SSTabledump errors when dumping data from index (CASSANDRA-17698)
  * Remove dependency on pytz library for setting CQLSH timezones on Python version >= 3.9 (CASSANDRA-17433)
  * Extend maximum expiration date (CASSANDRA-14227)
  * Add guardrail for partition tombstones and deprecate compaction_tombstone_warning_threshold (CASSANDRA-17194)
