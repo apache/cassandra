@@ -2015,7 +2015,7 @@
         </java>
   </target>
 
-  <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
+  <target name="init-checkstyle" depends="resolver-retrieve-build,build-project">
       <echo message="checkstyle.version=${checkstyle.version}"/>
       <!-- Sevntu custom checks are retrieved by Ivy into lib folder
          and will be accessible to checkstyle-->
@@ -2023,7 +2023,7 @@
                classpathref="checkstyle.classpath"/>
   </target>
 
-  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" unless="no-checkstyle">
+  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis">
       <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
       <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
@@ -2039,7 +2039,7 @@
       </checkstyle>
   </target>
 
-  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" unless="no-checkstyle">
+  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests">
       <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
       <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
