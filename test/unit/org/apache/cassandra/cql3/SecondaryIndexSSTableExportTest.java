@@ -159,7 +159,7 @@ public class SecondaryIndexSSTableExportTest extends CQLTester
         catch (Throwable throwable)
         {
             // UPGRADING or NONE
-            if (!DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
+            if (DatabaseDescriptor.getStorageCompatibilityMode().isAfter(5))
             {
                 assertEquals(SUCEESS_MSG, throwable.getMessage());
             }
