@@ -16,6 +16,7 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -28,8 +29,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 /**
  * The adaptive compaction controller dynamically calculates the optimal scaling parameter W.
@@ -75,7 +82,6 @@ public class AdaptiveController extends Controller
     /** The maximum number of concurrent Adaptive Compactions */
     static final String MAX_ADAPTIVE_COMPACTIONS = "max_adaptive_compactions";
     private static final int DEFAULT_MAX_ADAPTIVE_COMPACTIONS = Integer.getInteger(PREFIX + MAX_ADAPTIVE_COMPACTIONS, 5);
-
     private final int intervalSec;
     private final int minScalingParameter;
     private final int maxScalingParameter;
@@ -97,6 +103,7 @@ public class AdaptiveController extends Controller
                               int numShards,
                               long minSstableSizeMB,
                               long flushSizeOverrideMB,
+                              long currentFlushSize,
                               double maxSpaceOverhead,
                               int maxSSTablesToCompact,
                               long expiredSSTableCheckFrequency,
@@ -110,7 +117,9 @@ public class AdaptiveController extends Controller
                               int maxScalingParameter,
                               double threshold,
                               int minCost,
-                              int maxAdaptiveCompactions)
+                              int maxAdaptiveCompactions,
+                              String keyspaceName,
+                              String tableName)
     {
         super(clock,
               env,
@@ -119,6 +128,7 @@ public class AdaptiveController extends Controller
               numShards,
               minSstableSizeMB,
               flushSizeOverrideMB,
+              currentFlushSize,
               maxSpaceOverhead,
               maxSSTablesToCompact,
               expiredSSTableCheckFrequency,
@@ -136,6 +146,8 @@ public class AdaptiveController extends Controller
         this.threshold = threshold;
         this.minCost = minCost;
         this.maxAdaptiveCompactions = maxAdaptiveCompactions;
+        this.keyspaceName = keyspaceName;
+        this.tableName = tableName;
     }
 
     static Controller fromOptions(Environment env,
@@ -152,14 +164,41 @@ public class AdaptiveController extends Controller
                                   int baseShardCount,
                                   double targetSSTableSize,
                                   OverlapInclusionMethod overlapInclusionMethod,
+                                  String keyspaceName,
+                                  String tableName,
                                   Map<String, String> options)
     {
         int scalingParameter = options.containsKey(STARTING_SCALING_PARAMETER) ? Integer.parseInt(options.get(STARTING_SCALING_PARAMETER)) : DEFAULT_STARTING_SCALING_PARAMETER;
-        int[] scalingParameters = new int[32];
-        int[] previousScalingParameters = new int[32];
-        //set the scaling parameter for each level to the starting scaling parameter or default scaling parameter
-        Arrays.fill(scalingParameters, scalingParameter);
-        Arrays.fill(previousScalingParameters, scalingParameter);
+        int[] scalingParameters = null;
+        long currentFlushSize = flushSizeOverrideMB << 20;
+
+        File f = getControllerConfigPath(keyspaceName, tableName);
+        try
+        {
+            JSONParser jsonParser = new JSONParser();
+            JSONObject jsonObject = (JSONObject) jsonParser.parse(new FileReader(f));
+            scalingParameters = readStoredScalingParameters((JSONArray) jsonObject.get("scaling_parameters"));
+            if (jsonObject.get("current_flush_size") != null && flushSizeOverrideMB == 0)
+            {
+                currentFlushSize = (long) jsonObject.get("current_flush_size");
+                logger.debug("Successfully read stored current_flush_size from disk");
+            }
+        }
+        catch (IOException | ParseException e)
+        {
+            logger.warn("Unable to read saved options. Using starting value instead: ", e);
+        }
+
+        if (scalingParameters == null)
+        {
+            logger.warn("Unable to read scaling_parameters. Using starting value instead.");
+            scalingParameters = new int[UnifiedCompactionStrategy.MAX_LEVELS];
+            Arrays.fill(scalingParameters, scalingParameter);
+        }
+        else
+            logger.debug("Successfully read stored scaling parameters from disk.");
+        int[] previousScalingParameters = scalingParameters.clone();
+
         int minScalingParameter = options.containsKey(MIN_SCALING_PARAMETER) ? Integer.parseInt(options.get(MIN_SCALING_PARAMETER)) : DEFAULT_MIN_SCALING_PARAMETER;
         int maxScalingParameter = options.containsKey(MAX_SCALING_PARAMETER) ? Integer.parseInt(options.get(MAX_SCALING_PARAMETER)) : DEFAULT_MAX_SCALING_PARAMETER;
         int intervalSec = options.containsKey(INTERVAL_SEC) ? Integer.parseInt(options.get(INTERVAL_SEC)) : DEFAULT_INTERVAL_SEC;
@@ -169,12 +208,14 @@ public class AdaptiveController extends Controller
 
         return new AdaptiveController(MonotonicClock.preciseTime,
                                       env,
-                                      scalingParameters, previousScalingParameters,
+                                      scalingParameters,
+                                      previousScalingParameters,
                                       survivalFactors,
                                       dataSetSizeMB,
                                       numShards,
                                       minSstableSizeMB,
                                       flushSizeOverrideMB,
+                                      currentFlushSize,
                                       maxSpaceOverhead,
                                       maxSSTablesToCompact,
                                       expiredSSTableCheckFrequency,
@@ -184,9 +225,35 @@ public class AdaptiveController extends Controller
                                       targetSSTableSize,
                                       overlapInclusionMethod,
                                       intervalSec,
-                                      minScalingParameter, maxScalingParameter,
+                                      minScalingParameter,
+                                      maxScalingParameter,
                                       threshold,
-                                      minCost, maxAdaptiveCompactions);
+                                      minCost,
+                                      maxAdaptiveCompactions,
+                                      keyspaceName,
+                                      tableName);
+    }
+
+    private static int[] readStoredScalingParameters(JSONArray storedScalingParameters)
+    {
+        if (storedScalingParameters.size() > 0)
+        {
+            int[] scalingParameters = new int[UnifiedCompactionStrategy.MAX_LEVELS];
+            for (int i = 0; i < scalingParameters.length; i++)
+            {
+                //if the file does not have enough entries, use the last entry for the rest of the levels
+                if (i < storedScalingParameters.size())
+                    scalingParameters[i] = ((Long) storedScalingParameters.get(i)).intValue();
+                else
+                    scalingParameters[i] = scalingParameters[i-1];
+            }
+            //successfuly read scaling_parameters
+            return scalingParameters;
+        }
+        else
+        {
+            return null;
+        }
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -350,7 +417,7 @@ public class AdaptiveController extends Controller
 
         if (cost <= minCost)
         {
-            logger.debug("Adaptive compaction controller not updated, cost for current scaling parameter {} is below minimum cost {}: read cost: {}, write cost: {}\\nAverages: {}", scalingParameters[0], minCost, readCost, writeCost, calculator);
+            logger.debug("Adaptive compaction controller not updated, cost for current scaling parameter {} is below minimum cost {}: read cost: {}, write cost: {}\nAverages: {}", scalingParameters[0], minCost, readCost, writeCost, calculator);
             return;
         }
 
@@ -403,6 +470,9 @@ public class AdaptiveController extends Controller
             str.append("updated ").append(scalingParameters[0]).append(" -> ").append(candScalingParameter);
             this.previousScalingParameters[0] = scalingParameters[0]; //need to keep track of the previous scaling parameter for isAdaptive check
             this.scalingParameters[0] = candScalingParameter;
+
+            //store updated scaling parameters in case a node fails and needs to restart
+            storeControllerConfig();
         }
         else if (scalingParameters[0] == candScalingParameter)
         {
@@ -416,7 +486,14 @@ public class AdaptiveController extends Controller
                     str.append("updated for level ").append(i).append(": ").append(scalingParameters[i]).append(" -> ").append(candScalingParameter);
                     this.previousScalingParameters[i] = scalingParameters[i];
                     this.scalingParameters[i] = candScalingParameter;
+
+                    //store updated scaling parameters in case a node fails and needs to restart
+                    storeControllerConfig();
                     break;
+                }
+                else if (i == scalingParameters.length-1)
+                {
+                    str.append("unchanged because all levels have the same scaling parameter");
                 }
             }
         }
@@ -432,6 +509,12 @@ public class AdaptiveController extends Controller
         str.append(", took ").append(TimeUnit.NANOSECONDS.toMicros(clock.now() - now)).append(" us");
 
         logger.debug(str.toString());
+    }
+
+    @Override
+    public void storeControllerConfig()
+    {
+        storeOptions(keyspaceName, tableName, scalingParameters, getFlushSizeBytes());
     }
 
     @Override

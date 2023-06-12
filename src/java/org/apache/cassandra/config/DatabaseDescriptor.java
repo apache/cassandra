@@ -3592,26 +3592,6 @@ public class DatabaseDescriptor
         conf.auto_optimise_preview_repair_streams = enabled;
     }
 
-    public static int tableCountWarnThreshold()
-    {
-        return conf.table_count_warn_threshold;
-    }
-
-    public static void setTableCountWarnThreshold(int value)
-    {
-        conf.table_count_warn_threshold = value;
-    }
-
-    public static int keyspaceCountWarnThreshold()
-    {
-        return conf.keyspace_count_warn_threshold;
-    }
-
-    public static void setKeyspaceCountWarnThreshold(int value)
-    {
-        conf.keyspace_count_warn_threshold = value;
-    }
-
     public static int getConsecutiveMessageErrorsThreshold()
     {
         return conf.consecutive_message_errors_threshold;

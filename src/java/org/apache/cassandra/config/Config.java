@@ -629,9 +629,6 @@ public class Config
         isClientMode = clientMode;
     }
 
-    public volatile int table_count_warn_threshold = -1;
-    public volatile int keyspace_count_warn_threshold = -1;
-
     public volatile int consecutive_message_errors_threshold = 1;
 
     /**
