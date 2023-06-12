@@ -157,17 +157,22 @@
         <os family="windows" />
     </condition>
 
-    <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
+    <!-- Check if all tests are being run or just one (check testclasslist target). If it's all tests don't spam the
+         console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
          and wants to know what is going on without having to context switch to the log file that is generated.
          Debug level output still needs to be retrieved from the log file.  -->
-    <macrodef name="keepbrief">
+    <macrodef name="set-keepbrief-property">
+        <attribute name="test-name" />
         <sequential>
-                <javac srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" excludes="**/JdkProperties.java" />
-                <taskdef name="KeepBriefBrief" classname="org.apache.cassandra.anttasks.KeepBriefBrief" classpath="${test.classes}"/>
-                <KeepBriefBrief property="cassandra.keepBriefBrief"/>
+            <condition property="cassandra.keepBriefBrief" value="false" else="true">
+                <not>
+                    <equals arg1="@{test-name}" arg2="*Test"/>
+                </not>
+            </condition>
         </sequential>
     </macrodef>
+    <set-keepbrief-property test-name="${test.name}" />
 
     <fail message="Unsupported JDK version used: ${ant.java.version}">
         <condition><not><contains string="${java.supported}" substring="${ant.java.version}"/></not></condition>
@@ -203,6 +208,7 @@
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
         <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
 
         <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
@@ -233,6 +239,7 @@
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
         <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
         <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
         <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
@@ -258,6 +265,9 @@
         <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+
+        <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm_args_concat2" refid="_jvm17_arg_items" pathsep=" "/>
     <condition property="java17-jvmargs" value="${_jvm_args_concat2}" else="">
@@ -302,7 +312,8 @@
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
-    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" else="">
+    <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
+    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -311,6 +322,9 @@
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
+    </condition>
+    <condition property="checkstyle.version" value="8.45.1" else="10.8.1">
+        <equals arg1="${ant.java.version}" arg2="1.8"/>
     </condition>
 
     <!--
@@ -1028,6 +1042,7 @@
      <src path="${test.simulator-asm.src}"/>
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
+     <compilerarg line="${jdk11plus-javac-exports}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1253,6 +1268,7 @@
             <concat destfile="${trie_yaml}">
                 <fileset file="${test.conf}/cassandra.yaml"/>
                 <fileset file="${test.conf}/trie_memtable.yaml"/>
+                <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
             </concat>
             <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
                              exclude="**/*.java" timeout="${test.timeout}" testtag="trie">
@@ -1261,10 +1277,32 @@
                 <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
                 <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
                 <jvmarg value="-Dcassandra.config=file:///${trie_yaml}"/>
+                <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
                 <jvmarg value="-Dcassandra.skip_sync=true" />
             </testmacrohelper>
         </sequential>
     </macrodef>
+
+    <macrodef name="testlist-oa">
+    <attribute name="test.file.list"/>
+    <sequential>
+      <property name="scm_none_yaml" value="${build.test.dir}/cassandra.scm_none.yaml"/>
+        <concat destfile="${scm_none_yaml}">
+          <fileset file="${test.conf}/cassandra.yaml"/>
+          <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
+        </concat>
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" 
+                       exclude="**/*.java" timeout="${test.timeout}" testtag="oa">
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+        <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+        <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+        <jvmarg value="-Dcassandra.config=file:///${scm_none_yaml}"/>
+        <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
+        <jvmarg value="-Dcassandra.skip_sync=true" />
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
 
     <macrodef name="testlist-system-keyspace-directory">
     <attribute name="test.file.list" />
@@ -1380,6 +1418,14 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testhelper testdelegate="testlist-trie" />
+  </target>
+
+  <target name="test-oa" depends="maybe-build-test" description="Test Runner for the oa sstable format">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-oa"/>
   </target>
 
   <target name="test-system-keyspace-directory" depends="maybe-build-test" description="Execute unit tests with a system keyspaces directory configured">
@@ -1622,6 +1668,13 @@
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testhelper testdelegate="testlist"/>
   </target>
+  <target name="testclasslist-oa" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-oa"/>
+  </target>
   <target name="testclasslist-compression" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
@@ -1708,6 +1761,10 @@
     </testmacro>
   </target>
 
+  <!-- To run them you'll need to:
+         - `ant dtest-jar` on each version involved, including your current feature branch
+         - copy the build/dtest-*.jar for each version into your feature branch build folder
+         - You can use 'test-jvm-dtest-some' if you only need to run one -->
   <target name="test-jvm-upgrade-dtest" depends="maybe-build-test" description="Execute in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/upgrade/*Test.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
@@ -1717,7 +1774,7 @@
     </testmacro>
   </target>
 
-  <!-- Use this with an FQDN for test class, and an optional csv list of methods like this:
+  <!-- Use this with an FQDN for test class or upgrade test, and an optional csv list of methods like this:
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest
       ant test-jvm-dtest-some -Dtest.name=org.apache.cassandra.distributed.test.ResourceLeakTest -Dtest.methods=looperTest
     -->
@@ -1798,11 +1855,29 @@
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="JavacSettings">
-    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED" />
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
   </component>
 </project>]]></echo>
       <echo>"IDE configuration updated for use with JDK11"</echo>
   </target>
+
+  <target name="_maybe_update_idea_to_java17" depends="init" if="java.version.17">
+        <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_17"/>
+        <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_17"/>
+        <replace file=".idea/misc.xml" token="1.8" value="17"/>
+        <replaceregexp file=".idea/workspace.xml"
+                       match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
+                       replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java17-jvmargs}"
+                       byline="true"/>
+
+        <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+  </component>
+</project>]]></echo>
+        <echo>"IDE configuration updated for use with JDK17"</echo>
+    </target>
 
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
@@ -1824,6 +1899,7 @@
   </component>
 </project>]]></echo>
       <antcall target="_maybe_update_idea_to_java11"/>
+      <antcall target="_maybe_update_idea_to_java17"/>
   </target>
 
   <!-- Generate Eclipse project description files -->
@@ -1941,13 +2017,11 @@
   </target>
 
   <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
-      <path id="checkstyle.lib.path">
-          <fileset dir="${test.lib}/jars" includes="*.jar"/>
-      </path>
+      <echo message="checkstyle.version=${checkstyle.version}"/>
       <!-- Sevntu custom checks are retrieved by Ivy into lib folder
          and will be accessible to checkstyle-->
       <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
-               classpathref="checkstyle.lib.path"/>
+               classpathref="checkstyle.classpath"/>
   </target>
 
   <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" if="java.version.8" unless="no-checkstyle">

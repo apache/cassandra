@@ -43,7 +43,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
-import org.json.simple.JSONValue;
+import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -62,13 +62,14 @@ public class CommitLogDescriptor
     // We don't support anything pre-3.0
     public static final int VERSION_30 = 6;
     public static final int VERSION_40 = 7;
+    public static final int VERSION_50 = 8;
 
     /**
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
      * Note: make sure to handle {@link #getMessagingVersion()}
      */
     @VisibleForTesting
-    public static final int current_version = VERSION_40;
+    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
 
     final int version;
     public final long id;
@@ -128,7 +129,7 @@ public class CommitLogDescriptor
         if (encryptionContext != null)
             params.putAll(encryptionContext.toHeaderParameters());
         params.putAll(additionalHeaders);
-        return JSONValue.toJSONString(params);
+        return JsonUtils.writeAsJsonString(params);
     }
 
     public static CommitLogDescriptor fromHeader(File file, EncryptionContext encryptionContext)
@@ -169,7 +170,7 @@ public class CommitLogDescriptor
 
         if (crc == (int) checkcrc.getValue())
         {
-            Map<?, ?> map = (Map<?, ?>) JSONValue.parse(new String(parametersBytes, StandardCharsets.UTF_8));
+            Map<?, ?> map = (Map<?, ?>) JsonUtils.decodeJson(parametersBytes);
             return new CommitLogDescriptor(version, id, parseCompression(map), EncryptionContext.createFromMap(map, encryptionContext));
         }
         return null;
@@ -222,6 +223,8 @@ public class CommitLogDescriptor
                 return MessagingService.VERSION_30;
             case VERSION_40:
                 return MessagingService.VERSION_40;
+            case VERSION_50:
+                return MessagingService.VERSION_50;
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
         }

@@ -35,6 +35,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 
 public abstract class Selection
 {
@@ -330,7 +331,7 @@ public abstract class Selection
                 columnName = "\"" + columnName + "\"";
 
             sb.append('"');
-            sb.append(Json.quoteAsJsonString(columnName));
+            sb.append(JsonUtils.quoteAsJsonString(columnName));
             sb.append("\": ");
             if (buffer == null)
                 sb.append("null");

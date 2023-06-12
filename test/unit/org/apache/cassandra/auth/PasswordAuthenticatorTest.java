@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.mindrot.jbcrypt.BCrypt;
 
 import com.datastax.driver.core.Authenticator;
@@ -45,13 +46,12 @@ import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_P
 import static org.apache.cassandra.auth.CassandraRoleManager.getGensaltLogRounds;
 import static org.apache.cassandra.auth.PasswordAuthenticator.SaslNegotiator;
 import static org.apache.cassandra.auth.PasswordAuthenticator.checkpw;
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mindrot.jbcrypt.BCrypt.gensalt;
 import static org.mindrot.jbcrypt.BCrypt.hashpw;
-
-import static org.apache.cassandra.auth.CassandraRoleManager.GENSALT_LOG2_ROUNDS_PROPERTY;
 
 public class PasswordAuthenticatorTest extends CQLTester
 {
@@ -119,19 +119,10 @@ public class PasswordAuthenticatorTest extends CQLTester
 
     private void executeSaltRoundsPropertyTest(Integer rounds)
     {
-        String oldProperty = System.getProperty(GENSALT_LOG2_ROUNDS_PROPERTY);
-        try
+        try (WithProperties properties = new WithProperties().set(AUTH_BCRYPT_GENSALT_LOG2_ROUNDS, rounds))
         {
-            System.setProperty(GENSALT_LOG2_ROUNDS_PROPERTY, rounds.toString());
             getGensaltLogRounds();
-            Assert.fail("Property " + GENSALT_LOG2_ROUNDS_PROPERTY + " must be in interval [4,30]");
-        }
-        finally
-        {
-            if (oldProperty != null)
-                System.setProperty(GENSALT_LOG2_ROUNDS_PROPERTY, oldProperty);
-            else
-                System.clearProperty(GENSALT_LOG2_ROUNDS_PROPERTY);
+            Assert.fail("Property " + AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey() + " must be in interval [4,30]");
         }
     }
 

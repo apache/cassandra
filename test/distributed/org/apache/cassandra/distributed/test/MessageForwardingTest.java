@@ -39,8 +39,10 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class MessageForwardingTest extends TestBaseImpl
@@ -48,15 +50,16 @@ public class MessageForwardingTest extends TestBaseImpl
     @Test
     public void mutationsForwardedToAllReplicasTest()
     {
-        String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
         Map<InetAddress, Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress, Integer> commitCounts = new HashMap<>();
 
-        try (Cluster cluster = (Cluster) init(builder()
+        try (WithProperties properties = new WithProperties().set(WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS, 1);
+             Cluster cluster = (Cluster) init(builder()
                                               .withDC("dc0", 1)
                                               .withDC("dc1", 3)
-                                              .start()))
+                                              .start());
+             )
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
@@ -114,10 +117,6 @@ public class MessageForwardingTest extends TestBaseImpl
         catch (IOException e)
         {
             Assert.fail("Threw exception: " + e);
-        }
-        finally
-        {
-            TracingUtil.setWaitForTracingEventTimeoutSecs(originalTraceTimeout);
         }
     }
 }

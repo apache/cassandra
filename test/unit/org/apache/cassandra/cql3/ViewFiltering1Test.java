@@ -31,6 +31,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE;
+
 /* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
@@ -46,13 +48,13 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
     public static void startup()
     {
         ViewAbstractParameterizedTest.startup();
-        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
+        MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE.setBoolean(true);
     }
 
     @AfterClass
     public static void tearDown()
     {
-        System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "false");
+        MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE.setBoolean(false);
     }
 
     // TODO will revise the non-pk filter condition in MV, see CASSANDRA-11500
@@ -363,7 +365,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a IS NOT NULL AND b IS NOT NULL AND d is NOT NULL PRIMARY KEY ((a, b), c, d)",
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a IS NOT NULL AND b IS NOT NULL AND c is NOT NULL PRIMARY KEY ((a, b), c, d)",
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = ? AND b IS NOT NULL AND c is NOT NULL PRIMARY KEY ((a, b), c, d)",
-        "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = blobAsInt(?) AND b IS NOT NULL AND c is NOT NULL PRIMARY KEY ((a, b), c, d)",
+        "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = blob_as_int(?) AND b IS NOT NULL AND c is NOT NULL PRIMARY KEY ((a, b), c, d)",
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s PRIMARY KEY (a, b, c, d)"
         );
 
@@ -391,7 +393,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = 1 AND b = 1 AND (c, d) > (1, 1) PRIMARY KEY ((a, b), c, d)",
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = 1 AND b = 1 AND (c, d) IN ((1, 1), (2, 2)) PRIMARY KEY ((a, b), c, d)",
         "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = (int) 1 AND b = 1 AND c = 1 AND d = 1 PRIMARY KEY ((a, b), c, d)",
-        "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = blobAsInt(intAsBlob(1)) AND b = 1 AND c = 1 AND d = 1 PRIMARY KEY ((a, b), c, d)"
+        "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE a = blob_as_int(int_as_blob(1)) AND b = 1 AND c = 1 AND d = 1 PRIMARY KEY ((a, b), c, d)"
         );
 
         for (int i = 0; i < goodStatements.size(); i++)
@@ -462,7 +464,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 3);
 
         createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
-                   "WHERE a = blobAsInt(intAsBlob(1)) AND b IS NOT NULL " +
+                   "WHERE a = blob_as_int(int_as_blob(1)) AND b IS NOT NULL " +
                    "PRIMARY KEY (a, b)");
 
         assertRows(executeView("SELECT a, b, c FROM %s"),

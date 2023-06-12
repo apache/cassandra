@@ -83,11 +83,14 @@ public class StressMetrics implements MeasurementSink
     private final Queue<OpMeasurement> leftovers = new ArrayDeque<>();
     private final TimingInterval totalCurrentInterval;
     private final TimingInterval totalSummaryInterval;
+    private final int outputFrequencyInSeconds;
+    private final int headerFrequencyInSeconds;
+    private int outputLines = 0;
 
     public StressMetrics(ResultLogger output, final long logIntervalMillis, StressSettings settings)
     {
         this.output = output;
-        if(settings.log.hdrFile != null)
+        if (settings.log.hdrFile != null)
         {
             try
             {
@@ -114,7 +117,8 @@ public class StressMetrics implements MeasurementSink
         try
         {
             gcStatsCollector = new JmxCollector(toJmxNodes(settings.node.resolveAllPermitted(settings)),
-                                                settings.port.jmxPort);
+                                                settings.port.jmxPort,
+                                                settings.jmx);
         }
         catch (Throwable t)
         {
@@ -133,6 +137,8 @@ public class StressMetrics implements MeasurementSink
             reportingLoop(logIntervalMillis);
         });
         thread.setName("StressMetrics");
+        headerFrequencyInSeconds = settings.reporting.headerFrequency;
+        outputFrequencyInSeconds = settings.reporting.outputFrequency;
     }
     public void start()
     {
@@ -262,7 +268,12 @@ public class StressMetrics implements MeasurementSink
                 opInterval.reset();
             }
 
-            printRow("", "total", totalCurrentInterval, totalSummaryInterval, gcStats, rowRateUncertainty, output);
+            ++outputLines;
+            if (outputFrequencyInSeconds == 0 || outputLines % outputFrequencyInSeconds == 0)
+                printRow("", "total", totalCurrentInterval, totalSummaryInterval, gcStats, rowRateUncertainty, output);
+            if (headerFrequencyInSeconds != 0 && outputLines % headerFrequencyInSeconds == 0)
+                printHeader("\n", output);
+
             totalCurrentInterval.reset();
         }
     }

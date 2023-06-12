@@ -372,13 +372,13 @@ public interface GuardrailsMBean
      * @return The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
      * -1 means disabled.
      */
-    public int getInSelectCartesianProductWarnThreshold();
+    int getInSelectCartesianProductWarnThreshold();
 
     /**
      * @return The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
      * -1 means disabled.
      */
-    public int getInSelectCartesianProductFailThreshold();
+    int getInSelectCartesianProductFailThreshold();
 
     /**
      * @param warn The threshold to warn when an IN query creates a cartesian product with a size exceeding threshold.
@@ -386,7 +386,7 @@ public interface GuardrailsMBean
      * @param fail The threshold to prevent IN queries creating a cartesian product with a size exceeding threshold.
      *             -1 means disabled.
      */
-    public void setInSelectCartesianProductThreshold(int warn, int fail);
+    void setInSelectCartesianProductThreshold(int warn, int fail);
 
     /**
      * @return consistency levels that are warned about when reading.
@@ -467,6 +467,53 @@ public interface GuardrailsMBean
      * @param consistencyLevels Comma-separated list of consistency levels that are not allowed when writing.
      */
     void setWriteConsistencyLevelsDisallowedCSV(String consistencyLevels);
+
+    /**
+     * @return The threshold to warn when encountering partitions larger than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getPartitionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when encountering partitions larger than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     * Triggering a failure emits a log message and a diagnostic  event, but it doesn't throw an exception interrupting
+     * the offending sstable write.
+     */
+    @Nullable
+    String getPartitionSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering partitions larger than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to fail when encountering partitions larger than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled. Triggering a failure emits a log message and a diagnostic
+     *                 event, but it desn't throw an exception interrupting the offending sstable write.
+     */
+    void setPartitionSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering partitions with more tombstones than threshold. -1 means disabled.
+     */
+    long getPartitionTombstonesWarnThreshold();
+
+    /**
+     * @return The threshold to fail when encountering partitions with more tombstones than threshold. -1 means disabled.
+     * Triggering a failure emits a log message and a diagnostic event, but it doesn't throw an exception interrupting
+     * the offending sstable write.
+     */
+    long getPartitionTombstonesFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when encountering partitions with more tombstones than threshold. -1 means disabled.
+     * @param fail The threshold to fail when encountering partitions with more tombstones than threshold. -1 means disabled.
+     *             Triggering a failure emits a log message and a diagnostic event, but it desn't throw an exception
+     *             interrupting the offending sstable write.
+     */
+    void setPartitionTombstonesThreshold(long warn, long fail);
 
     /**
      * @return The threshold to warn when encountering column values larger than threshold, as a string  formatted as
@@ -651,4 +698,60 @@ public interface GuardrailsMBean
      * @param value {@code true} if 0 default TTL on TWCS tables is allowed, {@code false} otherwise.
      */
     void setZeroTTLOnTWCSEnabled(boolean value);
+
+    /**
+     * @return The highest acceptable difference between now and the written value timestamp before triggering a warning.
+     *         Expressed as a string formatted as in, for example, {@code 10s} {@code 20m}, {@code 30h} or {@code 40d}.
+     *         A {@code null} value means disabled.
+     */
+    @Nullable
+    String getMaximumTimestampWarnThreshold();
+
+    /**
+     * @return The highest acceptable difference between now and the written value timestamp before triggering a failure.
+     *         Expressed as a string formatted as in, for example, {@code 10s} {@code 20m}, {@code 30h} or {@code 40d}.
+     *         A {@code null} value means disabled.
+     */
+    @Nullable
+    String getMaximumTimestampFailThreshold();
+
+    /**
+     * Sets the warning upper bound for user supplied timestamps.
+     *
+     * @param warnDuration The highest acceptable difference between now and the written value timestamp before
+     *                     triggering a warning. Expressed as a string formatted as in, for example, {@code 10s},
+     *                     {@code 20m}, {@code 30h} or {@code 40d}. A {@code null} value means disabled.
+     * @param failDuration The highest acceptable difference between now and the written value timestamp before
+     *                     triggering a failure. Expressed as a string formatted as in, for example, {@code 10s},
+     *                     {@code 20m}, {@code 30h} or {@code 40d}. A {@code null} value means disabled.
+     */
+    void setMaximumTimestampThreshold(@Nullable String warnDuration, @Nullable String failDuration);
+
+    /**
+     * @return The lowest acceptable difference between now and the written value timestamp before triggering a warning.
+     *         Expressed as a string formatted as in, for example, {@code 10s} {@code 20m}, {@code 30h} or {@code 40d}.
+     *         A {@code null} value means disabled.
+     */
+    @Nullable
+    String getMinimumTimestampWarnThreshold();
+
+    /**
+     * @return The lowest acceptable difference between now and the written value timestamp before triggering a failure.
+     *         Expressed as a string formatted as in, for example, {@code 10s} {@code 20m}, {@code 30h} or {@code 40d}.
+     *         A {@code null} value means disabled.
+     */
+    @Nullable
+    String getMinimumTimestampFailThreshold();
+
+    /**
+     * Sets the warning lower bound for user supplied timestamps.
+     *
+     * @param warnDuration The lowest acceptable difference between now and the written value timestamp before
+     *                     triggering a warning. Expressed as a string formatted as in, for example, {@code 10s},
+     *                     {@code 20m}, {@code 30h} or {@code 40d}. A {@code null} value means disabled.
+     * @param failDuration The lowest acceptable difference between now and the written value timestamp before
+     *                     triggering a failure. Expressed as a string formatted as in, for example, {@code 10s},
+     *                     {@code 20m}, {@code 30h} or {@code 40d}. A {@code null} value means disabled.
+     */
+    void setMinimumTimestampThreshold(@Nullable String warnDuration, @Nullable String failDuration);
 }

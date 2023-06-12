@@ -33,6 +33,8 @@ import org.junit.Test;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.UnavailableException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_CACHE_WARMING_MAX_RETRIES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_CACHE_WARMING_RETRY_INTERVAL_MS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -264,8 +266,8 @@ public class AuthCacheTest
     @Test
     public void handleProviderErrorDuringWarming()
     {
-        System.setProperty(AuthCache.CACHE_LOAD_RETRIES_PROPERTY, "3");
-        System.setProperty(AuthCache.CACHE_LOAD_RETRY_INTERVAL_PROPERTY, "0");
+        AUTH_CACHE_WARMING_MAX_RETRIES.setInt(3);
+        AUTH_CACHE_WARMING_RETRY_INTERVAL_MS.setLong(0);
         final AtomicInteger attempts = new AtomicInteger(0);
 
         Supplier<Map<String, Integer>> bulkLoader = () -> {

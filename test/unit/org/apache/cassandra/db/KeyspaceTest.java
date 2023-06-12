@@ -61,7 +61,7 @@ public class KeyspaceTest extends CQLTester
     }
 
     @Override
-    protected UntypedResultSet execute(String query, Object... values) throws Throwable
+    protected UntypedResultSet execute(String query, Object... values)
     {
         return executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
     }
@@ -418,7 +418,7 @@ public class KeyspaceTest extends CQLTester
         if (sstable instanceof BigTableReader)
         {
             AbstractRowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(Util.dk("0"), SSTableReader.Operator.EQ);
-            assert indexEntry.columnsIndexCount() > 2;
+            assert indexEntry.blockCount() > 2;
         }
 
         validateSliceLarge(cfs);

@@ -53,7 +53,6 @@ import static java.lang.String.format;
 @SuppressWarnings("serial")
 public final class Util
 {
-    public static final String ALLOW_TOOL_REINIT_FOR_TEST = Util.class.getName() + "ALLOW_TOOL_REINIT_FOR_TEST"; // Necessary for testing
     static final String RESET = "\u001B[0m";
     static final String BLUE = "\u001B[34m";
     static final String CYAN = "\u001B[36m";
@@ -310,7 +309,7 @@ public final class Util
     public static TableMetadata metadataFromSSTable(Descriptor desc) throws IOException
     {
         if (!desc.version.isCompatible())
-            throw new IOException("Unsupported SSTable version " + desc.getFormat().getType().name + "/" + desc.version);
+            throw new IOException("Unsupported SSTable version " + desc.getFormat().name() + "/" + desc.version);
 
         StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.STATS, MetadataType.HEADER);
         SerializationHeader.Component header = statsComponent.serializationHeader();

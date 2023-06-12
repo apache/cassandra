@@ -29,12 +29,14 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.rmi.AccessException;
 import java.rmi.AlreadyBoundException;
+import java.rmi.NoSuchObjectException;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,6 +56,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_ACCESS_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PASSWORD_FILE;
@@ -62,6 +66,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MA
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_NEED_CLIENT_AUTH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_HOSTNAME;
 
 public class JMXServerUtils
 {
@@ -82,7 +89,7 @@ public class JMXServerUtils
         if (local)
         {
             serverAddress = InetAddress.getLoopbackAddress();
-            System.setProperty("java.rmi.server.hostname", serverAddress.getHostAddress());
+            JAVA_RMI_SERVER_HOSTNAME.setString(serverAddress.getHostAddress());
         }
 
         // Configure the RMI client & server socket factories, including SSL config.
@@ -166,7 +173,7 @@ public class JMXServerUtils
         // before creating the authenticator. If no password file has been
         // explicitly set, it's read from the default location
         // $JAVA_HOME/lib/management/jmxremote.password
-        String configEntry = System.getProperty("cassandra.jmx.remote.login.config");
+        String configEntry = CASSANDRA_JMX_REMOTE_LOGIN_CONFIG.getString();
         if (configEntry != null)
         {
             env.put(JMXConnectorServer.AUTHENTICATOR, new AuthenticationProxy(configEntry));
@@ -194,7 +201,7 @@ public class JMXServerUtils
         // can be set as the JMXConnectorServer's MBeanServerForwarder.
         // If no custom proxy is supplied, check system properties for the location of the
         // standard access file & stash it in env
-        String authzProxyClass = System.getProperty("cassandra.jmx.authorizer");
+        String authzProxyClass = CASSANDRA_JMX_AUTHORIZER.getString();
         if (authzProxyClass != null)
         {
             final InvocationHandler handler = FBUtilities.construct(authzProxyClass, "JMX authz proxy");
@@ -224,7 +231,7 @@ public class JMXServerUtils
             String protocolList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_PROTOCOLS.getString();
             if (protocolList != null)
             {
-                System.setProperty("javax.rmi.ssl.client.enabledProtocols", protocolList);
+                JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.setString(protocolList);
                 protocols = StringUtils.split(protocolList, ',');
             }
 
@@ -232,7 +239,7 @@ public class JMXServerUtils
             String cipherList = COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.getString();
             if (cipherList != null)
             {
-                System.setProperty("javax.rmi.ssl.client.enabledCipherSuites", cipherList);
+                JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.setString(cipherList);
                 ciphers = StringUtils.split(cipherList, ',');
             }
 
@@ -252,7 +259,8 @@ public class JMXServerUtils
         return env;
     }
 
-    private static void logJmxServiceUrl(InetAddress serverAddress, int port)
+    @VisibleForTesting
+    public static void logJmxServiceUrl(InetAddress serverAddress, int port)
     {
         String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
         String hostName;
@@ -325,11 +333,11 @@ public class JMXServerUtils
      * Better to use the internal API than re-invent the wheel.
      */
     @SuppressWarnings("restriction")
-    private static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
+    public static class JmxRegistry extends sun.rmi.registry.RegistryImpl {
         private final String lookupName;
         private Remote remoteServerStub;
 
-        JmxRegistry(final int port,
+        public JmxRegistry(final int port,
                     final RMIClientSocketFactory csf,
                     RMIServerSocketFactory ssf,
                     final String lookupName) throws RemoteException {
@@ -361,6 +369,25 @@ public class JMXServerUtils
 
         public void setRemoteServerStub(Remote remoteServerStub) {
             this.remoteServerStub = remoteServerStub;
+        }
+
+        /**
+         * Closes the underlying JMX registry by unexporting this instance.
+         * There is no reason to do this except for in-jvm dtests where we need
+         * to stop the registry, so we can start with a clean slate for future cluster
+         * builds, and the superclass never expects to be shut down and therefore doesn't
+         * handle this edge case at all.
+         */
+        @VisibleForTesting
+        public void close() {
+            try
+            {
+                UnicastRemoteObject.unexportObject(this, true);
+            }
+            catch (NoSuchObjectException ignored)
+            {
+                // Ignore if it's already unexported
+            }
         }
     }
 }

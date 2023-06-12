@@ -26,8 +26,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.FastByteOperations;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.NIO_DATA_OUTPUT_STREAM_PLUS_BUFFER_SIZE;
 
 /**
  * An implementation of the DataOutputStreamPlus interface using a ByteBuffer to stage writes
@@ -37,7 +38,7 @@ import org.apache.cassandra.utils.FastByteOperations;
  */
 public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
 {
-    private static final int DEFAULT_BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + "nio_data_output_stream_plus_buffer_size", 1024 * 32);
+    private static final int DEFAULT_BUFFER_SIZE = NIO_DATA_OUTPUT_STREAM_PLUS_BUFFER_SIZE.getInt();
 
     protected ByteBuffer buffer;
 
@@ -162,12 +163,12 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     }
 
     @Override
-    public void writeBytes(long register, int bytes) throws IOException
+    public void writeMostSignificantBytes(long register, int bytes) throws IOException
     {
         assert buffer != null : "Attempt to use a closed data output";
         if (buffer.remaining() < Long.BYTES)
         {
-            super.writeBytes(register, bytes);
+            super.writeMostSignificantBytes(register, bytes);
         }
         else
         {

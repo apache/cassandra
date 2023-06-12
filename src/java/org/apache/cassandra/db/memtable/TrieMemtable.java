@@ -115,7 +115,7 @@ public class TrieMemtable extends AbstractShardedMemtable
     public static final int MAX_RECURSIVE_KEY_LENGTH = 128;
 
     /** The byte-ordering conversion version to use for memtables. */
-    public static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS42;
+    public static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS50;
 
     // Set to true when the memtable requests a switch (e.g. for trie size limit being reached) to ensure only one
     // thread calls cfs.switchMemtableIfCurrent.
@@ -270,11 +270,11 @@ public class TrieMemtable extends AbstractShardedMemtable
     }
 
     @Override
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
-        int min = Integer.MAX_VALUE;
+        long min = Long.MAX_VALUE;
         for (MemtableShard shard : shards)
-            min =  Integer.min(min, shard.minLocalDeletionTime());
+            min =  Long.min(min, shard.minLocalDeletionTime());
         return min;
     }
 
@@ -428,7 +428,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         // The smallest timestamp for all partitions stored in this shard
         private volatile long minTimestamp = Long.MAX_VALUE;
 
-        private volatile int minLocalDeletionTime = Integer.MAX_VALUE;
+        private volatile long minLocalDeletionTime = Long.MAX_VALUE;
 
         private volatile long liveDataSize = 0;
 
@@ -544,7 +544,7 @@ public class TrieMemtable extends AbstractShardedMemtable
             return currentOperations;
         }
 
-        int minLocalDeletionTime()
+        long minLocalDeletionTime()
         {
             return minLocalDeletionTime;
         }

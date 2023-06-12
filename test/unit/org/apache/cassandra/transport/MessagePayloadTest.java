@@ -85,7 +85,7 @@ public class MessagePayloadTest extends CQLTester
             return;
         try
         {
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            Field modifiersField = ReflectionUtils.getModifiersField();
             modifiersField.setAccessible(true);
             modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() | Modifier.FINAL);
 

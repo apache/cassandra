@@ -37,11 +37,11 @@ import com.google.common.collect.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_LCS_CHECKS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -52,7 +52,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 class LeveledGenerations
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledGenerations.class);
-    private final boolean strictLCSChecksTest = Boolean.getBoolean(Config.PROPERTY_PREFIX + "test.strict_lcs_checks");
+    private final boolean strictLCSChecksTest = TEST_STRICT_LCS_CHECKS.getBoolean();
     // It includes L0, i.e. we support [L0 - L8] levels
     static final int MAX_LEVEL_COUNT = 9;
 

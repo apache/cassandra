@@ -21,9 +21,9 @@
 package org.apache.cassandra.io.util;
 
 import com.google.common.primitives.UnsignedBytes;
-import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.vint.VIntCoding;
 import org.junit.Test;
 
@@ -576,7 +576,7 @@ public class BufferedDataOutputStreamTest
         long testValues[] = new long[] { //-1 };
                 0, 1
                 , UnsignedLong.MAX_VALUE.longValue(), UnsignedLong.MAX_VALUE.longValue() - 1, UnsignedLong.MAX_VALUE.longValue() + 1
-                , UnsignedInteger.MAX_VALUE.longValue(), UnsignedInteger.MAX_VALUE.longValue() - 1, UnsignedInteger.MAX_VALUE.longValue() + 1
+                , CassandraUInt.MAX_VALUE_LONG, CassandraUInt.MAX_VALUE_LONG - 1, CassandraUInt.MAX_VALUE_LONG + 1
                 , UnsignedBytes.MAX_VALUE, UnsignedBytes.MAX_VALUE - 1, UnsignedBytes.MAX_VALUE + 1
                 , 65536, 65536 - 1, 65536 + 1 };
         testValues = enrich(testValues);
@@ -619,7 +619,7 @@ public class BufferedDataOutputStreamTest
             int size = r.nextInt(9);
             byte[] bytes = ByteBufferUtil.bytes(val).array();
             canonical.write(bytes, 0, size);
-            dosp.writeBytes(val, size);
+            dosp.writeMostSignificantBytes(val, size);
         }
         dosp.flush();
         assertArrayEquals(canonical.toByteArray(), generated.toByteArray());

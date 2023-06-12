@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.LegacySSTableTest;
@@ -37,6 +38,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 
 /*
@@ -47,19 +49,21 @@ import static org.junit.Assert.assertEquals;
  */
 public class StandaloneUpgraderOnSStablesTest
 {
+    static WithProperties properties;
+
     String legacyId = LegacySSTableTest.legacyVersions[LegacySSTableTest.legacyVersions.length - 1];
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         LegacySSTableTest.defineSchema();
-        System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+        properties = new WithProperties().set(TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST, true);
     }
 
     @AfterClass
     public static void clearClassEnv()
     {
-        System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+        properties.close();
     }
 
     @Test

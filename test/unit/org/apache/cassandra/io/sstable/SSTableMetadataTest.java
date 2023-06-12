@@ -101,7 +101,7 @@ public class SSTableMetadataTest
         Util.flush(store);
         assertEquals(1, store.getLiveSSTables().size());
         int ttltimestamp = (int) (System.currentTimeMillis() / 1000);
-        int firstDelTime = 0;
+        long firstDelTime = 0;
         for (SSTableReader sstable : store.getLiveSSTables())
         {
             firstDelTime = sstable.getSSTableMetadata().maxLocalDeletionTime;
@@ -169,7 +169,7 @@ public class SSTableMetadataTest
         Util.flush(store);
         assertEquals(1, store.getLiveSSTables().size());
         int ttltimestamp = (int) (System.currentTimeMillis() / 1000);
-        int firstMaxDelTime = 0;
+        long firstMaxDelTime = 0;
         for (SSTableReader sstable : store.getLiveSSTables())
         {
             firstMaxDelTime = sstable.getSSTableMetadata().maxLocalDeletionTime;

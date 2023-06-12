@@ -90,7 +90,7 @@ public class SSTableReverseIteratorTest
         {
             RowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
             Assert.assertTrue(indexEntry.isIndexed());
-            Assert.assertTrue(indexEntry.columnsIndexCount() > 2);
+            Assert.assertTrue(indexEntry.blockCount() > 2);
         }
 
         // drop v1 so the first 2 index blocks only contain empty unfiltereds

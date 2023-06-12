@@ -56,7 +56,7 @@ abstract class ElementsSelector extends Selector
     {
         super(kind);
         this.selected = selected;
-        this.type = (CollectionType<?>) selected.getType();
+        this.type = getCollectionType(selected);
     }
 
     private static boolean isUnset(ByteBuffer bb)
@@ -74,6 +74,17 @@ abstract class ElementsSelector extends Selector
     public static AbstractType<?> valueType(CollectionType<?> type)
     {
         return type instanceof MapType ? type.valueComparator() : type.nameComparator();
+    }
+
+    private static CollectionType<?> getCollectionType(Selector selected)
+    {
+        AbstractType<?> type = selected.getType();
+        if (type instanceof ReversedType)
+            type = ((ReversedType<?>) type).baseType;
+
+        assert type instanceof MapType || type instanceof SetType : "this shouldn't have passed validation in Selectable";
+
+        return (CollectionType<?>) type;
     }
 
     private static abstract class AbstractFactory extends Factory
@@ -273,7 +284,6 @@ abstract class ElementsSelector extends Selector
         private ElementSelector(Selector selected, ByteBuffer key)
         {
             super(Kind.ELEMENT_SELECTOR, selected);
-            assert selected.getType() instanceof MapType || selected.getType() instanceof SetType : "this shouldn't have passed validation in Selectable";
             this.key = key;
         }
 
@@ -391,7 +401,6 @@ abstract class ElementsSelector extends Selector
         private SliceSelector(Selector selected, ByteBuffer from, ByteBuffer to)
         {
             super(Kind.SLICE_SELECTOR, selected);
-            assert selected.getType() instanceof MapType || selected.getType() instanceof SetType : "this shouldn't have passed validation in Selectable";
             assert from != null && to != null : "We can have unset buffers, but not nulls";
             this.from = from;
             this.to = to;

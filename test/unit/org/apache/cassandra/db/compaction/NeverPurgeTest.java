@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -33,14 +34,16 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class NeverPurgeTest extends CQLTester
 {
-    static
+    @BeforeClass
+    public static void setUpClass() // method name must match the @BeforeClass annotated method in CQLTester
     {
-        System.setProperty("cassandra.never_purge_tombstones", "true");
+        NEVER_PURGE_TOMBSTONES.setBoolean(true);
+        CQLTester.setUpClass();
     }
 
     @Test
@@ -100,7 +103,7 @@ public class NeverPurgeTest extends CQLTester
 
     private void verifyContainsTombstones(Collection<SSTableReader> sstables, int expectedTombstoneCount) throws Exception
     {
-        assertTrue(sstables.size() == 1); // always run a major compaction before calling this
+        assertEquals(1, sstables.size()); // always run a major compaction before calling this
         SSTableReader sstable = sstables.iterator().next();
         int tombstoneCount = 0;
         try (ISSTableScanner scanner = sstable.getScanner())

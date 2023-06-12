@@ -302,6 +302,16 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
+    public void validateTimestamp(QueryState queryState, QueryOptions options)
+    {
+        if (!isTimestampSet())
+            return;
+
+        long ts = attrs.getTimestamp(options.getTimestamp(queryState), options);
+        Guardrails.maximumAllowableTimestamp.guard(ts, table(), false, queryState.getClientState());
+        Guardrails.minimumAllowableTimestamp.guard(ts, table(), false, queryState.getClientState());
+    }
+
     public RegularAndStaticColumns updatedColumns()
     {
         return updatedColumns;
@@ -412,7 +422,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            DataLimits limits,
                                                            boolean local,
                                                            ConsistencyLevel cl,
-                                                           int nowInSeconds,
+                                                           long nowInSeconds,
                                                            long queryStartNanoTime)
     {
         if (!requiresRead())
@@ -506,6 +516,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             cl.validateForWrite();
 
         validateDiskUsage(options, queryState.getClientState());
+        validateTimestamp(queryState, options);
 
         List<? extends IMutation> mutations =
             getMutations(queryState.getClientState(),
@@ -554,7 +565,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
         DecoratedKey key = metadata().partitioner.decorateKey(keys.get(0));
         long timestamp = options.getTimestamp(queryState);
-        int nowInSeconds = options.getNowInSeconds(queryState);
+        long nowInSeconds = options.getNowInSeconds(queryState);
 
         checkFalse(restrictions.clusteringKeyRestrictionsHasIN(),
                    "IN on the clustering key columns is not supported with conditional %s",
@@ -636,7 +647,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                       Iterable<ColumnMetadata> columnsWithConditions,
                                                       boolean isBatch,
                                                       QueryOptions options,
-                                                      int nowInSeconds)
+                                                      long nowInSeconds)
     {
         TableMetadata metadata = partition.metadata();
         Selection selection;
@@ -677,7 +688,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     throws RequestValidationException, RequestExecutionException
     {
         long timestamp = options.getTimestamp(queryState);
-        int nowInSeconds = options.getNowInSeconds(queryState);
+        long nowInSeconds = options.getNowInSeconds(queryState);
         for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, queryStartNanoTime))
             mutation.apply();
         return null;
@@ -693,7 +704,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
-    static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, int nowInSeconds)
+    static RowIterator casInternal(ClientState state, CQL3CasRequest request, long timestamp, long nowInSeconds)
     {
         Ballot ballot = BallotGenerator.Global.atUnixMicros(timestamp, NONE);
 
@@ -730,7 +741,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    QueryOptions options,
                                                    boolean local,
                                                    long timestamp,
-                                                   int nowInSeconds,
+                                                   long nowInSeconds,
                                                    long queryStartNanoTime)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
@@ -746,7 +757,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                           QueryOptions options,
                           boolean local,
                           long timestamp,
-                          int nowInSeconds,
+                          long nowInSeconds,
                           long queryStartNanoTime)
     {
         if (hasSlices())
@@ -836,7 +847,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   QueryOptions options,
                                                   boolean local,
                                                   long timestamp,
-                                                  int nowInSeconds,
+                                                  long nowInSeconds,
                                                   long queryStartNanoTime)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
@@ -868,7 +879,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   DataLimits limits,
                                                   boolean local,
                                                   long timestamp,
-                                                  int nowInSeconds,
+                                                  long nowInSeconds,
                                                   long queryStartNanoTime)
     {
         // Some lists operation requires reading

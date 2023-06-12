@@ -166,6 +166,7 @@ import org.apache.cassandra.utils.DefaultValue;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
@@ -408,7 +409,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public String getCompactionParametersJson()
     {
-        return FBUtilities.json(getCompactionParameters());
+        return JsonUtils.writeAsJsonString(getCompactionParameters());
     }
 
     public void setCompactionParameters(Map<String, String> options)
@@ -429,7 +430,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void setCompactionParametersJson(String options)
     {
-        setCompactionParameters(FBUtilities.fromJsonMap(options));
+        setCompactionParameters(JsonUtils.fromJsonMap(options));
     }
 
     public Map<String,String> getCompressionParameters()
@@ -439,7 +440,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public String getCompressionParametersJson()
     {
-        return FBUtilities.json(getCompressionParameters());
+        return JsonUtils.writeAsJsonString(getCompressionParameters());
     }
 
     public void setCompressionParameters(Map<String,String> opts)
@@ -458,7 +459,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void setCompressionParametersJson(String options)
     {
-        setCompressionParameters(FBUtilities.fromJsonMap(options));
+        setCompressionParameters(JsonUtils.fromJsonMap(options));
     }
 
     @VisibleForTesting
@@ -692,7 +693,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
 
         compactionStrategyManager.shutdown();
-        SystemKeyspace.removeTruncationRecord(metadata.id);
+
+        // Do not remove truncation records for index CFs, given they have the same ID as their backing/base tables.
+        if (!metadata.get().isIndex())
+            SystemKeyspace.removeTruncationRecord(metadata.id);
 
         if (dropData)
         {
@@ -875,8 +879,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                            descriptor.cfname,
                                            // Increment the generation until we find a filename that doesn't exist. This is needed because the new
                                            // SSTables that are being loaded might already use these generation numbers.
-                                           sstableIdGenerator.get(),
-                                           descriptor.formatType);
+                                           sstableIdGenerator.get());
         }
         while (newDescriptor.fileFor(Components.DATA).exists());
         return newDescriptor;
@@ -922,22 +925,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Descriptor newSSTableDescriptor(File directory)
     {
-        return newSSTableDescriptor(directory, SSTableFormat.Type.current().info.getLatestVersion(), SSTableFormat.Type.current());
+        return newSSTableDescriptor(directory, DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion());
     }
 
-    public Descriptor newSSTableDescriptor(File directory, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, SSTableFormat<?, ?> format)
     {
-        return newSSTableDescriptor(directory, format.info.getLatestVersion(), format);
+        return newSSTableDescriptor(directory, format.getLatestVersion());
     }
 
-    public Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, Version version)
     {
         Descriptor newDescriptor = new Descriptor(version,
                                                   directory,
                                                   keyspace.getName(),
                                                   name,
-                                                  sstableIdGenerator.get(),
-                                                  format);
+                                                  sstableIdGenerator.get());
         assert !newDescriptor.fileFor(Components.DATA).exists();
         return newDescriptor;
     }
@@ -1832,7 +1834,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public boolean isFilterFullyCoveredBy(ClusteringIndexFilter filter,
                                           DataLimits limits,
                                           CachedPartition cached,
-                                          int nowInSec,
+                                          long nowInSec,
                                           boolean enforceStrictLiveness)
     {
         // We can use the cached value only if we know that no data it doesn't contain could be covered
@@ -1883,7 +1885,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return paxosRepairHistory.get().getBallotForToken(key.getToken());
     }
 
-    public int gcBefore(int nowInSec)
+    public long gcBefore(long nowInSec)
     {
         return nowInSec - metadata().params.gcGraceSeconds;
     }
@@ -2070,7 +2072,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.path(), rateLimiter); // hard links
-
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
                     snapshottedSSTables.add(ssTable);

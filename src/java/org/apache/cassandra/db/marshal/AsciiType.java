@@ -25,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Json;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
@@ -34,6 +33,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.AsciiSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 
 public class AsciiType extends StringType
 {
@@ -86,7 +86,7 @@ public class AsciiType extends StringType
     {
         try
         {
-            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.US_ASCII)) + '"';
+            return '"' + JsonUtils.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.US_ASCII)) + '"';
         }
         catch (CharacterCodingException exc)
         {

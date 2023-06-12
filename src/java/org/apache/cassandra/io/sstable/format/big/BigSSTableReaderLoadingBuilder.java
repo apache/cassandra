@@ -33,14 +33,13 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.CompressionInfoComponent;
 import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.IndexComponent;
-import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
+import org.apache.cassandra.io.sstable.format.SortedTableReaderLoadingBuilder;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryBuilder;
 import org.apache.cassandra.io.sstable.keycache.KeyCache;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileHandle;
@@ -48,7 +47,6 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Pair;
@@ -57,11 +55,10 @@ import org.apache.cassandra.utils.Throwables;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class BigSSTableReaderLoadingBuilder extends SSTableReaderLoadingBuilder<BigTableReader, BigTableReader.Builder>
+public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilder<BigTableReader, BigTableReader.Builder>
 {
     private final static Logger logger = LoggerFactory.getLogger(BigSSTableReaderLoadingBuilder.class);
 
-    private FileHandle.Builder dataFileBuilder;
     private FileHandle.Builder indexFileBuilder;
 
     public BigSSTableReaderLoadingBuilder(SSTable.Builder<?, ?> descriptor)
@@ -241,14 +238,6 @@ public class BigSSTableReaderLoadingBuilder extends SSTableReaderLoadingBuilder<
         return Pair.create(bf, rebuildSummary ? new IndexSummaryComponent(indexSummary, first, key) : null);
     }
 
-    private IFilter loadFilter(ValidationMetadata validationMetadata)
-    {
-        return FilterComponent.maybeLoadBloomFilter(descriptor,
-                                                    components,
-                                                    tableMetadataRef.getLocal(),
-                                                    validationMetadata);
-    }
-
     /**
      * Load index summary, first key and last key from Summary.db file if it exists.
      * <p>
@@ -298,25 +287,6 @@ public class BigSSTableReaderLoadingBuilder extends SSTableReaderLoadingBuilder<
             indexReader.seek(0);
             return estimatedRows;
         }
-    }
-
-    private FileHandle.Builder dataFileBuilder(StatsMetadata statsMetadata)
-    {
-        assert this.dataFileBuilder == null || this.dataFileBuilder.file.equals(descriptor.fileFor(Components.DATA));
-
-        logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(descriptor.fileFor(Components.DATA).length()));
-
-        long recordSize = statsMetadata.estimatedPartitionSize.percentile(ioOptions.diskOptimizationEstimatePercentile);
-        int bufferSize = ioOptions.diskOptimizationStrategy.bufferSize(recordSize);
-
-        if (dataFileBuilder == null)
-            dataFileBuilder = new FileHandle.Builder(descriptor.fileFor(Components.DATA));
-
-        dataFileBuilder.bufferSize(bufferSize);
-        dataFileBuilder.withChunkCache(chunkCache);
-        dataFileBuilder.mmapped(ioOptions.defaultDiskAccessMode);
-
-        return dataFileBuilder;
     }
 
     private FileHandle.Builder indexFileBuilder(IndexSummary indexSummary)

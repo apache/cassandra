@@ -1836,6 +1836,26 @@ class Shell(cmd.Cmd):
             else:
                 self.printerr("*** No help on %s" % (t,))
 
+    def do_history(self, parsed):
+        """
+        HISTORY [cqlsh only]
+
+           Displays the most recent commands executed in cqlsh
+
+        HISTORY (<n>)
+
+           If n is specified, the history display length is set to n for this session
+        """
+
+        history_length = readline.get_current_history_length()
+
+        n = parsed.get_binding('n')
+        if (n is not None):
+            self.max_history_length_shown = int(n)
+
+        for index in range(max(1, history_length - self.max_history_length_shown), history_length):
+            print(readline.get_history_item(index))
+
     def do_unicode(self, parsed):
         """
         Textual input/output
@@ -1912,6 +1932,27 @@ class Shell(cmd.Cmd):
             self.cov.stop()
             self.cov.save()
             self.cov = None
+
+    def init_history(self):
+        if readline is not None:
+            try:
+                readline.read_history_file(HISTORY)
+            except IOError:
+                pass
+            delims = readline.get_completer_delims()
+            delims.replace("'", "")
+            delims += '.'
+            readline.set_completer_delims(delims)
+
+            # configure length of history shown
+            self.max_history_length_shown = 50
+
+    def save_history(self):
+        if readline is not None:
+            try:
+                readline.write_history_file(HISTORY)
+            except IOError:
+                pass
 
 
 class SwitchCommand(object):
@@ -2193,26 +2234,6 @@ def setup_docspath(path):
         CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
 
 
-def init_history():
-    if readline is not None:
-        try:
-            readline.read_history_file(HISTORY)
-        except IOError:
-            pass
-        delims = readline.get_completer_delims()
-        delims.replace("'", "")
-        delims += '.'
-        readline.set_completer_delims(delims)
-
-
-def save_history():
-    if readline is not None:
-        try:
-            readline.write_history_file(HISTORY)
-        except IOError:
-            pass
-
-
 def insert_driver_hooks():
 
     class DateOverFlowWarning(RuntimeWarning):
@@ -2245,7 +2266,6 @@ def main(cmdline, pkgpath):
     setup_docspath(pkgpath)
     setup_cqlruleset(options.cqlmodule)
     setup_cqldocs(options.cqlmodule)
-    init_history()
     csv.field_size_limit(options.field_size_limit)
 
     if options.file is None:
@@ -2267,20 +2287,37 @@ def main(cmdline, pkgpath):
     # create timezone based on settings, environment or auto-detection
     timezone = None
     if options.timezone or 'TZ' in os.environ:
-        try:
-            import pytz
-            if options.timezone:
-                try:
-                    timezone = pytz.timezone(options.timezone)
-                except Exception:
-                    sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
-            if 'TZ' in os.environ:
-                try:
-                    timezone = pytz.timezone(os.environ['TZ'])
-                except Exception:
-                    sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
-        except ImportError:
-            sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
+        if sys.version_info >= (3, 9):
+            try:
+                import zoneinfo
+                if options.timezone:
+                    try:
+                        timezone = zoneinfo.ZoneInfo(options.timezone)
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
+                if 'TZ' in os.environ:
+                    try:
+                        timezone = zoneinfo.ZoneInfo(os.environ['TZ'])
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
+            except ImportError:
+                sys.stderr.write("Warning: Timezone defined but unable to perform timezone conversion using 'zoneinfo' "
+                                 "module. Timestamps will be displayed in UTC timezone.\n\n")
+        else:
+            try:
+                import pytz
+                if options.timezone:
+                    try:
+                        timezone = pytz.timezone(options.timezone)
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
+                if 'TZ' in os.environ:
+                    try:
+                        timezone = pytz.timezone(os.environ['TZ'])
+                    except Exception:
+                        sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
+            except ImportError:
+                sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
 
     # try auto-detect timezone if tzlocal is installed
     if not timezone:
@@ -2343,8 +2380,9 @@ def main(cmdline, pkgpath):
 
         signal.signal(signal.SIGHUP, handle_sighup)
 
+    shell.init_history()
     shell.cmdloop()
-    save_history()
+    shell.save_history()
 
     if shell.batch_mode and shell.statement_error:
         sys.exit(2)

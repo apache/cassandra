@@ -65,6 +65,7 @@ import org.apache.cassandra.utils.MonotonicClock;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_VERSION_VALIDATION;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_REPAIR_REQ;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -570,7 +571,7 @@ public class PaxosRepair extends AbstractPaxosRepair
             Ballot latestWitnessed;
             Accepted acceptedButNotCommited;
             Committed committed;
-            int nowInSec = FBUtilities.nowInSeconds();
+            long nowInSec = FBUtilities.nowInSeconds();
             try (PaxosState state = PaxosState.get(request.partitionKey, request.table))
             {
                 PaxosState.Snapshot snapshot = state.current(nowInSec);
@@ -634,7 +635,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         }
     }
 
-    private static volatile boolean SKIP_VERSION_VALIDATION = Boolean.getBoolean("cassandra.skip_paxos_repair_version_validation");
+    private static volatile boolean SKIP_VERSION_VALIDATION = SKIP_PAXOS_REPAIR_VERSION_VALIDATION.getBoolean();
 
     public static void setSkipPaxosRepairCompatibilityCheck(boolean v)
     {

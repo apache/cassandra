@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -208,7 +209,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         {
             case LEGACY:
                 return asComparableBytesLegacy(accessor, data);
-            case OSS42:
+            case OSS50:
                 return asComparableBytesNew(accessor, data, version);
             default:
                 throw new AssertionError();
@@ -254,7 +255,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
     {
-        assert version == ByteComparable.Version.OSS42; // Reverse translation is not supported for the legacy version.
+        assert version == ByteComparable.Version.OSS50; // Reverse translation is not supported for the legacy version.
         if (comparableBytes == null)
             return accessor.empty();
 
@@ -423,7 +424,7 @@ public class TupleType extends AbstractType<ByteBuffer>
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(

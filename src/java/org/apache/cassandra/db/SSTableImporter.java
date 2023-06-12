@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -95,19 +96,20 @@ public class SSTableImporter
                     {
                         try
                         {
+                            abortIfDraining();
                             verifySSTableForImport(descriptor, entry.getValue(), options.verifyTokens, options.verifySSTables, options.extendedVerify);
                         }
                         catch (Throwable t)
                         {
                             if (dir != null)
                             {
-                                logger.error("[{}] Failed verifying sstable {} in directory {}", importID, descriptor, dir, t);
+                                logger.error("[{}] Failed verifying SSTable {} in directory {}", importID, descriptor, dir, t);
                                 failedDirectories.add(dir);
                             }
                             else
                             {
-                                logger.error("[{}] Failed verifying sstable {}", importID, descriptor, t);
-                                throw new RuntimeException("Failed verifying sstable "+descriptor, t);
+                                logger.error("[{}] Failed verifying SSTable {}", importID, descriptor, t);
+                                throw new RuntimeException("Failed verifying SSTable " + descriptor, t);
                             }
                             break;
                         }
@@ -130,6 +132,7 @@ public class SSTableImporter
             {
                 try
                 {
+                    abortIfDraining();
                     Descriptor oldDescriptor = entry.getKey();
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
@@ -162,8 +165,8 @@ public class SSTableImporter
                     }
                     else
                     {
-                        logger.error("[{}] Failed importing sstables from data directory - renamed sstables are: {}", importID, movedSSTables);
-                        throw new RuntimeException("Failed importing sstables", t);
+                        logger.error("[{}] Failed importing sstables from data directory - renamed SSTables are: {}", importID, movedSSTables, t);
+                        throw new RuntimeException("Failed importing SSTables", t);
                     }
                 }
             }
@@ -182,17 +185,33 @@ public class SSTableImporter
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
+            abortIfDraining();
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
                     invalidateCachesForSSTable(reader);
             }
-
+        }
+        catch (Throwable t)
+        {
+            logger.error("[{}] Failed adding SSTables", importID, t);
+            throw new RuntimeException("Failed adding SSTables", t);
         }
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.keyspace.getName(), cfs.getTableName());
         return failedDirectories;
+    }
+
+    /**
+     * Check the state of this node and throws an {@link InterruptedException} if it is currently draining
+     *
+     * @throws InterruptedException if the node is draining
+     */
+    private static void abortIfDraining() throws InterruptedException
+    {
+        if (StorageService.instance.isDraining())
+            throw new InterruptedException("SSTables import has been aborted");
     }
 
     private void logLeveling(UUID importID, Set<SSTableReader> newSSTables)

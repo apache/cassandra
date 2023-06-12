@@ -477,25 +477,25 @@ public class AggregationTest extends CQLTester
                                          "LANGUAGE JAVA " +
                                          "AS 'return Double.valueOf(Math.copySign(magnitude, sign));';");
 
-        assertColumnNames(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), "system.max(a)", "system.max(system.tounixtimestamp(b))");
-        assertRows(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), row(null, null));
-        assertColumnNames(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), "system.max(a)", "system.tounixtimestamp(system.max(b))");
-        assertRows(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), row(null, null));
+        assertColumnNames(execute("SELECT max(a), max(to_unix_timestamp(b)) FROM %s"), "system.max(a)", "system.max(system.to_unix_timestamp(b))");
+        assertRows(execute("SELECT max(a), max(to_unix_timestamp(b)) FROM %s"), row(null, null));
+        assertColumnNames(execute("SELECT max(a), to_unix_timestamp(max(b)) FROM %s"), "system.max(a)", "system.to_unix_timestamp(system.max(b))");
+        assertRows(execute("SELECT max(a), to_unix_timestamp(max(b)) FROM %s"), row(null, null));
 
         assertColumnNames(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), "system.max(" + copySign + "(c, d))");
         assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row((Object) null));
 
-        execute("INSERT INTO %s (a, b, c, d) VALUES (1, maxTimeuuid('2011-02-03 04:05:00+0000'), -1.2, 2.1)");
-        execute("INSERT INTO %s (a, b, c, d) VALUES (2, maxTimeuuid('2011-02-03 04:06:00+0000'), 1.3, -3.4)");
-        execute("INSERT INTO %s (a, b, c, d) VALUES (3, maxTimeuuid('2011-02-03 04:10:00+0000'), 1.4, 1.2)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, max_timeuuid('2011-02-03 04:05:00+0000'), -1.2, 2.1)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (2, max_timeuuid('2011-02-03 04:06:00+0000'), 1.3, -3.4)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (3, max_timeuuid('2011-02-03 04:10:00+0000'), 1.4, 1.2)");
 
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
         format.setTimeZone(TimeZone.getTimeZone("GMT"));
         Date date = format.parse("2011-02-03 04:10:00");
         date = DateUtils.truncate(date, Calendar.MILLISECOND);
 
-        assertRows(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), row(3, date.getTime()));
-        assertRows(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), row(3, date.getTime()));
+        assertRows(execute("SELECT max(a), max(to_unix_timestamp(b)) FROM %s"), row(3, date.getTime()));
+        assertRows(execute("SELECT max(a), to_unix_timestamp(max(b)) FROM %s"), row(3, date.getTime()));
 
         assertRows(execute("SELECT " + copySign + "(max(c), min(c)) FROM %s"), row(-1.4));
         assertRows(execute("SELECT " + copySign + "(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));

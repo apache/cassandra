@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -63,10 +62,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -88,8 +83,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.ISslContextFactory;
@@ -97,22 +90,21 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.objectweb.asm.Opcodes;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RELEASE_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TRIGGERS_DIR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
-import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-
 public class FBUtilities
 {
-    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
-
     static
     {
         preventIllegalAccessWarnings();
-        jsonMapper.registerModule(new JavaTimeModule());
-        jsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
@@ -122,7 +114,7 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
-    private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
+    private static final String OPERATING_SYSTEM = OS_NAME.getString().toLowerCase();
     public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
@@ -134,7 +126,7 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = Integer.getInteger("cassandra.available_processors", DatabaseDescriptor.getAvailableProcessors());
+    private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
     public static void setAvailableProcessors(int value)
     {
@@ -406,9 +398,9 @@ public class FBUtilities
     public static File cassandraTriggerDir()
     {
         File triggerDir = null;
-        if (System.getProperty("cassandra.triggers_dir") != null)
+        if (TRIGGERS_DIR.getString() != null)
         {
-            triggerDir = new File(System.getProperty("cassandra.triggers_dir"));
+            triggerDir = new File(TRIGGERS_DIR.getString());
         }
         else
         {
@@ -458,7 +450,7 @@ public class FBUtilities
     {
         Properties props = getVersionProperties();
         if (props == null)
-            return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
+            return RELEASE_VERSION.getString(UNKNOWN_RELEASE_VERSION);
         return props.getProperty("CassandraVersion");
     }
 
@@ -466,7 +458,7 @@ public class FBUtilities
     {
         Properties props = getVersionProperties();
         if (props == null)
-            return System.getProperty("cassandra.gitSHA", UNKNOWN_GIT_SHA);
+            return GIT_SHA.getString(UNKNOWN_GIT_SHA);
         return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
     }
 
@@ -487,9 +479,9 @@ public class FBUtilities
         return currentTimeMillis() * 1000;
     }
 
-    public static int nowInSeconds()
+    public static long nowInSeconds()
     {
-        return (int) (currentTimeMillis() / 1000);
+        return currentTimeMillis() / 1000l;
     }
 
     public static Instant now()
@@ -835,58 +827,6 @@ public class FBUtilities
         return new WrappedCloseableIterator<T>(iterator);
     }
 
-    public static Map<String, String> fromJsonMap(String json)
-    {
-        try
-        {
-            return jsonMapper.readValue(json, Map.class);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static List<String> fromJsonList(String json)
-    {
-        try
-        {
-            return jsonMapper.readValue(json, List.class);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static String json(Object object)
-    {
-        try
-        {
-            return jsonMapper.writeValueAsString(object);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static void serializeToJsonFile(Object object, File outputFile) throws IOException
-    {
-        try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
-        {
-            jsonMapper.writeValue((OutputStream) out, object);
-        }
-    }
-
-    public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
-    {
-        try (FileInputStreamPlus in = file.newInputStream())
-        {
-            return jsonMapper.readValue((InputStream) in, tClass);
-        }
-    }
-
     public static String prettyPrintMemory(long size)
     {
         return prettyPrintMemory(size, false);
@@ -1180,5 +1120,19 @@ public class FBUtilities
                 builder.add(values[i]);
         }
         return builder.build();
+    }
+
+    public static void closeQuietly(Object o)
+    {
+        if (!(o instanceof AutoCloseable))
+            return;
+        try
+        {
+            ((AutoCloseable) o).close();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Closing {} had an unexpected exception", o, e);
+        }
     }
 }

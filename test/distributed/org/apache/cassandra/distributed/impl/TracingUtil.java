@@ -27,7 +27,6 @@ import java.util.UUID;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.utils.TimeUUID;
 
-
 /**
  * Utilities for accessing the system_traces table from in-JVM dtests
  */
@@ -103,15 +102,5 @@ public class TracingUtil
             traces.add(TraceEntry.fromRowResultObjects(r));
         }
         return traces;
-    }
-
-    // Set up the wait for tracing time system property, returning the previous value.
-    // Handles being called again to reset with the original value, replacing the null
-    // with the default value.
-    public static String setWaitForTracingEventTimeoutSecs(String timeoutInSeconds)
-    {
-        return System.setProperty("cassandra.wait_for_tracing_events_timeout_secs",
-                                  timeoutInSeconds == null ? "0" : timeoutInSeconds);
-
     }
 }

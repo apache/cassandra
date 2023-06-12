@@ -178,7 +178,7 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
+    public abstract AbstractCompactionTask getNextBackgroundTask(final long gcBefore);
 
     /**
      * @param gcBefore throw away tombstones older than this
@@ -188,7 +188,7 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput);
+    public abstract Collection<AbstractCompactionTask> getMaximalTask(final long gcBefore, boolean splitOutput);
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
@@ -199,9 +199,9 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
+    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final long gcBefore);
 
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final long gcBefore, long maxSSTableBytes)
     {
         return new CompactionTask(cfs, txn, gcBefore);
     }
@@ -397,9 +397,9 @@ public abstract class AbstractCompactionStrategy
      * @param gcBefore time to drop tombstones
      * @return true if given sstable's tombstones are expected to be removed
      */
-    protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
+    protected boolean worthDroppingTombstones(SSTableReader sstable, long gcBefore)
     {
-        if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
+        if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || cfs.getNeverPurgeTombstones())
             return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has

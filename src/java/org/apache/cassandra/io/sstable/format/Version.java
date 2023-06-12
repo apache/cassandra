@@ -35,8 +35,8 @@ public abstract class Version
 {
     private static final Pattern VALIDATION = Pattern.compile("[a-z]+");
 
-    protected final String version;
-    protected final SSTableFormat format;
+    public final String version;
+    public final SSTableFormat<?, ?> format;
 
     protected Version(SSTableFormat format, String version)
     {
@@ -59,6 +59,11 @@ public abstract class Version
     public abstract boolean hasIsTransient();
 
     public abstract boolean hasMetadataChecksum();
+    
+    /**
+     * This format raises the legacy int year 2038 limit to 2106 by using an uint instead
+     */
+    public abstract boolean hasUIntDeletionTime();
 
     /**
      * The old bloomfilter format serializes the data as BIG_ENDIAN long's, the new one uses the
@@ -88,16 +93,6 @@ public abstract class Version
 
     public abstract boolean hasKeyRange();
 
-    public String getVersion()
-    {
-        return version;
-    }
-
-    public SSTableFormat getSSTableFormat()
-    {
-        return format;
-    }
-
     /**
      * @param ver SSTable version
      * @return True if the given version string matches the format.
@@ -118,6 +113,11 @@ public abstract class Version
         return version;
     }
 
+    public String toFormatAndVersionString()
+    {
+        return format.name() + '-' + version;
+    }
+
     @Override
     public boolean equals(Object other)
     {
@@ -125,12 +125,12 @@ public abstract class Version
         if (other == null || getClass() != other.getClass()) return false;
 
         Version otherVersion = (Version) other;
-        return Objects.equals(version, otherVersion.version);
+        return Objects.equals(version, otherVersion.version) && Objects.equals(format.name(), otherVersion.format.name());
     }
 
     @Override
     public int hashCode()
     {
-        return version != null ? version.hashCode() : 0;
+        return Objects.hash(version, format.name());
     }
 }

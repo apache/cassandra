@@ -48,6 +48,7 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.SSTableExpiredBlockers;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -61,7 +62,7 @@ public class TTLExpiryTest
     public static void defineSchema() throws ConfigurationException
     {
         // Disable tombstone histogram rounding for tests
-        CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.setInt(1);
+        CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.setInt(1);
 
         SchemaLoader.prepareServer();
 
@@ -135,8 +136,8 @@ public class TTLExpiryTest
         Util.flush(cfs);
 
         Set<SSTableReader> sstables = Sets.newHashSet(cfs.getLiveSSTables());
-        int now = (int)(System.currentTimeMillis() / 1000);
-        int gcBefore = now + 2;
+        long now = FBUtilities.nowInSeconds();
+        long gcBefore = now + 2;
         Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(
                 cfs,
                 sstables,

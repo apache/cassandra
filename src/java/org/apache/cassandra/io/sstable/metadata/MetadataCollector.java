@@ -108,7 +108,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected EstimatedHistogram estimatedCellPerPartitionCount = defaultCellPerPartitionCountHistogram();
     protected IntervalSet<CommitLogPosition> commitLogIntervals = IntervalSet.empty();
     protected final MinMaxLongTracker timestampTracker = new MinMaxLongTracker();
-    protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
+    protected final MinMaxLongTracker localDeletionTimeTracker = new MinMaxLongTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
     protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
     protected StreamingTombstoneHistogramBuilder estimatedTombstoneDropTime = new StreamingTombstoneHistogramBuilder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
@@ -144,7 +144,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
      */
     protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
     private final ClusteringComparator comparator;
-    private final int nowInSec = FBUtilities.nowInSeconds();
+    private final long nowInSec = FBUtilities.nowInSeconds();
 
     private final UUID originatingHostId;
 
@@ -263,7 +263,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         timestampTracker.update(newTimestamp);
     }
 
-    private void updateLocalDeletionTime(int newLocalDeletionTime)
+    private void updateLocalDeletionTime(long newLocalDeletionTime)
     {
         localDeletionTimeTracker.update(newLocalDeletionTime);
         if (newLocalDeletionTime != Cell.NO_DELETION_TIME)

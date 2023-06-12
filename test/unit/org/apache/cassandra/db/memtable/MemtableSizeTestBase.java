@@ -30,6 +30,7 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -76,6 +77,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
 
     public static void setup(Config.MemtableAllocationType allocationType)
     {
+        ServerTestUtils.daemonInitialization();
         try
         {
             Field confField = DatabaseDescriptor.class.getDeclaredField("conf");

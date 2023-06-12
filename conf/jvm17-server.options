@@ -103,6 +103,8 @@
 --add-opens java.base/java.math=ALL-UNNAMED
 #in-jvm tests? plus # https://chronicle.software/chronicle-support-java-17/
 --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+#jamm post CASSANDRA-17199
+--add-opens java.base/java.net=ALL-UNNAMED
 
 ### GC logging options -- uncomment to enable
 

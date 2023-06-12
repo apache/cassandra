@@ -92,6 +92,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$PaxosStatePurging",
     "org.apache.cassandra.config.Config$PaxosVariant",
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
+    "org.apache.cassandra.config.Config$SSTableConfig",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
     "org.apache.cassandra.config.ConfigBeanInfo",
     "org.apache.cassandra.config.ConfigCustomizer",
@@ -120,6 +121,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.DurationSpec$IntMinutesBound",
     "org.apache.cassandra.config.DurationSpec$IntSecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongMillisecondsBound",
+    "org.apache.cassandra.config.DurationSpec$LongMicrosecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongNanosecondsBound",
     "org.apache.cassandra.config.DurationSpec$LongSecondsBound",
     "org.apache.cassandra.config.EncryptionOptions",
@@ -202,6 +204,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SSTableFormat",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$Components",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$Components$Types",
+    "org.apache.cassandra.io.sstable.format.SSTableFormat$Factory",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$KeyCacheValueSerializer",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$SSTableReaderFactory",
     "org.apache.cassandra.io.sstable.format.SSTableFormat$SSTableWriterFactory",
@@ -211,12 +214,14 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter$Builder",
+    "org.apache.cassandra.io.sstable.format.SortedTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableWriter",
     "org.apache.cassandra.io.sstable.format.SSTableWriter$Builder",
     "org.apache.cassandra.io.sstable.format.SortedTableWriter",
     "org.apache.cassandra.io.sstable.format.SortedTableWriter$Builder",
     "org.apache.cassandra.io.sstable.format.Version",
     "org.apache.cassandra.io.sstable.format.big.BigFormat",
+    "org.apache.cassandra.io.sstable.format.big.BigFormat$BigFormatFactory",
     "org.apache.cassandra.io.sstable.format.big.BigFormat$BigTableReaderFactory",
     "org.apache.cassandra.io.sstable.format.big.BigFormat$BigTableWriterFactory",
     "org.apache.cassandra.io.sstable.format.big.BigFormat$BigVersion",
@@ -265,6 +270,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.concurrent.SelfRefCounted",
     "org.apache.cassandra.utils.concurrent.Transactional",
     "org.apache.cassandra.utils.concurrent.UncheckedInterruptedException",
+    "org.apache.cassandra.utils.StorageCompatibilityMode"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

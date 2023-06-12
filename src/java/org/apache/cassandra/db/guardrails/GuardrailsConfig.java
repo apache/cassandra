@@ -23,6 +23,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
@@ -238,6 +239,28 @@ public interface GuardrailsConfig
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
     /**
+     * @return The threshold to warn when writing partitions larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPartitionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when writing partitions larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPartitionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing partitions with more tombstones than threshold.
+     */
+    long getPartitionTombstonesWarnThreshold();
+
+    /**
+     * @return The threshold to fail when writing partitions with more tombstones than threshold.
+     */
+    long getPartitionTombstonesFailThreshold();
+
+    /**
      * @return The threshold to warn when writing column values larger than threshold.
      */
     @Nullable
@@ -350,4 +373,50 @@ public interface GuardrailsConfig
      * @param value {@code true} if 0 default TTL on TWCS tables is allowed, {@code false} otherwise.
      */
     void setZeroTTLOnTWCSEnabled(boolean value);
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is after will trigger a warning
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold();
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is after will cause a failure
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMaximumTimestampFailThreshold();
+
+    /**
+     * Sets the warning upper bound for user supplied timestamps
+     *
+     * @param warn The highest acceptable difference between now and the written value timestamp before triggering a
+     *             warning. {@code null} means disabled.
+     * @param fail The highest acceptable difference between now and the written value timestamp before triggering a
+     *             failure. {@code null} means disabled.
+     */
+    void setMaximumTimestampThreshold(@Nullable DurationSpec.LongMicrosecondsBound warn,
+                                      @Nullable DurationSpec.LongMicrosecondsBound fail);
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is before will trigger a warning
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMinimumTimestampWarnThreshold();
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is after will trigger a warning
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMinimumTimestampFailThreshold();
+
+    /**
+     * Sets the warning lower bound for user supplied timestamps
+     *
+     * @param warn The lowest acceptable difference between now and the written value timestamp before triggering a
+     *             warning. {@code null} means disabled.
+     * @param fail The lowest acceptable difference between now and the written value timestamp before triggering a
+     *             failure. {@code null} means disabled.
+     */
+    void setMinimumTimestampThreshold(@Nullable DurationSpec.LongMicrosecondsBound warn,
+                                      @Nullable DurationSpec.LongMicrosecondsBound fail);
 }

@@ -515,8 +515,8 @@ public class Directories
      *                                      CASSANDRA-6696 we expect compactions to read and written from the same dir)
      * @return true if we expect to be able to write expectedNewWriteSizes to the available file stores
      */
-    public static boolean hasDiskSpaceForCompactionsAndStreams(Map<File, Long> expectedNewWriteSizes,
-                                                               Map<File, Long> totalCompactionWriteRemaining)
+    public boolean hasDiskSpaceForCompactionsAndStreams(Map<File, Long> expectedNewWriteSizes,
+                                                        Map<File, Long> totalCompactionWriteRemaining)
     {
         return hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, Directories::getFileStore);
     }
@@ -544,14 +544,21 @@ public class Directories
      */
     public static boolean hasDiskSpaceForCompactionsAndStreams(Map<FileStore, Long> totalToWrite)
     {
+        boolean hasSpace = true;
         for (Map.Entry<FileStore, Long> toWrite : totalToWrite.entrySet())
         {
             long availableForCompaction = getAvailableSpaceForCompactions(toWrite.getKey());
             logger.debug("FileStore {} has {} bytes available, checking if we can write {} bytes", toWrite.getKey(), availableForCompaction, toWrite.getValue());
             if (availableForCompaction < toWrite.getValue())
-                return false;
+            {
+                logger.warn("FileStore {} has only {} available, but {} is needed",
+                            toWrite.getKey(),
+                            FileUtils.stringifyFileSize(availableForCompaction),
+                            FileUtils.stringifyFileSize((long) toWrite.getValue()));
+                hasSpace = false;
+            }
         }
-        return true;
+        return hasSpace;
     }
 
     public static long getAvailableSpaceForCompactions(FileStore fileStore)
