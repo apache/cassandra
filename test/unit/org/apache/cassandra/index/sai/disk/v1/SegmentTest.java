@@ -25,8 +25,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -34,8 +32,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.disk.v1.Segment;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -155,11 +151,8 @@ public class SegmentTest
 
     private static AbstractBounds<PartitionPosition> keyRange(Token left, boolean inclusiveLeft, Token right, boolean inclusiveRight)
     {
-        return Bounds.bounds(key(left), inclusiveLeft, key(right), inclusiveRight);
-    }
-
-    private static DecoratedKey key(Token token)
-    {
-        return new BufferDecoratedKey(token, ByteBufferUtil.bytes(0));
+        // See StatementRestrictions#getPartitionKeyBoundsForTokenRestrictions
+        return Bounds.bounds(inclusiveLeft ? left.minKeyBound() : left.maxKeyBound(), inclusiveLeft,
+                             inclusiveRight ? right.maxKeyBound() : right.minKeyBound(), inclusiveRight);
     }
 }
