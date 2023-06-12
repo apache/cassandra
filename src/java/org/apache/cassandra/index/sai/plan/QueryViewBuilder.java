@@ -134,9 +134,6 @@ public class QueryViewBuilder
 
         for (Expression expression : expressions)
         {
-            // REVIEWME we don't need to leave placeholders for memtable filtering here,
-            // that's handled separately in QueryController now
-
             // Non-index column query should only act as FILTER BY for satisfiedBy(Row) method
             // because otherwise it likely to go through the whole index.
             if (!expression.context.isIndexed())

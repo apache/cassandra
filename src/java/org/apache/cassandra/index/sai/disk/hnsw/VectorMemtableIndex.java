@@ -260,9 +260,7 @@ public class VectorMemtableIndex implements MemtableIndex
         }
 
         @Override
-        // REVIEWME
-        // (it's inefficient, but is it correct?)
-        // (maybe we can abuse "current" to make it efficient)
+        // TODO maybe we can abuse "current" to avoid having to pop and re-add the last skipped key
         protected void performSkipTo(PrimaryKey nextKey)
         {
             PrimaryKey lastSkipped = null;
