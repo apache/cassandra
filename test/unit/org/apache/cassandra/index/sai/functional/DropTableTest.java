@@ -50,11 +50,13 @@ public class DropTableTest extends SAITester
     {
         createTable(CREATE_TABLE_TEMPLATE);
         createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        waitForTableIndexesQueryable();
 
         int rows = 100;
         for (int j = 0; j < rows; j++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '1')", Integer.toString(j));
+            execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 1 , '1')", Integer.toString(j));
         }
         flush();
 

@@ -36,7 +36,7 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
- * Each segment represents an on-disk index structure (kdtree/terms/postings) flushed by memory limit or token boundaries.
+ * Each segment represents an on-disk index structure (balanced tree/terms/postings) flushed by memory limit or token boundaries.
  * It also helps to reduce resource consumption for read requests as only segments that intersect with read request data
  * range need to be loaded.
  */

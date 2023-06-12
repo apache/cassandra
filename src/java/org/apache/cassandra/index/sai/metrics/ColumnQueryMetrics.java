@@ -70,6 +70,61 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
         }
     }
 
+    public static class BalancedTreeIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.BalancedTreeEventListener
+    {
+        private static final String BALANCED_TREE_POSTINGS_TYPE = "BalancedTreePostings";
+
+        /**
+         * Balanced Tree index metrics.
+         */
+        private final Timer intersectionLatency;
+        private final Meter postingsNumPostings;
+        private final Meter intersectionEarlyExits;
+
+        private final QueryEventListener.PostingListEventListener postingsListener;
+
+        public BalancedTreeIndexMetrics(IndexContext indexContext)
+        {
+            super(indexContext);
+
+            intersectionLatency = Metrics.timer(createMetricName("BalancedTreeIntersectionLatency"));
+            intersectionEarlyExits = Metrics.meter(createMetricName("BalancedTreeIntersectionEarlyExits"));
+
+            postingsNumPostings = Metrics.meter(createMetricName("NumPostings", BALANCED_TREE_POSTINGS_TYPE));
+
+            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", BALANCED_TREE_POSTINGS_TYPE));
+
+            postingsListener = new PostingListEventsMetrics(postingDecodes);
+        }
+
+        @Override
+        public void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit)
+        {
+            intersectionLatency.update(intersectionTotalTime, unit);
+        }
+
+        @Override
+        public void onIntersectionEarlyExit()
+        {
+            intersectionEarlyExits.mark();
+        }
+
+        @Override
+        public void postingListsHit(int count)
+        {
+            postingsNumPostings.mark(count);
+        }
+
+        @Override
+        public void onSegmentHit() { }
+
+        @Override
+        public QueryEventListener.PostingListEventListener postingListEventListener()
+        {
+            return postingsListener;
+        }
+    }
+
     private static class PostingListEventsMetrics implements QueryEventListener.PostingListEventListener
     {
         private final Meter postingDecodes;

@@ -26,6 +26,6 @@ public class UuidTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateNumericParameters(new DataSet.UuidDataSet());
+        return generateParameters(new DataSet.UuidDataSet());
     }
 }

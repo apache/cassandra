@@ -419,11 +419,23 @@ public enum CassandraRelevantProperties
     // SAI specific properties
 
     /** Controls the maximum number of index query intersections that will take part in a query */
-    SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection.clause.limit", "2"),
+    SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection_clause_limit", "2"),
     /** Latest version to be used for SAI index writing */
     SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
     SAI_MAX_FROZEN_TERM_SIZE("cassandra.sai.max_frozen_term_size_kb", "5"),
     SAI_MAX_STRING_TERM_SIZE("cassandra.sai.max_string_term_size_kb", "1"),
+
+    /** Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list */
+    SAI_MINIMUM_POSTINGS_LEAVES("cassandra.sai.minimum_postings_leaves", "64"),
+
+    /**
+     * Skip, or the sampling interval, for selecting a balanced tree level that is eligible for an auxiliary posting list.
+     * Sampling starts from 0, but balanced tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
+     * level 0, because there is no node at level 0).
+     */
+    SAI_POSTINGS_SKIP("cassandra.sai.postings_skip", "3"),
+
+    SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),

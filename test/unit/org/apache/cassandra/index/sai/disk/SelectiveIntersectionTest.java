@@ -17,18 +17,15 @@
  */
 package org.apache.cassandra.index.sai.disk;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.Session;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
 import org.apache.cassandra.inject.Injections;
 
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
@@ -145,13 +142,8 @@ public class SelectiveIntersectionTest extends SAITester
         Assert.assertEquals(postingsReaderOpenCounter.get(), postingsReaderCloseCounter.get());
     }
 
-    private static void setLimits(final int selectivityLimit) throws Exception
+    private static void setLimits(final int selectivityLimit)
     {
-        Field selectivity = KeyRangeIntersectionIterator.class.getDeclaredField("INTERSECTION_CLAUSE_LIMIT");
-        selectivity.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(selectivity, selectivity.getModifiers() & ~Modifier.FINAL);
-        selectivity.set(null, selectivityLimit);
+        CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setString(Integer.toString(selectivityLimit));
     }
 }
