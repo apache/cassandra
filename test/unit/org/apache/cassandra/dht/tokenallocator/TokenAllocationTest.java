@@ -44,6 +44,8 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RackInferringSnitch;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -93,12 +95,7 @@ public class TokenAllocationTest
     {
         int vn = 16;
         String ks = "TokenAllocationTestKeyspace3";
-
-        ClusterMetadataTestHelper.createKeyspace(String.format("CREATE KEYSPACE " + ks + " WITH REPLICATION = {" +
-                                                               "   'class' : '%s'," +
-                                                               "   'replication_factor': %d" +
-                                                               "  } ;", SimpleStrategy.class.getName(), 5));
-
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KeyspaceMetadata.create(ks, KeyspaceParams.simple(5)));
         ClusterMetadata metadata = generateFakeEndpoints(10, vn);
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
         allocateTokensForKeyspace(vn, ks, metadata, addr);
@@ -181,17 +178,13 @@ public class TokenAllocationTest
             String ks = "TokenAllocationTestNTSKeyspace" + rackCount + replicas;
             String dc = "1";
             String otherDc = "15";
+            KeyspaceMetadata keyspace = KeyspaceMetadata.create(ks, KeyspaceParams.nts(dc, replicas, otherDc, "15"));
 
             // register these 2 nodes so that the DCs exist, otherwise the CREATE KEYSPACE will be rejected
             // but don't join them, we don't assign any tokens to these nodes
             ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.1.0.99"), dc, Integer.toString(0));
             ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.15.0.99"), otherDc, Integer.toString(0));
-
-            ClusterMetadataTestHelper.createKeyspace(String.format("CREATE KEYSPACE " + ks + " WITH REPLICATION = {" +
-                                                     "   'class' : 'NetworkTopologyStrategy'," +
-                                                     "   '%s': %d," +
-                                                     "   '%s': %d" +
-                                                     "  } ;", dc, replicas, otherDc, 15));
+            ClusterMetadataTestHelper.addOrUpdateKeyspace(keyspace);
 
             for (int i = 0; i < rackCount; ++i)
                 generateFakeEndpoints(10, vn, dc, Integer.toString(i));
@@ -216,17 +209,13 @@ public class TokenAllocationTest
             String ks = "token_allocation_test_nts_rf_eq_racks";
             String dc = "1";
             String otherDc = "15";
+            KeyspaceMetadata keyspace = KeyspaceMetadata.create(ks, KeyspaceParams.nts(dc, replicas, otherDc, "15"));
 
             // register these 2 nodes so that the DCs exist, otherwise the CREATE KEYSPACE will be rejected
             // but don't join them, we don't assign any tokens to these nodes
             ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.1.0.255"), dc, Integer.toString(0));
             ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.15.0.255"), otherDc, Integer.toString(0));
-
-            ClusterMetadataTestHelper.createKeyspace(String.format("CREATE KEYSPACE " + ks + " WITH REPLICATION = {" +
-                                                                   "   'class' : 'NetworkTopologyStrategy'," +
-                                                                   "   '%s': %d," +
-                                                                   "   '%s': %d" +
-                                                                   "  } ;", dc, replicas, "15", 15));
+            ClusterMetadataTestHelper.addOrUpdateKeyspace(keyspace);
 
             int base = 5;
             for (int i = 0; i < rackCount; ++i)

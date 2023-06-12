@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tcm.listeners;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -31,14 +32,21 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.PeersTable;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
 
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
+import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 
@@ -104,9 +112,31 @@ public class LegacyStateListener implements ChangeListener
                     if (endpoint != null)
                         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(endpoint));
                 }
+                else if (NodeState.isBootstrap(next.directory.peerState(change)))
+                {
+                    // For compatibility with clients, ensure we set TOKENS for bootstrapping nodes in gossip.
+                    // As these are not yet added to the token map they must be extracted from the in progress sequence.
+                    Collection<Token> tokens = GossipHelper.getTokensFromSequence(change, next);
+                    GossipHelper.mergeNodeToGossip(change, next, tokens);
+                }
+                else if (prev.directory.peerState(change) == BOOT_REPLACING)
+                {
+                    // legacy log message for compatibility (& tests)
+                    InProgressSequence<?> sequence = prev.inProgressSequences.get(change);
+                    if (sequence != null && sequence.kind() == InProgressSequences.Kind.REPLACE)
+                    {
+                        BootstrapAndReplace replace = (BootstrapAndReplace) sequence;
+                        InetAddressAndPort replaced = prev.directory.endpoint(replace.startReplace.replaced());
+                        InetAddressAndPort replacement = prev.directory.endpoint(change);
+                        Collection<Token> tokens = GossipHelper.getTokensFromSequence(replace);
+                        logger.info("Node {} will complete replacement of {} for tokens {}", replacement, replaced, tokens);
+                    }
+                }
                 else
+                {
                     GossipHelper.mergeNodeToGossip(change, next);
-                PeersTable.updateLegacyPeerTable(change, prev, next);
+                    PeersTable.updateLegacyPeerTable(change, prev, next);
+                }
             }
         }
     }

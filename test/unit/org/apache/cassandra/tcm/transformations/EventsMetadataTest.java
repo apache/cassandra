@@ -33,7 +33,6 @@ import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Location;
@@ -97,8 +96,8 @@ public class EventsMetadataTest
     @Test
     public void firstRegisterTest()
     {
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM, Schema.instance);
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS, Schema.instance);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
         ClusterMetadata metadata = ClusterMetadataService.instance().commit(register(node1));
         NodeId nodeId = metadata.directory.peerId(node1);
@@ -115,8 +114,8 @@ public class EventsMetadataTest
     @Test
     public void prepareJoinTest() throws ExecutionException, InterruptedException
     {
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM, Schema.instance);
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS, Schema.instance);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
         ClusterMetadata metadata = ClusterMetadataService.instance().commit(register(node1));
         NodeId nodeId = metadata.directory.peerId(node1);
@@ -130,8 +129,8 @@ public class EventsMetadataTest
     @Test
     public void joinTest() throws ExecutionException, InterruptedException
     {
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM, Schema.instance);
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS, Schema.instance);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
         ClusterMetadataService.instance().commit(register(node1));
 
@@ -174,8 +173,8 @@ public class EventsMetadataTest
     @Test
     public void leaveTest() throws ExecutionException, InterruptedException
     {
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM, Schema.instance);
-        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS, Schema.instance);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM);
+        ClusterMetadataTestHelper.addOrUpdateKeyspace(KSM_NTS);
 
         ClusterMetadataService.instance().commit(register(node1));
 

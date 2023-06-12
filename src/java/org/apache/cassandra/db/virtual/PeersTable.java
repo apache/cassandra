@@ -49,6 +49,7 @@ import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 
 public class PeersTable extends AbstractVirtualTable
 {
+
     public static String PEER = "peer";
     public static String PEER_PORT = "peer_port";
     public static String DATA_CENTER = "data_center";
@@ -90,7 +91,7 @@ public class PeersTable extends AbstractVirtualTable
         SimpleDataSet result = new SimpleDataSet(metadata());
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        for (InetAddressAndPort addr : metadata.directory.allAddresses())
+        for (InetAddressAndPort addr : metadata.directory.allJoinedEndpoints())
         {
             NodeId peer = metadata.directory.peerId(addr);
 
@@ -158,6 +159,10 @@ public class PeersTable extends AbstractVirtualTable
             logger.debug("Purging {} from system.peers_v2 table", addresses);
             QueryProcessor.executeInternal(String.format(peers_delete_query, SYSTEM_KEYSPACE_NAME, PEERS_V2), addresses.broadcastAddress.getAddress(), addresses.broadcastAddress.getPort());
             QueryProcessor.executeInternal(String.format(legacy_peers_delete_query, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS), addresses.broadcastAddress.getAddress());
+        }
+        else if (NodeState.isPreJoin(next.directory.peerState(nodeId)))
+        {
+            logger.debug("{} is in pre-join state {}, not updating system.peers_v2 table", nodeId, next.directory.peerState(nodeId));
         }
         else
         {

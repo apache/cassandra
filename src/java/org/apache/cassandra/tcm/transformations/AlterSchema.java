@@ -19,9 +19,15 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -30,6 +36,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
@@ -52,6 +59,7 @@ import static org.apache.cassandra.exceptions.ExceptionCode.SYNTAX_ERROR;
 
 public class AlterSchema implements Transformation
 {
+    private static final Logger logger = LoggerFactory.getLogger(AlterSchema.class);
     public static final Serializer serializer = new Serializer();
 
     public final SchemaTransformation schemaTransformation;
@@ -73,13 +81,10 @@ public class AlterSchema implements Transformation
     @Override
     public final Result execute(ClusterMetadata prev)
     {
-        // TODO: this not necessarily should be the case, we should optimise this, just be careful not to override
-        if (!prev.lockedRanges.locked.isEmpty())
-            return new Rejected(INVALID, "Can't have schema changes during ring movements: " + prev.lockedRanges.locked);
-
         Keyspaces newKeyspaces;
         try
         {
+            // Guard against an invalid SchemaTransformation supplying a TableMetadata with a future epoch
             newKeyspaces = schemaTransformation.apply(prev, prev.schema.getKeyspaces());
             newKeyspaces.forEach(ksm -> {
                ksm.tables.forEach(tm -> {
@@ -110,18 +115,47 @@ public class AlterSchema implements Transformation
             return new Rejected(SERVER_ERROR, t.getMessage());
         }
 
-        // Ensure that any new or modified TableMetadata has the correct epoch
-        Epoch nextEpoch = prev.nextEpoch();
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(prev.schema.getKeyspaces(), newKeyspaces);
 
+        // Used to ensure that any new or modified TableMetadata has the correct epoch
+        Epoch nextEpoch = prev.nextEpoch();
+
+        // Used to determine whether this schema change impacts data placements in any way.
+        // If so, then reject the change if there are data movement operations inflight, i.e. if any ranges are locked.
+        // If not, or if no ranges are locked then the change is permitted and placements recalculated as part of this
+        // transformation.
+        // Impact on data placements is determined as:
+        // * Any new keyspace configured with a previously unused set of replication params
+        // * Any existing keyspace with an altered set of replication params
+        // * Dropping all keyspaces with a specific set of replication params
+        Set<KeyspaceMetadata> affectsPlacements = new HashSet<>();
+        Map<ReplicationParams, Set<KeyspaceMetadata>> keyspacesByReplication = groupByReplication(prev.schema.getKeyspaces());
+
+        // Scan dropped keyspaces to check if any existing replication scheme will become unused after this change
+        Map<ReplicationParams, Set<KeyspaceMetadata>> intendedToDrop = groupByReplication(diff.dropped);
+        intendedToDrop.forEach((replication, keyspaces) -> {
+            if (keyspaces.containsAll(keyspacesByReplication.get(replication)))
+                affectsPlacements.addAll(keyspaces);
+        });
+
+        // Scan new keyspaces to check for any new replication schemes and to ensure that the metadata of new tables
+        // in those keyspaces has the correct epoch
         for (KeyspaceMetadata newKSM : diff.created)
         {
+            if (!keyspacesByReplication.containsKey(newKSM.params.replication))
+                affectsPlacements.add(newKSM);
+
             Tables tables = Tables.of(normaliseEpochs(nextEpoch, newKSM.tables.stream()));
             newKeyspaces = newKeyspaces.withAddedOrUpdated(newKSM.withSwapped(tables));
         }
 
+        // Scan modified keyspaces to check for replication changes and to ensure that any modified table metadata
+        // has the correct epoch
         for (KeyspaceMetadata.KeyspaceDiff alteredKSM : diff.altered)
         {
+            if (!alteredKSM.before.params.replication.equals(alteredKSM.after.params.replication))
+                affectsPlacements.add(alteredKSM.before);
+
             Tables tables = Tables.of(alteredKSM.after.tables);
             for (TableMetadata created : normaliseEpochs(nextEpoch, alteredKSM.tables.created.stream()))
                 tables = tables.withSwapped(created);
@@ -131,19 +165,47 @@ public class AlterSchema implements Transformation
             newKeyspaces = newKeyspaces.withAddedOrUpdated(alteredKSM.after.withSwapped(tables));
         }
 
+        // Changes which affect placement (i.e. new, removed or altered replication settings) are not allowed if there
+        // are ongoing range movements, including node replacements and partial joins (nodes in write survey mode).
+        if (!affectsPlacements.isEmpty())
+        {
+            logger.debug("Schema change affects data placements, relevant keyspaces: {}", affectsPlacements);
+            if (!prev.lockedRanges.locked.isEmpty())
+                return new Rejected(INVALID,
+                                    String.format("The requested schema changes cannot be executed as they conflict " +
+                                                  "with ongoing range movements. The changes for keyspaces %s are blocked " +
+                                                  "by the locked ranges %s",
+                                                  affectsPlacements.stream().map(k -> k.name).collect(Collectors.joining(",", "[", "]")),
+                                                  prev.lockedRanges.locked));
+
+        }
+
         DistributedSchema snapshotAfter = new DistributedSchema(newKeyspaces);
-
-        // state.schema is a DistributedSchema, so doesn't include local keyspaces. If we don't explicitly include those
-        // here, their placements won't be calculated, effectively dropping them from the new versioned state
-        Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(snapshotAfter.getKeyspaces());
-
-        DataPlacements newPlacement = ClusterMetadataService.instance()
-                                                            .placementProvider()
-                                                            .calculatePlacements(prev.tokenMap.toRanges(), prev, allKeyspaces);
-
-        ClusterMetadata.Transformer next = prev.transformer().with(snapshotAfter).with(newPlacement);
+        ClusterMetadata.Transformer next = prev.transformer().with(snapshotAfter);
+        if (!affectsPlacements.isEmpty())
+        {
+            // state.schema is a DistributedSchema, so doesn't include local keyspaces. If we don't explicitly include those
+            // here, their placements won't be calculated, effectively dropping them from the new versioned state
+            Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(snapshotAfter.getKeyspaces());
+            DataPlacements newPlacement = ClusterMetadataService.instance()
+                                                                .placementProvider()
+                                                                .calculatePlacements(prev.tokenMap.toRanges(), prev, allKeyspaces);
+            next = next.with(newPlacement);
+        }
 
         return success(next, LockedRanges.AffectedRanges.EMPTY);
+    }
+
+    private static Map<ReplicationParams, Set<KeyspaceMetadata>> groupByReplication(Keyspaces keyspaces)
+    {
+        Map<ReplicationParams, Set<KeyspaceMetadata>> byReplication = new HashMap<>();
+        for (KeyspaceMetadata ksm : keyspaces)
+        {
+            ReplicationParams params = ksm.params.replication;
+            Set<KeyspaceMetadata> forReplication = byReplication.computeIfAbsent(params, p -> new HashSet<>());
+            forReplication.add(ksm);
+        }
+        return byReplication;
     }
 
     private static Iterable<TableMetadata> normaliseEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)

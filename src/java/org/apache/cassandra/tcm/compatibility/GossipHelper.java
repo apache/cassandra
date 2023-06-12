@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -66,6 +67,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -89,6 +91,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 public class GossipHelper
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipHelper.class);
+
     public static void removeFromGossip(InetAddressAndPort addr)
     {
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(addr));
@@ -180,6 +183,27 @@ public class GossipHelper
         });
     }
 
+    public static Collection<Token> getTokensFromSequence(NodeId nodeId, ClusterMetadata metadata)
+    {
+        return getTokensFromSequence(metadata.inProgressSequences.get(nodeId));
+    }
+
+    public static Collection<Token> getTokensFromSequence(InProgressSequence<?> sequence)
+    {
+        if (null == sequence)
+            return Collections.emptySet();
+
+        if (sequence.kind() == InProgressSequences.Kind.JOIN)
+            return new HashSet<>(((BootstrapAndJoin)sequence).finishJoin.tokens);
+        else if (sequence.kind() == InProgressSequences.Kind.REPLACE)
+            return new HashSet<>(((BootstrapAndReplace)sequence).bootstrapTokens);
+        else if (sequence.kind() == InProgressSequences.Kind.MOVE)
+            return new HashSet<>(((Move)sequence).tokens);
+
+        throw new IllegalArgumentException(String.format("Extracting tokens from %s sequence is " +
+                                                         "neither necessary nor supported here"));
+    }
+
     private static VersionedValue nodeStateToStatus(NodeId nodeId,
                                                     ClusterMetadata metadata,
                                                     Collection<Token> tokens,
@@ -187,7 +211,7 @@ public class GossipHelper
                                                     VersionedValue oldValue)
     {
         NodeState nodeState =  metadata.directory.peerState(nodeId);
-        if ((tokens == null || tokens.isEmpty()) && nodeState != NodeState.BOOT_REPLACING)
+        if ((tokens == null || tokens.isEmpty()) && !NodeState.isBootstrap(nodeState))
             return null;
 
         InProgressSequence<?> sequence;
@@ -204,7 +228,14 @@ public class GossipHelper
                 status = valueFactory.left(tokens, Gossiper.computeExpireTime());
                 break;
             case BOOTSTRAPPING:
-                status = valueFactory.bootstrapping(tokens);
+                sequence = metadata.inProgressSequences.get(nodeId);
+                if (!(sequence instanceof BootstrapAndJoin))
+                {
+                    logger.error(String.format("Cannot construct gossip state. Node is in %s state, but the sequence is %s", NodeState.BOOTSTRAPPING, sequence));
+                    return null;
+                }
+                Collection<Token> bootstrapTokens = getTokensFromSequence(sequence);
+                status = valueFactory.bootstrapping(bootstrapTokens);
                 break;
             case BOOT_REPLACING:
                 sequence = metadata.inProgressSequences.get(nodeId);
@@ -230,9 +261,12 @@ public class GossipHelper
                     logger.error(String.format("Cannot construct gossip state. Node is in %s state, but sequence the is %s", NodeState.MOVING, sequence));
                     return null;
                 }
-
-                Token token = ((Move)sequence).tokens.iterator().next();
-                status = valueFactory.moving(token);
+                Collection<Token> moveTokens = getTokensFromSequence(sequence);
+                if (!moveTokens.isEmpty())
+                {
+                    Token token = ((Move) sequence).tokens.iterator().next();
+                    status = valueFactory.moving(token);
+                }
                 break;
             case REGISTERED:
                 break;

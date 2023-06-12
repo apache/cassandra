@@ -194,6 +194,9 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.compatibility.GossipHelper;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.GossipCMSListener;
@@ -201,6 +204,7 @@ import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
@@ -211,7 +215,6 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
@@ -265,12 +268,13 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getAllRanges;
 import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getPrimaryRangeForEndpointWithinDC;
 import static org.apache.cassandra.tcm.compatibility.TokenRingUtils.getPrimaryRangesForEndpoint;
+import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
+import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_REPLACE;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
-import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
 
@@ -421,8 +425,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean isSurveyMode = TEST_WRITE_SURVEY.getBoolean(false);
     /* true if node is rebuilding and receiving data */
     private volatile boolean initialized = false;
-    public volatile boolean joined = false;
-    private volatile boolean gossipActive = false;
     private final AtomicBoolean authSetupCalled = new AtomicBoolean(false);
     private volatile boolean authSetupComplete = false;
 
@@ -491,7 +493,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     // should only be called via JMX
     public void stopGossiping()
     {
-        if (gossipActive)
+        if (isGossipRunning())
         {
             if (!isNormal() && joinRing)
                 throw new IllegalStateException("Unable to stop gossip because the node is not in the normal state. Try to stop the node instead.");
@@ -504,14 +506,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             Gossiper.instance.stop();
-            gossipActive = false;
         }
     }
 
     // should only be called via JMX
     public synchronized void startGossiping()
     {
-        if (!gossipActive)
+        if (!isGossipRunning())
         {
             checkServiceAllowedToStart("gossip");
 
@@ -521,7 +522,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             boolean validTokens = tokens != null && !tokens.isEmpty();
 
             // shouldn't be called before these are set if we intend to join the ring/are in the process of doing so
-            if (joined || joinRing)
+            if (!isStarting() || joinRing)
                 assert validTokens : "Cannot start gossiping for a node intended to join without valid tokens";
 
             List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
@@ -644,9 +645,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return initialized;
     }
 
+    @Deprecated
     public boolean isGossipActive()
     {
-        return gossipActive;
+        return isGossipRunning();
     }
 
     public boolean isDaemonSetupCompleted()
@@ -665,7 +667,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void unsafeInitialize() throws ConfigurationException
     {
         initialized = true;
-        gossipActive = true;
         Gossiper.instance.register(this);
         Gossiper.instance.start((int) (currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
@@ -763,12 +764,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         NodeId self = Register.maybeRegister();
 
-        startup(finishJoiningRing);
-
-        doAuthSetup();
-
-        maybeInitializeServices();
-        completeInitialization();
+        try
+        {
+            joinRing();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not perform startup sequence and join cluster", e);
+        }
     }
 
     // todo: move somewhere to sequences?
@@ -779,10 +782,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // finish in-progress sequences first
         finishInProgressSequences(self);
+        metadata = ClusterMetadata.current();
 
         switch (metadata.directory.peerState(self))
         {
             case REGISTERED:
+            case LEFT:
                 ClusterMetadataService.instance().commit(getStartupSequence(finishJoiningRing),
                                                          (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                          (metadata_) -> null,
@@ -797,15 +802,31 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                              return null;
                                                          });
 
+
                 finishInProgressSequences(self);
 
                 if (finishJoiningRing && (ClusterMetadata.current().directory.peerState(self) != JOINED))
                     throw new IllegalStateException("Did not finish joining the ring. Please check logs for details.");
+                else
+                {
+                    logger.info("Did not finish joining the ring; node state is {}, bootstrap state is {}",
+                                ClusterMetadata.current().directory.peerState(self),
+                                SystemKeyspace.getBootstrapState());
+                    break;
+                }
             case JOINED:
+                // JOINED appears before BOOTSTRAPPING & BOOT_REPLACE so we can fall
+                // through when we start as REGISTERED/LEFT and complete a full startup
                 logger.info("{}", Mode.NORMAL);
                 break;
-            case LEFT:
-                throw new IllegalStateException("Node has fully left the cluster");
+            case BOOTSTRAPPING:
+            case BOOT_REPLACING:
+                if (finishJoiningRing)
+                {
+                    throw new IllegalStateException("Expected to complete startup sequence, but did not. " +
+                                                    "Can't proceed from the state " + metadata.directory.peerState(self));
+                }
+                break;
             default:
                 throw new IllegalStateException("Can't proceed from the state " + metadata.directory.peerState(self));
         }
@@ -954,10 +975,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getSeeds().contains(getBroadcastAddressAndPort());
     }
 
-    private void joinTokenRing() throws ConfigurationException
-    {
-    }
-
     @VisibleForTesting
     public void startSnapshotManager()
     {
@@ -970,21 +987,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return replaceAddress != null && replaceAddress.equals(getBroadcastAddressAndPort());
     }
 
-    public void joinRing() throws IOException
+    public synchronized void joinRing() throws IOException
     {
-        SystemKeyspace.BootstrapState state = SystemKeyspace.getBootstrapState();
-        joinRing(state.equals(SystemKeyspace.BootstrapState.IN_PROGRESS));
-    }
-
-    private synchronized void joinRing(boolean resumedBootstrap) throws IOException
-    {
-        if (!joined)
+        if (isStarting())
         {
-            logger.info("Joining ring by operator request");
+            if (!joinRing)
+                logger.info("Joining ring by operator request");
             try
             {
-                joinTokenRing();
-                doAuthSetup();
+                startup(!isSurveyMode);
             }
             catch (ConfigurationException e)
             {
@@ -993,14 +1004,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else if (isSurveyMode)
         {
-            // if isSurveyMode is on then verify isBootstrapMode
-            // node can join the ring even if isBootstrapMode is true which should not happen
-            if (!isBootstrapMode())
+            // if isSurveyMode is on then verify the node is in the right state to join the ring
+            if (readyToFinishJoiningRing())
             {
                 logger.info("Leaving write survey mode and joining ring at operator request");
-                // todo;
-                finishJoiningRing(/*resumedBootstrap, SystemKeyspace.getSavedTokens()*/);
-                doAuthSetup();
+                finishJoiningRing();
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1013,18 +1021,54 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // bootstrap is not complete hence node cannot join the ring
             logger.warn("Can't join the ring because bootstrap hasn't completed.");
+            return;
         }
+
+        doAuthSetup();
+        maybeInitializeServices();
+        completeInitialization();
+    }
+
+    public boolean readyToFinishJoiningRing()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId id = metadata.myNodeId();
+        InProgressSequence<?> sequence = metadata.inProgressSequences.get(id);
+
+        if (sequence == null && metadata.directory.peerState(id) == JOINED)
+            return true;
+        if (sequence instanceof BootstrapAndJoin && sequence.nextStep() == FINISH_JOIN)
+            return true;
+        if (sequence instanceof BootstrapAndReplace && sequence.nextStep() == FINISH_REPLACE)
+            return true;
+
+        return false;
     }
 
     public void finishJoiningRing()
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        InProgressSequence<?> sequence = metadata.inProgressSequences.get(metadata.myNodeId());
+        NodeId id = metadata.myNodeId();
+        InProgressSequence<?> sequence = metadata.inProgressSequences.get(id);
 
-        if (!(sequence instanceof BootstrapAndJoin))
-            throw new IllegalStateException("Can not resume bootstrap as it does not appear to have been started");
+        // Double check the conditions we verified in readyToFinishJoiningRing
+        if (!(sequence instanceof BootstrapAndJoin) && !(sequence instanceof BootstrapAndReplace))
+            throw new IllegalStateException("Can not finish joining ring as join sequence has not been started");
 
-        ((BootstrapAndJoin) sequence).finishJoiningRing().executeNext();
+        if (sequence.nextStep() != FINISH_JOIN && sequence.nextStep() != FINISH_REPLACE)
+            throw new IllegalStateException("Can not finish joining ring, sequence is in an incorrect state. " +
+                                            "If no progress is made, cancel the join process for this node and retry");
+
+        // create a new copy of the sequence with the finishJoining flag set to true, then complete it.
+        // Note, this does not replace the existing sequence in ClusterMetadata, but it will remove it
+        // as usual if execution is successful.
+        boolean success = (sequence instanceof BootstrapAndJoin)
+                          ? ((BootstrapAndJoin)sequence).finishJoiningRing().executeNext()
+                          : ((BootstrapAndReplace)sequence).finishJoiningRing().executeNext();
+        if (!success)
+            throw new RuntimeException("Could not finish joining ring, restart this node and inflight operations will " +
+                                       "attempt to complete. If no progress is made, cancel the join process for this node and retry");
+
     }
 
     @VisibleForTesting
@@ -1880,13 +1924,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // for nodetool status - grab them from the in progress sequences for the joining nodes;
         for (NodeId nodeId : metadata.directory.peerIds())
         {
-            if (metadata.directory.peerState(nodeId) == BOOTSTRAPPING ||
-                metadata.directory.peerState(nodeId) == REGISTERED)
+            if (NodeState.isPreJoin(metadata.directory.peerState(nodeId)))
             {
                 InProgressSequence<?> seq = metadata.inProgressSequences.get(nodeId);
-                if (seq != null && seq.kind() == InProgressSequences.Kind.JOIN)
-                    for (Token t : ((BootstrapAndJoin)seq).finishJoin.tokens)
-                        mapNodeId.put(t, nodeId);
+                GossipHelper.getTokensFromSequence(seq).forEach(t -> mapNodeId.put(t, nodeId));
             }
         }
         // in order to preserve tokens in ascending order, we use LinkedHashMap here
@@ -2033,7 +2074,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return;
         }
 
-        if (ClusterMetadata.current().directory.allAddresses().contains(endpoint))
+        if (ClusterMetadata.current().directory.allJoinedEndpoints().contains(endpoint))
         {
             switch (state)
             {
@@ -2080,7 +2121,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     else if (moveName.equals(VersionedValue.STATUS_NORMAL))
                     {
                         logger.info("Node {} state jump to NORMAL", endpoint);
-
                     }
                     break;
                 case SCHEMA:
@@ -2396,13 +2436,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<String> getJoiningNodes()
     {
-        // todo use directory
-        return stringify(endpointsWithState(BOOTSTRAPPING), false);
+        return stringify(Iterables.concat(endpointsWithState(BOOTSTRAPPING),
+                                          endpointsWithState(BOOT_REPLACING)),
+                         false);
     }
 
     public List<String> getJoiningNodesWithPort()
     {
-        return stringify(endpointsWithState(BOOTSTRAPPING), true);
+        return stringify(Iterables.concat(endpointsWithState(BOOTSTRAPPING),
+                                          endpointsWithState(BOOT_REPLACING)),
+                         true);
     }
 
     @Deprecated
@@ -3896,6 +3939,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         switch (nodeState)
         {
             case REGISTERED:
+            case BOOT_REPLACING:
             case BOOTSTRAPPING:
                 return Mode.JOINING;
             case JOINED:

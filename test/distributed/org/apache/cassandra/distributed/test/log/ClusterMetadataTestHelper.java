@@ -47,7 +47,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
@@ -767,12 +766,12 @@ public class ClusterMetadataTestHelper
         .finishLeave();
     }
 
-    public static void addOrUpdateKeyspace(KeyspaceMetadata keyspace, SchemaProvider schemaProvider)
+    public static void addOrUpdateKeyspace(KeyspaceMetadata keyspace)
     {
         try
         {
             SchemaTransformation transformation = (cm, schema) -> schema.withAddedOrUpdated(keyspace);
-            commit(new AlterSchema(transformation, schemaProvider));
+            commit(new AlterSchema(transformation, Schema.instance));
         }
         catch (Exception e)
         {

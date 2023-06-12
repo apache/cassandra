@@ -17,6 +17,10 @@
  */
 
 package org.apache.cassandra.tcm.membership;
+
+import java.util.EnumSet;
+import java.util.Set;
+
 public enum NodeState
 {
     REGISTERED,
@@ -26,6 +30,17 @@ public enum NodeState
     LEAVING,
     LEFT,
     MOVING;
+    private static final Set<NodeState> PRE_JOIN_STATES = EnumSet.of(REGISTERED, BOOTSTRAPPING, BOOT_REPLACING);
+    private static final Set<NodeState> BOOTSTRAP_STATES = EnumSet.of(BOOTSTRAPPING, BOOT_REPLACING);
 
+    public static boolean isPreJoin(NodeState state)
+    {
+        return (state == null || PRE_JOIN_STATES.contains(state));
+    }
+
+    public static boolean isBootstrap(NodeState state)
+    {
+        return (state != null && BOOTSTRAP_STATES.contains(state));
+    }
     // TODO: probably we can make these states even more nuanced, and track which step each node is on to have a simpler representation of transition states
 }

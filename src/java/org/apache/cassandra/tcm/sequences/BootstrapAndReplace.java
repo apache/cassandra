@@ -161,11 +161,6 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
                         }
                     }
 
-                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                    StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                                 .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.getKeyspaceName()))
-                                 .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
-
                     commit(midReplace);
                 }
                 catch (Throwable e)
@@ -178,12 +173,19 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
             case FINISH_REPLACE:
                 try
                 {
-                    if (!finishJoiningRing)
+                    if (finishJoiningRing)
+                    {
+                        SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
+                        StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
+                                     .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                                     .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+                        commit(finishReplace);
+                    }
+                    else
                     {
                         logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
                         return false;
                     }
-                    commit(finishReplace);
                 }
                 catch (Throwable e)
                 {
@@ -220,6 +222,12 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
             movementMapBuilder.put(params, movements.build());
         });
         return movementMapBuilder.build();
+    }
+
+    public BootstrapAndReplace finishJoiningRing()
+    {
+        return new BootstrapAndReplace(latestModification, lockKey, next, bootstrapTokens, startReplace, midReplace, finishReplace,
+                                    true, streamData);
     }
 
     @Override

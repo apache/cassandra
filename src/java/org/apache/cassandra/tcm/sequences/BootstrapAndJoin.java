@@ -206,11 +206,10 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                             return false;
                         }
                     }
-
-                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                    StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                                 .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.getKeyspaceName()))
-                                 .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+                    else
+                    {
+                        logger.info("Skipping data streaming for join");
+                    }
 
                     commit(midJoin);
                 }
@@ -230,13 +229,20 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
             case FINISH_JOIN:
                 try
                 {
-                    if (!finishJoiningRing)
+                    if (finishJoiningRing)
+                    {
+                        SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
+                        StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
+                                     .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                                     .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+                        commit(finishJoin);
+                    }
+                    else
                     {
                         logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
                         return false;
                     }
 
-                    commit(finishJoin);
                 }
                 catch (Throwable e)
                 {

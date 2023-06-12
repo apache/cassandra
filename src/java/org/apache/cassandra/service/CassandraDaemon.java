@@ -804,15 +804,17 @@ public class CassandraDaemon
         // OR if we have not joined the ring yet.
         if (startupSequence != null)
         {
-            throw new IllegalStateException("Not starting client transports because startup sequence has not completed");
-        }
-
-        if (StorageService.instance.isSurveyMode())
-        {
-            if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
+            if (StorageService.instance.isSurveyMode())
             {
-                throw new IllegalStateException("Not starting client transports in write_survey mode as it's not fully started yet " +
-                                                "auth is enabled");
+                if (!StorageService.instance.readyToFinishJoiningRing() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
+                {
+                    throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
+                                                    "auth is enabled");
+                }
+            }
+            else
+            {
+                throw new IllegalStateException("Not starting client transports because startup sequence has not completed");
             }
         }
         else

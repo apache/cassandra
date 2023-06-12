@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.log;
 
+import java.io.IOException;
 import java.util.concurrent.Callable;
 
 import org.junit.Assert;
@@ -93,11 +94,27 @@ public class ResumableStartupTest extends FuzzTestBase
                 visitor.visit();
 
             Epoch currentEpoch = getClusterMetadataVersion(cmsInstance);
+            // Quick check that schema changes are possible with nodes in write survey mode (i.e. with ranges locked)
+            cluster.coordinator(1).execute("ALTER TABLE " + run.schemaSpec.keyspace + "." + run.schemaSpec.table +
+                                           " WITH comment = 'Schema alterations which do not affect placements should" +
+                                           " not be restricted by in flight operations';",
+                                           ConsistencyLevel.ALL);
+
             Callable<Epoch> finishedBootstrap = getSequenceAfterCommit(cmsInstance, (e, r) -> e instanceof PrepareJoin.FinishJoin && r.isSuccess());
-            newInstance.runOnInstance(() -> StorageService.instance.finishJoiningRing());
+            newInstance.runOnInstance(() -> {
+                try
+                {
+                    StorageService.instance.joinRing();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException("Error joining ring", e);
+                }
+            });
             Epoch next = finishedBootstrap.call();
-            Assert.assertEquals(String.format("Epoch %s should have immediately superseded epoch %s.", next, currentEpoch),
-                                next.getEpoch(), currentEpoch.getEpoch() + 1);
+            Assert.assertEquals(String.format("Expected epoch after schema change and finish join to be %s, but was %s",
+                                              next.getEpoch(), currentEpoch.getEpoch() + 2),
+                                next.getEpoch(), currentEpoch.getEpoch() + 2);
 
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
