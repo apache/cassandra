@@ -1233,4 +1233,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     void addToCms(List<String> endpoint);
     List<String> describeCMS();
     public void sealPeriod();
+
+    public void unsafeRevertClusterMetadata(long epoch);
+    public String dumpClusterMetadata(long epoch, long transformToEpoch, String version) throws IOException;
+    public String dumpClusterMetadata() throws IOException;
+    public void unsafeLoadClusterMetadata(String file) throws IOException;
+
+    public void replayAndWait();
+    public void setCommitsPaused(boolean paused);
+    public boolean getCommitsPaused();
 }

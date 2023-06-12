@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -183,8 +184,9 @@ public class PrepareJoin implements Transformation
             NodeId id = NodeId.serializer.deserialize(in, version);
             int numTokens = in.readInt();
             Set<Token> tokens = new HashSet<>(numTokens);
-            for (int i=0;i<numTokens;i++)
-                tokens.add(Token.metadataSerializer.deserialize(in, version));
+            IPartitioner partitioner = ClusterMetadata.current().partitioner;
+            for (int i = 0; i < numTokens; i++)
+                tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
             boolean joinTokenRing = in.readBoolean();
             boolean streamData = in.readBoolean();
             return construct(id, tokens, ClusterMetadataService.instance().placementProvider(), joinTokenRing, streamData);
@@ -325,8 +327,9 @@ public class PrepareJoin implements Transformation
                 LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
                 int numTokens = in.readUnsignedVInt32();
                 Set<Token> tokens = new HashSet<>();
+                IPartitioner partitioner = ClusterMetadata.current().partitioner;
                 for (int i = 0; i < numTokens; i++)
-                    tokens.add(Token.metadataSerializer.deserialize(in, version));
+                    tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
                 return new FinishJoin(nodeId, tokens, delta, lockKey);
             }
 

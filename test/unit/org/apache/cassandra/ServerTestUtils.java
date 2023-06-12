@@ -51,11 +51,14 @@ import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -238,34 +241,87 @@ public final class ServerTestUtils
             Keyspace.setInitialized();
 
         LocalLog log = LocalLog.sync(initial, LogStorage.None, addListeners);
-        ClusterMetadataService service = new ClusterMetadataService(new UniformRangePlacement(),
-                                                                    MetadataSnapshots.NO_OP,
-                                                                    log,
-                                                                    processorFactory.apply(log),
-                                                                    Commit.Replicator.NO_OP,
-                                                                    true);
+        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                        MetadataSnapshots.NO_OP,
+                                                                                        log,
+                                                                                        processorFactory.apply(log),
+                                                                                        Commit.Replicator.NO_OP,
+                                                                                        true);
 
         ClusterMetadataService.setInstance(service);
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         service.commit(new Initialize(ClusterMetadata.current()));
         QueryProcessor.registerStatementInvalidatingListener();
+        service.mark();
+    }
+
+    public static void recreateCMS()
+    {
+        assert ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean() : "Need to set " + ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION + " to true for resetCMS to work";
+        // unfortunately, for now this is sometimes necessary because of the initialisation ordering with regard to
+        // IPartitioner. For example, if a test has a requirement to use a different partitioner to the one in yaml:
+        // SchemaLoader.prepareServer
+        // |-- SchemaLoader.prepareServerNoRegister
+        // |   |-- ServerTestUtils.daemonInitialization();        # sets DD.partitioner according to yaml (i.e. BOP)
+        // |   |-- ServerTestUtils.prepareServer();               # includes inititial CMS using DD partitioner
+        // |-- StorageService.instance.setPartitionerUnsafe(M3P)  # test wants to use LongToken
+        // |-- ServerTestUtils.recreateCMS                        # recreates the CMS using the updated partitioner
+        ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        LocalLog log = LocalLog.async(initial);
+        ResettableClusterMetadataService cms = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                    MetadataSnapshots.NO_OP,
+                                                                                    log,
+                                                                                    new AtomicLongBackedProcessor(log),
+                                                                                    Commit.Replicator.NO_OP,
+                                                                                    true);
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(cms);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        cms.mark();
+    }
+
+    public static void markCMS()
+    {
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        assert cms instanceof ResettableClusterMetadataService : "CMS instance is not resettable";
+        ((ResettableClusterMetadataService)cms).mark();
     }
 
     public static void resetCMS()
     {
-        assert ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean() : "Need to set " + ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION + " to true for resetCMS to work";
-        ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
-        LocalLog log = LocalLog.async(initial);
-        ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
-                                                                MetadataSnapshots.NO_OP,
-                                                                log,
-                                                                new AtomicLongBackedProcessor(log),
-                                                                Commit.Replicator.NO_OP,
-                                                                true);
-        ClusterMetadataService.unsetInstance();
-        ClusterMetadataService.setInstance(cms);
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        assert cms instanceof ResettableClusterMetadataService : "CMS instance is not resettable";
+        ((ResettableClusterMetadataService)cms).reset();
+    }
+
+    private static class ResettableClusterMetadataService extends ClusterMetadataService
+    {
+
+        private ClusterMetadata mark;
+
+        public ResettableClusterMetadataService(PlacementProvider placementProvider,
+                                                MetadataSnapshots snapshots,
+                                                LocalLog log,
+                                                Processor processor,
+                                                Commit.Replicator replicator,
+                                                boolean isMemberOfOwnershipGroup)
+        {
+            super(placementProvider, snapshots, log, processor, replicator, isMemberOfOwnershipGroup);
+            mark = log.metadata();
+        }
+
+        private void mark()
+        {
+            mark = ClusterMetadata.current();
+        }
+
+        private Epoch reset()
+        {
+            Epoch nextEpoch = ClusterMetadata.current().epoch.nextEpoch();
+            ClusterMetadata newBaseState = mark.forceEpoch(nextEpoch);
+            return ClusterMetadataService.instance().commit(new ForceSnapshot(newBaseState)).epoch;
+        }
     }
 
     private ServerTestUtils()

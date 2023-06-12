@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.ownership;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -115,17 +117,27 @@ public class OwnershipUtils
     {
         // min 10, max 40 ranges
         int count = random.nextInt(30) + 10;
-        Set<Long> tokens = new HashSet<>(count);
+        return ranges(count, Murmur3Partitioner.instance, random);
+    }
+
+    public static List<Range<Token>> ranges(int count, IPartitioner partitioner, Random random)
+    {
+        Set<Token> tokens = new HashSet<>(count);
         while(tokens.size() < count-1)
-            tokens.add(random.nextLong());
-        List<Long> sorted = new ArrayList<>(tokens);
+            tokens.add(partitioner.getRandomToken(random));
+        return ranges(tokens, partitioner);
+    }
+
+    public static List<Range<Token>> ranges(Collection<Token> tokens, IPartitioner partitioner)
+    {
+        List<Token> sorted = new ArrayList<>(tokens);
         Collections.sort(sorted);
 
-        List<Range<Token>> ranges = new ArrayList<>(count);
-        ranges.add(new Range<>(Murmur3Partitioner.MINIMUM, token(sorted.get(0))));
+        List<Range<Token>> ranges = new ArrayList<>(tokens.size() + 1);
+        ranges.add(new Range<>(partitioner.getMinimumToken(), sorted.get(0)));
         for (int i = 1; i < sorted.size(); i++)
-            ranges.add(new Range<>(token(sorted.get(i-1)), token(sorted.get(i))));
-        ranges.add(new Range<>(token(sorted.get(sorted.size() - 1)), Murmur3Partitioner.MINIMUM));
+            ranges.add(new Range<>(sorted.get(i-1), sorted.get(i)));
+        ranges.add(new Range<>(sorted.get(sorted.size() - 1), partitioner.getMinimumToken()));
         return ranges;
     }
 
@@ -205,4 +217,25 @@ public class OwnershipUtils
         ClusterMetadataTestHelper.movePartially(broadcastAddress, newTokens);
     }
 
+    public static PlacementDeltas randomDeltas(List<Range<Token>> ranges, Random random)
+    {
+        Set<ReplicationParams> replication = ImmutableSet.of(KeyspaceParams.simple(1).replication,
+                                                             KeyspaceParams.simple(2).replication,
+                                                             KeyspaceParams.simple(3).replication);
+        return deltas(placements(ranges, replication, random), placements(ranges, replication, random));
+    }
+
+    public static PlacementDeltas randomDeltas(IPartitioner partitioner, Random random)
+    {
+        List<Range<Token>> ranges = ranges(10, partitioner, random);
+        return randomDeltas(ranges,random);
+    }
+
+    public static Set<Token> randomTokens(int numTokens, IPartitioner partitioner, Random random)
+    {
+        Set<Token> tokens = new HashSet<>(numTokens);
+        while(tokens.size() < numTokens)
+            tokens.add(partitioner.getRandomToken(random));
+        return tokens;
+    }
 }

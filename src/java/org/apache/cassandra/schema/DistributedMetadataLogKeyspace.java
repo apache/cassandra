@@ -118,7 +118,7 @@ public final class DistributedMetadataLogKeyspace
             ByteBuffer serializedEvent = transform.kind().toVersionedBytes(transform);
 
             UntypedResultSet result;
-            if (previousPeriod + 1 == nextPeriod)
+            if (previousPeriod + 1 == nextPeriod || ClusterMetadataService.state() == ClusterMetadataService.State.RESET)
             {
                 String query = String.format("BEGIN BATCH\n" +
                                              "INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind, sealed) VALUES (?, ?, ?, ?, ?, ?, false) IF NOT EXISTS;\n" +

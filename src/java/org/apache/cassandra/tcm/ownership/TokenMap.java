@@ -230,7 +230,7 @@ public class TokenMap implements MetadataValue<TokenMap>
             int size = in.readInt();
             SortedBiMultiValMap<Token, NodeId> tokens = SortedBiMultiValMap.create();
             for (int i = 0; i < size; i++)
-                tokens.put(Token.metadataSerializer.deserialize(in, version),
+                tokens.put(Token.metadataSerializer.deserialize(in, partitioner, version),
                            NodeId.serializer.deserialize(in, version));
             return new TokenMap(lastModified, partitioner, tokens);
         }

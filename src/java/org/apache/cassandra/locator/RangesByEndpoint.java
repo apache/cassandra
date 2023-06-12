@@ -32,6 +32,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -74,6 +75,7 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
         {
             Set<Map.Entry<InetAddressAndPort, RangesAtEndpoint>> entries = t.entrySet();
             out.writeInt(entries.size());
+            IPartitioner partitioner = ClusterMetadata.current().partitioner;
             for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> entry : entries)
             {
                 InetAddressAndPort.MetadataSerializer.serializer.serialize(entry.getKey(), out, version);
@@ -81,7 +83,11 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
                 out.writeInt(replicas.size());
                 for (Replica r : replicas)
                 {
-                    IPartitioner.validate(r.range());
+                    // TODO duplicated from IPartitioner.validate as we don't want to rely on DatabaseDescriptor
+                    if (partitioner != r.range().left.getPartitioner())
+                        throw new AssertionError(String.format("Partitioner in range serialization. Expected %s, was %s.",
+                                                               partitioner.getClass().getName(),
+                                                               r.range().left.getPartitioner().getClass().getName()));
                     Range.serializer.serialize(r.range(), out, version);
                     out.writeBoolean(r.isFull());
                 }

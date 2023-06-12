@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -343,8 +344,9 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
 
             Set<Token> tokens = new HashSet<>();
             int tokenCount = VIntCoding.readUnsignedVInt32(in);
+            IPartitioner partitioner = ClusterMetadata.current().partitioner;
             for (int i = 0; i < tokenCount; i++)
-                tokens.add(Token.metadataSerializer.deserialize(in, version));
+                tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
 
             Epoch barrier = Epoch.serializer.deserialize(in, version);
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);

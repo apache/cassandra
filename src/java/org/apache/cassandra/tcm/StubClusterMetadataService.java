@@ -18,15 +18,12 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.Predicate;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
-import org.apache.cassandra.tcm.log.Replication;
-import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 
 public class StubClusterMetadataService extends ClusterMetadataService
@@ -39,61 +36,71 @@ public class StubClusterMetadataService extends ClusterMetadataService
 
     public static StubClusterMetadataService forTesting()
     {
-        return new StubClusterMetadataService(null,
-                                              new ClusterMetadata(DatabaseDescriptor.getPartitioner()),
-                                              null,
-                                              null);
+        return new StubClusterMetadataService(new ClusterMetadata(DatabaseDescriptor.getPartitioner()));
+    }
+
+    public static StubClusterMetadataService forTesting(ClusterMetadata metadata)
+    {
+        return new StubClusterMetadataService(metadata);
+    }
+
+    private ClusterMetadata metadata;
+
+    private StubClusterMetadataService(ClusterMetadata initial)
+    {
+        super(new UniformRangePlacement(),
+              MetadataSnapshots.NO_OP,
+              LocalLog.sync(initial, LogStorage.None, false, false),
+              new StubProcessor(),
+              Commit.Replicator.NO_OP,
+              false);
+        this.metadata = initial;
+    }
+
+    @Override
+    public <T1> T1 commit(Transformation transform, Predicate<ClusterMetadata> retry, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
+    {
+        Transformation.Result result = transform.execute(metadata);
+        if (result.isSuccess())
+        {
+            metadata = result.success().metadata;
+            return  onSuccess.accept(result.success().metadata);
+        }
+        return onReject.accept(metadata, result.rejected().code, result.rejected().reason);
+    }
+
+    @Override
+    public ClusterMetadata replayAndWait()
+    {
+        return metadata;
     }
 
     @Override
     public ClusterMetadata metadata()
     {
-        return ((StubProcessor)processor()).metadata;
+        return metadata;
     }
 
     public void setMetadata(ClusterMetadata metadata)
     {
-        ((StubProcessor)processor()).metadata = metadata;
-    }
-
-    private StubClusterMetadataService(PlacementProvider placementProvider,
-                                       ClusterMetadata initial,
-                                       Function<Processor, Processor> wrapProcessor,
-                                       Supplier<State> cmsStateSupplier)
-    {
-        super(new UniformRangePlacement(),
-              MetadataSnapshots.NO_OP,
-              LocalLog.asyncForTests(LogStorage.None, initial, false),
-              new StubProcessor(initial),
-              Commit.Replicator.NO_OP,
-              false);
+        this.metadata = metadata;
     }
 
     private static class StubProcessor implements Processor
     {
-        private ClusterMetadata metadata;
-        StubProcessor(ClusterMetadata metadata)
-        {
-            this.metadata = metadata;
-        }
+
+        private StubProcessor() {}
 
         @Override
         public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
         {
-            Transformation.Result result = transform.execute(metadata);
-            if (result.isSuccess())
-            {
-                metadata = result.success().metadata;
-                return new Commit.Result.Success(metadata.epoch, Replication.EMPTY);
-            }
-
-            return new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public ClusterMetadata replayAndWait()
         {
-            return metadata;
+            throw new UnsupportedOperationException();
         }
     }
 }

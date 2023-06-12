@@ -32,11 +32,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -124,8 +126,28 @@ public class LockedRanges implements MetadataValue<LockedRanges>
     {
         if (this == o) return true;
         if (!(o instanceof LockedRanges)) return false;
+
         LockedRanges that = (LockedRanges) o;
-        return Objects.equals(lastModified, that.lastModified) && Objects.equals(locked, that.locked);
+        // check the last modified epoch and set of lock keys match first
+        if ( !Objects.equals(lastModified, that.lastModified) || !Objects.equals(locked.keySet(), that.locked.keySet()))
+            return false;
+
+        // now for each lock key, compare the AffectedRanges
+        for (Map.Entry<LockedRanges.Key, AffectedRanges> entry : locked.entrySet())
+        {
+            // AffectedRanges is a Map<ReplicationParams, Set<Range<Token>>
+            // so first check the keysets are the same, then do a pairwise compare on the sets of ranges
+            LockedRanges.AffectedRanges otherAffected = that.locked.get(entry.getKey());
+            Map<ReplicationParams, Set<Range<Token>>> thisRangesByReplication = entry.getValue().asMap();
+            Map<ReplicationParams, Set<Range<Token>>> thatRangesByReplication = otherAffected.asMap();
+            if (!thisRangesByReplication.keySet().equals(thatRangesByReplication.keySet()))
+                return false;
+
+            for (ReplicationParams replication : thisRangesByReplication.keySet())
+                if (!thisRangesByReplication.get(replication).equals(thatRangesByReplication.get(replication)))
+                    return false;
+        };
+        return true;
     }
 
     @Override
@@ -219,6 +241,7 @@ public class LockedRanges implements MetadataValue<LockedRanges>
             {
                 int size = in.readInt();
                 Map<ReplicationParams, Set<Range<Token>>> map = Maps.newHashMapWithExpectedSize(size);
+                IPartitioner partitioner = ClusterMetadata.current().partitioner;
                 for (int x = 0; x < size; x++)
                 {
                     ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
@@ -226,8 +249,8 @@ public class LockedRanges implements MetadataValue<LockedRanges>
                     Set<Range<Token>> range = Sets.newHashSetWithExpectedSize(rangeSize);
                     for (int y = 0; y < rangeSize; y++)
                     {
-                        range.add(new Range<>(Token.metadataSerializer.deserialize(in, version),
-                                              Token.metadataSerializer.deserialize(in, version)));
+                        range.add(new Range<>(Token.metadataSerializer.deserialize(in, partitioner, version),
+                                              Token.metadataSerializer.deserialize(in, partitioner, version)));
                     }
                     map.put(params, range);
                 }

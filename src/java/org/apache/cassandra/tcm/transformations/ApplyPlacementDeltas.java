@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -88,6 +89,25 @@ public abstract class ApplyPlacementDeltas implements Transformation
                "id=" + nodeId +
                ", delta=" + delta +
                '}';
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof ApplyPlacementDeltas)) return false;
+        ApplyPlacementDeltas that = (ApplyPlacementDeltas) o;
+        return unlock == that.unlock &&
+               kind().equals(that.kind()) &&
+               Objects.equals(nodeId, that.nodeId) &&
+               Objects.equals(delta, that.delta) &&
+               Objects.equals(lockKey, that.lockKey);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(nodeId, kind(), delta, lockKey, unlock);
     }
 
     public NodeId nodeId()

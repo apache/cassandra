@@ -265,7 +265,7 @@ public class CassandraDaemon
         {
             Startup.initialize(DatabaseDescriptor.getSeeds());
         }
-        catch (InterruptedException | ExecutionException e)
+        catch (InterruptedException | ExecutionException | IOException e)
         {
             throw new AssertionError("Can't initialize cluster metadata service");
         }

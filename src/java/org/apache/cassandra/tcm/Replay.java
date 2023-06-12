@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,6 +83,18 @@ public class Replay
     {
         private static final Logger logger = LoggerFactory.getLogger(Handler.class);
 
+        private final Function<Epoch, LogState> logStateSupplier;
+
+        public Handler()
+        {
+            this(DistributedMetadataLogKeyspace::getLogState);
+        }
+
+        public Handler(Function<Epoch, LogState> logStateSupplier)
+        {
+            this.logStateSupplier = logStateSupplier;
+        }
+
         public void doVerb(Message<Replay> message) throws IOException
         {
             Replay request = message.payload;
@@ -92,7 +105,7 @@ public class Replay
             boolean consistentReplay = request.consistentReplay && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
             if (consistentReplay)
-                delta = DistributedMetadataLogKeyspace.getLogState(message.payload.start);
+                delta = logStateSupplier.apply(message.payload.start);
             else
                 delta = LogStorage.SystemKeyspace.getLogState(message.payload.start);
 

@@ -47,9 +47,14 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
 
     public AtomicLongBackedProcessor(LocalLog log)
     {
+        this(log, false);
+    }
+
+    public AtomicLongBackedProcessor(LocalLog log, boolean isReset)
+    {
         super(log);
         Epoch epoch = log.metadata().epoch;
-        assert epoch.is(Epoch.EMPTY) : epoch + " != " + Epoch.EMPTY;
+        assert epoch.is(Epoch.EMPTY) || isReset : epoch + " != " + Epoch.EMPTY;
         this.epochHolder = new AtomicLong(epoch.getEpoch());
     }
 

@@ -31,6 +31,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -162,11 +163,13 @@ public abstract class AbstractReadResponseTest
         cfs3 = ks3.getColumnFamilyStore(CF_STANDARD);
         cfm3 = cfs3.metadata();
         m = cfm2.getColumn(new ColumnIdentifier("m", false));
+        ServerTestUtils.markCMS();
     }
 
     @Before
     public void setUp() throws Exception
     {
+        ServerTestUtils.resetCMS();
         dk = Util.dk("key1");
         nowInSec = FBUtilities.nowInSeconds();
     }

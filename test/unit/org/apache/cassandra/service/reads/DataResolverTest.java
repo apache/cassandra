@@ -550,11 +550,12 @@ public class DataResolverTest extends AbstractReadResponseTest
     @Test
     public void testRepairRangeTombstoneBoundary() throws UnknownHostException
     {
-        testRepairRangeTombstoneBoundary(1, 0, 1);
+        EndpointsForRange replicas = makeReplicas(2);
+        testRepairRangeTombstoneBoundary(replicas, 1, 0, 1);
         readRepair.sent.clear();
-        testRepairRangeTombstoneBoundary(1, 1, 0);
+        testRepairRangeTombstoneBoundary(replicas, 1, 1, 0);
         readRepair.sent.clear();
-        testRepairRangeTombstoneBoundary(1, 1, 1);
+        testRepairRangeTombstoneBoundary(replicas, 1, 1, 1);
     }
 
     /**
@@ -562,9 +563,8 @@ public class DataResolverTest extends AbstractReadResponseTest
      * same deletion on both side (while is useless but could be created by legacy code pre-CASSANDRA-13237 and could
      * thus still be sent).
      */
-    private void testRepairRangeTombstoneBoundary(int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
+    private void testRepairRangeTombstoneBoundary(EndpointsForRange replicas, int timestamp1, int timestamp2, int timestamp3) throws UnknownHostException
     {
-        EndpointsForRange replicas = makeReplicas(2);
         DataResolver resolver = new DataResolver(command, plan(replicas, ALL), readRepair, nanoTime());
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
         InetAddressAndPort peer2 = replicas.get(1).endpoint();

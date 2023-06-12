@@ -29,7 +29,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.MessagingService;
 
@@ -95,7 +95,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
-    public static class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<Token>
+    public static class MetadataSerializer implements PartitionerAwareMetadataSerializer<Token>
     {
         private static final int SERDE_VERSION = MessagingService.VERSION_40;
 
@@ -104,11 +104,11 @@ public abstract class Token implements RingPosition<Token>, Serializable
             serializer.serialize(t, out, SERDE_VERSION);
         }
 
-        public Token deserialize(DataInputPlus in, Version version) throws IOException
+        public Token deserialize(DataInputPlus in, IPartitioner partitioner, Version version) throws IOException
         {
             // This is only ever used to deserialize Tokens from this cluster and as the partitioner can
             // never be changed, it's safe to assume that the right implementation is provided by ClusterMetadata
-            return serializer.deserialize(in, ClusterMetadata.current().partitioner, SERDE_VERSION);
+            return serializer.deserialize(in, partitioner, SERDE_VERSION);
         }
 
         public long serializedSize(Token t, Version version)

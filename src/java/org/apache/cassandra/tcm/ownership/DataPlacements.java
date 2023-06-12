@@ -119,16 +119,21 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     public static DataPlacements sortReplicaGroups(DataPlacements placements, Comparator<Replica> comparator)
     {
         Builder builder = DataPlacements.builder(placements.size());
-        placements.asMap().forEach((params, placement) -> {
-            PlacementForRange.Builder reads = PlacementForRange.builder(placement.reads.replicaGroups().size());
-            placement.reads.replicaGroups().forEach((range, endpoints) -> {
-                reads.withReplicaGroup(endpoints.sorted(comparator));
-            });
-            PlacementForRange.Builder writes = PlacementForRange.builder(placement.writes.replicaGroups().size());
-            placement.writes.replicaGroups().forEach((range, endpoints) -> {
-                writes.withReplicaGroup(endpoints.sorted(comparator));
-            });
-            builder.with(params, new DataPlacement(reads.build(), writes.build()));
+        placements.forEach((params, placement) -> {
+            if (params.isMeta() || params.isLocal())
+                builder.with(params, placement);
+            else
+            {
+                PlacementForRange.Builder reads = PlacementForRange.builder(placement.reads.replicaGroups().size());
+                placement.reads.replicaGroups().forEach((range, endpoints) -> {
+                    reads.withReplicaGroup(endpoints.sorted(comparator));
+                });
+                PlacementForRange.Builder writes = PlacementForRange.builder(placement.writes.replicaGroups().size());
+                placement.writes.replicaGroups().forEach((range, endpoints) -> {
+                    writes.withReplicaGroup(endpoints.sorted(comparator));
+                });
+                builder.with(params, new DataPlacement(reads.build(), writes.build()));
+            }
         });
         return builder.build();
     }

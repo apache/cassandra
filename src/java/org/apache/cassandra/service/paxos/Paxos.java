@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
@@ -1067,7 +1068,8 @@ public class Paxos
                     // round's proposal (if any).
                     PaxosPrepare.Success success = prepare.success();
 
-                    DataResolver<?, ?> resolver = new DataResolver<>(query, () -> success.participants, NoopReadRepair.instance, query.creationTimeNanos());
+                    Supplier<Participants> plan = () -> success.participants;
+                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, query.creationTimeNanos());
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 

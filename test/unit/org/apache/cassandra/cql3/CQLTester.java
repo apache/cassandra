@@ -156,10 +156,10 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.SimpleClient;
@@ -344,6 +344,11 @@ public abstract class CQLTester
     public static void prepareServer()
     {
         ServerTestUtils.prepareServer();
+        NodeId nodeId = Register.maybeRegister();
+        ClusterMetadataService.instance().commit(new UnsafeJoin(nodeId,
+                                                                Collections.singleton(DatabaseDescriptor.getPartitioner().getRandomToken()),
+                                                                ClusterMetadataService.instance().placementProvider()));
+        ServerTestUtils.markCMS();
     }
 
     public static void cleanup()
@@ -383,8 +388,6 @@ public abstract class CQLTester
         return new JMXServiceURL(String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", jmxHost, jmxPort));
     }
 
-    private static ClusterMetadata baseClusterState;
-
     @BeforeClass
     public static void setUpClass()
     {
@@ -396,7 +399,6 @@ public abstract class CQLTester
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // Once per-JVM is enough
         prepareServer();
-        baseClusterState = ClusterMetadata.current();
     }
 
     @AfterClass
@@ -438,11 +440,7 @@ public abstract class CQLTester
     @After
     public void afterTest() throws Throwable
     {
-        Epoch nextEpoch = ClusterMetadata.current().epoch.nextEpoch();
-        ClusterMetadata newBaseState = baseClusterState.forceEpoch(nextEpoch);
-        Epoch currentEpoch = ClusterMetadataService.instance().commit(new ForceSnapshot(newBaseState)).epoch;
-        assertTrue(currentEpoch.is(nextEpoch));
-
+        ServerTestUtils.resetCMS();
         // Restore standard behavior in case it was changed
         usePrepared = USE_PREPARED_VALUES;
         reusePrepared = REUSE_PREPARED;
@@ -1409,7 +1407,9 @@ public abstract class CQLTester
 
             QueryOptions options = QueryOptions.forInternalCalls(Collections.<ByteBuffer>emptyList());
 
-            return statement.executeLocally(queryState, options);
+            ResultMessage result = statement.executeLocally(queryState, options);
+            ClusterMetadataService.instance().log().waitForHighestConsecutive();
+            return result;
         }
         catch (Exception e)
         {

@@ -29,6 +29,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Pair;
@@ -701,7 +702,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
         public Range<Token> deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return (Range<Token>) tokenSerializer.deserialize(in, IPartitioner.global(), SERDE_VERSION);
+            return (Range<Token>) tokenSerializer.deserialize(in, ClusterMetadata.current().partitioner, SERDE_VERSION);
         }
 
         public long serializedSize(Range<Token> t, Version version)

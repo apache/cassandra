@@ -1266,4 +1266,5 @@ public class Config
     public volatile ConsistencyLevel progress_barrier_min_consistency_level = ConsistencyLevel.EACH_QUORUM;
     public volatile boolean log_out_of_token_range_requests = true;
     public volatile boolean reject_out_of_token_range_requests = true;
+    public boolean unsafe_tcm_mode = false;
 }

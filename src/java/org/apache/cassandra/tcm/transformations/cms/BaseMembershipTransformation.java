@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.transformations.cms;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -74,5 +75,20 @@ public abstract class BaseMembershipTransformation implements Transformation
                "endpoint=" + endpoint +
                ", replica=" + replica +
                '}';
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof BaseMembershipTransformation)) return false;
+        BaseMembershipTransformation that = (BaseMembershipTransformation) o;
+        return Objects.equals(endpoint, that.endpoint) && Objects.equals(replica, that.replica);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(kind(), endpoint, replica);
     }
 }

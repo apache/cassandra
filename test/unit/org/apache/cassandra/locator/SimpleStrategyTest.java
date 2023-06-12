@@ -52,8 +52,8 @@ import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.ServerTestUtils.resetCMS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.ServerTestUtils.recreateCMS;
 import static org.apache.cassandra.service.LeaveAndBootstrapTest.getWriteEndpoints;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -79,7 +79,7 @@ public class SimpleStrategyTest
     {
         DatabaseDescriptor.setPartitionerUnsafe(partitioner);
         SchemaLoader.prepareServer();
-        resetCMS();
+        recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
         SchemaLoader.createKeyspace(MULTIDC, KeyspaceParams.simple(3));
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);

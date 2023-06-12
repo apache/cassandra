@@ -22,12 +22,9 @@ import java.util.Collections;
 
 import com.google.common.collect.ImmutableList;
 
-<<<<<<< HEAD
-=======
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.Unregister;
->>>>>>> 678a2da900 (rdar://104857612 (Switch nodeId from uuid to int) (#3469))
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
 import org.junit.Test;

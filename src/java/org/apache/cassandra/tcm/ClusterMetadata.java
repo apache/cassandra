@@ -199,6 +199,21 @@ public class ClusterMetadata
                                    capLastModified(extensions, epoch));
     }
 
+    public ClusterMetadata forcePeriod(long period)
+    {
+        return new ClusterMetadata(epoch,
+                                   period,
+                                   false,
+                                   partitioner,
+                                   schema,
+                                   directory,
+                                   tokenMap,
+                                   placements,
+                                   lockedRanges,
+                                   inProgressSequences,
+                                   extensions);
+    }
+
     private static Map<ExtensionKey<?,?>, ExtensionValue<?>> capLastModified(Map<ExtensionKey<?,?>, ExtensionValue<?>> original, Epoch maxEpoch)
     {
         Map<ExtensionKey<?, ?>, ExtensionValue<?>> updated = new HashMap<>();
@@ -761,6 +776,7 @@ public class ClusterMetadata
             Epoch.serializer.serialize(metadata.epoch, out);
             out.writeUnsignedVInt(metadata.period);
             out.writeBoolean(metadata.lastInPeriod);
+            // todo: move partitioner to be first in the serialization format when we are forced to make a non-backwards compatible change
             out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
             DistributedSchema.serializer.serialize(metadata.schema, out, version);
             Directory.serializer.serialize(metadata.directory, out, version);
@@ -834,6 +850,14 @@ public class ClusterMetadata
                     InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
 
             return size;
+        }
+
+        public static IPartitioner getPartitioner(DataInputPlus in, Version version) throws IOException
+        {
+            Epoch.serializer.deserialize(in);
+            in.readUnsignedVInt();
+            in.readBoolean();
+            return FBUtilities.newPartitioner(in.readUTF());
         }
     }
 }

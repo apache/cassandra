@@ -25,7 +25,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -134,8 +137,9 @@ public class PrepareMove implements Transformation
             NodeId id = NodeId.serializer.deserialize(in, version);
             int numTokens = in.readInt();
             Set<Token> tokens = new HashSet<>(numTokens);
-            for (int i=0;i<numTokens;i++)
-                tokens.add(Token.metadataSerializer.deserialize(in, version));
+            IPartitioner partitioner = ClusterMetadata.current().partitioner;
+            for (int i = 0; i < numTokens; i++)
+                tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
             boolean streamData = in.readBoolean();
             return construct(id, tokens, ClusterMetadataService.instance().placementProvider(), streamData);
         }
@@ -165,7 +169,8 @@ public class PrepareMove implements Transformation
     {
         public static final Serializer serializer = new Serializer();
 
-        StartMove(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
+        @VisibleForTesting
+        public StartMove(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
         {
             super(nodeId, delta, lockKey, false);
         }
@@ -195,7 +200,8 @@ public class PrepareMove implements Transformation
     {
         public static final Serializer serializer = new Serializer();
 
-        MidMove(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
+        @VisibleForTesting
+        public MidMove(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
         {
             super(nodeId, delta, lockKey, false);
         }
@@ -226,7 +232,9 @@ public class PrepareMove implements Transformation
         public static final Serializer serializer = new Serializer();
 
         public final Collection<Token> newTokens;
-        FinishMove(NodeId nodeId, Collection<Token> newTokens, PlacementDeltas delta, LockedRanges.Key lockKey)
+
+        @VisibleForTesting
+        public FinishMove(NodeId nodeId, Collection<Token> newTokens, PlacementDeltas delta, LockedRanges.Key lockKey)
         {
             super(nodeId, delta, lockKey, true);
             this.newTokens = newTokens;
@@ -265,8 +273,9 @@ public class PrepareMove implements Transformation
                 LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
                 int numTokens = in.readUnsignedVInt32();
                 List<Token> tokens = new ArrayList<>();
+                IPartitioner partitioner = ClusterMetadata.current().partitioner;
                 for (int i = 0; i < numTokens; i++)
-                    tokens.add(Token.metadataSerializer.deserialize(in, version));
+                    tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
 
                 return new FinishMove(nodeId, tokens, delta, lockKey);
             }

@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -47,6 +48,7 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -463,16 +465,17 @@ public class PlacementForRange
         {
             int groupCount = in.readInt();
             Map<Range<Token>, EndpointsForRange> result = Maps.newHashMapWithExpectedSize(groupCount);
+            IPartitioner partitioner = ClusterMetadata.current().partitioner;
             for (int i = 0; i < groupCount; i++)
             {
-                Range<Token> range = new Range<>(Token.metadataSerializer.deserialize(in, version),
-                                                 Token.metadataSerializer.deserialize(in, version));
+                Range<Token> range = new Range<>(Token.metadataSerializer.deserialize(in, partitioner, version),
+                                                 Token.metadataSerializer.deserialize(in, partitioner, version));
                 int replicaCount = in.readInt();
                 List<Replica> replicas = new ArrayList<>(replicaCount);
                 for (int x = 0; x < replicaCount; x++)
                 {
-                    Range<Token> replicaRange = new Range<>(Token.metadataSerializer.deserialize(in, version),
-                                                            Token.metadataSerializer.deserialize(in, version));
+                    Range<Token> replicaRange = new Range<>(Token.metadataSerializer.deserialize(in, partitioner, version),
+                                                            Token.metadataSerializer.deserialize(in, partitioner, version));
                     InetAddressAndPort replicaAddress = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
                     boolean isFull = in.readBoolean();
                     replicas.add(new Replica(replicaAddress, replicaRange, isFull));

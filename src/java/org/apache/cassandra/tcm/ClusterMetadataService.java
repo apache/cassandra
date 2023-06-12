@@ -19,10 +19,14 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -32,7 +36,10 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -40,6 +47,8 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -48,12 +57,17 @@ import org.apache.cassandra.tcm.migration.GossipProcessor;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
+import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.stream.Collectors.toSet;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.RESET;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
@@ -98,6 +112,8 @@ public class ClusterMetadataService
     private final IVerbHandler<Commit> commitRequestHandler;
     private final IVerbHandler<NoPayload> currentEpochHandler;
 
+    private final AtomicBoolean commitsPaused = new AtomicBoolean();
+
     public static State state()
     {
         return state(ClusterMetadata.current());
@@ -105,8 +121,11 @@ public class ClusterMetadataService
 
     public static State state(ClusterMetadata metadata)
     {
+        if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
+            return RESET;
+
         if (metadata.epoch.isBefore(Epoch.EMPTY))
-            return State.GOSSIP;
+            return GOSSIP;
 
         // The node is a full member of the CMS if it has started participating in reads for distributed metadata table (which
         // implies it is a write replica as well). In other words, it's a fully joined member of the replica set responsible for
@@ -119,24 +138,43 @@ public class ClusterMetadataService
     ClusterMetadataService(PlacementProvider placementProvider,
                            ClusterMetadata initial,
                            Function<Processor, Processor> wrapProcessor,
-                           Supplier<State> cmsStateSupplier)
+                           Supplier<State> cmsStateSupplier,
+                           boolean isReset)
     {
         this.placementProvider = placementProvider;
         this.snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
 
-        log = LocalLog.async(initial);
-        Processor localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
+        Processor localProcessor;
+        if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
+        {
+            LogStorage logStorage = LogStorage.SystemKeyspace;
+            log = LocalLog.sync(initial, logStorage, true, isReset);
+            localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log));
+            replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(logStorage::getLogState), cmsStateSupplier);
+        }
+        else
+        {
+
+            log = LocalLog.async(initial, isReset);
+            localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
+            replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(), cmsStateSupplier);
+        }
+
+        Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.getBoolean()
+                                       ? Commit.Replicator.NO_OP
+                                       : new Commit.DefaultReplicator(() -> log.metadata().directory);
+
         RemoteProcessor remoteProcessor = new RemoteProcessor(log, Discovery.instance::discoveredNodes);
         GossipProcessor gossipProcessor = new GossipProcessor();
-        Commit.Replicator replicator = new Commit.DefaultReplicator(() -> log.metadata().directory);
         currentEpochHandler = new CurrentEpochRequestHandler();
-        replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(), cmsStateSupplier);
+
         commitRequestHandler = new SwitchableHandler<>(new Commit.Handler(localProcessor, replicator), cmsStateSupplier);
         processor = new SwitchableProcessor(localProcessor,
                                             remoteProcessor,
                                             gossipProcessor,
                                             replicator,
                                             cmsStateSupplier);
+
         replicationHandler = new Replication.ReplicationHandler(log);
         logNotifyHandler = new Replication.LogNotifyHandler(log);
     }
@@ -191,7 +229,7 @@ public class ClusterMetadataService
         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
         emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty(), loadSSTables);
         emptyFromSystemTables = emptyFromSystemTables.forceEpoch(Epoch.EMPTY);
-        LocalLog log = LocalLog.sync(emptyFromSystemTables, new AtomicLongBackedProcessor.InMemoryStorage(), false);
+        LocalLog log = LocalLog.sync(emptyFromSystemTables, new AtomicLongBackedProcessor.InMemoryStorage(), false, false);
         ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
                                                                 MetadataSnapshots.NO_OP,
                                                                 log,
@@ -277,7 +315,7 @@ public class ClusterMetadataService
                                                  .allAddresses()
                                                  .stream()
                                                  .filter(ep -> !FBUtilities.getBroadcastAddressAndPort().equals(ep) &&
-                                                               !ignoredEndpoints.contains(ep))
+                                                               !ignored.contains(ep))
                                                  .collect(toImmutableSet());
 
             Election.instance.nominateSelf(candidates, ignored, metadata::equals);
@@ -295,7 +333,7 @@ public class ClusterMetadataService
         logger.debug("Applying from gossip, current={} new={}", expected, updated);
         if (!expected.epoch.isBefore(Epoch.EMPTY))
             throw new IllegalStateException("Can't apply a ClusterMetadata from gossip with epoch " + expected.epoch);
-        if (state() != State.GOSSIP)
+        if (state() != GOSSIP)
             throw new IllegalStateException("Can't apply a ClusterMetadata from gossip when CMSState is not GOSSIP: " + state());
 
         return log.unsafeSetCommittedFromGossip(expected, updated);
@@ -304,9 +342,78 @@ public class ClusterMetadataService
     public void setFromGossip(ClusterMetadata fromGossip)
     {
         logger.debug("Setting from gossip, new={}", fromGossip);
-        if (state() != State.GOSSIP)
+        if (state() != GOSSIP)
             throw new IllegalStateException("Can't apply a ClusterMetadata from gossip when CMSState is not GOSSIP: " + state());
         log.unsafeSetCommittedFromGossip(fromGossip);
+    }
+
+    public void forceSnapshot(ClusterMetadata snapshot)
+    {
+        commit(new ForceSnapshot(snapshot));
+    }
+
+    public void revertToEpoch(Epoch epoch)
+    {
+        logger.warn("Reverting to epoch {}", epoch);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        ClusterMetadata toApply = transformSnapshot(LogState.getForRecovery(epoch))
+                                  .forceEpoch(metadata.epoch.nextEpoch())
+                                  .forcePeriod(metadata.nextPeriod());
+        forceSnapshot(toApply);
+    }
+
+    /**
+     * dumps the cluster metadata at the given epoch, returns path to the generated file
+     *
+     * if the given Epoch is EMPTY, we dump the current metadata
+     *
+     * @param epoch dump clustermetadata at this epoch
+     * @param transformToEpoch transform the dumped metadata to this epoch
+     * @param version serialisation version
+     */
+    public String dumpClusterMetadata(Epoch epoch, Epoch transformToEpoch, Version version) throws IOException
+    {
+        ClusterMetadata toDump = epoch.isAfter(Epoch.EMPTY)
+                                 ? transformSnapshot(LogState.getForRecovery(epoch))
+                                 : ClusterMetadata.current();
+        toDump = toDump.forceEpoch(transformToEpoch);
+        Path p = Files.createTempFile("clustermetadata", "dump");
+        try (FileOutputStreamPlus out = new FileOutputStreamPlus(p))
+        {
+            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, toDump, out, version);
+        }
+        logger.info("Dumped cluster metadata to {}", p.toString());
+        return p.toString();
+    }
+
+    public void loadClusterMetadata(String file) throws IOException
+    {
+        logger.warn("Loading cluster metadata from {}", file);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        ClusterMetadata toApply = deserializeClusterMetadata(file)
+                                  .forceEpoch(metadata.epoch.nextEpoch())
+                                  .forcePeriod(metadata.nextPeriod());
+        forceSnapshot(toApply);
+    }
+
+    public static ClusterMetadata deserializeClusterMetadata(String file) throws IOException
+    {
+        try (FileInputStreamPlus fisp = new FileInputStreamPlus(file))
+        {
+            return VerboseMetadataSerializer.deserialize(ClusterMetadata.serializer, fisp);
+        }
+    }
+
+    private ClusterMetadata transformSnapshot(LogState state)
+    {
+        ClusterMetadata toApply = state.baseState;
+        for (Entry entry : state.transformations.entries())
+        {
+            Transformation.Result res = entry.transform.execute(toApply);
+            assert res.isSuccess();
+            toApply = res.success().metadata;
+        }
+        return toApply;
     }
 
     public final Supplier<Entry.Id> entryIdGen = new Entry.DefaultEntryIdGen();
@@ -333,6 +440,8 @@ public class ClusterMetadataService
 
     public <T1> T1 commit(Transformation transform, Predicate<ClusterMetadata> retry, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
     {
+        if (commitsPaused.get())
+            throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
         Retry.Backoff backoff = new Retry.Backoff();
         while (!backoff.reachedMax())
         {
@@ -466,11 +575,12 @@ public class ClusterMetadataService
 
         for (int i = 0; i < 2; i++)
         {
-            if (state() == State.GOSSIP)
+            State state = state();
+            if (EnumSet.of(GOSSIP, RESET).contains(state))
             {
                 //TODO we have seen a message with epoch > EMPTY, we are probably racing with migration,
                 //     or we missed the finish migration message, handle!
-                logger.warn("Cannot catchup while in gossip mode (target epoch = {})", theirEpoch);
+                logger.warn("Cannot catchup while in {} mode (target epoch = {})", state, theirEpoch);
                 return false;
             }
 
@@ -520,6 +630,24 @@ public class ClusterMetadataService
         return Election.instance.isMigrating();
     }
 
+    public void migrated()
+    {
+        Election.instance.migrated();
+    }
+    public void pauseCommits()
+    {
+        commitsPaused.set(true);
+    }
+
+    public void resumeCommits()
+    {
+        commitsPaused.set(false);
+    }
+
+    public boolean commitsPaused()
+    {
+        return commitsPaused.get();
+    }
     /**
      * Switchable implementations that allow us to go between local and remote implementation whenever we need it.
      * When the node becomes a member of CMS, it switches back to being a regular member of a cluster, and all
@@ -542,6 +670,7 @@ public class ClusterMetadataService
             switch (cmsStateSupplier.get())
             {
                 case LOCAL:
+                case RESET:
                     handler.doVerb(message);
                     break;
                 case REMOTE:
@@ -590,6 +719,7 @@ public class ClusterMetadataService
             switch (state)
             {
                 case LOCAL:
+                case RESET:
                     return Pair.create(state, local);
                 case REMOTE:
                     return Pair.create(state, remote);
@@ -604,7 +734,7 @@ public class ClusterMetadataService
         {
             Pair<State, Processor> delegate = delegateInternal();
             Commit.Result result = delegate.right.commit(entryId, transform, lastKnown);
-            if (delegate.left == State.LOCAL)
+            if (delegate.left == LOCAL || delegate.left == RESET)
                 replicator.send(result, null);
             return result;
         }
@@ -623,6 +753,6 @@ public class ClusterMetadataService
 
     public enum State
     {
-        LOCAL, REMOTE, GOSSIP
+        LOCAL, REMOTE, GOSSIP, RESET
     }
 }

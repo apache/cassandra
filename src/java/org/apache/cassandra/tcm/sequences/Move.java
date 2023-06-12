@@ -19,10 +19,11 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
@@ -421,6 +423,29 @@ public class Move extends InProgressSequence<Move>
                         streamData);
     }
 
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (!(o instanceof Move)) return false;
+        Move move = (Move) o;
+        return streamData == move.streamData &&
+               Objects.equals(latestModification, move.latestModification) &&
+               Objects.equals(tokens, move.tokens) &&
+               Objects.equals(lockKey, move.lockKey) &&
+               next == move.next &&
+               Objects.equals(toSplitRanges, move.toSplitRanges) &&
+               Objects.equals(startMove, move.startMove) &&
+               Objects.equals(midMove, move.midMove) &&
+               Objects.equals(finishMove, move.finishMove);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(latestModification, tokens, lockKey, next, toSplitRanges, startMove, midMove, finishMove, streamData);
+    }
+
     public static class Serializer implements AsymmetricMetadataSerializer<InProgressSequence<?>, Move>
     {
         public void serialize(InProgressSequence<?> t, DataOutputPlus out, Version version) throws IOException
@@ -456,9 +481,10 @@ public class Move extends InProgressSequence<Move>
             PrepareMove.FinishMove finishMove = PrepareMove.FinishMove.serializer.deserialize(in, version);
 
             int numTokens = in.readUnsignedVInt32();
-            List<Token> tokens = new ArrayList<>();
+            Set<Token> tokens = new HashSet<>();
+            IPartitioner partitioner = ClusterMetadata.current().partitioner;
             for (int i = 0; i < numTokens; i++)
-                tokens.add(Token.metadataSerializer.deserialize(in, version));
+                tokens.add(Token.metadataSerializer.deserialize(in, partitioner, version));
             return new Move(barrier, tokens, lockKey, next,
                             toSplitRanges, startMove, midMove, finishMove, streamData);
         }

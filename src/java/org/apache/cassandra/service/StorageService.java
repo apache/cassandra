@@ -5766,4 +5766,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         long period = ClusterMetadataService.instance().sealPeriod().period;
         logger.info("Current period {} is sealed", period);
     }
+
+    @Override
+    public void unsafeRevertClusterMetadata(long epoch)
+    {
+        if (!DatabaseDescriptor.getUnsafeTCMMode())
+            throw new IllegalStateException("Cluster is not running unsafe TCM mode, can't revert epoch");
+        ClusterMetadataService.instance().revertToEpoch(Epoch.create(epoch));
+    }
+
+    @Override
+    public String dumpClusterMetadata(long epoch, long transformToEpoch, String version) throws IOException
+    {
+        return ClusterMetadataService.instance().dumpClusterMetadata(Epoch.create(epoch), Epoch.create(transformToEpoch), org.apache.cassandra.tcm.serialization.Version.valueOf(version));
+    }
+
+    @Override
+    public String dumpClusterMetadata() throws IOException
+    {
+        return dumpClusterMetadata(Epoch.EMPTY.getEpoch(), ClusterMetadata.current().epoch.getEpoch() + 1000, Version.V0.toString());
+    }
+
+    @Override
+    public void unsafeLoadClusterMetadata(String file) throws IOException
+    {
+        if (!DatabaseDescriptor.getUnsafeTCMMode())
+            throw new IllegalStateException("Cluster is not running unsafe TCM mode, can't load cluster metadata " + file);
+        ClusterMetadataService.instance().loadClusterMetadata(file);
+    }
+
+    @Override
+    public void replayAndWait()
+    {
+        ClusterMetadataService.instance().replayAndWait();
+    }
+
+    @Override
+    public void setCommitsPaused(boolean paused)
+    {
+        if (paused)
+            ClusterMetadataService.instance().pauseCommits();
+        else
+            ClusterMetadataService.instance().resumeCommits();
+    }
+
+    @Override
+    public boolean getCommitsPaused()
+    {
+        return ClusterMetadataService.instance().commitsPaused();
+    }
 }

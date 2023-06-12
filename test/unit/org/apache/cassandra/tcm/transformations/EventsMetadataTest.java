@@ -21,7 +21,6 @@ package org.apache.cassandra.tcm.transformations;
 import java.net.UnknownHostException;
 import java.util.concurrent.ExecutionException;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -87,12 +86,6 @@ public class EventsMetadataTest
         ServerTestUtils.resetCMS();
     }
 
-    @After
-    public void after()
-    {
-        ClusterMetadataService.unsetInstance();
-    }
-
     @Test
     public void firstRegisterTest()
     {
@@ -122,7 +115,7 @@ public class EventsMetadataTest
 
         metadata = ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(nodeId));
 
-        assertFalse(metadata.tokenMap.tokens(nodeId).isEmpty());
+        assertTrue(metadata.tokenMap.tokens(nodeId).isEmpty());
         assertEquals(NodeState.REGISTERED, metadata.directory.peerState(nodeId));
     }
 
@@ -141,7 +134,7 @@ public class EventsMetadataTest
 
         ClusterMetadataService.instance().commit(plan.startJoin);
 
-        assertFalse(ClusterMetadata.current().tokenMap.tokens(nodeId).isEmpty());
+        assertTrue(ClusterMetadata.current().tokenMap.tokens(nodeId).isEmpty());
         assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(nodeId));
 
         assertTrue(ClusterMetadata.current().placements.get(KSM.params.replication).writes.byEndpoint().containsKey(node1));
@@ -164,7 +157,7 @@ public class EventsMetadataTest
 
         ClusterMetadataService.instance().commit(plan.startJoin);
 
-        assertFalse(ClusterMetadata.current().tokenMap.tokens(nodeId).isEmpty());
+        assertTrue(ClusterMetadata.current().tokenMap.tokens(nodeId).isEmpty());
         assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(nodeId));
         assertTrue(ClusterMetadata.current().placements.get(KSM.params.replication).writes.byEndpoint().containsKey(node2));
         assertFalse(ClusterMetadata.current().placements.get(KSM.params.replication).reads.byEndpoint().containsKey(node2));

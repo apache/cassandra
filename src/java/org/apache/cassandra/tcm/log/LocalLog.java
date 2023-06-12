@@ -83,9 +83,9 @@ public abstract class LocalLog implements Closeable
     protected final Set<LogListener> listeners;
     protected final Set<ChangeListener> cmListeners;
 
-    private LocalLog(LogStorage persistence, ClusterMetadata initial, boolean addListeners)
+    private LocalLog(LogStorage persistence, ClusterMetadata initial, boolean addListeners, boolean isReset)
     {
-        assert initial.epoch.is(EMPTY) || initial.epoch.is(Epoch.UPGRADE_STARTUP);
+        assert initial.epoch.is(EMPTY) || initial.epoch.is(Epoch.UPGRADE_STARTUP) || isReset;
         committed = new AtomicReference<>(initial);
         this.persistence = persistence;
         listeners = Sets.newConcurrentHashSet();
@@ -131,20 +131,32 @@ public abstract class LocalLog implements Closeable
     }
 
     @VisibleForTesting
+    public static LocalLog sync(ClusterMetadata initial, LogStorage logStorage, boolean addListeners, boolean isReset)
+    {
+        return new Sync(initial, logStorage, addListeners, isReset);
+    }
+
+    @VisibleForTesting
     public static LocalLog sync(ClusterMetadata initial, LogStorage logStorage, boolean addListeners)
     {
-        return new Sync(initial, logStorage, addListeners);
+        return new Sync(initial, logStorage, addListeners, false);
     }
 
     @VisibleForTesting
     public static LocalLog asyncForTests(LogStorage logStorage, ClusterMetadata initial, boolean addListeners)
     {
-        return new Async(logStorage, initial, addListeners);
+        return new Async(logStorage, initial, addListeners, false);
     }
 
+    @VisibleForTesting
     public static LocalLog async(ClusterMetadata initial)
     {
-        return new Async(LogStorage.SystemKeyspace, initial, true);
+        return new Async(LogStorage.SystemKeyspace, initial, true, false);
+    }
+
+    public static LocalLog async(ClusterMetadata initial, boolean isReset)
+    {
+        return new Async(LogStorage.SystemKeyspace, initial, true, isReset);
     }
 
     public boolean hasGaps()
@@ -275,11 +287,11 @@ public abstract class LocalLog implements Closeable
                 return;
 
             ClusterMetadata prev = committed.get();
-            if (pendingEntry.epoch.isDirectlyAfter(prev.epoch) ||
-                // ForceSnapshot + Bootstrap entries can "jump" epoch
-                (pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS ||
-                 pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT) &&
-                pendingEntry.epoch.isAfter(prev.epoch))
+            // ForceSnapshot + Bootstrap entries can "jump" epoch
+            boolean isPreInit = pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS;
+            boolean isSnapshot = pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT;
+            if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
+                || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
             {
                 try
                 {
@@ -373,14 +385,24 @@ public abstract class LocalLog implements Closeable
         this.cmListeners.remove(listener);
     }
 
+    public void notifyListeners(ClusterMetadata emptyFromSystemTables)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        for (ChangeListener listener : cmListeners)
+            listener.notifyPreCommit(emptyFromSystemTables, metadata, true);
+        for (ChangeListener listener : cmListeners)
+            listener.notifyPostCommit(emptyFromSystemTables, metadata, true);
+
+    }
+
     private static class Async extends LocalLog
     {
         private final AsyncRunnable runnable;
         private final Interruptible executor;
 
-        private Async(LogStorage storage, ClusterMetadata initial, boolean addListeners)
+        private Async(LogStorage storage, ClusterMetadata initial, boolean addListeners, boolean isReset)
         {
-            super(storage, initial, addListeners);
+            super(storage, initial, addListeners, isReset);
             this.runnable = new AsyncRunnable();
             this.executor = ExecutorFactory.Global.executorFactory().infiniteLoop("GlobalLogFollower", runnable, SAFE, NON_DAEMON, UNSYNCHRONIZED);
         }
@@ -549,9 +571,9 @@ public abstract class LocalLog implements Closeable
 
     private static class Sync extends LocalLog
     {
-        private Sync(ClusterMetadata initial, LogStorage logStorage, boolean addListeners)
+        private Sync(ClusterMetadata initial, LogStorage logStorage, boolean addListeners, boolean isReset)
         {
-            super(logStorage, initial, addListeners);
+            super(logStorage, initial, addListeners, isReset);
         }
 
         void runOnce(DurationSpec durationSpec)

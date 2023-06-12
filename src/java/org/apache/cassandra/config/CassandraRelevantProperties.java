@@ -520,6 +520,9 @@ public enum CassandraRelevantProperties
      * should replica groups in data placements be sorted to ensure the primary replica is first in the list
      */
     TCM_SORT_REPLICA_GROUPS("cassandra.sorted_replica_groups_enabled", "true"),
+    TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.unsafe_boot_with_clustermetadata", null),
+    TCM_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.use_atomic_long_processor", "false"),
+    TCM_USE_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
 
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),

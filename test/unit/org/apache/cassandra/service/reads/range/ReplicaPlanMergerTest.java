@@ -37,6 +37,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.ServerTestUtils.markCMS;
+import static org.apache.cassandra.ServerTestUtils.recreateCMS;
 import static org.apache.cassandra.ServerTestUtils.resetCMS;
 import static org.apache.cassandra.Util.testPartitioner;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
@@ -68,16 +70,16 @@ public class ReplicaPlanMergerTest
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         SchemaLoader.prepareServer();
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(2));
         keyspace = Keyspace.open(KEYSPACE);
+        markCMS();
     }
 
     @Before
     public void before()
     {
         resetCMS();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(2));
-        keyspace = Keyspace.open(KEYSPACE);
     }
 
     /**

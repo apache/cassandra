@@ -30,6 +30,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -57,41 +58,46 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
  {
      private static final Logger logger = LoggerFactory.getLogger(Startup.class);
 
-     public static void initialize(Set<InetAddressAndPort> seeds) throws InterruptedException, ExecutionException
+     public static void initialize(Set<InetAddressAndPort> seeds) throws InterruptedException, ExecutionException, IOException
      {
          initialize(seeds,
                     p -> p,
                     () -> MessagingService.instance().waitUntilListeningUnchecked());
      }
 
-     public static void initialize(Set<InetAddressAndPort> seeds,
-                                   Function<Processor, Processor> wrapProcessor,
-                                   Runnable initMessaging) throws InterruptedException, ExecutionException
-     {
-         switch (StartupMode.get(seeds))
-         {
-             case FIRST_CMS:
-                 logger.info("Initializing as first CMS node in a new cluster");
-                 initializeAsNonCmsNode(wrapProcessor);
-                 initializeAsFirstCMSNode();
-                 initMessaging.run();
-                 break;
-             case NORMAL:
-                 logger.info("Initializing as non CMS node");
-                 initializeAsNonCmsNode(wrapProcessor);
-                 initMessaging.run();
-                 break;
-             case VOTE:
-                 logger.info("Initializing for discovery");
-                 initializeAsNonCmsNode(wrapProcessor);
-                 initializeForDiscovery(initMessaging);
-                 break;
-             case UPGRADE:
-                 logger.info("Initializing from gossip");
-                 initializeFromGossip(wrapProcessor, initMessaging);
-                 break;
-         }
-     }
+    public static void initialize(Set<InetAddressAndPort> seeds,
+                                  Function<Processor, Processor> wrapProcessor,
+                                  Runnable initMessaging) throws InterruptedException, ExecutionException, IOException
+    {
+        switch (StartupMode.get(seeds))
+        {
+            case FIRST_CMS:
+                logger.info("Initializing as first CMS node in a new cluster");
+                initializeAsNonCmsNode(wrapProcessor);
+                initializeAsFirstCMSNode();
+                initMessaging.run();
+                break;
+            case NORMAL:
+                logger.info("Initializing as non CMS node");
+                initializeAsNonCmsNode(wrapProcessor);
+                initMessaging.run();
+                break;
+            case VOTE:
+                logger.info("Initializing for discovery");
+                initializeAsNonCmsNode(wrapProcessor);
+                initializeForDiscovery(initMessaging);
+                break;
+            case UPGRADE:
+                logger.info("Initializing from gossip");
+                initializeFromGossip(wrapProcessor, initMessaging);
+                break;
+            case BOOT_WITH_CLUSTERMETADATA:
+                String fileName = CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString();
+                logger.warn("Initializing with cluster metadata from: {}", fileName);
+                reinitializeWithClusterMetadata(fileName, wrapProcessor, initMessaging);
+                break;
+        }
+    }
 
      /**
       * Make this node a _first_ CMS node.
@@ -117,7 +123,8 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
          ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
                                                                        initial,
                                                                        wrapProcessor,
-                                                                       ClusterMetadataService::state));
+                                                                       ClusterMetadataService::state,
+                                                                       false));
          ClusterMetadataService.instance().initRecentlySealedPeriodsIndex();
          ClusterMetadataService.instance().log().replayPersisted();
          ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
@@ -177,7 +184,8 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
          ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
                                                                        emptyFromSystemTables,
                                                                        wrapProcessor,
-                                                                       ClusterMetadataService::state));
+                                                                       ClusterMetadataService::state,
+                                                                       false));
          initMessaging.run();
 
          try
@@ -203,6 +211,44 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
          assert cmGossip.equals(initial) : cmGossip + " != " + initial;
      }
 
+     public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException
+     {
+         // First set a minimal ClusterMetadata as some deserialization depends
+         // on ClusterMetadata.current() to access the partitioner
+         StubClusterMetadataService initial = StubClusterMetadataService.forClientTools();
+         ClusterMetadataService.unsetInstance();
+         StubClusterMetadataService.setInstance(initial);
+
+         ClusterMetadata metadata = ClusterMetadataService.deserializeClusterMetadata(fileName);
+         // if the partitioners are mismatching, we probably won't even get this far
+         if (metadata.partitioner != DatabaseDescriptor.getPartitioner())
+             throw new IllegalStateException(String.format("When reinitializing with cluster metadata, the same " +
+                                                           "partitioner must be used. Configured: %s, Serialized: %s",
+                                                           DatabaseDescriptor.getPartitioner().getClass().getCanonicalName(),
+                                                           metadata.partitioner.getClass().getCanonicalName()));
+
+         if (!metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+             throw new IllegalStateException("When reinitializing with cluster metadata, we must be in the CMS");
+         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
+         metadata.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());
+         ClusterMetadataService.unsetInstance();
+         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
+                                                                       metadata,
+                                                                       wrapProcessor,
+                                                                       ClusterMetadataService::state,
+                                                                       true));
+         ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
+         ClusterMetadataService.instance().log().addListener(new SchemaListener());
+         ClusterMetadataService.instance().log().notifyListeners(emptyFromSystemTables);
+         initMessaging.run();
+         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
+         ClusterMetadataService.instance().sealPeriod();
+         CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
+         assert ClusterMetadataService.state() == LOCAL;
+         assert ClusterMetadataService.instance() != initial : "Aborting startup as temporary metadata service is still active";
+     }
+
      /**
       * Initialization process:
       */
@@ -212,10 +258,16 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
          NORMAL,
          UPGRADE,
          VOTE,
-         FIRST_CMS;
+         FIRST_CMS,
+         BOOT_WITH_CLUSTERMETADATA;
 
          static StartupMode get(Set<InetAddressAndPort> seeds)
          {
+             if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
+             {
+                 logger.warn("Booting with ClusterMetadata from file: " + CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString());
+                 return BOOT_WITH_CLUSTERMETADATA;
+             }
              if (seeds.isEmpty())
                  throw new IllegalArgumentException("Can not initialize CMS without any seeds");
 

@@ -47,6 +47,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -412,8 +413,8 @@ public class ImportTest extends CQLTester
         InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort ep3 = InetAddressAndPort.getByName("127.0.0.3");
 
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep1, ep1, ep1)),
-                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
+        // ep1 is registered during fixture setup
+        assertEquals(NodeState.JOINED, ClusterMetadata.current().directory.peerState(ep1));
         UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)),
                               BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
         UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3, ep3, ep3)),
@@ -453,8 +454,8 @@ public class ImportTest extends CQLTester
         InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
         InetAddressAndPort ep3 = InetAddressAndPort.getByName("127.0.0.3");
 
-        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep1, ep1, ep1)),
-                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
+        // ep1 is registered during fixture setup
+        assertEquals(NodeState.JOINED, ClusterMetadata.current().directory.peerState(ep1));
         UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)),
                               BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
         UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3, ep3, ep3)),
