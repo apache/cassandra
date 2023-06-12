@@ -413,7 +413,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         ImmutableSet.Builder<String> warnings = ImmutableSet.builder();
 
         int tableCount = Schema.instance.getNumberOfTables();
-        if (DatabaseDescriptor.tableCountWarnThreshold() > 0 && tableCount > DatabaseDescriptor.tableCountWarnThreshold())
+        if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
         {
             String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
                                        tableCount,
