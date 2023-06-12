@@ -78,7 +78,6 @@ except ImportError as e:
 cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
-
 from cqlshlib.cqlshmain import main
 
 # always call this regardless of module name: when a sub-process is spawned
