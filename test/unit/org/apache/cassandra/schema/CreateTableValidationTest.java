@@ -25,7 +25,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class CreateTableValidationTest extends CQLTester
