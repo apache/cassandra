@@ -70,6 +70,6 @@ public enum StorageCompatibilityMode
 
     public boolean isAfter(int major)
     {
-        return major > this.major;
+        return this.major > major;
     }
 }
