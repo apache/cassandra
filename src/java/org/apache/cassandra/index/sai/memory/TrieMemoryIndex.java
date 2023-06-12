@@ -218,7 +218,6 @@ public class TrieMemoryIndex
     {
         return isLiteral ? version -> ByteSourceInverse.unescape(ByteSource.peekable(term.asComparableBytes(version)))
                          : term;
-
     }
 
     private ByteSource terminated(ByteSource src)

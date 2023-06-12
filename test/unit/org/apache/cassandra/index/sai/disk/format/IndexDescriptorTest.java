@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.index.sai.disk.format;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,7 +43,6 @@ public class IndexDescriptorTest
 {
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Descriptor descriptor;
-    private Version latest;
 
     @BeforeClass
     public static void initialise()
@@ -58,21 +55,17 @@ public class IndexDescriptorTest
     {
         temporaryFolder.create();
         descriptor = Descriptor.fromFile(new File(temporaryFolder.newFolder().getAbsolutePath() + "/nb-1-big-Data.db"));
-        latest = Version.LATEST;
     }
 
     @After
     public void teardown() throws Throwable
     {
-        setLatestVersion(latest);
         temporaryFolder.delete();
     }
 
     @Test
     public void versionAAPerSSTableComponentIsParsedCorrectly() throws Throwable
     {
-        setLatestVersion(Version.AA);
-
         createFileOnDisk("-SAI+aa+GroupComplete.db");
 
         IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, SAITester.EMPTY_COMPARATOR);
@@ -84,8 +77,6 @@ public class IndexDescriptorTest
     @Test
     public void versionAAPerIndexComponentIsParsedCorrectly() throws Throwable
     {
-        setLatestVersion(Version.AA);
-
         createFileOnDisk("-SAI+aa+test_index+ColumnComplete.db");
 
         IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, SAITester.EMPTY_COMPARATOR);
@@ -93,16 +84,6 @@ public class IndexDescriptorTest
 
         assertEquals(Version.AA, indexDescriptor.version);
         assertTrue(indexDescriptor.hasComponent(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext));
-    }
-
-    private void setLatestVersion(Version version) throws Throwable
-    {
-        Field latest = Version.class.getDeclaredField("LATEST");
-        latest.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(latest, latest.getModifiers() & ~Modifier.FINAL);
-        latest.set(null, version);
     }
 
     private void createFileOnDisk(String filename) throws Throwable

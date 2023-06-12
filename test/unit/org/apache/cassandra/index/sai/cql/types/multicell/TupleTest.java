@@ -30,6 +30,6 @@ public class TupleTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateLiteralParameters(new TupleDataSet(new DataSet.BigintDataSet(), new DataSet.AsciiDataSet()));
+        return generateParameters(new TupleDataSet(new DataSet.BigintDataSet(), new DataSet.AsciiDataSet()));
     }
 }
