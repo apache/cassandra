@@ -110,14 +110,15 @@ public class Segment implements Closeable, SegmentOrdering
         if (keyRange instanceof Range && ((Range<?>)keyRange).isWrapAround())
             return keyRange.contains(minKeyBound) || keyRange.contains(maxKeyBound);
 
-        int cmp = keyRange.right.getToken().compareTo(minKey);
+        int cmp = keyRange.right.compareTo(minKeyBound);
         // if right is minimum, it means right is the max token and bigger than maxKey.
         // if right bound is less than minKey, no intersection
         if (!keyRange.right.isMinimum() && (!keyRange.inclusiveRight() && cmp == 0 || cmp < 0))
             return false;
 
+        cmp = keyRange.left.compareTo(maxKeyBound);
         // if left bound is bigger than maxKey, no intersection
-        return keyRange.isStartInclusive() || keyRange.left.getToken().compareTo(maxKey) < 0;
+        return (keyRange.isStartInclusive() || cmp != 0) && cmp <= 0;
     }
 
     public long indexFileCacheSize()
