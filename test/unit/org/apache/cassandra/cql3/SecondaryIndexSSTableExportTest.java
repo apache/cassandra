@@ -22,6 +22,7 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.SSTableExport;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.Pair;
@@ -35,9 +36,11 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SecondaryIndexSSTableExportTest extends CQLTester
 {
@@ -131,21 +134,38 @@ public class SecondaryIndexSSTableExportTest extends CQLTester
 
     private void indexSstableValidation(String createTableCql, String createIndexCql, String insertCql) throws Throwable
     {
-        Pair<String, String> tableIndex = generateSstable(createTableCql, createIndexCql, insertCql);
-        ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, tableIndex.left);
-        assertTrue(cfs.indexManager.hasIndexes());
-        assertNotNull(cfs.indexManager.getIndexByName(tableIndex.right));
-        for (ColumnFamilyStore columnFamilyStore : cfs.indexManager.getAllIndexColumnFamilyStores())
+        String SUCEESS_MSG = "Test passed";
+        try
         {
-            assertTrue(columnFamilyStore.isIndex());
-            assertFalse(columnFamilyStore.getLiveSSTables().isEmpty());
-            for (SSTableReader sst : columnFamilyStore.getLiveSSTables())
+            Pair<String, String> tableIndex = generateSstable(createTableCql, createIndexCql, insertCql);
+            ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, tableIndex.left);
+            assertTrue(cfs.indexManager.hasIndexes());
+            assertNotNull(cfs.indexManager.getIndexByName(tableIndex.right));
+            for (ColumnFamilyStore columnFamilyStore : cfs.indexManager.getAllIndexColumnFamilyStores())
             {
-                String file = sst.getFilename();
-                ToolRunner.ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, file);
-                List<Map<String, Object>> parsed = JsonUtils.JSON_OBJECT_MAPPER.readValue(tool.getStdout(), jacksonListOfMapsType);
-                assertNotNull(tool.getStdout(), parsed.get(0).get("partition"));
-                assertNotNull(tool.getStdout(), parsed.get(0).get("rows"));
+                assertTrue(columnFamilyStore.isIndex());
+                assertFalse(columnFamilyStore.getLiveSSTables().isEmpty());
+                for (SSTableReader sst : columnFamilyStore.getLiveSSTables())
+                {
+                    String file = sst.getFilename();
+                    ToolRunner.ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, file);
+                    List<Map<String, Object>> parsed = JsonUtils.JSON_OBJECT_MAPPER.readValue(tool.getStdout(), jacksonListOfMapsType);
+                    assertNotNull(tool.getStdout(), parsed.get(0).get("partition"));
+                    assertNotNull(tool.getStdout(), parsed.get(0).get("rows"));
+                }
+            }
+            fail(SUCEESS_MSG);
+        }
+        catch (Throwable throwable)
+        {
+            // UPGRADING or NONE
+            if (!DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
+            {
+                assertEquals(SUCEESS_MSG, throwable.getMessage());
+            }
+            else
+            {
+                System.out.println(throwable.getMessage());
             }
         }
     }

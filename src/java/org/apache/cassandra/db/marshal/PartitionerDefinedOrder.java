@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -146,10 +147,12 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toString()
     {
-        if (partitionKeyType != null)
+        if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) &&
+            partitionKeyType != null)
         {
             return String.format("%s(%s:%s)", getClass().getName(), partitioner.getClass().getName(), partitionKeyType);
         }
+        // if cassandra' version is compatible, use the old behaviour
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
     
