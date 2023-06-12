@@ -147,7 +147,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toString()
     {
-        if (DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) &&
+        if (!DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) &&
             partitionKeyType != null)
         {
             return String.format("%s(%s:%s)", getClass().getName(), partitioner.getClass().getName(), partitionKeyType);
