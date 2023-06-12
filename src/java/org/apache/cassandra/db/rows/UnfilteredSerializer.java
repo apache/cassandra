@@ -28,6 +28,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.WrappedException;
 
@@ -578,8 +579,9 @@ public class UnfilteredSerializer
 
             if (header.isForSSTable())
             {
-                in.readUnsignedVInt(); // Skip row size
+                long rowSize = in.readUnsignedVInt();
                 in.readUnsignedVInt(); // previous unfiltered size
+                in = new TrackedDataInputPlus(in, rowSize);
             }
 
             LivenessInfo rowLiveness = LivenessInfo.EMPTY;
@@ -600,13 +602,14 @@ public class UnfilteredSerializer
 
             try
             {
+                DataInputPlus finalIn = in;
                 columns.apply(column -> {
                     try
                     {
                         if (column.isSimple())
-                            readSimpleColumn(column, in, header, helper, builder, livenessInfo);
+                            readSimpleColumn(column, finalIn, header, helper, builder, livenessInfo);
                         else
-                            readComplexColumn(column, in, header, helper, hasComplexDeletion, builder, livenessInfo);
+                            readComplexColumn(column, finalIn, header, helper, hasComplexDeletion, builder, livenessInfo);
                     }
                     catch (IOException e)
                     {
