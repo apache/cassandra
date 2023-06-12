@@ -25,8 +25,8 @@ The project was inspired by SASI (SSTable-Attached Secondary Indexes) and retain
 architectural character (and even some actual code), but makes significant improvements in a number of areas:
 
 - The on-disk/SSTable index formats for both string and numeric data have been completely replaced. Strings are indexed
-  on disk using our proprietary on-disk byte-ordered trie data structure, while numeric types are indexed using Lucene's
-  balanced kd-tree.
+  on disk using our proprietary on-disk byte-ordered trie data structure, while numeric types are indexed using a 
+  balanced tree.
 - While indexes continue to be managed at the column level from the user's perspective, the storage design at the column
   index level is row-based, with related offset and token information stored only once at the SSTable level. This
   drastically reduces our on-disk footprint when several columns are indexed on the same table.

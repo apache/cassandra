@@ -28,6 +28,11 @@ public final class MulticastQueryEventListeners
         return new Multicast2TrieIndexEventListener(ctx, listener);
     }
 
+    public static QueryEventListener.BalancedTreeEventListener of(QueryContext ctx, QueryEventListener.BalancedTreeEventListener listener)
+    {
+        return new Multicast2BalancedTreeEventListener(ctx, listener);
+    }
+
     public static class Multicast2TrieIndexEventListener implements QueryEventListener.TrieIndexEventListener
     {
         private final QueryContext ctx;
@@ -59,6 +64,79 @@ public final class MulticastQueryEventListeners
         public QueryEventListener.PostingListEventListener postingListEventListener()
         {
             return postingListEventListener;
+        }
+    }
+
+    public static class Multicast2BalancedTreeEventListener implements QueryEventListener.BalancedTreeEventListener
+    {
+        private final QueryContext ctx;
+        private final QueryEventListener.BalancedTreeEventListener listener;
+        private final Multicast2BalancedTreePostingListEventListener postingListEventListener;
+
+        private Multicast2BalancedTreeEventListener(QueryContext ctx, QueryEventListener.BalancedTreeEventListener listener)
+        {
+            this.ctx = ctx;
+            this.listener = listener;
+            this.postingListEventListener = new Multicast2BalancedTreePostingListEventListener(ctx, listener.postingListEventListener());
+        }
+
+        @Override
+        public void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit)
+        {
+            listener.onIntersectionComplete(intersectionTotalTime, unit);
+        }
+
+        @Override
+        public void onIntersectionEarlyExit()
+        {
+            listener.onIntersectionEarlyExit();
+        }
+
+        @Override
+        public void postingListsHit(int count)
+        {
+            ctx.balancedTreePostingListsHit++;
+            listener.postingListsHit(count);
+        }
+
+        @Override
+        public void onSegmentHit()
+        {
+            ctx.segmentsHit++;
+            ctx.balancedTreeSegmentsHit++;
+            listener.onSegmentHit();
+        }
+
+        @Override
+        public QueryEventListener.PostingListEventListener postingListEventListener()
+        {
+            return postingListEventListener;
+        }
+    }
+
+    public static class Multicast2BalancedTreePostingListEventListener implements QueryEventListener.PostingListEventListener
+    {
+        private final QueryContext ctx;
+        private final QueryEventListener.PostingListEventListener listener;
+
+        Multicast2BalancedTreePostingListEventListener(QueryContext ctx, QueryEventListener.PostingListEventListener listener)
+        {
+            this.ctx = ctx;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onAdvance()
+        {
+            ctx.balancedTreePostingsSkips++;
+            listener.onAdvance();
+        }
+
+        @Override
+        public void postingDecoded(long postingDecoded)
+        {
+            ctx.balancedTreePostingsDecodes += postingDecoded;
+            listener.postingDecoded(postingDecoded);
         }
     }
 

@@ -24,8 +24,6 @@ import java.io.DataInput;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.channels.FileChannel;
@@ -61,6 +59,7 @@ import com.datastax.driver.core.QueryTrace;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -79,7 +78,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
-import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.ResourceLeakDetector;
 import org.apache.cassandra.inject.Injection;
@@ -114,11 +112,12 @@ public abstract class SAITester extends CQLTester
     protected static final String CREATE_KEYSPACE_TEMPLATE = "CREATE KEYSPACE IF NOT EXISTS %s WITH replication = " +
                                                              "{'class': 'SimpleStrategy', 'replication_factor': '1'}";
 
-    protected static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 TEXT) WITH compaction = " +
+    protected static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 INT, v2 TEXT) WITH compaction = " +
                                                           "{'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }";
     protected static final String CREATE_INDEX_TEMPLATE = "CREATE CUSTOM INDEX IF NOT EXISTS ON %%s(%s) USING 'StorageAttachedIndex'";
 
     protected static final ColumnIdentifier V1_COLUMN_IDENTIFIER = ColumnIdentifier.getInterned("v1", true);
+    protected static final ColumnIdentifier V2_COLUMN_IDENTIFIER = ColumnIdentifier.getInterned("v2", true);
 
     protected static final Injections.Counter indexBuildCounter = Injections.newCounter("IndexBuildCounter")
                                                                             .add(newInvokePoint().onClass(CompactionManager.class)
@@ -162,6 +161,9 @@ public abstract class SAITester extends CQLTester
     public void removeAllInjections()
     {
         Injections.deleteAll();
+        CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.reset();
+        CassandraRelevantProperties.SAI_POSTINGS_SKIP.reset();
+        V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.setLimitBytes(V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMIT);
     }
 
     public static Randomization getRandom()
@@ -460,17 +462,23 @@ public abstract class SAITester extends CQLTester
         assertTrue(indexFiles().isEmpty());
     }
 
-    protected void verifyIndexFiles(IndexContext literalIndexContext, int literalFiles)
+    protected void verifyIndexFiles(IndexContext numericIndexContext, IndexContext literalIndexContext, int numericFiles, int literalFiles)
     {
-        verifyIndexFiles(literalIndexContext,
+        verifyIndexFiles(numericIndexContext,
+                         literalIndexContext,
+                         Math.max(numericFiles, literalFiles),
+                         numericFiles,
                          literalFiles,
-                         literalFiles,
+                         numericFiles,
                          literalFiles);
     }
 
-    protected void verifyIndexFiles(IndexContext literalIndexContext,
+    protected void verifyIndexFiles(IndexContext numericIndexContext,
+                                    IndexContext literalIndexContext,
                                     int perSSTableFiles,
+                                    int numericFiles,
                                     int literalFiles,
+                                    int numericCompletionMarkers,
                                     int literalCompletionMarkers)
     {
         Set<File> indexFiles = indexFiles();
@@ -492,6 +500,20 @@ public abstract class SAITester extends CQLTester
                     assertEquals(literalCompletionMarkers, stringIndexFiles.size());
                 else
                     assertEquals(stringIndexFiles.toString(), literalFiles, stringIndexFiles.size());
+            }
+        }
+
+        if (numericIndexContext != null)
+        {
+            for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perColumnIndexComponents(numericIndexContext))
+            {
+                Set<File> numericIndexFiles = componentFiles(indexFiles,
+                                                             SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent,
+                                                                                                                                                             numericIndexContext)));
+                if (isBuildCompletionMarker(indexComponent))
+                    assertEquals(numericCompletionMarkers, numericIndexFiles.size());
+                else
+                    assertEquals(numericIndexFiles.toString(), numericFiles, numericIndexFiles.size());
             }
         }
     }
@@ -730,19 +752,15 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    protected static void setSegmentWriteBufferSpace(final int segmentSize) throws Exception
+    protected static void setBDKPostingsWriterSizing(int minimumPostingsLeaves, int postingsSkip)
     {
-        NamedMemoryLimiter limiter = (NamedMemoryLimiter) V1OnDiskFormat.class.getDeclaredField("SEGMENT_BUILD_MEMORY_LIMITER").get(null);
-        Field limitBytes = limiter.getClass().getDeclaredField("limitBytes");
-        limitBytes.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(limitBytes, limitBytes.getModifiers() & ~Modifier.FINAL);
-        limitBytes.set(limiter, segmentSize);
-        limitBytes = V1OnDiskFormat.class.getDeclaredField("SEGMENT_BUILD_MEMORY_LIMIT");
-        limitBytes.setAccessible(true);
-        modifiersField.setInt(limitBytes, limitBytes.getModifiers() & ~Modifier.FINAL);
-        limitBytes.set(limiter, segmentSize);
+        CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.setString(Integer.toString(minimumPostingsLeaves));
+        CassandraRelevantProperties.SAI_POSTINGS_SKIP.setString(Integer.toString(postingsSkip));
+    }
+
+    protected static void setSegmentWriteBufferSpace(final int segmentSize)
+    {
+        V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.setLimitBytes(segmentSize);
     }
 
     protected String getSingleTraceStatement(Session session, String query, String contains)

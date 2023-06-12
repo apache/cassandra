@@ -74,7 +74,6 @@ public class PostingsReader implements OrdinalPostingList
 
     public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
     {
-        logger.debug("Opening postings reader for {}", input);
         this.input = input;
         this.seekingInput = new SeekingRandomAccessInput(input);
         this.listener = listener;
