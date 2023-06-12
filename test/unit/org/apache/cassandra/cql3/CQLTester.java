@@ -733,6 +733,13 @@ public abstract class CQLTester
         disableCompaction(KEYSPACE);
     }
 
+    public void disableCompaction(String keyspace, String table)
+    {
+        ColumnFamilyStore store = getColumnFamilyStore(keyspace, table);
+        if (store != null)
+            store.disableAutoCompaction();
+    }
+
     public void enableCompaction(String keyspace)
     {
         ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
@@ -1527,7 +1534,7 @@ public abstract class CQLTester
      * Executes the provided query using the {@link ClientState#forInternalCalls()} as the expected ClientState. Note:
      * this means permissions checking will not apply and queries will proceed regardless of role or guardrails.
      */
-    protected UntypedResultSet executeFormattedQuery(String query, Object... values)
+    public UntypedResultSet executeFormattedQuery(String query, Object... values)
     {
         UntypedResultSet rs;
         if (usePrepared)

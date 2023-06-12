@@ -405,6 +405,16 @@ public enum CassandraRelevantProperties
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
 
+    /** Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list */
+    SAI_MINIMUM_POSTINGS_LEAVES("cassandra.sai.minimum_postings_leaves", "64"),
+
+    /**
+     * Skip, or the sampling interval, for selecting a bkd tree level that is eligible for an auxiliary posting list.
+     * Sampling starts from 0, but bkd tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
+     * level 0, because there is no node at level 0).
+     */
+    SAI_POSTINGS_SKIP("cassandra.sai.postings_skip", "3"),
+
     /**
      * The maximum number of seeds returned by a seed provider before emmitting a warning.
      * A large seed list may impact effectiveness of the third gossip round.

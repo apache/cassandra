@@ -78,6 +78,16 @@ public class TableQueryMetrics extends AbstractMetrics
         private final Histogram rowsFiltered;
 
         /**
+         * BKD index metrics.
+         */
+        private final Histogram kdTreePostingsNumPostings;
+        /**
+         * BKD index posting lists metrics.
+         */
+        private final Histogram kdTreePostingsSkips;
+        private final Histogram kdTreePostingsDecodes;
+
+        /**
          * Trie index posting lists metrics.
          */
         private final Histogram postingsSkips;
@@ -92,6 +102,11 @@ public class TableQueryMetrics extends AbstractMetrics
             sstablesHit = Metrics.histogram(createMetricName("SSTableIndexesHit"), false);
             segmentsHit = Metrics.histogram(createMetricName("IndexSegmentsHit"), false);
 
+            kdTreePostingsSkips = Metrics.histogram(createMetricName("KDTreePostingsSkips"), false);
+
+            kdTreePostingsNumPostings = Metrics.histogram(createMetricName("KDTreePostingsNumPostings"), false);
+            kdTreePostingsDecodes = Metrics.histogram(createMetricName("KDTreePostingsDecodes"), false);
+
             postingsSkips = Metrics.histogram(createMetricName("PostingsSkips"), false);
             postingsDecodes = Metrics.histogram(createMetricName("PostingsDecodes"), false);
 
@@ -103,6 +118,14 @@ public class TableQueryMetrics extends AbstractMetrics
         {
             postingsSkips.update(events.triePostingsSkips);
             postingsDecodes.update(events.triePostingsDecodes);
+        }
+
+        private void recordNumericIndexCacheMetrics(QueryContext events)
+        {
+            kdTreePostingsNumPostings.update(events.bkdPostingListsHit);
+
+            kdTreePostingsSkips.update(events.bkdPostingsSkips);
+            kdTreePostingsDecodes.update(events.bkdPostingsDecodes);
         }
 
         public void record(QueryContext queryContext)
@@ -131,6 +154,11 @@ public class TableQueryMetrics extends AbstractMetrics
             if (queryContext.trieSegmentsHit > 0)
             {
                 recordStringIndexCacheMetrics(queryContext);
+            }
+
+            if (queryContext.bkdSegmentsHit > 0)
+            {
+                recordNumericIndexCacheMetrics(queryContext);
             }
 
             totalQueriesCompleted.inc();

@@ -113,9 +113,11 @@ public class IndexContext
 
         this.indexMetadata = indexMetadata;
         this.memtableIndexManager = indexMetadata == null ? null : new MemtableIndexManager(this);
+
         this.indexMetrics = indexMetadata == null ? null : new IndexMetrics(this);
         this.viewManager = new IndexViewManager(this);
-        this.columnQueryMetrics = new ColumnQueryMetrics.TrieIndexMetrics(this);
+        this.columnQueryMetrics = isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(this)
+                                              : new ColumnQueryMetrics.BKDIndexMetrics(this);
 
         // We currently only support the NoOpAnalyzer
         this.indexAnalyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap());

@@ -39,6 +39,12 @@ public enum IndexComponent
     META("Meta"),
 
     /**
+     * KDTree written by {@code BKDWriter} indexes mappings of term to one or more segment row IDs
+     * (segment row ID = SSTable row ID - segment row ID offset).
+     */
+    KD_TREE("KDTree"),
+
+    /**
      * Term dictionary written by {@link TrieTermsDictionaryWriter} stores mappings of term and
      * file pointer to posting block on posting file.
      */

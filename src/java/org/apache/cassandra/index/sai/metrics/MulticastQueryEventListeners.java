@@ -28,6 +28,11 @@ public final class MulticastQueryEventListeners
         return new Multicast2TrieIndexEventListener(ctx, listener);
     }
 
+    public static QueryEventListener.BKDIndexEventListener of(QueryContext ctx, QueryEventListener.BKDIndexEventListener listener)
+    {
+        return new Multicast2BKDIndexEventListener(ctx, listener);
+    }
+
     public static class Multicast2TrieIndexEventListener implements QueryEventListener.TrieIndexEventListener
     {
         private final QueryContext ctx;
@@ -59,6 +64,79 @@ public final class MulticastQueryEventListeners
         public QueryEventListener.PostingListEventListener postingListEventListener()
         {
             return postingListEventListener;
+        }
+    }
+
+    public static class Multicast2BKDIndexEventListener implements QueryEventListener.BKDIndexEventListener
+    {
+        private final QueryContext ctx;
+        private final QueryEventListener.BKDIndexEventListener listener;
+        private final Multicast2BKDPostingListEventListener postingListEventListener;
+
+        private Multicast2BKDIndexEventListener(QueryContext ctx, QueryEventListener.BKDIndexEventListener listener)
+        {
+            this.ctx = ctx;
+            this.listener = listener;
+            this.postingListEventListener = new Multicast2BKDPostingListEventListener(ctx, listener.postingListEventListener());
+        }
+
+        @Override
+        public void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit)
+        {
+            listener.onIntersectionComplete(intersectionTotalTime, unit);
+        }
+
+        @Override
+        public void onIntersectionEarlyExit()
+        {
+            listener.onIntersectionEarlyExit();
+        }
+
+        @Override
+        public void postingListsHit(int count)
+        {
+            ctx.bkdPostingListsHit++;
+            listener.postingListsHit(count);
+        }
+
+        @Override
+        public void onSegmentHit()
+        {
+            ctx.segmentsHit++;
+            ctx.bkdSegmentsHit++;
+            listener.onSegmentHit();
+        }
+
+        @Override
+        public QueryEventListener.PostingListEventListener postingListEventListener()
+        {
+            return postingListEventListener;
+        }
+    }
+
+    public static class Multicast2BKDPostingListEventListener implements QueryEventListener.PostingListEventListener
+    {
+        private final QueryContext ctx;
+        private final QueryEventListener.PostingListEventListener listener;
+
+        Multicast2BKDPostingListEventListener(QueryContext ctx, QueryEventListener.PostingListEventListener listener)
+        {
+            this.ctx = ctx;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onAdvance()
+        {
+            ctx.bkdPostingsSkips++;
+            listener.onAdvance();
+        }
+
+        @Override
+        public void postingDecoded(long postingDecoded)
+        {
+            ctx.bkdPostingsDecodes += postingDecoded;
+            listener.postingDecoded(postingDecoded);
         }
     }
 

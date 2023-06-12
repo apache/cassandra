@@ -35,6 +35,8 @@ import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
+import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
@@ -110,7 +112,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
             try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
             {
-                long cellCount = flush(minKey, maxKey, indexContext.getValidator(), terms);
+                long cellCount = flush(minKey, maxKey, indexContext.getValidator(), terms, rowMapping.maxSSTableRowId);
 
                 indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
 
@@ -136,10 +138,11 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
     private long flush(DecoratedKey minKey,
                        DecoratedKey maxKey,
                        AbstractType<?> termComparator,
-                       MemtableTermsIterator terms) throws IOException
+                       MemtableTermsIterator terms,
+                       long maxSegmentRowId) throws IOException
     {
-        long numRows = 0;
-        SegmentMetadata.ComponentMetadataMap indexMetas = null;
+        long numRows;
+        SegmentMetadata.ComponentMetadataMap indexMetas;
 
         if (TypeUtil.isLiteral(termComparator))
         {
@@ -148,6 +151,15 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                 indexMetas = writer.writeCompleteSegment(terms);
                 numRows = writer.getPostingsCount();
             }
+        }
+        else
+        {
+            NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
+                                                               indexContext,
+                                                               TypeUtil.fixedSizeOf(termComparator),
+                                                               maxSegmentRowId);
+            indexMetas = writer.writeAll(ImmutableOneDimPointValues.fromTermEnum(terms, termComparator));
+            numRows = writer.getPointCount();
         }
 
         // If no rows were written we need to delete any created column index components

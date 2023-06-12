@@ -70,6 +70,61 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
         }
     }
 
+    public static class BKDIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.BKDIndexEventListener
+    {
+        private static final String BKD_POSTINGS_TYPE = "KDTreePostings";
+
+        /**
+         * BKD index metrics.
+         */
+        private final Timer intersectionLatency;
+        private final Meter postingsNumPostings;
+        private final Meter intersectionEarlyExits;
+
+        private final QueryEventListener.PostingListEventListener postingsListener;
+
+        public BKDIndexMetrics(IndexContext indexContext)
+        {
+            super(indexContext);
+
+            intersectionLatency = Metrics.timer(createMetricName("KDTreeIntersectionLatency"));
+            intersectionEarlyExits = Metrics.meter(createMetricName("KDTreeIntersectionEarlyExits"));
+
+            postingsNumPostings = Metrics.meter(createMetricName("NumPostings", BKD_POSTINGS_TYPE));
+
+            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", BKD_POSTINGS_TYPE));
+
+            postingsListener = new PostingListEventsMetrics(postingDecodes);
+        }
+
+        @Override
+        public void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit)
+        {
+            intersectionLatency.update(intersectionTotalTime, unit);
+        }
+
+        @Override
+        public void onIntersectionEarlyExit()
+        {
+            intersectionEarlyExits.mark();
+        }
+
+        @Override
+        public void postingListsHit(int count)
+        {
+            postingsNumPostings.mark(count);
+        }
+
+        @Override
+        public void onSegmentHit() { }
+
+        @Override
+        public QueryEventListener.PostingListEventListener postingListEventListener()
+        {
+            return postingsListener;
+        }
+    }
+
     private static class PostingListEventsMetrics implements QueryEventListener.PostingListEventListener
     {
         private final Meter postingDecodes;

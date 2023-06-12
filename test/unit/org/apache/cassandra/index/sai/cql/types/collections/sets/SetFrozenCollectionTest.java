@@ -32,6 +32,6 @@ public class SetFrozenCollectionTest extends IndexingTypeSupport
     public static Collection<Object[]> generateParameters()
     {
         DataSet<Set<Integer>> frozen = new CollectionDataSet.FrozenSetDataSet<>(new DataSet.IntDataSet());
-        return generateLiteralParameters(new CollectionDataSet.SetDataSet<>(frozen));
+        return generateParameters(new CollectionDataSet.SetDataSet<>(frozen));
     }
 }

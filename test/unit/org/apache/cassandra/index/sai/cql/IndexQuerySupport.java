@@ -92,10 +92,99 @@ public class IndexQuerySupport
     {
         dataModel.createTables(executor);
 
+        dataModel.disableCompaction(executor);
+
         dataModel.createIndexes(executor);
 
         // queries against Memtable adjacent in-memory indexes
         dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries with Memtable flushed to SSTable on disk
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries across memory and disk indexes
+        dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries w/ multiple SSTable indexes
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries after compacting to a single SSTable index
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries against Memtable updates and the existing SSTable index
+        dataModel.updateCells(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries against the newly flushed SSTable index and the existing SSTable index
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries after compacting updates into to a single SSTable index
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
+    }
+
+    public static void rowDeletions(BaseDataModel.Executor executor, BaseDataModel dataModel, List<BaseQuerySet> sets) throws Throwable
+    {
+        dataModel.createTables(executor);
+
+        dataModel.disableCompaction(executor);
+
+        dataModel.createIndexes(executor);
+        dataModel.insertRows(executor);
+        dataModel.flush(executor);
+        dataModel.compact(executor);
+
+        // baseline queries
+        executeQueries(dataModel, executor, sets);
+
+        // queries against Memtable deletes and the existing SSTable index
+        dataModel.deleteRows(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries against the newly flushed SSTable index and the existing SSTable index
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries after compacting deletes into to a single SSTable index
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // truncate, reload, and verify that the load is clean
+        dataModel.truncateTables(executor);
+        dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
+    }
+
+    public static void cellDeletions(BaseDataModel.Executor executor, BaseDataModel dataModel, List<BaseQuerySet> sets) throws Throwable
+    {
+        dataModel.createTables(executor);
+
+        dataModel.disableCompaction(executor);
+
+        dataModel.createIndexes(executor);
+        dataModel.insertRows(executor);
+        dataModel.flush(executor);
+        dataModel.compact(executor);
+
+        // baseline queries
+        executeQueries(dataModel, executor, sets);
+
+        // queries against Memtable deletes and the existing SSTable index
+        dataModel.deleteCells(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries against the newly flushed SSTable index and the existing SSTable index
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
+
+        // queries after compacting deletes into to a single SSTable index
+        dataModel.compact(executor);
         executeQueries(dataModel, executor, sets);
     }
 

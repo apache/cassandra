@@ -50,6 +50,11 @@ public class PerColumnIndexFiles implements Closeable
             files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext));
             files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext));
         }
+        else
+        {
+            files.put(IndexComponent.KD_TREE, indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext));
+            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext));
+        }
     }
 
     public FileHandle termsData()
@@ -60,6 +65,11 @@ public class PerColumnIndexFiles implements Closeable
     public FileHandle postingLists()
     {
         return getFile(IndexComponent.POSTING_LISTS);
+    }
+
+    public FileHandle kdtree()
+    {
+        return getFile(IndexComponent.KD_TREE);
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"})

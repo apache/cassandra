@@ -167,6 +167,12 @@ class BaseDataModel
         tester.createTable(String.format(template, KEYSPACE, nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
     }
 
+    public void truncateTables(Executor tester) throws Throwable
+    {
+        executeLocal(tester, "TRUNCATE TABLE %s");
+        executeLocal(tester, "TRUNCATE TABLE %s");
+    }
+
     public void createIndexes(Executor tester) throws Throwable
     {
         createIndexes(tester, columns);
@@ -189,6 +195,24 @@ class BaseDataModel
         }
     }
 
+    public void flush(Executor tester) throws Throwable
+    {
+        tester.flush(KEYSPACE, indexedTable);
+        tester.flush(KEYSPACE, nonIndexedTable);
+    }
+
+    public void disableCompaction(Executor tester) throws Throwable
+    {
+        tester.disableCompaction(KEYSPACE, indexedTable);
+        tester.disableCompaction(KEYSPACE, nonIndexedTable);
+    }
+
+    public void compact(Executor tester) throws Throwable
+    {
+        tester.compact(KEYSPACE, indexedTable);
+        tester.compact(KEYSPACE, nonIndexedTable);
+    }
+
     public void insertRows(Executor tester) throws Throwable
     {
         String template = "INSERT INTO %%s (%s, %s) VALUES (%s, %s)";
@@ -207,6 +231,42 @@ class BaseDataModel
         {
             String ttl = deletable().contains(i) ? " USING TTL " + DEFAULT_TTL_SECONDS : "";
             executeLocal(tester, String.format(template, primaryKey, columnNames, keys.get(i), rows.get(i), ttl));
+        }
+    }
+
+    public void updateCells(Executor tester) throws Throwable
+    {
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p = 0", BIGINT_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p = 1", BOOLEAN_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = '2018-03-10' WHERE p = 2", DATE_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 8788.06 WHERE p = 3", DOUBLE_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 2.9 WHERE p = 4", FLOAT_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = '205.204.196.65' WHERE p = 5", INET_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 27429638 WHERE p = 6", INT_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 31 WHERE p = 7", SMALLINT_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 116 WHERE p = 8", TINYINT_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 'State of Michigan' WHERE p = 9", TEXT_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = '00:20:26' WHERE p = 10", TIME_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = '2009-07-16T00:00:00' WHERE p = 11", TIMESTAMP_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = e37394dc-d17b-11e8-a8d5-f2801f1b9fd1 WHERE p = 12", UUID_COLUMN));
+        executeLocal(tester, String.format("UPDATE %%s SET %s = 1fc81a4c-d17d-11e8-a8d5-f2801f1b9fd1 WHERE p = 13", TIMEUUID_COLUMN));
+    }
+
+    public void deleteCells(Executor tester) throws Throwable
+    {
+        for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
+        {
+            executeLocal(tester, String.format("DELETE %s FROM %%s WHERE p = %s", NORMAL_COLUMNS.get(i).left, i));
+        }
+    }
+
+    public void deleteRows(Executor tester) throws Throwable
+    {
+        String template = "DELETE FROM %%s WHERE p = %d";
+
+        for (int deleted : deletable())
+        {
+            executeLocal(tester, String.format(template, deleted));
         }
     }
 
@@ -270,6 +330,45 @@ class BaseDataModel
         }
 
         @Override
+        public void updateCells(Executor tester) throws Throwable
+        {
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p = 0 AND c = 0", BIGINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p = 0 AND c = 1", BOOLEAN_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '2018-03-10' WHERE p = 1 AND c = 0", DATE_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 8788.06 WHERE p = 1 AND c = 1", DOUBLE_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 2.9 WHERE p = 2 AND c = 0", FLOAT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '205.204.196.65' WHERE p = 2 AND c = 1", INET_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 27429638 WHERE p = 3 AND c = 0", INT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 31 WHERE p = 3 AND c = 1", SMALLINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 116 WHERE p = 4 AND c = 0", TINYINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 'State of Michigan' WHERE p = 4 AND c = 1", TEXT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '00:20:26' WHERE p = 5 AND c = 0", TIME_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '2009-07-16T00:00:00' WHERE p = 5 AND c = 1", TIMESTAMP_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = e37394dc-d17b-11e8-a8d5-f2801f1b9fd1 WHERE p = 6 AND c = 0", UUID_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 1fc81a4c-d17d-11e8-a8d5-f2801f1b9fd1 WHERE p = 6 AND c = 1", TIMEUUID_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 1896 WHERE p = 7", STATIC_INT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 2020 WHERE p = 100", STATIC_INT_COLUMN)); // static only
+        }
+
+        @Override
+        public void deleteCells(Executor tester) throws Throwable
+        {
+            for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
+            {
+                String[] primaryKey = keys.get(i).split(",");
+                executeLocal(tester, String.format("DELETE %s FROM %%s WHERE p = %s AND c = %s", NORMAL_COLUMNS.get(i).left, primaryKey[0], primaryKey[1]));
+            }
+        }
+
+        @Override
+        public void deleteRows(Executor tester) throws Throwable
+        {
+            executeLocal(tester, "DELETE FROM %s WHERE p = 2 AND c = 0");
+            executeLocal(tester, "DELETE FROM %s WHERE p = 4 AND c = 0");
+            executeLocal(tester, "DELETE FROM %s WHERE p = 6");
+        }
+
+        @Override
         protected Set<Integer> deletable()
         {
             return Sets.newHashSet(4, 8, 12, 13, 100);
@@ -312,6 +411,45 @@ class BaseDataModel
         }
 
         @Override
+        public void updateCells(Executor tester) throws Throwable
+        {
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p1 = 0 AND p2 = 0", BIGINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p1 = 0 AND p2 = 1", BOOLEAN_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '2018-03-10' WHERE p1 = 1 AND p2 = 0", DATE_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 8788.06 WHERE p1 = 1 AND p2 = 1", DOUBLE_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 2.9 WHERE p1 = 2 AND p2 = 0", FLOAT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '205.204.196.65' WHERE p1 = 2 AND p2 = 1", INET_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 27429638 WHERE p1 = 3 AND p2 = 0", INT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 31 WHERE p1 = 3 AND p2 = 1", SMALLINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 116 WHERE p1 = 4 AND p2 = 0", TINYINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 'State of Michigan' WHERE p1 = 4 AND p2 = 2", TEXT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '00:20:26' WHERE p1 = 5 AND p2 = 3", TIME_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '2009-07-16T00:00:00' WHERE p1 = 5 AND p2 = 1", TIMESTAMP_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = e37394dc-d17b-11e8-a8d5-f2801f1b9fd1 WHERE p1 = 6 AND p2 = 0", UUID_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 1fc81a4c-d17d-11e8-a8d5-f2801f1b9fd1 WHERE p1 = 6 AND p2 = 1", TIMEUUID_COLUMN));
+        }
+
+        @Override
+        public void deleteCells(Executor tester) throws Throwable
+        {
+            for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
+            {
+                String[] primaryKey = keys.get(i).split(",");
+                executeLocal(tester, String.format("DELETE %s FROM %%s WHERE p1 = %s AND p2 = %s",
+                                                   NORMAL_COLUMNS.get(i).left, primaryKey[0], primaryKey[1]));
+            }
+        }
+
+        @Override
+        public void deleteRows(Executor tester) throws Throwable
+        {
+            executeLocal(tester, "DELETE FROM %s WHERE p1 = 2 AND p2 = 0");
+            executeLocal(tester, "DELETE FROM %s WHERE p1 = 4 AND p2 = 1");
+            executeLocal(tester, "DELETE FROM %s WHERE p1 = 6 AND p2 = 2");
+            executeLocal(tester, "DELETE FROM %s WHERE p1 = 8 AND p2 = 0");
+        }
+
+        @Override
         protected Set<Integer> deletable()
         {
             // already overwrites {@code deleteRows()}
@@ -330,6 +468,33 @@ class BaseDataModel
             this.keys = new CompoundPrimaryKeyList(rows.size(), 1);
         }
 
+        @Override
+        public void updateCells(Executor tester) throws Throwable
+        {
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p = 0 AND c = 0", BIGINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p = 1 AND c = 0", BOOLEAN_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '2018-03-10' WHERE p = 2 AND c = 0", DATE_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 8788.06 WHERE p = 3 AND c = 0", DOUBLE_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 2.9 WHERE p = 4 AND c = 0", FLOAT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '205.204.196.65' WHERE p = 5 AND c = 0", INET_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 27429638 WHERE p = 6 AND c = 0", INT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 31 WHERE p = 7 AND c = 0", SMALLINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 116 WHERE p = 8 AND c = 0", TINYINT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 'State of Michigan' WHERE p = 9 AND c = 0", TEXT_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '00:20:26' WHERE p = 10 AND c = 0", TIME_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = '2009-07-16T00:00:00' WHERE p = 11 AND c = 0", TIMESTAMP_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = e37394dc-d17b-11e8-a8d5-f2801f1b9fd1 WHERE p = 12 AND c = 0", UUID_COLUMN));
+            executeLocal(tester, String.format("UPDATE %%s SET %s = 1fc81a4c-d17d-11e8-a8d5-f2801f1b9fd1 WHERE p = 13 AND c = 0", TIMEUUID_COLUMN));
+        }
+
+        @Override
+        public void deleteCells(Executor tester) throws Throwable
+        {
+            for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
+            {
+                executeLocal(tester, String.format("DELETE %s FROM %%s WHERE p = %s AND c = 0", NORMAL_COLUMNS.get(i).left, i));
+            }
+        }
     }
 
     static class SimplePrimaryKeyList extends ForwardingList<String>
@@ -381,6 +546,12 @@ class BaseDataModel
     interface Executor
     {
         void createTable(String statement);
+
+        void flush(String keyspace, String table);
+
+        void compact(String keyspace, String table);
+
+        void disableCompaction(String keyspace, String table);
 
         void waitForIndexQueryable(String keyspace, String index);
 

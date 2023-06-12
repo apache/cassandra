@@ -114,6 +114,11 @@ public class PostingsWriter implements Closeable
         this(indexDescriptor, indexContext, BLOCK_SIZE);
     }
 
+    public PostingsWriter(IndexOutput dataOutput) throws IOException
+    {
+        this(dataOutput, BLOCK_SIZE);
+    }
+
     @VisibleForTesting
     PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, int blockSize) throws IOException
     {

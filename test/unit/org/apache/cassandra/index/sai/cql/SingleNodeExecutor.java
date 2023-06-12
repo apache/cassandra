@@ -43,6 +43,24 @@ public class SingleNodeExecutor implements BaseDataModel.Executor
     }
 
     @Override
+    public void flush(String keyspace, String table)
+    {
+        tester.flush(keyspace, table);
+    }
+
+    @Override
+    public void compact(String keyspace, String table)
+    {
+        tester.compact(keyspace, table);
+    }
+
+    @Override
+    public void disableCompaction(String keyspace, String table)
+    {
+        tester.disableCompaction(keyspace, table);
+    }
+
+    @Override
     public void waitForIndexQueryable(String keyspace, String index)
     {
         tester.waitForIndexQueryable(keyspace, index);
@@ -51,7 +69,7 @@ public class SingleNodeExecutor implements BaseDataModel.Executor
     @Override
     public void executeLocal(String query, Object... values) throws Throwable
     {
-        tester.execute(query, values);
+        tester.executeFormattedQuery(query, values);
     }
 
     @Override

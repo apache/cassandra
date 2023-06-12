@@ -78,6 +78,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.v1.kdtree.OneDimBKDPostingsWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -159,9 +160,10 @@ public abstract class SAITester extends CQLTester
     public FailureWatcher failureRule = new FailureWatcher();
 
     @After
-    public void removeAllInjections()
+    public void removeAllInjections() throws Exception
     {
         Injections.deleteAll();
+        setBDKPostingsWriterSizing(OneDimBKDPostingsWriter.MINIMUM_POSTINGS_LEAVES, OneDimBKDPostingsWriter.POSTINGS_SKIP);
     }
 
     public static Randomization getRandom()
@@ -726,6 +728,20 @@ public abstract class SAITester extends CQLTester
             Set<Component> tocContents = TOCComponent.loadTOC(sstable.descriptor);
             assertEquals(components, tocContents);
         }
+    }
+
+    protected static void setBDKPostingsWriterSizing(int minimumPostingsLeaves, int postingsSkip) throws Exception
+    {
+        Field mplField = OneDimBKDPostingsWriter.class.getDeclaredField("MINIMUM_POSTINGS_LEAVES");
+        mplField.setAccessible(true);
+        Field psField = OneDimBKDPostingsWriter.class.getDeclaredField("POSTINGS_SKIP");
+        psField.setAccessible(true);
+        Field modifiersField = Field.class.getDeclaredField("modifiers");
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(mplField, mplField.getModifiers() & ~Modifier.FINAL);
+        mplField.set(null, minimumPostingsLeaves);
+        modifiersField.setInt(psField, psField.getModifiers() & ~Modifier.FINAL);
+        psField.set(null, postingsSkip);
     }
 
     protected static void setSegmentWriteBufferSpace(final int segmentSize) throws Exception

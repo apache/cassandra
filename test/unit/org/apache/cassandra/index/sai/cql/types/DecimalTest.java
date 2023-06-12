@@ -26,6 +26,6 @@ public class DecimalTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateNumericParameters(new DataSet.DecimalDataSet());
+        return generateParameters(new DataSet.DecimalDataSet());
     }
 }
