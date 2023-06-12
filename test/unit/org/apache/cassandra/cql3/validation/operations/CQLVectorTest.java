@@ -180,8 +180,7 @@ public class CQLVectorTest extends CQLTester.InMemory
         execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector);
 
         assertRows(execute("SELECT f(value) FROM %s WHERE pk=0"), row(vector));
-        // TODO org.apache.cassandra.cql3.selection.Selectable.WithList isn't vector aware, so the below function will fail
-//        assertRows(execute("SELECT f([1, 2]) FROM %s WHERE pk=0"), row(vector));
+        assertRows(execute("SELECT f([1, 2]) FROM %s WHERE pk=0"), row(vector));
     }
 
     @Test
