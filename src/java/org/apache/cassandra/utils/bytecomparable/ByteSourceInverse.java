@@ -402,6 +402,19 @@ public final class ByteSourceInverse
         return readBytes(byteSource, INITIAL_BUFFER_CAPACITY);
     }
 
+    public static void copyBytes(ByteSource byteSource, byte[] bytes)
+    {
+        int readBytes = 0;
+
+        int data;
+        while ((data = byteSource.next()) != ByteSource.END_OF_STREAM)
+        {
+            if (bytes.length == readBytes)
+                throw new ArrayIndexOutOfBoundsException(String.format("Number of bytes read, %d, exceeds the buffer size of %d.", readBytes + 1, bytes.length));
+            bytes[readBytes++] = (byte) data;
+        }
+    }
+
     /**
      * Ensures the given buffer has capacity for taking data with the given length - if it doesn't, it returns a copy
      * of the buffer, but with double the capacity.

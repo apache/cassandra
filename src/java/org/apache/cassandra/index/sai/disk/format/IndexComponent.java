@@ -39,6 +39,12 @@ public enum IndexComponent
     META("Meta"),
 
     /**
+     * Balanced tree written by {@code BlockBalancedTreeWriter} indexes mappings of term to one or more segment row IDs
+     * (segment row ID = SSTable row ID - segment row ID offset).
+     */
+    BALANCED_TREE("BalancedTree"),
+
+    /**
      * Term dictionary written by {@link TrieTermsDictionaryWriter} stores mappings of term and
      * file pointer to posting block on posting file.
      */

@@ -30,6 +30,7 @@ import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.lucene.store.IndexInput;
@@ -51,11 +52,18 @@ public class TermsScanner implements TermsIterator
 
     @Override
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public PostingList postings() throws IOException
+    public PostingList postings()
     {
         assert entry != null;
         final IndexInput input = IndexFileUtils.instance.openInput(postingsFile);
-        return new ScanningPostingsReader(input, new PostingsReader.BlocksSummary(input, entry.right));
+        try
+        {
+            return new ScanningPostingsReader(input, new PostingsReader.BlocksSummary(input, entry.right));
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
     }
 
     @Override

@@ -54,12 +54,15 @@ public abstract class IndexSegmentSearcher implements Closeable
         this.indexContext = indexContext;
     }
 
+    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static IndexSegmentSearcher open(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                             PerColumnIndexFiles indexFiles,
                                             SegmentMetadata segmentMetadata,
                                             IndexContext indexContext) throws IOException
     {
-        return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        return indexContext.isLiteral()
+               ? new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext)
+               : new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
     }
 
     /**

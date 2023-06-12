@@ -18,7 +18,6 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -29,7 +28,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * Iterator to step through terms to obtain {@link PostingList} for the current term.
- *
+ * <p>
  * Term enumerations are always ordered by their {@link ByteSource}.
  */
 @NotThreadSafe
@@ -38,7 +37,7 @@ public interface TermsIterator extends Iterator<ByteComparable>, Closeable
     /**
      * Get {@link PostingList} for the current term.
      */
-    PostingList postings() throws IOException;
+    PostingList postings();
 
     ByteBuffer getMinTerm();
 

@@ -33,7 +33,7 @@ public class DiskSpaceTest extends SAITester
         int rows = 1000;
         for (int j = 0; j < rows; j++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES (?, '1')", Integer.toString(j));
+            execute("INSERT INTO %s (id1, v1) VALUES (?, 1)", Integer.toString(j));
         }
         flush();
 
@@ -41,6 +41,7 @@ public class DiskSpaceTest extends SAITester
 
         // create index, disk space should include index components
         String indexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        waitForTableIndexesQueryable();
 
         long indexSize = indexDiskSpaceUse();
         long sstableSizeWithIndex = totalDiskSpaceUsed();

@@ -25,7 +25,6 @@ import java.util.Map;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -45,10 +44,15 @@ public class PerColumnIndexFiles implements Closeable
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        if (TypeUtil.isLiteral(indexContext.getValidator()))
+        if (indexContext.isLiteral())
         {
             files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext));
             files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext));
+        }
+        else
+        {
+            files.put(IndexComponent.BALANCED_TREE, indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext));
+            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext));
         }
     }
 
@@ -60,6 +64,11 @@ public class PerColumnIndexFiles implements Closeable
     public FileHandle postingLists()
     {
         return getFile(IndexComponent.POSTING_LISTS);
+    }
+
+    public FileHandle balancedTree()
+    {
+        return getFile(IndexComponent.BALANCED_TREE);
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"})

@@ -63,8 +63,8 @@ public class TypeUtilTest extends SAIRandomizedTester
             boolean isLiteral = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT || cql3Type == CQL3Type.Native.VARCHAR || cql3Type == CQL3Type.Native.BOOLEAN;
             assertEquals(isLiteral, TypeUtil.isLiteral(type));
             assertEquals(TypeUtil.isLiteral(type), TypeUtil.isLiteral(reversedType));
-            assertEquals(isUTF8OrAscii, TypeUtil.isUTF8OrAscii(type));
-            assertEquals(TypeUtil.isUTF8OrAscii(type), TypeUtil.isUTF8OrAscii(reversedType));
+            assertEquals(isUTF8OrAscii, TypeUtil.isString(type));
+            assertEquals(TypeUtil.isString(type), TypeUtil.isString(reversedType));
         }
     }
 

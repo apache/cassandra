@@ -24,6 +24,37 @@ import java.util.concurrent.TimeUnit;
  */
 public interface QueryEventListener
 {
+    /**
+     * Collector for balanced tree file related metrics.
+     */
+    interface BalancedTreeEventListener
+    {
+        /**
+         * Per-segment balanced tree index intersection time in given units. Recorded when intersection completes.
+         */
+        void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit);
+
+        /**
+         * When an intersection exits early due to the query shape being completely outside the min/max range.
+         */
+        void onIntersectionEarlyExit();
+
+        /**
+         * How many balanced tree posting list were matched during the intersection.
+         */
+        void postingListsHit(int count);
+
+        /**
+         * When query potentially matches value range within a segment, and we need to do a traversal.
+         */
+        void onSegmentHit();
+
+        /**
+         * Returns events listener for balanced tree postings.
+         */
+        PostingListEventListener postingListEventListener();
+    }
+
     interface TrieIndexEventListener
     {
         /**
@@ -62,13 +93,11 @@ public interface QueryEventListener
             @Override
             public void onAdvance()
             {
-
             }
 
             @Override
             public void postingDecoded(long postingsDecoded)
             {
-
             }
         };
     }

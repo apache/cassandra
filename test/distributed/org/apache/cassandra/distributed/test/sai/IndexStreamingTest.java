@@ -19,9 +19,13 @@ package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
@@ -36,19 +40,16 @@ import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@RunWith(Parameterized.class)
 public class IndexStreamingTest extends TestBaseImpl
 {
     // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
     // all cases of the vtable - hence we add a big enough blob column
     private static final ByteBuffer BLOB = ByteBuffer.wrap(new byte[1 << 16]);
-    private static final int NUM_COMPONENTS;
 
     static
     {
         DatabaseDescriptor.clientInitialization();
-        NUM_COMPONENTS = sstableStreamingComponentsCount()
-                         + V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size()
-                         + V1OnDiskFormat.LITERAL_COMPONENTS.size();
     }
 
     private static int sstableStreamingComponentsCount()
@@ -60,42 +61,62 @@ public class IndexStreamingTest extends TestBaseImpl
                                        .count() - 1;  // -1 because we don't include the compression component
     }
 
-    @Test
-    public void zeroCopy() throws IOException
+    @SuppressWarnings("DefaultAnnotationParam")
+    @Parameterized.Parameter(0)
+    public boolean isLiteral;
+    @Parameterized.Parameter(1)
+    public boolean isZeroCopyStreaming;
+
+    @Parameterized.Parameters(name = "isLiteral={0}, isZeroCopyStreaming={1}")
+    public static List<Object[]> data()
     {
-        test(true);
+        List<Object[]> result = new ArrayList<>();
+        result.add(new Object[]{ true, true });
+        result.add(new Object[]{ true, false });
+        result.add(new Object[]{ false, true });
+        result.add(new Object[]{ false, false });
+        return result;
     }
 
     @Test
-    public void notZeroCopy() throws IOException
-    {
-        test(false);
-    }
-
-    private void test(boolean zeroCopyStreaming) throws IOException
+    public void testIndexComponentStreaming() throws IOException
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(c -> c.with(Feature.values())
-                                                             .set("stream_entire_sstables", zeroCopyStreaming)
+                                                             .set("stream_entire_sstables", isZeroCopyStreaming)
                                                              .set("streaming_slow_events_log_timeout", "0s"))
                                            .start()))
         {
             cluster.schemaChange(withKeyspace(
-                "CREATE TABLE %s.test (pk int PRIMARY KEY, v text, b blob) WITH compression = { 'enabled' : false };"
+                "CREATE TABLE %s.test (pk int PRIMARY KEY, literal text, numeric int, b blob) WITH compression = { 'enabled' : false };"
             ));
-            cluster.schemaChange(withKeyspace(
-                "CREATE CUSTOM INDEX ON %s.test(v) USING 'StorageAttachedIndex';"
-            ));
+
+            int num_components = isLiteral ? sstableStreamingComponentsCount() +
+                                             V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size() +
+                                             V1OnDiskFormat.LITERAL_COMPONENTS.size()
+                                           : sstableStreamingComponentsCount() +
+                                             V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size() +
+                                             V1OnDiskFormat.NUMERIC_COMPONENTS.size();
+
+            if (isLiteral)
+                cluster.schemaChange(withKeyspace(
+                    "CREATE CUSTOM INDEX ON %s.test(literal) USING 'StorageAttachedIndex';"
+                ));
+            else
+                cluster.schemaChange(withKeyspace(
+                "CREATE CUSTOM INDEX ON %s.test(numeric) USING 'StorageAttachedIndex';"
+                ));
+
             cluster.stream().forEach(i ->
                 i.nodetoolResult("disableautocompaction", KEYSPACE).asserts().success()
             );
             IInvokableInstance first = cluster.get(1);
             IInvokableInstance second = cluster.get(2);
             long sstableCount = 10;
-            long expectedFiles = zeroCopyStreaming ? sstableCount * NUM_COMPONENTS : sstableCount;
+            long expectedFiles = isZeroCopyStreaming ? sstableCount * num_components : sstableCount;
             for (int i = 0; i < sstableCount; i++)
             {
-                first.executeInternal(withKeyspace("insert into %s.test(pk, v, b) values (?, ?, ?)"), i, "v" + i, BLOB);
+                first.executeInternal(withKeyspace("insert into %s.test(pk, literal, numeric, b) values (?, ?, ?, ?)"), i, "v" + i, i, BLOB);
                 first.flush(KEYSPACE);
             }
 
@@ -146,7 +167,8 @@ public class IndexStreamingTest extends TestBaseImpl
 
             for (int i = 0; i < sstableCount; i++)
             {
-                Object[][] rs = second.executeInternal(withKeyspace("select pk from %s.test where v = ?"), "v" + i);
+                Object[][] rs = isLiteral ? second.executeInternal(withKeyspace("select pk from %s.test where literal = ?"), "v" + i)
+                                          : second.executeInternal(withKeyspace("select pk from %s.test where numeric = ?"), i);
                 assertThat(rs.length).isEqualTo(1);
                 assertThat(rs[0][0]).isEqualTo(i);
             }

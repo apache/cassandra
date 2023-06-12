@@ -28,9 +28,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
+import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -54,7 +56,6 @@ public abstract class SegmentBuilder
 
     /** Minimum flush size, dynamically updated as segment builds are started and completed/aborted. */
     private static volatile long minimumFlushBytes;
-    private final AbstractType<?> termComparator;
     private final NamedMemoryLimiter limiter;
     private final long lastValidSegmentRowID;
     private boolean flushed = false;
@@ -71,9 +72,48 @@ public abstract class SegmentBuilder
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
 
+    final AbstractType<?> termComparator;
     long totalBytesAllocated;
     int rowCount = 0;
     int maxSegmentRowId = -1;
+
+    public static class BlockBalancedTreeSegmentBuilder extends SegmentBuilder
+    {
+        private final byte[] scratch;
+        private final BlockBalancedTreeRamBuffer trieBuffer;
+
+        public BlockBalancedTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+        {
+            super(termComparator, limiter);
+
+            scratch = new byte[TypeUtil.fixedSizeOf(termComparator)];
+            trieBuffer = new BlockBalancedTreeRamBuffer(TypeUtil.fixedSizeOf(termComparator));
+            totalBytesAllocated = this.trieBuffer.memoryUsed();
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return trieBuffer.numRows() == 0;
+        }
+
+        @Override
+        protected long addInternal(ByteBuffer term, int segmentRowId)
+        {
+            TypeUtil.toComparableBytes(term, termComparator, scratch);
+            return trieBuffer.add(segmentRowId, scratch);
+        }
+
+        @Override
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+        {
+            NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
+                                                               indexContext,
+                                                               TypeUtil.fixedSizeOf(termComparator),
+                                                               maxSegmentRowId);
+            return writer.writeCompleteSegment(trieBuffer.iterator());
+        }
+    }
 
     public static class RAMStringSegmentBuilder extends SegmentBuilder
     {
@@ -89,11 +129,13 @@ public abstract class SegmentBuilder
             totalBytesAllocated = ramIndexer.estimatedBytesUsed();
         }
 
+        @Override
         public boolean isEmpty()
         {
             return ramIndexer.isEmpty();
         }
 
+        @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
             copyBufferToBytesRef(term, stringBuffer);
@@ -128,7 +170,7 @@ public abstract class SegmentBuilder
     {
         this.termComparator = termComparator;
         this.limiter = limiter;
-        this.lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
+        lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
 
         minimumFlushBytes = limiter.limitBytes() / ACTIVE_BUILDER_COUNT.incrementAndGet();
     }
@@ -204,7 +246,7 @@ public abstract class SegmentBuilder
 
     /**
      * This method does three things:
-     *
+     * <p>
      * 1. It decrements active builder count and updates the global minimum flush size to reflect that.
      * 2. It releases the builder's memory against its limiter.
      * 3. It defensively marks the builder inactive to make sure nothing bad happens if we try to close it twice.

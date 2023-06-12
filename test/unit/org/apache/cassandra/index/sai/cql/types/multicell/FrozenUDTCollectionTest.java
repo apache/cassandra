@@ -31,7 +31,7 @@ public class FrozenUDTCollectionTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateLiteralParameters(new FrozenUDTDataSet(
+        return generateParameters(new FrozenUDTDataSet(
         new CollectionDataSet.ListDataSet<>(new DataSet.AsciiDataSet()),
         new CollectionDataSet.MapDataSet<>(new DataSet.BigintDataSet())));
     }

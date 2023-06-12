@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.utils;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,9 +34,10 @@ public final class NamedMemoryLimiter
 {
     private static final Logger logger = LoggerFactory.getLogger(NamedMemoryLimiter.class);
     
-    private final long limitBytes;
     private final AtomicLong bytesUsed = new AtomicLong(0);
     private final String scope;
+
+    private long limitBytes;
 
     public NamedMemoryLimiter(long limitBytes, String scope)
     {
@@ -75,5 +77,11 @@ public final class NamedMemoryLimiter
     public long limitBytes()
     {
         return limitBytes;
+    }
+
+    @VisibleForTesting
+    public void setLimitBytes(long bytes)
+    {
+        limitBytes = bytes;
     }
 }

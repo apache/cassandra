@@ -97,14 +97,14 @@ public abstract class SegmentFlushingFailureTester extends SAITester
 
         assertEquals(expectedBytesLimit(), getSegmentBufferSpaceLimit());
         assertEquals("Segment buffer memory tracker should start at zero!", 0L, getSegmentBufferUsedBytes());
-        assertEquals("There should be no segment builders in progress.", 0, getColumnIndexBuildsInProgress());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0')");
         flush();
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '1')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '1')");
         flush();
 
-        ResultSet rows = executeNet("SELECT * FROM %s WHERE v1 = '0'");
+        ResultSet rows = executeNet("SELECT * FROM %s WHERE v1 = 0");
         assertEquals(1, rows.all().size());
 
         compact();
@@ -116,9 +116,9 @@ public abstract class SegmentFlushingFailureTester extends SAITester
         assertTrue(memoryTrackingCounter.get() > 0);
 
         assertEquals("Global memory tracker should have reverted to zero.", 0L, getSegmentBufferUsedBytes());
-        assertEquals("There should be no segment builders in progress.", 0, getColumnIndexBuildsInProgress());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
-        rows = executeNet("SELECT * FROM %s WHERE v1 = '0'");
+        rows = executeNet("SELECT * FROM %s WHERE v1 = 0");
         assertEquals(1, rows.all().size());
     }
 
@@ -147,17 +147,17 @@ public abstract class SegmentFlushingFailureTester extends SAITester
 
         assertEquals(expectedBytesLimit(), getSegmentBufferSpaceLimit());
         assertEquals("Segment buffer memory tracker should start at zero!", 0L, getSegmentBufferUsedBytes());
-        assertEquals("There should be no segment builders in progress.", 0, getColumnIndexBuildsInProgress());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0')");
         flush();
-        execute("INSERT INTO %s (id1, v1) VALUES ('1', '1')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('1', 1, '1')");
         flush();
 
         // Verify that we abort exactly once and zero the memory tracker:
         verifyCompactionIndexBuilds(1, failure, currentTable());
 
-        String select = String.format("SELECT * FROM %%s WHERE %s = %s", column, "'0'");
+        String select = String.format("SELECT * FROM %%s WHERE %s = %s", column, column.equals("v1") ? "0" : "'0'");
 
         assertThatThrownBy(() -> executeNet(select)).isInstanceOf(ReadFailureException.class);
     }
@@ -172,26 +172,26 @@ public abstract class SegmentFlushingFailureTester extends SAITester
 
         assertEquals(expectedBytesLimit(), getSegmentBufferSpaceLimit());
         assertEquals("Segment buffer memory tracker should start at zero!", 0L, getSegmentBufferUsedBytes());
-        assertEquals("There should be no segment builders in progress.", 0, getColumnIndexBuildsInProgress());
+        assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
 
-        execute("INSERT INTO " + KEYSPACE + '.' + table1 + "(id1, v1) VALUES ('0', '0')");
+        execute("INSERT INTO " + KEYSPACE + "." + table1 + "(id1, v1, v2) VALUES ('0', 0, '0')");
         flush(KEYSPACE, table1);
-        execute("INSERT INTO " + KEYSPACE + '.' + table1 + "(id1, v1) VALUES ('1', '1')");
+        execute("INSERT INTO " + KEYSPACE + "." + table1 + "(id1, v1, v2) VALUES ('1', 1, '1')");
         flush(KEYSPACE, table1);
 
-        execute("INSERT INTO " + KEYSPACE + '.' + table2 + "(id1, v1) VALUES ('0', '0')");
+        execute("INSERT INTO " + KEYSPACE + "." + table2 + "(id1, v1, v2) VALUES ('0', 0, '0')");
         flush(KEYSPACE, table2);
-        execute("INSERT INTO " + KEYSPACE + '.' + table2 + "(id1, v1) VALUES ('1', '1')");
+        execute("INSERT INTO " + KEYSPACE + "." + table2 + "(id1, v1, v2) VALUES ('1', 1, '1')");
         flush(KEYSPACE, table2);
 
         // Start compaction against both tables/indexes and verify that they are aborted safely:
         verifyCompactionIndexBuilds(2, segmentFlushFailure, table1, table2);
 
-        assertThatThrownBy(() -> executeNet(String.format("SELECT * FROM %s.%s WHERE v1 = '0'", KEYSPACE, table1)))
-                .isInstanceOf(ReadFailureException.class);
+        assertThatThrownBy(() -> executeNet(String.format("SELECT * FROM %s WHERE v1 = 0", KEYSPACE + "." + table1)))
+        .isInstanceOf(ReadFailureException.class);
 
-        assertThatThrownBy(() -> executeNet(String.format("SELECT * FROM %s.%s WHERE v1 = '0'", KEYSPACE, table2)))
-                .isInstanceOf(ReadFailureException.class);
+        assertThatThrownBy(() -> executeNet(String.format("SELECT * FROM %s WHERE v1 = 0", KEYSPACE + "." + table2)))
+        .isInstanceOf(ReadFailureException.class);
     }
 
     private void verifyCompactionIndexBuilds(int aborts, Injection failure, String... tables) throws Throwable

@@ -23,6 +23,7 @@ package org.apache.cassandra.index.sai.functional;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
@@ -92,7 +93,7 @@ public class NodeRestartTest extends SAITester
         waitForAssert(() -> Assert.assertEquals(1, initTaskLatch.getCount()));
 
         // If we do not make the index queryable before it starts accepting queries, this will fail:
-        assertNumRows(1, "SELECT * FROM %%s WHERE v1 = '0'");
+        assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
 
         // Allow the init task to run, and then wait for it to finish...
         initTaskLatch.countDown();
@@ -108,19 +109,23 @@ public class NodeRestartTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0');");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0');");
         flush();
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        verifyIndexFiles(literalIndexContext, 1);
-        assertNumRows(1, "SELECT * FROM %%s WHERE v1 = '0'");
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")), UTF8Type.instance);
+        waitForTableIndexesQueryable();
+        verifyIndexFiles(numericIndexContext,literalIndexContext, 1, 1);
+        assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
+        assertNumRows(1, "SELECT * FROM %%s WHERE v2 = '0'");
         assertValidationCount(0, 0);
 
         simulateNodeRestart();
 
-        verifyIndexFiles(literalIndexContext, 1);
+        verifyIndexFiles(numericIndexContext, literalIndexContext, 1, 1);
 
-        assertNumRows(1, "SELECT * FROM %%s WHERE v1 = '0'");
+        assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
+        assertNumRows(1, "SELECT * FROM %%s WHERE v2 = '0'");
 
         waitForTableIndexesQueryable();
 
@@ -158,7 +163,7 @@ public class NodeRestartTest extends SAITester
 
         // This will fail if the pre-join task doesn't skip validation (after the init task has already run):
         assertValidationCount(0, 0);
-        assertNumRows(1, "SELECT * FROM %%s WHERE v1 = '0'");
+        assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
     }
 
     void createSingleRowIndex() throws Throwable
@@ -166,12 +171,13 @@ public class NodeRestartTest extends SAITester
         createTable(CREATE_TABLE_TEMPLATE);
         verifyNoIndexFiles();
 
-        execute("INSERT INTO %s (id1, v1) VALUES ('0', '0')");
+        execute("INSERT INTO %s (id1, v1, v2) VALUES ('0', 0, '0')");
         flush();
 
-        IndexContext literalIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), UTF8Type.instance);
-        verifyIndexFiles(literalIndexContext, 1);
-        assertNumRows(1, "SELECT * FROM %%s WHERE v1 = '0'");
+        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        waitForTableIndexesQueryable();
+        verifyIndexFiles(numericIndexContext, null, 1, 0);
+        assertNumRows(1, "SELECT * FROM %%s WHERE v1 >= 0");
         assertValidationCount(0, 0);
     }
 }

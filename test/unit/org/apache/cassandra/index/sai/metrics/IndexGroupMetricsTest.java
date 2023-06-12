@@ -54,7 +54,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         int sstables = 10;
         for (int i = 0; i < sstables; i++)
         {
-            execute("INSERT INTO %s (id1, v1) VALUES ('0', '0')");
+            execute("INSERT INTO %s (id1, v1) VALUES ('0', 0)");
             flush();
         }
 

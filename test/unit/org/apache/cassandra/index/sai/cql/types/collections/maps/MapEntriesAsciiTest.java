@@ -30,6 +30,6 @@ public class MapEntriesAsciiTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateLiteralParameters(new CollectionDataSet.MapEntriesDataSet<>(new DataSet.AsciiDataSet()));
+        return generateParameters(new CollectionDataSet.MapEntriesDataSet<>(new DataSet.AsciiDataSet()));
     }
 }

@@ -30,6 +30,6 @@ public class FrozenMapIntTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateLiteralParameters(new CollectionDataSet.FrozenMapValuesDataSet<>(new DataSet.IntDataSet()));
+        return generateParameters(new CollectionDataSet.FrozenMapValuesDataSet<>(new DataSet.IntDataSet()));
     }
 }

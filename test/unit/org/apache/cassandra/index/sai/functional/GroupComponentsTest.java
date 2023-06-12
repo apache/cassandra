@@ -42,7 +42,7 @@ import static org.junit.Assert.assertNotNull;
 public class GroupComponentsTest extends SAITester
 {
     @Test
-    public void testInvalidateWithoutObsolete() throws Throwable
+    public void testInvalidateWithoutObsolete()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
@@ -67,7 +67,7 @@ public class GroupComponentsTest extends SAITester
     }
 
     @Test
-    public void getLiveComponentsForEmptyIndex() throws Throwable
+    public void getLiveComponentsForEmptyIndex()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
@@ -88,7 +88,7 @@ public class GroupComponentsTest extends SAITester
     }
 
     @Test
-    public void getLiveComponentsForPopulatedIndex() throws Throwable
+    public void getLiveComponentsForPopulatedIndex()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
         IndexContext indexContext = createIndexContext(createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'"), UTF8Type.instance);

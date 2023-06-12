@@ -30,6 +30,6 @@ public class MapValuesIntTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateNumericParameters(new CollectionDataSet.MapValuesDataSet<>(new DataSet.IntDataSet()));
+        return generateParameters(new CollectionDataSet.MapValuesDataSet<>(new DataSet.IntDataSet()));
     }
 }

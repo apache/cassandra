@@ -43,7 +43,7 @@ import static java.lang.Math.max;
 
 /**
  * Encodes, compresses and writes postings lists to disk.
- *
+ * <p>
  * All postings in the posting list are delta encoded, then deltas are divided into blocks for compression.
  * The deltas are based on the final value of the previous block. For the first block in the posting list
  * the first value in the block is written as a VLong prior to block delta encodings.
@@ -114,16 +114,19 @@ public class PostingsWriter implements Closeable
         this(indexDescriptor, indexContext, BLOCK_SIZE);
     }
 
+    public PostingsWriter(IndexOutputWriter dataOutput) throws IOException
+    {
+        this(dataOutput, BLOCK_SIZE);
+    }
+
     @VisibleForTesting
     PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, int blockSize) throws IOException
     {
         this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true), blockSize);
     }
 
-    private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException
+    private PostingsWriter(IndexOutputWriter dataOutput, int blockSize) throws IOException
     {
-        assert dataOutput instanceof IndexOutputWriter;
-        logger.debug("Creating postings writer for output {}", dataOutput);
         this.blockSize = blockSize;
         this.dataOutput = dataOutput;
         startOffset = dataOutput.getFilePointer();

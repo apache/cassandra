@@ -52,7 +52,7 @@ public abstract class IndexingTypeSupport extends SAITester
         POST_BUILD_QUERY
     }
 
-    protected static Collection<Object[]> generateLiteralParameters(DataSet<?> dataset)
+    protected static Collection<Object[]> generateParameters(DataSet<?> dataset)
     {
         return Arrays.asList(new Object[][]
         {
@@ -66,15 +66,6 @@ public abstract class IndexingTypeSupport extends SAITester
             { dataset, false, Scenario.COMPACTED_QUERY},
             { dataset, false, Scenario.MIXED_QUERY},
             { dataset, false, Scenario.POST_BUILD_QUERY}
-        });
-    }
-
-    protected static Collection<Object[]> generateNumericParameters(DataSet<?> dataset)
-    {
-        return Arrays.asList(new Object[][]
-        {
-            { dataset, true, Scenario.MEMTABLE_QUERY },
-            { dataset, false, Scenario.MEMTABLE_QUERY },
         });
     }
 

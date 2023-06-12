@@ -30,6 +30,6 @@ public class FrozenListDecimalTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateLiteralParameters(new CollectionDataSet.FrozenListDataSet<>(new DataSet.DecimalDataSet()));
+        return generateParameters(new CollectionDataSet.FrozenListDataSet<>(new DataSet.DecimalDataSet()));
     }
 }

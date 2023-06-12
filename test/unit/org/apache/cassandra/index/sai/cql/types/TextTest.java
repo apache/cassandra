@@ -26,6 +26,6 @@ public class TextTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateLiteralParameters(new DataSet.TextDataSet());
+        return generateParameters(new DataSet.TextDataSet());
     }
 }
