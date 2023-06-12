@@ -398,6 +398,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          numShards,
                                                          sstableSize >> 20, // MB
                                                          0,
+                                                         0,
                                                          maxSpaceOverhead,
                                                          0,
                                                          expiredSSTableCheckFrequency,
@@ -411,13 +412,16 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          maxW,
                                                          gain,
                                                          minCost,
-                                                         maxAdaptiveCompactions)
+                                                         maxAdaptiveCompactions,
+                                                         "ks",
+                                                         "tbl")
                                 : new StaticController(new SimulatedEnvironment(counters, valueSize),
                                                        Ws,
                                                        new double[] { o },
                                                        datasetSizeGB << 13,  // MB
                                                        numShards,
                                                        sstableSize >> 20,
+                                                       0,
                                                        0,
                                                        maxSpaceOverhead, // MB
                                                        0,
@@ -426,7 +430,9 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                        l0ShardsEnabled,
                                                        baseShardCount,
                                                        Math.scalb(targetSSTableSizeMB, 20),
-                                                       overlapInclusionMethod);
+                                                       overlapInclusionMethod,
+                                                       "ks",
+                                                       "tbl");
 
         return new UnifiedCompactionStrategy(strategyFactory, controller);
     }

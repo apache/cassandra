@@ -862,11 +862,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean autoOptimisePreviewRepairStreams();
     public void setAutoOptimisePreviewRepairStreams(boolean enabled);
 
-    int getTableCountWarnThreshold();
-    void setTableCountWarnThreshold(int value);
-    int getKeyspaceCountWarnThreshold();
-    void setKeyspaceCountWarnThreshold(int value);
-
     public Long getRepairRpcTimeout();
     public void setRepairRpcTimeout(Long timeoutInMillis);
 }

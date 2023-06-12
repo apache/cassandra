@@ -72,7 +72,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private static final Logger logger = LoggerFactory.getLogger(UnifiedCompactionStrategy.class);
 
-    static final int MAX_LEVELS = 32;   // This is enough for a few petabytes of data (with the worst case fan factor
+    public static final int MAX_LEVELS = 32;   // This is enough for a few petabytes of data (with the worst case fan factor
     // at W=0 this leaves room for 2^32 sstables, presumably of at least 1MB each).
 
     private static final Pattern SCALING_PARAMETER_PATTERN = Pattern.compile("(N)|L(\\d+)|T(\\d+)|([+-]?\\d+)");
@@ -99,7 +99,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Map<String, String> options)
     {
-        this(factory, backgroundCompactions, options, Controller.fromOptions(factory.getRealm(), options));
+        this(factory, backgroundCompactions, options, Controller.fromOptions(factory.getRealm(), options, factory.getRealm().metadata().keyspace, factory.getRealm().metadata().name));
     }
 
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Controller controller)
@@ -122,6 +122,11 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
         return Controller.validateOptions(CompactionStrategyOptions.validateOptions(options));
+    }
+
+    public void storeControllerConfig()
+    {
+        getController().storeControllerConfig();
     }
 
     public static int fanoutFromScalingParameter(int w)
