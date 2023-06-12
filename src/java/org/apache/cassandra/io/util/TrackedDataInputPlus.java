@@ -19,7 +19,11 @@ package org.apache.cassandra.io.util;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
+
+import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.db.TypeSizes;
 
 /**
  * This class is to track bytes read from given DataInput
@@ -27,11 +31,25 @@ import java.io.IOException;
 public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 {
     private long bytesRead;
+    private final long limit;
     final DataInput source;
 
+    /**
+     * Create a TrackedDataInputPlus from given DataInput with no limit of bytes to read
+     */
     public TrackedDataInputPlus(DataInput source)
     {
+        this(source, -1);
+    }
+
+    /**
+     * Create a TrackedDataInputPlus from given DataInput with limit of bytes to read. If limit is reached
+     * {@link IOException} will be thrown when trying to read more bytes.
+     */
+    public TrackedDataInputPlus(DataInput source, long limit)
+    {
         this.source = source;
+        this.limit = limit;
     }
 
     public long getBytesRead()
@@ -49,55 +67,63 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 
     public boolean readBoolean() throws IOException
     {
+        checkCanRead(TypeSizes.BOOL_SIZE);
         boolean bool = source.readBoolean();
-        bytesRead += 1;
+        bytesRead += TypeSizes.BOOL_SIZE;
         return bool;
     }
 
     public byte readByte() throws IOException
     {
+        checkCanRead(TypeSizes.BYTE_SIZE);
         byte b = source.readByte();
-        bytesRead += 1;
+        bytesRead += TypeSizes.BYTE_SIZE;
         return b;
     }
 
     public char readChar() throws IOException
     {
+        checkCanRead(TypeSizes.CHAR_SIZE);
         char c = source.readChar();
-        bytesRead += 2;
+        bytesRead += TypeSizes.CHAR_SIZE;
         return c;
     }
 
     public double readDouble() throws IOException
     {
+        checkCanRead(TypeSizes.DOUBLE_SIZE);
         double d = source.readDouble();
-        bytesRead += 8;
+        bytesRead += TypeSizes.DOUBLE_SIZE;
         return d;
     }
 
     public float readFloat() throws IOException
     {
+        checkCanRead(TypeSizes.FLOAT_SIZE);
         float f = source.readFloat();
-        bytesRead += 4;
+        bytesRead += TypeSizes.FLOAT_SIZE;
         return f;
     }
 
     public void readFully(byte[] b, int off, int len) throws IOException
     {
+        checkCanRead(len);
         source.readFully(b, off, len);
         bytesRead += len;
     }
 
     public void readFully(byte[] b) throws IOException
     {
+        checkCanRead(b.length);
         source.readFully(b);
         bytesRead += b.length;
     }
 
     public int readInt() throws IOException
     {
+        checkCanRead(TypeSizes.INT_SIZE);
         int i = source.readInt();
-        bytesRead += 4;
+        bytesRead += TypeSizes.INT_SIZE;
         return i;
     }
 
@@ -110,15 +136,17 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 
     public long readLong() throws IOException
     {
+        checkCanRead(TypeSizes.LONG_SIZE);
         long l = source.readLong();
-        bytesRead += 8;
+        bytesRead += TypeSizes.LONG_SIZE;
         return l;
     }
 
     public short readShort() throws IOException
     {
+        checkCanRead(TypeSizes.SHORT_SIZE);
         short s = source.readShort();
-        bytesRead += 2;
+        bytesRead += TypeSizes.SHORT_SIZE;
         return s;
     }
 
@@ -129,22 +157,34 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 
     public int readUnsignedByte() throws IOException
     {
+        checkCanRead(TypeSizes.BYTE_SIZE);
         int i = source.readUnsignedByte();
-        bytesRead += 1;
+        bytesRead += TypeSizes.BYTE_SIZE;
         return i;
     }
 
     public int readUnsignedShort() throws IOException
     {
+        checkCanRead(TypeSizes.SHORT_SIZE);
         int i = source.readUnsignedShort();
-        bytesRead += 2;
+        bytesRead += TypeSizes.SHORT_SIZE;
         return i;
     }
 
     public int skipBytes(int n) throws IOException
     {
-        int skipped = source.skipBytes(n);
+        int skipped = source.skipBytes(limit < 0 ? n : (int) Math.min(limit - bytesRead, n));
         bytesRead += skipped;
         return skipped;
+    }
+
+    @Inline
+    private void checkCanRead(int size) throws IOException
+    {
+        if (limit >= 0 && bytesRead + size > limit)
+        {
+            skipBytes((int) (limit - bytesRead));
+            throw new EOFException("EOF after " + (limit - bytesRead) + " bytes out of " + size);
+        }
     }
 }
