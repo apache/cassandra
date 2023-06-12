@@ -222,7 +222,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     {
         for (IndexComponent indexComponent : perIndexComponents(indexContext))
         {
-            // TODO: lucene doesn't follow SAI naming patterns and manage its own validation
+            // VSTODO: lucene doesn't follow SAI naming patterns and manage its own validation
             if (!isBuildCompletionMarker(indexComponent) && !(indexContext.isVector()))
             {
                 try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexContext))

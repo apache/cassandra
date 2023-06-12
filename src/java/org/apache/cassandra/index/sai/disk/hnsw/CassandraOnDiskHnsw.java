@@ -85,7 +85,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     /**
      * @return Row IDs associated with the topK vectors near the query
      */
-    // TODO make this return something with a size
+    // VSTODO make this return something with a size
     public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit, QueryContext context)
     {
         NeighborQueue queue;

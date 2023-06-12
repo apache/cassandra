@@ -113,7 +113,7 @@ public class VectorTypeTest extends VectorTester
 
         // the vector given is closest to row 2, but we exclude that row because b=false
         var result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
-        // TODO assert specific row keys
+        // VSTODO assert specific row keys
         assertThat(result).hasSize(2);
 
         flush();
@@ -138,7 +138,7 @@ public class VectorTypeTest extends VectorTester
 
         // the vector given is closest to row 2, but we exclude that row because b=false and str!='B'
         var result = execute("SELECT * FROM %s WHERE b=true AND str='B' ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
-        // TODO assert specific row keys
+        // VSTODO assert specific row keys
         assertThat(result).hasSize(1);
 
         flush();

@@ -135,7 +135,7 @@ public class LongVectorTest extends SAITester
                 assertThat(results).hasSize(1);
             } else {
                 var results = execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
-                assertThat(results).hasSizeGreaterThan(0); // TODO can we make a stronger assertion?
+                assertThat(results).hasSizeGreaterThan(0); // VSTODO can we make a stronger assertion?
             }
         });
     }

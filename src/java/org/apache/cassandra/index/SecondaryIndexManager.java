@@ -1468,7 +1468,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             toInsert.addPrimaryKeyLivenessInfo(updated.primaryKeyLivenessInfo());
             toInsert.addRowDeletion(updated.deletion());
             // diff listener collates the columns to be added & removed from the indexes
-            // TODO this seems inefficient since we're pulling it out of the merged row instead of
+            // VSTODO this seems inefficient since we're pulling it out of the merged row instead of
             // from the update that got merged into it
             RowDiffListener diffListener = new RowDiffListener()
             {

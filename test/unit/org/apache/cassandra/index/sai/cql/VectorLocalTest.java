@@ -468,7 +468,7 @@ public class VectorLocalTest extends VectorTester
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE pk = " + key + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
 
-        // TODO maybe we should have different methods for these cases
+        // VSTODO maybe we should have different methods for these cases
         if (expectedSize < 10)
             assertThat(result).hasSize(expectedSize);
         else

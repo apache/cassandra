@@ -1374,7 +1374,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 Ordering ordering = entry.getValue();
                 boolean reversed = ordering.direction == Ordering.Direction.DESC;
 
-                // TODO move this to verifyOrderingIsAllowed?
+                // VSTODO move this to verifyOrderingIsAllowed?
                 checkTrue(def.isClusteringColumn(),
                           "Order by is currently only supported on the clustered columns of the PRIMARY KEY, got %s", def.name);
                 while (i != def.position())
@@ -1548,7 +1548,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         private final SingleRestriction restriction;
         private final int columnIndex;
 
-        // TODO maybe cache in prepared statement
+        // VSTODO maybe cache in prepared statement
         public IndexColumnComparator(SingleRestriction restriction, int columnIndex)
         {
             this.restriction = restriction;

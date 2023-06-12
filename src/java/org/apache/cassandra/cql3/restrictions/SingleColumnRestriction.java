@@ -856,7 +856,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
         {
-            // TODO not sure if this is right
+            // VSTODO not sure if this is right
             throw new UnsupportedOperationException();
         }
 

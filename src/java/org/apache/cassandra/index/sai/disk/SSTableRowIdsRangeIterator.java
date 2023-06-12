@@ -90,7 +90,7 @@ public class SSTableRowIdsRangeIterator extends RangeIterator<Long>
         }
         catch (Throwable t)
         {
-            //TODO We aren't tidying up resources here
+            //VSTODO We aren't tidying up resources here
             if (!(t instanceof AbortedOperationException))
                 logger.error(indexContext.logMessage("Unable to provide next sstable row id!"), t);
 

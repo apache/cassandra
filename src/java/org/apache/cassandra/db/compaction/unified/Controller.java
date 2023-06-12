@@ -61,7 +61,7 @@ public abstract class Controller
     protected static final Logger logger = LoggerFactory.getLogger(Controller.class);
     private static final ConcurrentMap<TableMetadata, Controller.Metrics> allMetrics = new ConcurrentHashMap<>();
 
-    //TODO: Remove some options, add deprecation messages
+    //VSTODO: Remove some options, add deprecation messages
     static final String PREFIX = "unified_compaction.";
 
     /** The data size in GB, it will be assumed that the node will have on disk roughly this size of data when it

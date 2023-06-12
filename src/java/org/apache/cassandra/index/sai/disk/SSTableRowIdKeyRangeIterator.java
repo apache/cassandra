@@ -110,7 +110,7 @@ public class SSTableRowIdKeyRangeIterator extends RangeIterator<PrimaryKey>
         }
         catch (Throwable t)
         {
-            //TODO We aren't tidying up resources here
+            //VSTODO We aren't tidying up resources here
             if (!(t instanceof AbortedOperationException))
                 logger.error("Unable to provide next token!", t);
 

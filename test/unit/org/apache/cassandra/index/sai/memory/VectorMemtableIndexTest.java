@@ -165,7 +165,7 @@ public class VectorMemtableIndexTest extends SAITester
     @Test
     public void indexIteratorTest()
     {
-        // TODO
+        // VSTODO
     }
 
     private Expression generateRandomExpression()

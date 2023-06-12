@@ -34,7 +34,7 @@ public class VectorPostings<T>
 
     private volatile IntArrayList rowIds;
 
-    // TODO refactor this so we can add the first posting at construction time instead of having
+    // VSTODO refactor this so we can add the first posting at construction time instead of having
     // to append it separately (which will require a copy of the list)
     public VectorPostings(int ordinal)
     {

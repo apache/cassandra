@@ -208,8 +208,8 @@ public class MemtableIndexWriter implements PerIndexWriter
                                                        rowMapping.maxSegmentRowId,
                                                        indexDescriptor.primaryKeyFactory.createPartitionKeyOnly(minKey),
                                                        indexDescriptor.primaryKeyFactory.createPartitionKeyOnly(maxKey),
-                                                       ByteBufferUtil.bytes(0), // TODO by pass min max terms for vectors
-                                                       ByteBufferUtil.bytes(0), // TODO by pass min max terms for vectors
+                                                       ByteBufferUtil.bytes(0), // VSTODO by pass min max terms for vectors
+                                                       ByteBufferUtil.bytes(0), // VSTODO by pass min max terms for vectors
                                                        metadataMap);
 
         try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexContext)))

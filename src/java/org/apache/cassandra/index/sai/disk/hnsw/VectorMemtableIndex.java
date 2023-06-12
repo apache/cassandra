@@ -306,7 +306,7 @@ public class VectorMemtableIndex implements MemtableIndex
         }
 
         @Override
-        // TODO maybe we can abuse "current" to avoid having to pop and re-add the last skipped key
+        // VSTODO maybe we can abuse "current" to avoid having to pop and re-add the last skipped key
         protected void performSkipTo(PrimaryKey nextKey)
         {
             PrimaryKey lastSkipped = null;

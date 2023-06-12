@@ -83,7 +83,7 @@ public class HnswGraphWriter
                                 + 8L * hnsw.numLevels(); // offsets for each level
         // Write offsets for each level
         long nextLevelOffset = firstLevelOffset;
-        var levelOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
+        var levelOffsets = new HashMap<Integer, Long>(); // VSTODO remove this once the code is debugged
         for (var level = 0; level < hnsw.numLevels(); level++)
         {
             logger.debug("Level {} -> {}", level, nextLevelOffset);
@@ -104,7 +104,7 @@ public class HnswGraphWriter
             logger.debug("L{}: {} nodes", level, sortedNodes.length);
 
             long nextNodeOffset = out.position() + (4L + 8L) * sortedNodes.length;
-            var nodeOffsets = new HashMap<Integer, Long>(); // TODO remove this once the code is debugged
+            var nodeOffsets = new HashMap<Integer, Long>(); // VSTODO remove this once the code is debugged
             for (var node : sortedNodes)
             {
                 assertOrdinalValid(node);
