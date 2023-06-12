@@ -20,8 +20,7 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
 
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -31,7 +30,7 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 public class CompactionVectorValues implements RamAwareVectorValues
 {
     private final int dimension;
-    private final Map<Integer, ByteBuffer> values = new HashMap<>();
+    private final ArrayList<ByteBuffer> values = new ArrayList<>();
     private final VectorType<Float> type;
 
     public CompactionVectorValues(VectorType<Float> type)
@@ -61,7 +60,9 @@ public class CompactionVectorValues implements RamAwareVectorValues
     /** return approximate bytes used by the new vector */
     public long add(int ordinal, ByteBuffer value)
     {
-        values.put(ordinal, value);
+        while (ordinal >= values.size())
+            values.add(null);
+        values.set(ordinal, value);
         return RamEstimation.concurrentHashMapRamUsed(1) + oneVectorBytesUsed();
     }
 
@@ -78,6 +79,7 @@ public class CompactionVectorValues implements RamAwareVectorValues
 
         for (var i = 0; i < size(); i++) {
             var bb = values.get(i);
+            assert bb != null : "null vector at index " + i + " of " + size();
             writer.write(bb);
         }
 
