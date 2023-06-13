@@ -86,8 +86,6 @@ public class Vectors
     public static <T> VectorType<?> getPreferredCompatibleType(List<T> items,
                                                                java.util.function.Function<T, AbstractType<?>> mapper)
     {
-        // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
-        // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
         Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
         AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
         return type == null ? null : VectorType.getInstance(type, items.size());
