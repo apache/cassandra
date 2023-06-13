@@ -233,22 +233,6 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_unit_tests
           - j11_build
-    - j11_utests_oa:
-        requires:
-          - start_j11_unit_tests
-          - j11_build
-    - start_j11_utests_oa_repeat:
-        type: approval
-    - j11_utests_oa_repeat:
-        requires:
-          - start_j11_utests_oa_repeat
-          - j11_build
-    - start_j17_utests_oa_repeat:
-        type: approval
-    - j17_utests_oa_repeat:
-        requires:
-          - start_j17_utests_oa_repeat
-          - j11_build
     - start_j11_unit_tests_repeat:
         type: approval
     - j11_unit_tests_repeat:
@@ -346,10 +330,6 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j17_unit_tests
           - j11_build
-    - j17_utests_oa:
-        requires:
-          - start_j17_unit_tests
-          - j11_build
     - start_j17_unit_tests_repeat:
         type: approval
     - j17_unit_tests_repeat:
@@ -357,6 +337,30 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j17_unit_tests_repeat
           - j11_build
     # specialized unit tests (all run on request)
+    - start_j11_utests_oa:
+        type: approval
+    - j11_utests_oa:
+        requires:
+          - start_j11_utests_oa
+          - j11_build
+    - start_j11_utests_oa_repeat:
+        type: approval
+    - j11_utests_oa_repeat:
+        requires:
+          - start_j11_utests_oa_repeat
+          - j11_build
+    - start_j17_utests_oa:
+        type: approval
+    - j17_utests_oa:
+        requires:
+          - start_j17_utests_oa
+          - j11_build
+    - start_j17_utests_oa_repeat:
+        type: approval
+    - j17_utests_oa_repeat:
+        requires:
+          - start_j17_utests_oa_repeat
+          - j11_build
     - start_j11_utests_long:
         type: approval
     - j11_utests_long:
@@ -1117,16 +1121,6 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_unit_tests
           - j17_build
-    - j17_utests_oa:
-        requires:
-          - start_j17_unit_tests
-          - j17_build
-    - start_j17_utests_oa_repeat:
-        type: approval
-    - j17_utests_oa_repeat:
-        requires:
-          - start_j17_utests_oa_repeat
-          - j17_build
     - start_j17_unit_tests_repeat:
         type: approval
     - j17_unit_tests_repeat:
@@ -1259,6 +1253,18 @@ j17_separate_jobs: &j17_separate_jobs
           - start_j17_cqlsh-dtests-offheap
           - j17_build
     # specialized unit tests (all run on request)
+    - start_j17_utests_oa:
+        type: approval
+    - j17_utests_oa:
+        requires:
+          - start_j17_utests_oa
+          - j17_build
+    - start_j17_utests_oa_repeat:
+        type: approval
+    - j17_utests_oa_repeat:
+        requires:
+          - start_j17_utests_oa_repeat
+          - j17_build
     - start_j17_utests_long:
         type: approval
     - j17_utests_long:

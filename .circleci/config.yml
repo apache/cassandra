@@ -10331,10 +10331,6 @@ workflows:
         requires:
         - start_j8_unit_tests
         - j8_build
-    - j8_utests_oa:
-        requires:
-        - start_j8_unit_tests
-        - j8_build
     - start_j8_jvm_dtests:
         type: approval
     - j8_jvm_dtests:
@@ -10395,9 +10391,17 @@ workflows:
         requires:
         - start_j11_unit_tests
         - j8_build
+    - start_j8_utests_oa:
+        type: approval
+    - j8_utests_oa:
+        requires:
+        - start_j8_utests_oa
+        - j8_build
+    - start_j11_utests_oa:
+        type: approval
     - j11_utests_oa:
         requires:
-        - start_j11_unit_tests
+        - start_j11_utests_oa
         - j8_build
     - start_j8_utests_long:
         type: approval
@@ -10892,10 +10896,6 @@ workflows:
         requires:
         - start_j11_unit_tests
         - j11_build
-    - j11_utests_oa:
-        requires:
-        - start_j11_unit_tests
-        - j11_build
     - start_j11_jvm_dtests:
         type: approval
     - j11_jvm_dtests:
@@ -10995,6 +10995,12 @@ workflows:
     - j11_cqlsh_dtests_py311_offheap:
         requires:
         - start_j11_cqlsh-dtests-offheap
+        - j11_build
+    - start_j11_utests_oa:
+        type: approval
+    - j11_utests_oa:
+        requires:
+        - start_j11_utests_oa
         - j11_build
     - start_j11_utests_long:
         type: approval
