@@ -39,10 +39,10 @@ public enum IndexComponent
     META("Meta"),
 
     /**
-     * KDTree written by {@code BKDWriter} indexes mappings of term to one or more segment row IDs
+     * Balanced tree written by {@code BlockBalancedTreeWriter} indexes mappings of term to one or more segment row IDs
      * (segment row ID = SSTable row ID - segment row ID offset).
      */
-    KD_TREE("KDTree"),
+    BALANCED_TREE("BalancedTree"),
 
     /**
      * Term dictionary written by {@link TrieTermsDictionaryWriter} stores mappings of term and

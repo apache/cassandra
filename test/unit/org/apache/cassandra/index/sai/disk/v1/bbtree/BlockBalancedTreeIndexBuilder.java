@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class KDTreeIndexBuilder
+public class BlockBalancedTreeIndexBuilder
 {
     public static final PrimaryKeyMap TEST_PRIMARY_KEY_MAP = new PrimaryKeyMap()
     {
@@ -91,12 +91,12 @@ public class KDTreeIndexBuilder
     private final int minSegmentRowId;
     private final int maxSegmentRowId;
 
-    public KDTreeIndexBuilder(IndexDescriptor indexDescriptor,
-                              AbstractType<?> type,
-                              AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> terms,
-                              int size,
-                              int minSegmentRowId,
-                              int maxSegmentRowId)
+    public BlockBalancedTreeIndexBuilder(IndexDescriptor indexDescriptor,
+                                         AbstractType<?> type,
+                                         AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> terms,
+                                         int size,
+                                         int minSegmentRowId,
+                                         int maxSegmentRowId)
     {
         this.indexDescriptor = indexDescriptor;
         this.type = type;
@@ -149,12 +149,12 @@ public class KDTreeIndexBuilder
     {
         final int size = endTermExclusive - startTermInclusive;
         Assert.assertTrue(size > 0);
-        KDTreeIndexBuilder indexBuilder = new KDTreeIndexBuilder(indexDescriptor,
-                                                                 Int32Type.instance,
-                                                                 singleOrd(int32Range(startTermInclusive, endTermExclusive), Int32Type.instance, startTermInclusive, size),
-                                                                 size,
-                                                                 startTermInclusive,
-                                                                 endTermExclusive);
+        BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
+                                                                                       Int32Type.instance,
+                                                                                       singleOrd(int32Range(startTermInclusive, endTermExclusive), Int32Type.instance, startTermInclusive, size),
+                                                                                       size,
+                                                                                       startTermInclusive,
+                                                                                       endTermExclusive);
         return indexBuilder.flushAndOpen();
     }
 
@@ -164,10 +164,10 @@ public class KDTreeIndexBuilder
         BigDecimal bigDifference = endTermExclusive.subtract(startTermInclusive);
         int size = bigDifference.intValueExact() * 10;
         Assert.assertTrue(size > 0);
-        KDTreeIndexBuilder indexBuilder = new KDTreeIndexBuilder(indexDescriptor,
-                                                                 DecimalType.instance,
-                                                                 singleOrd(decimalRange(startTermInclusive, endTermExclusive), DecimalType.instance, startTermInclusive.intValueExact() * 10, size),
-                                                                 size,
+        BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
+                                                                                       DecimalType.instance,
+                                                                                       singleOrd(decimalRange(startTermInclusive, endTermExclusive), DecimalType.instance, startTermInclusive.intValueExact() * 10, size),
+                                                                                       size,
                                                                  startTermInclusive.intValueExact() * 10,
                                                                  endTermExclusive.intValueExact() * 10);
         return indexBuilder.flushAndOpen();
@@ -179,12 +179,12 @@ public class KDTreeIndexBuilder
         BigInteger bigDifference = endTermExclusive.subtract(startTermInclusive);
         int size = bigDifference.intValueExact();
         Assert.assertTrue(size > 0);
-        KDTreeIndexBuilder indexBuilder = new KDTreeIndexBuilder(indexDescriptor,
-                                                                 IntegerType.instance,
-                                                                 singleOrd(bigIntegerRange(startTermInclusive, endTermExclusive), IntegerType.instance, startTermInclusive.intValueExact(), size),
-                                                                 size,
-                                                                 startTermInclusive.intValueExact(),
-                                                                 endTermExclusive.intValueExact());
+        BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
+                                                                                       IntegerType.instance,
+                                                                                       singleOrd(bigIntegerRange(startTermInclusive, endTermExclusive), IntegerType.instance, startTermInclusive.intValueExact(), size),
+                                                                                       size,
+                                                                                       startTermInclusive.intValueExact(),
+                                                                                       endTermExclusive.intValueExact());
         return indexBuilder.flushAndOpen();
     }
 
@@ -199,12 +199,12 @@ public class KDTreeIndexBuilder
     {
         final long size = endTermExclusive - startTermInclusive;
         Assert.assertTrue(size > 0);
-        KDTreeIndexBuilder indexBuilder = new KDTreeIndexBuilder(indexDescriptor,
-                                                                 LongType.instance,
-                                                                 singleOrd(longRange(startTermInclusive, endTermExclusive), LongType.instance, Math.toIntExact(startTermInclusive), Math.toIntExact(size)),
-                                                                 Math.toIntExact(size),
-                                                                 Math.toIntExact(startTermInclusive),
-                                                                 Math.toIntExact(endTermExclusive));
+        BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
+                                                                                       LongType.instance,
+                                                                                       singleOrd(longRange(startTermInclusive, endTermExclusive), LongType.instance, Math.toIntExact(startTermInclusive), Math.toIntExact(size)),
+                                                                                       Math.toIntExact(size),
+                                                                                       Math.toIntExact(startTermInclusive),
+                                                                                       Math.toIntExact(endTermExclusive));
         return indexBuilder.flushAndOpen();
     }
 
@@ -219,12 +219,12 @@ public class KDTreeIndexBuilder
     {
         final int size = endTermExclusive - startTermInclusive;
         Assert.assertTrue(size > 0);
-        KDTreeIndexBuilder indexBuilder = new KDTreeIndexBuilder(indexDescriptor,
-                                                                 ShortType.instance,
-                                                                 singleOrd(shortRange(startTermInclusive, endTermExclusive), ShortType.instance, startTermInclusive, size),
-                                                                 size,
-                                                                 startTermInclusive,
-                                                                 endTermExclusive);
+        BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
+                                                                                       ShortType.instance,
+                                                                                       singleOrd(shortRange(startTermInclusive, endTermExclusive), ShortType.instance, startTermInclusive, size),
+                                                                                       size,
+                                                                                       startTermInclusive,
+                                                                                       endTermExclusive);
         return indexBuilder.flushAndOpen();
     }
 

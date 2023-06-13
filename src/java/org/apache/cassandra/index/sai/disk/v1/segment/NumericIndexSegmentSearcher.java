@@ -36,17 +36,17 @@ import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 
-import static org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeQueries.bkdQueryFrom;
+import static org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeQueries.balancedTreeQueryFrom;
 
 /**
- * Executes {@link Expression}s against the kd-tree for an individual index segment.
+ * Executes {@link Expression}s against the balanced tree for an individual index segment.
  */
 public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    private final BlockBalancedTreeReader bkdReader;
-    private final QueryEventListener.BKDIndexEventListener perColumnEventListener;
+    private final BlockBalancedTreeReader balancedTreeReader;
+    private final QueryEventListener.BlockBalancedTreeEventListener perColumnEventListener;
 
     NumericIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                 PerColumnIndexFiles perIndexFiles,
@@ -55,23 +55,23 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
 
-        final long bkdPosition = metadata.getIndexRoot(IndexComponent.KD_TREE);
-        assert bkdPosition >= 0;
+        final long balancedTreePosition = metadata.getIndexRoot(IndexComponent.BALANCED_TREE);
+        assert balancedTreePosition >= 0;
         final long postingsPosition = metadata.getIndexRoot(IndexComponent.POSTING_LISTS);
         assert postingsPosition >= 0;
 
-        bkdReader = new BlockBalancedTreeReader(indexContext,
-                                                indexFiles.kdtree(),
-                                                bkdPosition,
-                                                indexFiles.postingLists(),
-                                                postingsPosition);
-        perColumnEventListener = (QueryEventListener.BKDIndexEventListener)indexContext.getColumnQueryMetrics();
+        balancedTreeReader = new BlockBalancedTreeReader(indexContext,
+                                                         indexFiles.balancedTree(),
+                                                         balancedTreePosition,
+                                                         indexFiles.postingLists(),
+                                                         postingsPosition);
+        perColumnEventListener = (QueryEventListener.BlockBalancedTreeEventListener)indexContext.getColumnQueryMetrics();
     }
 
     @Override
     public long indexFileCacheSize()
     {
-        return bkdReader.memoryUsage();
+        return balancedTreeReader.memoryUsage();
     }
 
     @Override
@@ -83,9 +83,9 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
 
         if (exp.getOp().isEqualityOrRange())
         {
-            final BlockBalancedTreeReader.IntersectVisitor query = bkdQueryFrom(exp, bkdReader.getBytesPerValue());
-            QueryEventListener.BKDIndexEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
-            PostingList postingList = bkdReader.intersect(query, listener, context);
+            final BlockBalancedTreeReader.IntersectVisitor query = balancedTreeQueryFrom(exp, balancedTreeReader.getBytesPerValue());
+            QueryEventListener.BlockBalancedTreeEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
+            PostingList postingList = balancedTreeReader.intersect(query, listener, context);
             return toIterator(postingList, context);
         }
         else
@@ -99,14 +99,14 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     {
         return MoreObjects.toStringHelper(this)
                           .add("indexContext", indexContext)
-                          .add("count", bkdReader.getPointCount())
-                          .add("bytesPerValue", bkdReader.getBytesPerValue())
+                          .add("count", balancedTreeReader.getPointCount())
+                          .add("bytesPerValue", balancedTreeReader.getBytesPerValue())
                           .toString();
     }
 
     @Override
     public void close()
     {
-        bkdReader.close();
+        balancedTreeReader.close();
     }
 }

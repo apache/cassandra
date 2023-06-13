@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 
-public class BKDTreeRamBufferTest
+public class BlockBalancedTreeRamBufferTest
 {
     @Test
     public void shouldKeepInsertionOrder()

@@ -48,15 +48,13 @@ public class QueryContext
     public long rowsFiltered = 0;
 
     public long trieSegmentsHit = 0;
-
-    public long bkdPostingListsHit = 0;
-    public long bkdSegmentsHit = 0;
-
-    public long bkdPostingsSkips = 0;
-    public long bkdPostingsDecodes = 0;
-
     public long triePostingsSkips = 0;
     public long triePostingsDecodes = 0;
+
+    public long bbtPostingListsHit = 0;
+    public long bbtSegmentsHit = 0;
+    public long bbtPostingsSkips = 0;
+    public long bbtPostingsDecodes = 0;
 
     public boolean queryTimedOut = false;
 

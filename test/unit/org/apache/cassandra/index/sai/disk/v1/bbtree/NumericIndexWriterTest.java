@@ -87,12 +87,12 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                                                            docCount);
         indexMetas = writer.writeAll(pointValues);
 
-        final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext);
+        final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
         final FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
 
         try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
                                                                           kdtreeHandle,
-                                                                          indexMetas.get(IndexComponent.KD_TREE).root,
+                                                                          indexMetas.get(IndexComponent.BALANCED_TREE).root,
                                                                           kdtreePostingsHandle,
                                                                           indexMetas.get(IndexComponent.POSTING_LISTS).root))
         {
@@ -135,12 +135,12 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                                                            maxSegmentRowId);
         indexMetas = writer.writeAll(pointValues);
 
-        final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext);
+        final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
         final FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
 
         try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
                                                                           kdtreeHandle,
-                                                                          indexMetas.get(IndexComponent.KD_TREE).root,
+                                                                          indexMetas.get(IndexComponent.BALANCED_TREE).root,
                                                                           kdtreePostingsHandle,
                                                                           indexMetas.get(IndexComponent.POSTING_LISTS).root
         ))
@@ -172,9 +172,9 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         }
     }
 
-    private QueryEventListener.BKDIndexEventListener mockEventListener()
+    private QueryEventListener.BlockBalancedTreeEventListener mockEventListener()
     {
-        QueryEventListener.BKDIndexEventListener bkdIndexEventListener = mock(QueryEventListener.BKDIndexEventListener.class);
+        QueryEventListener.BlockBalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BlockBalancedTreeEventListener.class);
         when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
         return bkdIndexEventListener;
     }

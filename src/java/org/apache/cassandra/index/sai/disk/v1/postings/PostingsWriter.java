@@ -43,7 +43,7 @@ import static java.lang.Math.max;
 
 /**
  * Encodes, compresses and writes postings lists to disk.
- *
+ * <p>
  * All postings in the posting list are delta encoded, then deltas are divided into blocks for compression.
  * The deltas are based on the final value of the previous block. For the first block in the posting list
  * the first value in the block is written as a VLong prior to block delta encodings.

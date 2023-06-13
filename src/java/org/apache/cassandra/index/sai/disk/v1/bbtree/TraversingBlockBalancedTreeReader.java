@@ -107,7 +107,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
     @Override
     public void close()
     {
-        indexFile.close();
+        FileUtils.closeQuietly(indexFile);
     }
 
     void traverse(IndexTreeTraversalCallback callback)

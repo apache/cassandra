@@ -55,10 +55,10 @@ import static com.google.common.base.Preconditions.checkState;
 /**
  * Writes auxiliary posting lists for bbtree nodes. If a node has a posting list attached, it will contain every row
  * id from all leaves reachable from that node.
- *
- * Writer is stateful, because it needs to collect data from bkd index data structure first to find set of eligible
+ * <p>
+ * Writer is stateful, because it needs to collect data from the balanced tree data structure first to find set of eligible
  * nodes and leaf nodes reachable from them.
- *
+ * <p>
  * This is an optimised writer for 1-dim points, where we know that leaf blocks are written in value order (in this
  * order we pass them to the {@link BlockBalancedTreeWriter}). That allows us to skip reading the leaves, instead
  * just order leaf blocks by their offset in the index file, and correlate them with buffered posting lists.
@@ -72,8 +72,8 @@ public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedT
      */
     public static final int MINIMUM_POSTINGS_LEAVES = CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.getInt();
     /**
-     * Skip, or the sampling interval, for selecting a bkd tree level that is eligible for an auxiliary posting list.
-     * Sampling starts from 0, but bkd tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
+     * Skip, or the sampling interval, for selecting a balanced tree level that is eligible for an auxiliary posting list.
+     * Sampling starts from 0, but the balanced tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
      * level 0, because there is no node at level 0).
      */
     public static final int POSTINGS_SKIP = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
@@ -133,7 +133,7 @@ public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedT
 
             Collection<Integer> leafNodeIDs = leafOffsetToNodeID.values();
 
-            logger.debug(indexContext.logMessage("Writing posting lists for {} internal and {} leaf kd-tree nodes. Leaf postings memory usage: {}."),
+            logger.debug(indexContext.logMessage("Writing posting lists for {} internal and {} leaf balanced tree nodes. Leaf postings memory usage: {}."),
                          internalNodeIDs.size(),
                          leafNodeIDs.size(),
                          FBUtilities.prettyPrintMemory(postingsRamBytesUsed));
@@ -169,7 +169,7 @@ public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedT
                 }
             }
             flushTime.stop();
-            logger.debug(indexContext.logMessage("Flushed {} of posting lists for kd-tree nodes in {} ms."),
+            logger.debug(indexContext.logMessage("Flushed {} of posting lists for balanced tree nodes in {} ms."),
                          FBUtilities.prettyPrintMemory(out.getFilePointer() - startFP),
                          flushTime.elapsed(TimeUnit.MILLISECONDS));
 

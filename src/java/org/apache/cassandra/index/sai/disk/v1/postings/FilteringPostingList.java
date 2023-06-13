@@ -92,7 +92,7 @@ public class FilteringPostingList implements PostingList
             return PostingList.END_OF_STREAM;
         }
 
-        // these are always for leaf kdtree postings so the max is 1024
+        // these are always for leaf balanced tree postings so the max is 1024
         position = (int)delegate.getOrdinal();
 
         // If the ordinal of the ID we just read satisfies the filter, just return it...

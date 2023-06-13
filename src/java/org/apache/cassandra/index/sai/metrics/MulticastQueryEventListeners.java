@@ -28,7 +28,7 @@ public final class MulticastQueryEventListeners
         return new Multicast2TrieIndexEventListener(ctx, listener);
     }
 
-    public static QueryEventListener.BKDIndexEventListener of(QueryContext ctx, QueryEventListener.BKDIndexEventListener listener)
+    public static QueryEventListener.BlockBalancedTreeEventListener of(QueryContext ctx, QueryEventListener.BlockBalancedTreeEventListener listener)
     {
         return new Multicast2BKDIndexEventListener(ctx, listener);
     }
@@ -67,13 +67,13 @@ public final class MulticastQueryEventListeners
         }
     }
 
-    public static class Multicast2BKDIndexEventListener implements QueryEventListener.BKDIndexEventListener
+    public static class Multicast2BKDIndexEventListener implements QueryEventListener.BlockBalancedTreeEventListener
     {
         private final QueryContext ctx;
-        private final QueryEventListener.BKDIndexEventListener listener;
+        private final QueryEventListener.BlockBalancedTreeEventListener listener;
         private final Multicast2BKDPostingListEventListener postingListEventListener;
 
-        private Multicast2BKDIndexEventListener(QueryContext ctx, QueryEventListener.BKDIndexEventListener listener)
+        private Multicast2BKDIndexEventListener(QueryContext ctx, QueryEventListener.BlockBalancedTreeEventListener listener)
         {
             this.ctx = ctx;
             this.listener = listener;
@@ -95,7 +95,7 @@ public final class MulticastQueryEventListeners
         @Override
         public void postingListsHit(int count)
         {
-            ctx.bkdPostingListsHit++;
+            ctx.bbtPostingListsHit++;
             listener.postingListsHit(count);
         }
 
@@ -103,7 +103,7 @@ public final class MulticastQueryEventListeners
         public void onSegmentHit()
         {
             ctx.segmentsHit++;
-            ctx.bkdSegmentsHit++;
+            ctx.bbtSegmentsHit++;
             listener.onSegmentHit();
         }
 
@@ -128,14 +128,14 @@ public final class MulticastQueryEventListeners
         @Override
         public void onAdvance()
         {
-            ctx.bkdPostingsSkips++;
+            ctx.bbtPostingsSkips++;
             listener.onAdvance();
         }
 
         @Override
         public void postingDecoded(long postingDecoded)
         {
-            ctx.bkdPostingsDecodes += postingDecoded;
+            ctx.bbtPostingsDecodes += postingDecoded;
             listener.postingDecoded(postingDecoded);
         }
     }

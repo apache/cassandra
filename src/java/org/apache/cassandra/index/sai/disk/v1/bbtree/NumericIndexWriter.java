@@ -38,10 +38,10 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 
 /**
- * Specialized writer for 1-dim point values, that builds them into a BKD tree with auxiliary posting lists on eligible
- * tree levels.
+ * Specialized writer for 1-dim point values, that builds them into a {@link BlockBalancedTreeWriter} with auxiliary
+ * posting lists on eligible tree levels.
  *
- * Given sorted input {@link org.apache.lucene.codecs.MutablePointValues}, 1-dim case allows to optimise flush process, because we don't need to
+ * Given a sorted input {@link IntersectingPointValues}, the flush process is optimised because we don't need to
  * buffer all point values to sort them.
  */
 public class NumericIndexWriter
@@ -54,7 +54,7 @@ public class NumericIndexWriter
     private final int bytesPerValue;
 
     /**
-     * @param maxSegmentRowId maximum possible segment row ID, used to create `maxDoc` for kd-tree
+     * @param maxSegmentRowId maximum possible segment row ID, used to create `maxDoc` for the balanced tree
      */
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
                               IndexContext indexContext,
@@ -88,7 +88,7 @@ public class NumericIndexWriter
                           .toString();
     }
 
-    public static class LeafCallback implements BlockBalancedTreeWriter.OneDimensionBKDWriterCallback
+    public static class LeafCallback implements BlockBalancedTreeWriter.Callback
     {
         final List<PackedLongValues> postings = new ArrayList<>();
 
@@ -111,32 +111,32 @@ public class NumericIndexWriter
     }
 
     /**
-     * Writes a k-d tree and posting lists from a {@link org.apache.lucene.codecs.MutablePointValues}.
+     * Writes a balanced tree and posting lists from a {@link org.apache.lucene.codecs.MutablePointValues}.
      *
      * @param values points to write
      *
-     * @return metadata describing the location and size of this kd-tree in the overall SSTable kd-tree component file
+     * @return metadata describing the location and size of this balanced tree in the overall SSTable balanced tree component file
      */
     public SegmentMetadata.ComponentMetadataMap writeAll(IntersectingPointValues values) throws IOException
     {
-        long bkdPosition;
+        long balancedTreePosition;
         SegmentMetadata.ComponentMetadataMap components = new SegmentMetadata.ComponentMetadataMap();
 
         LeafCallback leafCallback = new LeafCallback();
 
-        try (IndexOutput bkdOutput = indexDescriptor.openPerIndexOutput(IndexComponent.KD_TREE, indexContext, true))
+        try (IndexOutput balancedTreeOutput = indexDescriptor.openPerIndexOutput(IndexComponent.BALANCED_TREE, indexContext, true))
         {
-            // The SSTable kd-tree component file is opened in append mode, so our offset is the current file pointer.
-            long bkdOffset = bkdOutput.getFilePointer();
+            // The SSTable balanced tree component file is opened in append mode, so our offset is the current file pointer.
+            long balancedTreeOffset = balancedTreeOutput.getFilePointer();
 
-            bkdPosition = writer.writeField(bkdOutput, values, leafCallback);
+            balancedTreePosition = writer.writeField(balancedTreeOutput, values, leafCallback);
 
-            // If the bkdPosition is less than 0 then we didn't write any values out
+            // If the balancedTreePosition is less than 0 then we didn't write any values out
             // and the index is empty
-            if (bkdPosition < 0)
+            if (balancedTreePosition < 0)
                 return components;
 
-            long bkdLength = bkdOutput.getFilePointer() - bkdOffset;
+            long balancedTreeLength = balancedTreeOutput.getFilePointer() - balancedTreeOffset;
 
             Map<String, String> attributes = new LinkedHashMap<>();
             attributes.put("max_points_in_leaf_node", Integer.toString(writer.getMaxPointsInLeafNode()));
@@ -144,10 +144,10 @@ public class NumericIndexWriter
             attributes.put("num_points", Long.toString(writer.getPointCount()));
             attributes.put("bytes_per_dim", Long.toString(writer.getBytesPerValue()));
 
-            components.put(IndexComponent.KD_TREE, bkdPosition, bkdOffset, bkdLength, attributes);
+            components.put(IndexComponent.BALANCED_TREE, balancedTreePosition, balancedTreeOffset, balancedTreeLength, attributes);
         }
 
-        try (TraversingBlockBalancedTreeReader reader = new TraversingBlockBalancedTreeReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext), bkdPosition);
+        try (TraversingBlockBalancedTreeReader reader = new TraversingBlockBalancedTreeReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext), balancedTreePosition);
              IndexOutput postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true))
         {
             long postingsOffset = postingsOutput.getFilePointer();
@@ -155,7 +155,7 @@ public class NumericIndexWriter
             BlockBalancedTreePostingsWriter postingsWriter = new BlockBalancedTreePostingsWriter(leafCallback.postings, indexContext);
             reader.traverse(postingsWriter);
 
-            // The kd-tree postings writer already writes its own header & footer.
+            // The balanced tree postings writer already writes its own header & footer.
             long postingsPosition = postingsWriter.finish(postingsOutput);
 
             Map<String, String> attributes = new LinkedHashMap<>();

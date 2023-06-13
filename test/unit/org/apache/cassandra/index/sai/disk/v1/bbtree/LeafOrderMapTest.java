@@ -44,7 +44,7 @@ public class LeafOrderMapTest extends SAIRandomizedTester
 
         LeafOrderMap.write(array, array.length, array.length - 1, out);
 
-        ByteArrayIndexInput input = new ByteArrayIndexInput("", out.getBytes(), 0, (int)out.getFilePointer());
+        ByteArrayIndexInput input = new ByteArrayIndexInput("", out.getBytesRef().bytes, 0, (int)out.getFilePointer());
 
         final byte bits = (byte) DirectWriter.unsignedBitsRequired(array.length - 1);
         DirectReaders.Reader reader = DirectReaders.getReaderForBitsPerValue(bits);

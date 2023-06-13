@@ -70,7 +70,7 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
         }
     }
 
-    public static class BKDIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.BKDIndexEventListener
+    public static class BKDIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.BlockBalancedTreeEventListener
     {
         private static final String BKD_POSTINGS_TYPE = "KDTreePostings";
 

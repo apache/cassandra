@@ -35,7 +35,7 @@ import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 
 import static org.junit.Assert.assertEquals;
 
-public class ImmutableOneDimPointValuesTest
+public class ImmutableIntersectingPointValuesTest
 {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

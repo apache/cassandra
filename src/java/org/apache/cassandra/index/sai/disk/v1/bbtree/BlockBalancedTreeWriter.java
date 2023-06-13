@@ -50,9 +50,6 @@ import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
  * on a cell boundary may be in either cell.
  *
  * <p>
- * See <a href="https://www.cs.duke.edu/~pankaj/publications/papers/bkd-sstd.pdf">this paper</a> for details.
- *
- * <p>
  * <b>NOTE</b>: This can write at most Integer.MAX_VALUE * <code>maxPointsInLeafNode</code> total points.
  */
 public class BlockBalancedTreeWriter
@@ -107,7 +104,7 @@ public class BlockBalancedTreeWriter
      * to disk and does not use transient disk for reordering.
      */
     public long writeField(IndexOutput out, IntersectingPointValues reader,
-                           final OneDimensionBKDWriterCallback callback) throws IOException
+                           final Callback callback) throws IOException
     {
         SAICodecUtils.writeHeader(out);
 
@@ -126,7 +123,7 @@ public class BlockBalancedTreeWriter
         return filePointer;
     }
 
-    interface OneDimensionBKDWriterCallback
+    interface Callback
     {
         void writeLeafDocs(RowIDAndIndex[] leafDocs, int offset, int count);
     }
@@ -155,7 +152,7 @@ public class BlockBalancedTreeWriter
         private final long[] leafDocs = new long[maxPointsInLeafNode];
         private final RowIDAndIndex[] rowIDAndIndexes = new RowIDAndIndex[maxPointsInLeafNode];
         private final int[] orderIndex = new int[maxPointsInLeafNode];
-        private final OneDimensionBKDWriterCallback callback;
+        private final Callback callback;
         private final GrowableByteArrayDataOutput scratchOut = new GrowableByteArrayDataOutput(32 * 1024);
         private final GrowableByteArrayDataOutput scratchOut2 = new GrowableByteArrayDataOutput(2 * 1024);
         private final byte[] lastPackedValue = new byte[bytesPerValue];
@@ -164,7 +161,7 @@ public class BlockBalancedTreeWriter
         private int leafCount;
         private long lastDocID;
 
-        OneDimensionBKDWriter(IndexOutput out, OneDimensionBKDWriterCallback callback)
+        OneDimensionBKDWriter(IndexOutput out, Callback callback)
         {
             this.out = out;
             this.callback = callback;
@@ -453,7 +450,7 @@ public class BlockBalancedTreeWriter
     {
         int pos = Math.toIntExact(writeBuffer.getFilePointer());
         byte[] bytes = new byte[pos];
-        writeBuffer.writeTo(bytes, 0);
+        writeBuffer.writeTo(bytes);
         writeBuffer.reset();
         blocks.add(bytes);
         return pos;
@@ -577,7 +574,7 @@ public class BlockBalancedTreeWriter
             }
             int numBytes2 = Math.toIntExact(writeBuffer.getFilePointer());
             byte[] bytes2 = new byte[numBytes2];
-            writeBuffer.writeTo(bytes2, 0);
+            writeBuffer.writeTo(bytes2);
             writeBuffer.reset();
             // replace our placeholder:
             blocks.set(idxSav, bytes2);

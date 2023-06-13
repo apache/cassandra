@@ -25,14 +25,10 @@ import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.lucene.util.bkd.BKDWriter;
 
 /**
- * {@link org.apache.lucene.codecs.MutablePointValues} that prevents buffered points from reordering, and always skips sorting phase in Lucene
+ * {@link IntersectingPointValues} that prevents buffered points from reordering, and always skips the sorting phase in Lucene
  * It's the responsibility of the underlying implementation to ensure that all points are correctly sorted.
- * <p>
- * It allows to take advantage of an optimised 1-dim writer {@link BKDWriter}
- * (that is enabled only for {@link org.apache.lucene.codecs.MutablePointValues}), and reduce number of times we sort point values.
  */
 public class ImmutableIntersectingPointValues extends IntersectingPointValues
 {

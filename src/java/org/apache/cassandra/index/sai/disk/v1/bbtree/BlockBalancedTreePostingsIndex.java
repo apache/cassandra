@@ -67,7 +67,7 @@ class BlockBalancedTreePostingsIndex
     }
 
     /**
-     * Returns an offset within the bkd postings file to the begining of the blocks summary of given node's auxiliary
+     * Returns an offset within the balanced tree postings file to the begining of the blocks summary of given node's auxiliary
      * posting list.
      *
      * @throws IllegalArgumentException when given nodeID doesn't have an auxiliary posting list. Check first with

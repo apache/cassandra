@@ -25,12 +25,12 @@ import java.util.concurrent.TimeUnit;
 public interface QueryEventListener
 {
     /**
-     * Collector for kd-tree index file related metrics.
+     * Collector for balanced tree file related metrics.
      */
-    interface BKDIndexEventListener
+    interface BlockBalancedTreeEventListener
     {
         /**
-         * Per-segment kd-tree index intersection time in given units. Recorded when intersection completes.
+         * Per-segment balanced tree index intersection time in given units. Recorded when intersection completes.
          */
         void onIntersectionComplete(long intersectionTotalTime, TimeUnit unit);
 
@@ -40,7 +40,7 @@ public interface QueryEventListener
         void onIntersectionEarlyExit();
 
         /**
-         * How many bkd posting list were matched during the intersection.
+         * How many balanced tree posting list were matched during the intersection.
          */
         void postingListsHit(int count);
 
@@ -50,7 +50,7 @@ public interface QueryEventListener
         void onSegmentHit();
 
         /**
-         * Returns events listener for bkd postings.
+         * Returns events listener for balanced tree postings.
          */
         PostingListEventListener postingListEventListener();
     }

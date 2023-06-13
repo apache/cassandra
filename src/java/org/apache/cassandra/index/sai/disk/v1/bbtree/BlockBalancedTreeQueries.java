@@ -25,8 +25,6 @@ import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.util.FutureArrays;
 
-import static org.apache.lucene.index.PointValues.Relation.CELL_INSIDE_QUERY;
-
 public class BlockBalancedTreeQueries
 {
     private static final BlockBalancedTreeReader.IntersectVisitor MATCH_ALL = new BlockBalancedTreeReader.IntersectVisitor()
@@ -40,11 +38,11 @@ public class BlockBalancedTreeQueries
         @Override
         public Relation compare(byte[] minPackedValue, byte[] maxPackedValue)
         {
-            return CELL_INSIDE_QUERY;
+            return Relation.CELL_INSIDE_QUERY;
         }
     };
 
-    public static BlockBalancedTreeReader.IntersectVisitor bkdQueryFrom(Expression expression, int bytesPerValue)
+    public static BlockBalancedTreeReader.IntersectVisitor balancedTreeQueryFrom(Expression expression, int bytesPerValue)
     {
         if (expression.lower == null && expression.upper == null)
         {

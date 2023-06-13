@@ -30,7 +30,6 @@ import java.util.stream.StreamSupport;
 import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -40,7 +39,7 @@ import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ReversedType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -63,6 +62,12 @@ public class TypeUtil
      * (full) values.
      */
     public static final int DECIMAL_APPROXIMATION_BYTES = 24;
+
+    public static final int BIG_INTEGER_APPROXIMATION_BYTES = 20;
+
+    public static final int INET_ADDRESS_SIZE = 16;
+
+    public static final int DEFAULT_FIXED_LENGTH = 16;
 
     private TypeUtil() {}
 
@@ -140,12 +145,12 @@ public class TypeUtil
         if (type.isValueLengthFixed())
             return type.valueLengthIfFixed();
         else if (isInetAddress(type))
-            return 16;
+            return INET_ADDRESS_SIZE;
         else if (isBigInteger(type))
-            return 20;
-        else if (type instanceof DecimalType)
+            return BIG_INTEGER_APPROXIMATION_BYTES;
+        else if (isBigDecimal(type))
             return DECIMAL_APPROXIMATION_BYTES;
-        return 16;
+        return DEFAULT_FIXED_LENGTH;
     }
 
     public static AbstractType<?> cellValueType(ColumnMetadata columnMetadata, IndexTarget.Type indexType)
@@ -227,10 +232,10 @@ public class TypeUtil
     public static void toComparableBytes(ByteBuffer value, AbstractType<?> type, byte[] bytes)
     {
         if (isInetAddress(type))
-            ByteBufferUtil.copyBytes(value, value.hasArray() ? value.arrayOffset() + value.position() : value.position(), bytes, 0, 16);
+            ByteBufferUtil.copyBytes(value, value.hasArray() ? value.arrayOffset() + value.position() : value.position(), bytes, 0, INET_ADDRESS_SIZE);
         else if (isBigInteger(type))
-            ByteBufferUtil.copyBytes(value, value.hasArray() ? value.arrayOffset() + value.position() : value.position(), bytes, 0, 20);
-        else if (type instanceof DecimalType)
+            ByteBufferUtil.copyBytes(value, value.hasArray() ? value.arrayOffset() + value.position() : value.position(), bytes, 0, BIG_INTEGER_APPROXIMATION_BYTES);
+        else if (isBigDecimal(type))
             ByteBufferUtil.copyBytes(value, value.hasArray() ? value.arrayOffset() + value.position() : value.position(), bytes, 0, DECIMAL_APPROXIMATION_BYTES);
         else
             ByteSourceInverse.copyBytes(asComparableBytes(value, type, ByteComparable.Version.OSS50), bytes);
@@ -354,7 +359,7 @@ public class TypeUtil
 
     private static boolean isIPv6(ByteBuffer address)
     {
-        return address.remaining() == 16;
+        return address.remaining() == INET_ADDRESS_SIZE;
     }
 
     /**
@@ -369,7 +374,7 @@ public class TypeUtil
         if (value.remaining() == 4)
         {
             int position = value.hasArray() ? value.arrayOffset() + value.position() : value.position();
-            ByteBuffer mapped = ByteBuffer.allocate(16);
+            ByteBuffer mapped = ByteBuffer.allocate(INET_ADDRESS_SIZE);
             System.arraycopy(IPV4_PREFIX, 0, mapped.array(), 0, IPV4_PREFIX.length);
             ByteBufferUtil.copyBytes(value, position, mapped, IPV4_PREFIX.length, value.remaining());
             return mapped;
@@ -384,7 +389,7 @@ public class TypeUtil
      *
      * The format of the encoding is:
      *
-     *  The first 4 bytes contain the length of the {@link BigInteger} byte array
+     *  The first 4 bytes contain the integer length of the {@link BigInteger} byte array
      *  with the top bit flipped for positive values.
      *
      *  The remaining 16 bytes contain the 16 most significant bytes of the
@@ -397,18 +402,18 @@ public class TypeUtil
     {
         int size = value.remaining();
         int position = value.hasArray() ? value.arrayOffset() + value.position() : value.position();
-        byte[] bytes = new byte[20];
-        if (size < 16)
+        byte[] bytes = new byte[BIG_INTEGER_APPROXIMATION_BYTES];
+        if (size < BIG_INTEGER_APPROXIMATION_BYTES - Integer.BYTES)
         {
             ByteBufferUtil.copyBytes(value, position, bytes, bytes.length - size, size);
             if ((bytes[bytes.length - size] & 0x80) != 0)
-                Arrays.fill(bytes, 4, bytes.length - size, (byte)0xff);
+                Arrays.fill(bytes, Integer.BYTES, bytes.length - size, (byte)0xff);
             else
-                Arrays.fill(bytes, 4, bytes.length - size, (byte)0x00);
+                Arrays.fill(bytes, Integer.BYTES, bytes.length - size, (byte)0x00);
         }
         else
         {
-            ByteBufferUtil.copyBytes(value, position, bytes, 4, 16);
+            ByteBufferUtil.copyBytes(value, position, bytes, Integer.BYTES, BIG_INTEGER_APPROXIMATION_BYTES - Integer.BYTES);
         }
         if ((bytes[4] & 0x80) != 0)
         {
@@ -427,16 +432,16 @@ public class TypeUtil
      */
     public static boolean isLiteral(AbstractType<?> type)
     {
-        return isUTF8OrAscii(type) || isCompositeOrFrozen(type) || baseType(type) instanceof BooleanType;
+        return isString(type) || isCompositeOrFrozen(type) || baseType(type) instanceof BooleanType;
     }
 
     /**
-     * Returns <code>true</code> if given {@link AbstractType} is UTF8 or Ascii
+     * Returns <code>true</code> if given {@link AbstractType} is based on a string, e.g. UTF8 or Ascii
      */
-    public static boolean isUTF8OrAscii(AbstractType<?> type)
+    public static boolean isString(AbstractType<?> type)
     {
         type = baseType(type);
-        return type instanceof UTF8Type || type instanceof AsciiType;
+        return type instanceof StringType;
     }
 
     /**

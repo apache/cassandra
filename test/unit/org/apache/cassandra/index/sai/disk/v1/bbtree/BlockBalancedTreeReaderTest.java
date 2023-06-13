@@ -46,7 +46,7 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BKDReaderTest extends SAIRandomizedTester
+public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
 {
     private final BlockBalancedTreeReader.IntersectVisitor NONE_MATCH = new BlockBalancedTreeReader.IntersectVisitor()
     {
@@ -196,7 +196,7 @@ public class BKDReaderTest extends SAIRandomizedTester
 
     private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
     {
-        QueryEventListener.BKDIndexEventListener bkdIndexEventListener = mock(QueryEventListener.BKDIndexEventListener.class);
+        QueryEventListener.BlockBalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BlockBalancedTreeEventListener.class);
         when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
         return reader.intersect(visitor, bkdIndexEventListener, mock(QueryContext.class));
     }
@@ -245,12 +245,12 @@ public class BKDReaderTest extends SAIRandomizedTester
                                                                  Math.toIntExact(buffer.numRows()));
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(buffer.asPointValues());
-        final long bkdPosition = metadata.get(IndexComponent.KD_TREE).root;
+        final long bkdPosition = metadata.get(IndexComponent.BALANCED_TREE).root;
         assertThat(bkdPosition, is(greaterThan(0L)));
         final long postingsPosition = metadata.get(IndexComponent.POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext);
+        FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
         FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
         return new BlockBalancedTreeReader(indexContext,
                                            kdtreeHandle,

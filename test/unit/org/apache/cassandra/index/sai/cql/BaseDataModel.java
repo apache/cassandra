@@ -170,7 +170,6 @@ class BaseDataModel
     public void truncateTables(Executor tester) throws Throwable
     {
         executeLocal(tester, "TRUNCATE TABLE %s");
-        executeLocal(tester, "TRUNCATE TABLE %s");
     }
 
     public void createIndexes(Executor tester) throws Throwable

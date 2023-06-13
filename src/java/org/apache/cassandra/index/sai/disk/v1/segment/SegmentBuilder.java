@@ -78,30 +78,33 @@ public abstract class SegmentBuilder
     int rowCount = 0;
     int maxSegmentRowId = -1;
 
-    public static class KDTreeSegmentBuilder extends SegmentBuilder
+    public static class BlockBalancedTreeSegmentBuilder extends SegmentBuilder
     {
-        protected final byte[] buffer;
-        private final BlockBalancedTreeRamBuffer kdTreeRamBuffer;
+        protected final BytesRef bytesRef;
+        private final BlockBalancedTreeRamBuffer blockBalancedTreeRamBuffer;
 
-        public KDTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+        public BlockBalancedTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
         {
             super(termComparator, limiter);
 
             int typeSize = TypeUtil.fixedSizeOf(termComparator);
-            this.kdTreeRamBuffer = new BlockBalancedTreeRamBuffer(typeSize);
-            this.buffer = new byte[typeSize];
-            this.totalBytesAllocated = this.kdTreeRamBuffer.ramBytesUsed();
+            blockBalancedTreeRamBuffer = new BlockBalancedTreeRamBuffer(typeSize);
+            bytesRef = new BytesRef(typeSize);
+            bytesRef.length = typeSize;
+            totalBytesAllocated = this.blockBalancedTreeRamBuffer.ramBytesUsed();
         }
 
+        @Override
         public boolean isEmpty()
         {
-            return kdTreeRamBuffer.numRows() == 0;
+            return blockBalancedTreeRamBuffer.numRows() == 0;
         }
 
+        @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            TypeUtil.toComparableBytes(term, termComparator, buffer);
-            return kdTreeRamBuffer.addPackedValue(segmentRowId, new BytesRef(buffer));
+            TypeUtil.toComparableBytes(term, termComparator, bytesRef.bytes);
+            return blockBalancedTreeRamBuffer.addPackedValue(segmentRowId, bytesRef);
         }
 
         @Override
@@ -111,7 +114,7 @@ public abstract class SegmentBuilder
                                                                indexContext,
                                                                TypeUtil.fixedSizeOf(termComparator),
                                                                maxSegmentRowId);
-            return writer.writeAll(kdTreeRamBuffer.asPointValues());
+            return writer.writeAll(blockBalancedTreeRamBuffer.asPointValues());
         }
     }
 
@@ -129,11 +132,13 @@ public abstract class SegmentBuilder
             totalBytesAllocated = ramIndexer.estimatedBytesUsed();
         }
 
+        @Override
         public boolean isEmpty()
         {
             return ramIndexer.isEmpty();
         }
 
+        @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
             copyBufferToBytesRef(term, stringBuffer);
@@ -168,7 +173,7 @@ public abstract class SegmentBuilder
     {
         this.termComparator = termComparator;
         this.limiter = limiter;
-        this.lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
+        lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
 
         minimumFlushBytes = limiter.limitBytes() / ACTIVE_BUILDER_COUNT.incrementAndGet();
     }
@@ -244,7 +249,7 @@ public abstract class SegmentBuilder
 
     /**
      * This method does three things:
-     *
+     * <p>
      * 1. It decrements active builder count and updates the global minimum flush size to reflect that.
      * 2. It releases the builder's memory against its limiter.
      * 3. It defensively marks the builder inactive to make sure nothing bad happens if we try to close it twice.

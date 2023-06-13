@@ -45,7 +45,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
+public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
 {
     private IndexDescriptor indexDescriptor;
     private IndexContext indexContext;

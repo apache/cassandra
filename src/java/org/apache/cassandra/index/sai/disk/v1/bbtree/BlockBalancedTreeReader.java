@@ -64,7 +64,6 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
     private final IndexContext indexContext;
     private final FileHandle postingsFile;
-    private final FileHandle kdtreeFile;
     private final BlockBalancedTreePostingsIndex postingsIndex;
     private final DirectReaders.Reader leafOrderMapReader;
 
@@ -72,18 +71,16 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
      * Performs a blocking read.
      */
     public BlockBalancedTreeReader(IndexContext indexContext,
-                                   FileHandle kdtreeFile,
-                                   long bkdIndexRoot,
+                                   FileHandle balancedTreeFile,
+                                   long balancedTreeIndexRoot,
                                    FileHandle postingsFile,
-                                   long bkdPostingsRoot) throws IOException
+                                   long balancedTreePostingsRoot) throws IOException
     {
-        super(kdtreeFile, bkdIndexRoot);
+        super(balancedTreeFile, balancedTreeIndexRoot);
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
-        this.kdtreeFile = kdtreeFile;
-        this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, bkdPostingsRoot);
-        byte bits = (byte) DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1);
-        leafOrderMapReader = DirectReaders.getReaderForBitsPerValue(bits);
+        this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, balancedTreePostingsRoot);
+        leafOrderMapReader = DirectReaders.getReaderForBitsPerValue((byte) DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1));
     }
 
     public int getBytesPerValue()
@@ -99,19 +96,12 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
     @Override
     public void close()
     {
-        try
-        {
-            super.close();
-        }
-        finally
-        {
-            FileUtils.closeQuietly(kdtreeFile);
-            FileUtils.closeQuietly(postingsFile);
-        }
+        super.close();
+        FileUtils.closeQuietly(postingsFile);
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BKDIndexEventListener listener, QueryContext context)
+    public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BlockBalancedTreeEventListener listener, QueryContext context)
     {
         Relation relation = visitor.compare(minPackedValue, maxPackedValue);
 
@@ -122,14 +112,14 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         }
 
         listener.onSegmentHit();
-        IndexInput bkdInput = IndexFileUtils.instance.openInput(indexFile);
+        IndexInput balancedTreeInput = IndexFileUtils.instance.openInput(indexFile);
         IndexInput postingsInput = IndexFileUtils.instance.openInput(postingsFile);
         IndexInput postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
         PackedIndexTree index = new PackedIndexTree();
 
         Intersection intersection = relation == Relation.CELL_INSIDE_QUERY
-                                    ? new Intersection(bkdInput, postingsInput, postingsSummaryInput, index, listener, context)
-                                    : new FilteringIntersection(bkdInput, postingsInput, postingsSummaryInput, index, visitor, listener, context);
+                                    ? new Intersection(balancedTreeInput, postingsInput, postingsSummaryInput, index, listener, context)
+                                    : new FilteringIntersection(balancedTreeInput, postingsInput, postingsSummaryInput, index, visitor, listener, context);
 
         return intersection.execute();
     }
@@ -143,16 +133,16 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         private final Stopwatch queryExecutionTimer = Stopwatch.createStarted();
         final QueryContext context;
 
-        final IndexInput bkdInput;
+        final IndexInput balancedTreeInput;
         final IndexInput postingsInput;
         final IndexInput postingsSummaryInput;
         final PackedIndexTree index;
-        final QueryEventListener.BKDIndexEventListener listener;
+        final QueryEventListener.BlockBalancedTreeEventListener listener;
 
-        Intersection(IndexInput bkdInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
-                     PackedIndexTree index, QueryEventListener.BKDIndexEventListener listener, QueryContext context)
+        Intersection(IndexInput balancedTreeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
+                     PackedIndexTree index, QueryEventListener.BlockBalancedTreeEventListener listener, QueryContext context)
         {
-            this.bkdInput = bkdInput;
+            this.balancedTreeInput = balancedTreeInput;
             this.postingsInput = postingsInput;
             this.postingsSummaryInput = postingsSummaryInput;
             this.index = index;
@@ -168,14 +158,14 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
                 executeInternal(postingLists);
 
-                FileUtils.closeQuietly(bkdInput);
+                FileUtils.closeQuietly(balancedTreeInput);
 
                 return mergePostings(postingLists);
             }
             catch (Throwable t)
             {
                 if (!(t instanceof QueryCancelledException))
-                    logger.error(indexContext.logMessage("kd-tree intersection failed on {}"), indexFile.path(), t);
+                    logger.error(indexContext.logMessage("Balanced tree intersection failed on {}"), indexFile.path(), t);
 
                 closeOnException();
                 throw Throwables.cleaned(t);
@@ -189,7 +179,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
         protected void closeOnException()
         {
-            FileUtils.closeQuietly(bkdInput);
+            FileUtils.closeQuietly(balancedTreeInput);
             FileUtils.closeQuietly(postingsInput);
             FileUtils.closeQuietly(postingsSummaryInput);
         }
@@ -229,7 +219,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
                 return;
             }
 
-            Preconditions.checkState(!index.isLeafNode(), "Leaf node %s does not have kd-tree postings.", index.getNodeID());
+            Preconditions.checkState(!index.isLeafNode(), "Leaf node %s does not have balanced tree postings.", index.getNodeID());
 
             // Recurse on left subtree:
             index.pushLeft();
@@ -256,11 +246,11 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         private final byte[] packedValue;
         private final short[] origIndex;
 
-        FilteringIntersection(IndexInput bkdInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
+        FilteringIntersection(IndexInput balancedTreeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
                               PackedIndexTree index, IntersectVisitor visitor,
-                              QueryEventListener.BKDIndexEventListener listener, QueryContext context)
+                              QueryEventListener.BlockBalancedTreeEventListener listener, QueryContext context)
         {
-            super(bkdInput, postingsInput, postingsSummaryInput, index, listener, context);
+            super(balancedTreeInput, postingsInput, postingsSummaryInput, index, listener, context);
             this.visitor = visitor;
             this.packedValue = new byte[packedBytesLength];
             this.origIndex = new short[maxPointsInLeafNode];
@@ -303,26 +293,26 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
         private void filterLeaf(PriorityQueue<PeekablePostingList> postingLists) throws IOException
         {
-            bkdInput.seek(index.getLeafBlockFP());
+            balancedTreeInput.seek(index.getLeafBlockFP());
 
-            int count = bkdInput.readVInt();
+            int count = balancedTreeInput.readVInt();
 
             // loading doc ids occurred here prior
 
-            int orderMapLength = bkdInput.readVInt();
+            int orderMapLength = balancedTreeInput.readVInt();
 
-            long orderMapPointer = bkdInput.getFilePointer();
+            long orderMapPointer = balancedTreeInput.getFilePointer();
 
-            SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(bkdInput);
+            SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(balancedTreeInput);
             for (int x = 0; x < count; x++)
             {
                 origIndex[x] = (short) LeafOrderMap.getValue(randomAccessInput, orderMapPointer, x, leafOrderMapReader);
             }
 
             // seek beyond the ordermap
-            bkdInput.seek(orderMapPointer + orderMapLength);
+            balancedTreeInput.seek(orderMapPointer + orderMapLength);
 
-            FixedBitSet fixedBitSet = visitDocValues(bkdInput, count, visitor, origIndex);
+            FixedBitSet fixedBitSet = visitDocValues(balancedTreeInput, count, visitor, origIndex);
 
             int nodeID = index.getNodeID();
 
@@ -449,15 +439,14 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
     }
 
     /**
-     * We recurse the BKD tree, using a provided instance of this to guide the recursion.
+     * We recurse the balanced tree, using a provided instance of this to guide the recursion.
      */
     public interface IntersectVisitor
     {
         /**
-         * Called for all values in a leaf cell that crosses the query.  The consumer
-         * should scrutinize the packedValue to decide whether to accept it.  In the 1D case,
-         * values are visited in increasing order, and in the case of ties, in increasing order
-         * by segment row ID.
+         * Called for all values in a leaf cell that crosses the query.  The consumer should scrutinize the packedValue
+         * to decide whether to accept it. Values are visited in increasing order, and in the case of ties,
+         * in increasing order by segment row ID.
          */
         boolean visit(byte[] packedValue);
 

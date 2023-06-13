@@ -36,7 +36,7 @@ import org.apache.cassandra.db.marshal.NumberType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.v1.bbtree.KDTreeIndexBuilder;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeIndexBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcher;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -63,53 +63,53 @@ public class KDTreeIndexSearcherTest extends SAIRandomizedTester
 
     private void doTestRangeQueriesAgainstInt32Index() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildInt32Searcher(newIndexDescriptor(), 0, 10);
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildInt32Searcher(newIndexDescriptor(), 0, 10);
         testRangeQueries(indexSearcher, Int32Type.instance, Int32Type.instance, Integer::valueOf);
     }
 
     @Test
     public void testEqQueriesAgainstInt32Index() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildInt32Searcher(newIndexDescriptor(),
-                                                                            EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildInt32Searcher(newIndexDescriptor(),
+                                                                                              EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
         testEqQueries(indexSearcher, Int32Type.instance, Int32Type.instance, Integer::valueOf);
     }
 
     @Test
     public void testRangeQueriesAgainstLongIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildLongSearcher(newIndexDescriptor(), 0, 10);
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildLongSearcher(newIndexDescriptor(), 0, 10);
         testRangeQueries(indexSearcher, LongType.instance, Int32Type.instance, Long::valueOf);
     }
 
     @Test
     public void testEqQueriesAgainstLongIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildLongSearcher(newIndexDescriptor(),
-                                                                           EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildLongSearcher(newIndexDescriptor(),
+                                                                                             EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
         testEqQueries(indexSearcher, LongType.instance, Int32Type.instance, Long::valueOf);
     }
 
     @Test
     public void testRangeQueriesAgainstShortIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(), (short) 0, (short) 10);
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(), (short) 0, (short) 10);
         testRangeQueries(indexSearcher, ShortType.instance, Int32Type.instance, Function.identity());
     }
 
     @Test
     public void testEqQueriesAgainstShortIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(),
-                                                                            EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(),
+                                                                                              EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
         testEqQueries(indexSearcher, ShortType.instance, Int32Type.instance, Function.identity());
     }
 
     @Test
     public void testRangeQueriesAgainstDecimalIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
-                                                                              BigDecimal.ZERO, BigDecimal.valueOf(10L));
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
+                                                                                                BigDecimal.ZERO, BigDecimal.valueOf(10L));
         testRangeQueries(indexSearcher, DecimalType.instance, DecimalType.instance, BigDecimal::valueOf,
                          getLongsOnInterval(21L, 70L));
     }
@@ -122,8 +122,8 @@ public class KDTreeIndexSearcherTest extends SAIRandomizedTester
     @Test
     public void testEqQueriesAgainstDecimalIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
-                                                                              BigDecimal.valueOf(EQ_TEST_LOWER_BOUND_INCLUSIVE), BigDecimal.valueOf(EQ_TEST_UPPER_BOUND_EXCLUSIVE));
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
+                                                                                                BigDecimal.valueOf(EQ_TEST_LOWER_BOUND_INCLUSIVE), BigDecimal.valueOf(EQ_TEST_UPPER_BOUND_EXCLUSIVE));
         testEqQueries(indexSearcher, DecimalType.instance, DecimalType.instance, BigDecimal::valueOf);
     }
 
@@ -131,16 +131,16 @@ public class KDTreeIndexSearcherTest extends SAIRandomizedTester
     @Test
     public void testEqQueriesAgainstBigIntegerIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildBigIntegerSearcher(newIndexDescriptor(),
-                                                                                 BigInteger.valueOf(EQ_TEST_LOWER_BOUND_INCLUSIVE), BigInteger.valueOf(EQ_TEST_UPPER_BOUND_EXCLUSIVE));
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildBigIntegerSearcher(newIndexDescriptor(),
+                                                                                                   BigInteger.valueOf(EQ_TEST_LOWER_BOUND_INCLUSIVE), BigInteger.valueOf(EQ_TEST_UPPER_BOUND_EXCLUSIVE));
         testEqQueries(indexSearcher, IntegerType.instance, IntegerType.instance, BigInteger::valueOf);
     }
 
     @Test
     public void testRangeQueriesAgainstBigIntegerIndex() throws Exception
     {
-        IndexSegmentSearcher indexSearcher = KDTreeIndexBuilder.buildBigIntegerSearcher(newIndexDescriptor(),
-                                                                                 BigInteger.ZERO, BigInteger.valueOf(10L));
+        IndexSegmentSearcher indexSearcher = BlockBalancedTreeIndexBuilder.buildBigIntegerSearcher(newIndexDescriptor(),
+                                                                                                   BigInteger.ZERO, BigInteger.valueOf(10L));
         testRangeQueries(indexSearcher, IntegerType.instance, IntegerType.instance, BigInteger::valueOf);
     }
 

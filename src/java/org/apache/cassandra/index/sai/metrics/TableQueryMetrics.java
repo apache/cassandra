@@ -78,14 +78,14 @@ public class TableQueryMetrics extends AbstractMetrics
         private final Histogram rowsFiltered;
 
         /**
-         * BKD index metrics.
+         * Balanced tree index metrics.
          */
-        private final Histogram kdTreePostingsNumPostings;
+        private final Histogram balancedTreePostingsNumPostings;
         /**
-         * BKD index posting lists metrics.
+         * Balanced tree index posting lists metrics.
          */
-        private final Histogram kdTreePostingsSkips;
-        private final Histogram kdTreePostingsDecodes;
+        private final Histogram balancedTreePostingsSkips;
+        private final Histogram balancedTreePostingsDecodes;
 
         /**
          * Trie index posting lists metrics.
@@ -102,10 +102,10 @@ public class TableQueryMetrics extends AbstractMetrics
             sstablesHit = Metrics.histogram(createMetricName("SSTableIndexesHit"), false);
             segmentsHit = Metrics.histogram(createMetricName("IndexSegmentsHit"), false);
 
-            kdTreePostingsSkips = Metrics.histogram(createMetricName("KDTreePostingsSkips"), false);
+            balancedTreePostingsSkips = Metrics.histogram(createMetricName("BalancedTreePostingsSkips"), false);
 
-            kdTreePostingsNumPostings = Metrics.histogram(createMetricName("KDTreePostingsNumPostings"), false);
-            kdTreePostingsDecodes = Metrics.histogram(createMetricName("KDTreePostingsDecodes"), false);
+            balancedTreePostingsNumPostings = Metrics.histogram(createMetricName("BalancedTreePostingsNumPostings"), false);
+            balancedTreePostingsDecodes = Metrics.histogram(createMetricName("BalancedTreePostingsDecodes"), false);
 
             postingsSkips = Metrics.histogram(createMetricName("PostingsSkips"), false);
             postingsDecodes = Metrics.histogram(createMetricName("PostingsDecodes"), false);
@@ -122,10 +122,10 @@ public class TableQueryMetrics extends AbstractMetrics
 
         private void recordNumericIndexCacheMetrics(QueryContext events)
         {
-            kdTreePostingsNumPostings.update(events.bkdPostingListsHit);
+            balancedTreePostingsNumPostings.update(events.bbtPostingListsHit);
 
-            kdTreePostingsSkips.update(events.bkdPostingsSkips);
-            kdTreePostingsDecodes.update(events.bkdPostingsDecodes);
+            balancedTreePostingsSkips.update(events.bbtPostingsSkips);
+            balancedTreePostingsDecodes.update(events.bbtPostingsDecodes);
         }
 
         public void record(QueryContext queryContext)
@@ -156,7 +156,7 @@ public class TableQueryMetrics extends AbstractMetrics
                 recordStringIndexCacheMetrics(queryContext);
             }
 
-            if (queryContext.bkdSegmentsHit > 0)
+            if (queryContext.bbtSegmentsHit > 0)
             {
                 recordNumericIndexCacheMetrics(queryContext);
             }

@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
+import java.util.stream.IntStream;
 
 import com.google.common.base.Preconditions;
 
@@ -35,10 +36,8 @@ public class BlockBalancedTreeRamBuffer implements Accountable
 {
     private final Counter bytesUsed;
     private final ByteBlockPool bytes;
-    private final int pointNumBytes;
-    private final int packedBytesLength;
     private final byte[] packedValue;
-    private final PackedLongValues.Builder docIDsBuilder;
+    private final PackedLongValues.Builder rowIDsBuilder;
     private int numPoints;
     private int numRows;
     private int lastSegmentRowID = -1;
@@ -47,15 +46,13 @@ public class BlockBalancedTreeRamBuffer implements Accountable
     public BlockBalancedTreeRamBuffer(int pointNumBytes)
     {
         this.bytesUsed = Counter.newCounter();
-        this.pointNumBytes = pointNumBytes;
 
         this.bytes = new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(bytesUsed));
 
         packedValue = new byte[pointNumBytes];
-        packedBytesLength = pointNumBytes;
 
-        docIDsBuilder = PackedLongValues.deltaPackedBuilder(PackedInts.COMPACT);
-        bytesUsed.addAndGet(docIDsBuilder.ramBytesUsed());
+        rowIDsBuilder = PackedLongValues.deltaPackedBuilder(PackedInts.COMPACT);
+        bytesUsed.addAndGet(rowIDsBuilder.ramBytesUsed());
     }
 
     @Override
@@ -72,16 +69,13 @@ public class BlockBalancedTreeRamBuffer implements Accountable
     public long addPackedValue(int segmentRowId, BytesRef value)
     {
         ensureOpen();
-        
-        if (value.length != packedBytesLength)
-        {
-            throw new IllegalArgumentException("The value has length=" + value.length + " but should be " + pointNumBytes);
-        }
+
+        assert value.length == packedValue.length : "The value has length=" + value.length + " but should be " + packedValue.length;
 
         long startingBytesUsed = bytesUsed.get();
-        long startingDocIDsBytesUsed = docIDsBuilder.ramBytesUsed();
+        long startingRowIDsBytesUsed = rowIDsBuilder.ramBytesUsed();
 
-        docIDsBuilder.add(segmentRowId);
+        rowIDsBuilder.add(segmentRowId);
         bytes.append(value);
 
         if (segmentRowId != lastSegmentRowID)
@@ -92,8 +86,8 @@ public class BlockBalancedTreeRamBuffer implements Accountable
 
         numPoints++;
 
-        long docIDsAllocatedBytes = docIDsBuilder.ramBytesUsed() - startingDocIDsBytesUsed;
-        long endingBytesAllocated = bytesUsed.addAndGet(docIDsAllocatedBytes);
+        long rowIDsAllocatedBytes = rowIDsBuilder.ramBytesUsed() - startingRowIDsBytesUsed;
+        long endingBytesAllocated = bytesUsed.addAndGet(rowIDsAllocatedBytes);
         
         return endingBytesAllocated - startingBytesUsed;
     }
@@ -103,30 +97,23 @@ public class BlockBalancedTreeRamBuffer implements Accountable
         ensureOpen();
         // building packed longs is destructive
         closed = true;
-        final PackedLongValues docIDs = docIDsBuilder.build();
+        final PackedLongValues rowIDs = rowIDsBuilder.build();
         return new IntersectingPointValues()
         {
-            final int[] ords = new int[numPoints];
-
-            {
-                for (int i = 0; i < numPoints; ++i)
-                {
-                    ords[i] = i;
-                }
-            }
+            final int[] ords = IntStream.range(0, numPoints).toArray();
 
             @Override
-            public void getValue(int i, BytesRef packedValue)
+            public void getValue(int i, BytesRef bytesRef)
             {
-                final long offset = (long) packedBytesLength * (long) ords[i];
-                packedValue.length = packedBytesLength;
-                bytes.setRawBytesRef(packedValue, offset);
+                final long offset = (long) packedValue.length * (long) ords[i];
+                bytesRef.length = packedValue.length;
+                bytes.setRawBytesRef(bytesRef, offset);
             }
 
             @Override
             public byte getByteAt(int i, int k)
             {
-                final long offset = (long) packedBytesLength * (long) ords[i] + (long) k;
+                final long offset = (long) packedValue.length * (long) ords[i] + (long) k;
 
                 return bytes.readByte(offset);
             }
@@ -134,7 +121,7 @@ public class BlockBalancedTreeRamBuffer implements Accountable
             @Override
             public int getDocID(int i)
             {
-                return Math.toIntExact(docIDs.get(ords[i]));
+                return Math.toIntExact(rowIDs.get(ords[i]));
             }
 
             @Override
@@ -153,7 +140,7 @@ public class BlockBalancedTreeRamBuffer implements Accountable
                 {
                     getValue(i, scratch);
                     assert scratch.length == packedValue.length;
-                    System.arraycopy(scratch.bytes, scratch.offset, packedValue, 0, packedBytesLength);
+                    System.arraycopy(scratch.bytes, scratch.offset, packedValue, 0, packedValue.length);
                     visitor.visit(getDocID(i), packedValue);
                 }
             }
@@ -161,7 +148,7 @@ public class BlockBalancedTreeRamBuffer implements Accountable
             @Override
             public int getBytesPerDimension()
             {
-                return pointNumBytes;
+                return packedValue.length;
             }
 
             @Override
