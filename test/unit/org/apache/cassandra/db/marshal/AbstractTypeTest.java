@@ -355,7 +355,7 @@ public class AbstractTypeTest
                     return true;
             }
         }
-        else if (type instanceof DynamicCompositeType)
+        else if (type instanceof DynamicCompositeType || type instanceof CompositeType)
         {
             for (AbstractType<?> e : type.subTypes())
             {
