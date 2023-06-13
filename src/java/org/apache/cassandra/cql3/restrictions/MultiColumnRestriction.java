@@ -204,8 +204,20 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
         {
+            if (otherRestriction instanceof SliceRestriction)
+            {
+                SingleRestriction thisAsSlice = this.toSliceRestriction();
+                return thisAsSlice.mergeWith(otherRestriction);
+            }
             throw invalidRequest("%s cannot be restricted by more than one relation if it includes an Equal",
                                  getColumnsInCommons(otherRestriction));
+        }
+
+        private SingleRestriction toSliceRestriction()
+        {
+            SliceRestriction start = SliceRestriction.fromBound(columnDefs, Bound.START, true, this.value);
+            SliceRestriction end = SliceRestriction.fromBound(columnDefs, Bound.END, true, this.value);
+            return start.mergeWith(end);
         }
 
         @Override

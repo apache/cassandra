@@ -35,7 +35,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
 
         assertInvalidSyntax("SELECT * FROM %s WHERE () = (?, ?)", 1, 2);
-        assertInvalidMessage("b cannot be restricted by more than one relation if it includes an Equal",
+        assertInvalidMessage("More than one restriction was found for the start bound on b",
                              "SELECT * FROM %s WHERE a = 0 AND (b) = (?) AND (b) > (?)", 0, 0);
         assertInvalidMessage("More than one restriction was found for the start bound on b",
                              "SELECT * FROM %s WHERE a = 0 AND (b) > (?) AND (b) > (?)", 0, 1);
@@ -367,9 +367,98 @@ public class SelectMultiColumnRelationTest extends CQLTester
     @Test
     public void testNonEqualsRelation() throws Throwable
     {
-        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
-        assertInvalidMessage("!= cannot be used for multi-column relations",
-                             "SELECT * FROM %s WHERE a = 0 AND (b) != (0)");
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b, c))");
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 1);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 0);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
+
+        // Excluding subtrees
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b) != (?)", 0, 0),
+                   row(0, 1, 0),
+                   row(0, 1, 1)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b) != (?)", 0, 1),
+                   row(0, 0, 0),
+                   row(0, 0, 1)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b) != (?)", 0, -1),
+                   row(0, 0, 0),
+                   row(0, 0, 1),
+                   row(0, 1, 0),
+                   row(0, 1, 1)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b) != (?)", 0, 2),
+                   row(0, 0, 0),
+                   row(0, 0, 1),
+                   row(0, 1, 0),
+                   row(0, 1, 1)
+        );
+
+        // Excluding single rows
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) != (?, ?)", 0, -1, -1),
+                   row(0, 0, 0),
+                   row(0, 0, 1),
+                   row(0, 1, 0),
+                   row(0, 1, 1)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) != (?, ?)", 0, 0, 1),
+                   row(0, 0, 0),
+                   row(0, 1, 0),
+                   row(0, 1, 1)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) != (?, ?)", 0, 2, 2),
+                   row(0, 0, 0),
+                   row(0, 0, 1),
+                   row(0, 1, 0),
+                   row(0, 1, 1)
+        );
+
+        // Merging multiple != =
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) != ? AND (b, c) != ?", 0, tuple(0, 1), tuple(1, 0)),
+                   row(0, 0, 0),
+                   row(0, 1, 1)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND b = ? AND (b, c) != ?", 0, 0, tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b) = (?) AND (b, c) != ?", 0, 0, tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND b != ? AND (b, c) != ?", 0, 1, tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b) != (?) AND (b, c) != ?", 0, 1, tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+
+        // Merging with < <= >= >
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND b < ? AND (b, c) != ?", 0, 1, tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND b <= ? AND (b, c) != ?", 0, 0, tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND b > ? AND (b, c) != ?", 0, 0, tuple(1, 1)),
+                   row(0, 1, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND b >= ? AND (b, c) != ?", 0, 1, tuple(1, 1)),
+                   row(0, 1, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) < ? AND (b, c) != ?", 0, tuple(0, 2), tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) <= ? AND (b, c) != ?", 0, tuple(0, 2), tuple(0, 1)),
+                   row(0, 0, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) > ? AND (b, c) != ?", 0, tuple(0, 0), tuple(1, 1)),
+                   row(0, 0, 1),
+                   row(0, 1, 0)
+        );
+        assertRows(execute("SELECT a, b, c FROM %s WHERE a = ? AND (b, c) >= ? AND (b, c) != ?", 0, tuple(0, 1), tuple(1, 1)),
+                   row(0, 0, 1),
+                   row(0, 1, 0)
+        );
     }
 
     @Test

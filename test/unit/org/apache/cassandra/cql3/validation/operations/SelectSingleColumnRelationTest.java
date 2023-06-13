@@ -64,7 +64,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE c = 0 AND b IN (?)", set(0));
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a 'NOT IN' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b NOT IN (?)", set(0));
-        assertInvalidMessage("NEQ restrictions are supported only on map columns",
+        assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a '!=' relation",
                 "SELECT * FROM %s WHERE c = 0 AND b != 5");
         assertInvalidMessage("Unsupported restriction: b IS NOT NULL",
                 "SELECT * FROM %s WHERE c = 0 AND b IS NOT NULL");
@@ -654,8 +654,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage(msg, "SELECT * FROM %s WHERE b IN (?)", udt);
         assertInvalidMessage(msg, "SELECT * FROM %s WHERE b NOT IN (?)", udt);
         assertInvalidMessage(msg, "SELECT * FROM %s WHERE b LIKE ?", udt);
-        assertInvalidMessage("NEQ restrictions are supported only on map columns",
-                             "SELECT * FROM %s WHERE b != {a: 0}", udt);
+        assertInvalidMessage(msg, "SELECT * FROM %s WHERE b != {a: 0}", udt);
         assertInvalidMessage("Unsupported restriction: b IS NOT NULL",
                              "SELECT * FROM %s WHERE b IS NOT NULL", udt);
         assertInvalidMessage("Cannot use CONTAINS on non-collection column b",
@@ -1196,4 +1195,57 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(1, 5, 5));
 
     }
+
+    @Test
+    public void testNonEqualsRelationWithFiltering()
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 2, 2);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 3, 3);
+
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? ALLOW FILTERING", 0, 0),
+                   row(0, 1),
+                   row(0, 2),
+                   row(0, 3)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? ALLOW FILTERING", 0, 1),
+                   row(0, 0),
+                   row(0, 2),
+                   row(0, 3)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? ALLOW FILTERING", 0, -1),
+                   row(0, 0),
+                   row(0, 1),
+                   row(0, 2),
+                   row(0, 3)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? ALLOW FILTERING", 0, 5),
+                   row(0, 0),
+                   row(0, 1),
+                   row(0, 2),
+                   row(0, 3)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? AND c != ? ALLOW FILTERING", 0, 1, 2),
+                   row(0, 0),
+                   row(0, 3)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? AND c < ? ALLOW FILTERING", 0, 1, 2),
+                   row(0, 0)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? AND c <= ? ALLOW FILTERING", 0, 1, 2),
+                   row(0, 0),
+                   row(0, 2)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? AND c > ? ALLOW FILTERING", 0, 2, 0),
+                   row(0, 1),
+                   row(0, 3)
+        );
+        assertRows(execute("SELECT a, b FROM %s WHERE a = ? AND c != ? AND c >= ? ALLOW FILTERING", 0, 2, 1),
+                   row(0, 1),
+                   row(0, 3)
+        );
+    }
+
 }
