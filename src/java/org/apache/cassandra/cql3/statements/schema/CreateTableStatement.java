@@ -217,7 +217,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
         });
 
         List<ColumnIdentifier> nonClusterColumn = clusteringOrder.keySet().stream()
-                                                  .filter((id) -> !clusteringColumns.contains(id)).collect(Collectors.toList());
+                                                                 .filter((id) -> !clusteringColumns.contains(id))
+                                                                 .collect(Collectors.toList());
         if (!nonClusterColumn.isEmpty())
         {
             throw ire("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering column");
