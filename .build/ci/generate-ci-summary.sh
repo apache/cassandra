@@ -16,13 +16,19 @@
 # limitations under the License.
 
 # variables, with defaults
-[ "x${CASSANDRA_DIR}" != "x" ] || { CASSANDRA_DIR="$(dirname "$0")/.."; }
+[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/../..)"
+[ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
 [ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
+[ -d "${DIST_DIR}" ] || { mkdir -p "${DIST_DIR}" ; }
 
-# execute
-ant -f "${CASSANDRA_DIR}/build.xml" check # dependency-check # FIXME dependency-check now requires NVD key downloaded first
+# generate CI summary file
+cd ${DIST_DIR}/
+pip install -r ${CASSANDRA_DIR}/.build/ci/requirements.txt
+${CASSANDRA_DIR}/.build/ci/ci_parser.py --mute --input ${DIST_DIR}/test/output/ --output ${DIST_DIR}/ci_summary.html
+
 exit $?
+

@@ -11,762 +11,513 @@
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// Se# Licensed to the Apache Software Foundation (ASF) under onee the License for the specific language governing permissions and
+// See the License for the specific language governing permissions and
 // limitations under the License.
 //
 //
-// Jenkins declaration of how to build and test the current codebase.
-//  Jenkins infrastructure related settings should be kept in
-//    https://github.com/apache/cassandra-builds/blob/trunk/jenkins-dsl/cassandra_job_dsl_seed.groovy
+// Jenkins CI declaration.
+//
+// Scripting defs and the declarative pipeline is presented first.
+// The stepsMap array describes the pipeline stages to what CI-agnostic scripts they map to.
+// All `type: test` use the script `.build/docker/run-tests.sh`
+//
+// These CI-agnostic scripts are used as an intermediate dockerized layer above the ant build.xml
+//
+//
+// This Jenkinsfile is expected to work on any ci-cassandra.a.o clone.
+// Functionality that depends upon ASF Infra and the canonical ci-cassandra.a.o setup (e.g. post-commit builds)
+//  is required to quietly fail when run on other environments.
+//
 //
 // Validate/lint this file using the following command
 // `curl -X POST  -F "jenkinsfile=<.jenkins/Jenkinsfile" https://ci-cassandra.apache.org/pipeline-model-converter/validate`
 
+
 pipeline {
-  agent { label 'cassandra' }
+  agent none
+  options {
+    skipDefaultCheckout()
+  }
+  parameters {
+    string(name: 'repository', defaultValue: scm.userRemoteConfigs[0].url, description: 'Cassandra Repository')
+    string(name: 'branch', defaultValue: env.BRANCH_NAME, description: 'Branch')
+
+    choice(name: 'profile', choices: pipelineProfiles().keySet() as List, description: 'Pick a pipeline profile.')
+    string(name: 'profile_custom_regexp', defaultValue: '', description: 'Regexp against stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: stress.*|jvm-dtest.*')
+
+    choice(name: 'architecture', choices: archsSupported() + "all", description: 'Pick architecture. The ARM64 is disabled by default at the moment.')
+    choice(name: 'jdk', choices: ["all"] + jdksSupported(), description: 'Pick JDK versions.')
+
+    string(name: 'dtest_repository', defaultValue: 'https://github.com/apache/cassandra-dtest' ,description: 'Cassandra DTest Repository')
+    string(name: 'dtest_branch', defaultValue: 'trunk', description: 'DTest Branch')
+  }
+  environment {
+    javaVersionsSupported = jdksSupported().join(',')
+    javaVersionDefault = jdkDefault()
+  }
   stages {
-    stage('Init') {
+    stage('jar') {
       steps {
-          cleanWs()
-          script {
-              currentBuild.result='SUCCESS'
-          }
+        script {
+          parallel(tasks()['jars'])
+        }
       }
     }
-    stage('Build') {
+    stage('Tests') {
+      when {
+        // Skip if empty (failfast counts as an element)
+        expression { tasks()['tests'].size() > 1 }
+      }
       steps {
-       script {
-        def attempt = 1
-        retry(2) {
-          if (attempt > 1) {
-            sleep(60 * attempt)
-          }
-          attempt = attempt + 1
-          build job: "${env.JOB_NAME}-artifacts"
-        }
-       }
-      }
-    }
-    stage('Test') {
-      parallel {
-        stage('stress') {
-          steps {
-            script {
-              def attempt = 1
-              while (attempt <=2) {
-                if (attempt > 1) {
-                  sleep(60 * attempt)
-                }
-                attempt = attempt + 1
-                stress = build job: "${env.JOB_NAME}-stress-test", propagate: false
-                if (stress.result != 'FAILURE') break
-              }
-              if (stress.result != 'SUCCESS') unstable('stress test failures')
-              if (stress.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('stress-test', stress.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('fqltool') {
-          steps {
-              script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  fqltool = build job: "${env.JOB_NAME}-fqltool-test", propagate: false
-                  if (fqltool.result != 'FAILURE') break
-                }
-                if (fqltool.result != 'SUCCESS') unstable('fqltool test failures')
-                if (fqltool.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('fqltool-test', fqltool.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('units') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  test = build job: "${env.JOB_NAME}-test", propagate: false
-                  if (test.result != 'FAILURE') break
-              }
-              if (test.result != 'SUCCESS') unstable('unit test failures')
-              if (test.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test', test.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('long units') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  long_test = build job: "${env.JOB_NAME}-long-test", propagate: false
-                  if (long_test.result != 'FAILURE') break
-              }
-              if (long_test.result != 'SUCCESS') unstable('long unit test failures')
-              if (long_test.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('long-test', long_test.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('burn') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  burn = build job: "${env.JOB_NAME}-test-burn", propagate: false
-                  if (burn.result != 'FAILURE') break
-              }
-              if (burn.result != 'SUCCESS') unstable('burn test failures')
-              if (burn.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test-burn', burn.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('cdc') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  cdc = build job: "${env.JOB_NAME}-test-cdc", propagate: false
-                  if (cdc.result != 'FAILURE') break
-              }
-              if (cdc.result != 'SUCCESS') unstable('cdc failures')
-              if (cdc.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test-cdc', cdc.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('compression') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  compression = build job: "${env.JOB_NAME}-test-compression", propagate: false
-                  if (compression.result != 'FAILURE') break
-              }
-              if (compression.result != 'SUCCESS') unstable('compression failures')
-              if (compression.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test-compression', compression.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('oa') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  oa = build job: "${env.JOB_NAME}-test-oa", propagate: false
-                  if (oa.result != 'FAILURE') break
-              }
-              if (oa.result != 'SUCCESS') unstable('oa failures')
-              if (oa.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test-oa', oa.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('system-keyspace-directory') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  system_keyspace_directory = build job: "${env.JOB_NAME}-test-system-keyspace-directory", propagate: false
-                  if (system_keyspace_directory.result != 'FAILURE') break
-              }
-              if (system_keyspace_directory.result != 'SUCCESS') unstable('system-keyspace-directory failures')
-              if (system_keyspace_directory.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test-system-keyspace-directory', system_keyspace_directory.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('latest') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  latest = build job: "${env.JOB_NAME}-test-latest", propagate: false
-                  if (latest.result != 'FAILURE') break
-              }
-              if (latest.result != 'SUCCESS') unstable('test-latest failures')
-              if (latest.result == 'FAILURE') currentBuild.result='FAILURE'
-            }
-          }
-          post {
-            always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('test-latest', latest.getNumber())
-                    }
-                }
-            }
-          }
-        }
-        stage('cqlsh') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  cqlsh = build job: "${env.JOB_NAME}-cqlsh-tests", propagate: false
-                  if (cqlsh.result != 'FAILURE') break
-                }
-                if (cqlsh.result != 'SUCCESS') unstable('cqlsh failures')
-                if (cqlsh.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('cqlsh-tests', cqlsh.getNumber())
-                      }
-                  }
-              }
-            }
-        }
-        stage('simulator-dtest') {
-          steps {
-            script {
-                def attempt = 1
-                while (attempt <=2) {
-                  if (attempt > 1) {
-                    sleep(60 * attempt)
-                  }
-                  attempt = attempt + 1
-                  simulator_dtest = build job: "${env.JOB_NAME}-simulator-dtest", propagate: false
-                  if (simulator_dtest.result != 'FAILURE') break
-                }
-                if (simulator_dtest.result != 'SUCCESS') unstable('simulator-dtest failures')
-                if (simulator_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('simulator-dtest', simulator_dtest.getNumber())
-                      }
-                  }
-              }
-            }
+        script {
+          parallel(tasks()['tests'])
         }
       }
-    }
-    stage('Distributed Test') {
-        parallel {
-          stage('jvm-dtest') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    jvm_dtest = build job: "${env.JOB_NAME}-jvm-dtest", propagate: false
-                    if (jvm_dtest.result != 'FAILURE') break
-                  }
-                  if (jvm_dtest.result != 'SUCCESS') unstable('jvm-dtest failures')
-                  if (jvm_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('jvm-dtest', jvm_dtest.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('jvm-dtest-novnode') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    jvm_dtest_novnode = build job: "${env.JOB_NAME}-jvm-dtest-novnode", propagate: false
-                    if (jvm_dtest_novnode.result != 'FAILURE') break
-                  }
-                  if (jvm_dtest_novnode.result != 'SUCCESS') unstable('jvm-dtest-novnode failures')
-                  if (jvm_dtest_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('jvm-dtest-novnode', jvm_dtest_novnode.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('jvm-dtest-upgrade') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    jvm_dtest_upgrade = build job: "${env.JOB_NAME}-jvm-dtest-upgrade", propagate: false
-                    if (jvm_dtest_upgrade.result != 'FAILURE') break
-                }
-                if (jvm_dtest_upgrade.result != 'SUCCESS') unstable('jvm-dtest-upgrade failures')
-                if (jvm_dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('jvm-dtest-upgrade', jvm_dtest_upgrade.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('jvm-dtest-upgrade-novnode') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    jvm_dtest_upgrade_novnode = build job: "${env.JOB_NAME}-jvm-dtest-upgrade-novnode", propagate: false
-                    if (jvm_dtest_upgrade_novnode.result != 'FAILURE') break
-                }
-                if (jvm_dtest_upgrade_novnode.result != 'SUCCESS') unstable('jvm-dtest-upgrade-novnode failures')
-                if (jvm_dtest_upgrade_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('jvm-dtest-upgrade-novnode', jvm_dtest_upgrade_novnode.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('dtest') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest = build job: "${env.JOB_NAME}-dtest", propagate: false
-                    if (dtest.result != 'FAILURE') break
-                }
-                if (dtest.result != 'SUCCESS') unstable('dtest failures')
-                if (dtest.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest', dtest.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('dtest-large') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_large = build job: "${env.JOB_NAME}-dtest-large", propagate: false
-                    if (dtest_large.result != 'FAILURE') break
-                }
-                if (dtest_large.result != 'SUCCESS') unstable('dtest-large failures')
-                if (dtest_large.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('dtest-large', dtest_large.getNumber())
-                    }
-                }
-              }
-            }
-          }
-          stage('dtest-novnode') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_novnode = build job: "${env.JOB_NAME}-dtest-novnode", propagate: false
-                    if (dtest_novnode.result != 'FAILURE') break
-                }
-                if (dtest_novnode.result != 'SUCCESS') unstable('dtest-novnode failures')
-                if (dtest_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('dtest-novnode', dtest_novnode.getNumber())
-                    }
-                }
-              }
-            }
-          }
-          stage('dtest-offheap') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_offheap = build job: "${env.JOB_NAME}-dtest-offheap", propagate: false
-                    if (dtest_offheap.result != 'FAILURE') break
-                }
-                if (dtest_offheap.result != 'SUCCESS') unstable('dtest-offheap failures')
-                if (dtest_offheap.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('dtest-offheap', dtest_offheap.getNumber())
-                    }
-                }
-              }
-            }
-          }
-          stage('dtest-large-novnode') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_large_novnode = build job: "${env.JOB_NAME}-dtest-large-novnode", propagate: false
-                    if (dtest_large_novnode.result != 'FAILURE') break
-                }
-                if (dtest_large_novnode.result != 'SUCCESS') unstable('dtest-large-novnode failures')
-                if (dtest_large_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                warnError('missing test xml files') {
-                    script {
-                        copyTestResults('dtest-large-novnode', dtest_large_novnode.getNumber())
-                    }
-                }
-              }
-            }
-          }
-          stage('dtest-upgrade') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade", propagate: false
-                    if (dtest_upgrade.result != 'FAILURE') break
-                }
-                if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
-                if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('dtest-upgrade-large') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade-large", propagate: false
-                    if (dtest_upgrade.result != 'FAILURE') break
-                }
-                if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
-                if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('dtest-upgrade-novnode') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_upgrade_novnode = build job: "${env.JOB_NAME}-dtest-upgrade-novnode", propagate: false
-                    if (dtest_upgrade_novnode.result != 'FAILURE') break
-                }
-                if (dtest_upgrade_novnode.result != 'SUCCESS') unstable('dtest-upgrade-novnode failures')
-                if (dtest_upgrade_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-upgrade-novnode', dtest_upgrade_novnode.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-          stage('dtest-upgrade-novnode-large') {
-            steps {
-              script {
-                  def attempt = 1
-                  while (attempt <=2) {
-                    if (attempt > 1) {
-                      sleep(60 * attempt)
-                    }
-                    attempt = attempt + 1
-                    dtest_upgrade_novnode_large = build job: "${env.JOB_NAME}-dtest-upgrade-novnode-large", propagate: false
-                    if (dtest_upgrade_novnode_large.result != 'FAILURE') break
-                }
-                if (dtest_upgrade_novnode_large.result != 'SUCCESS') unstable('dtest-upgrade-novnode-large failures')
-                if (dtest_upgrade_novnode_large.result == 'FAILURE') currentBuild.result='FAILURE'
-              }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-upgrade-novnode-large', dtest_upgrade_novnode_large.getNumber())
-                      }
-                  }
-              }
-            }
-          }
-        }
     }
     stage('Summary') {
       steps {
-          sh "rm -fR cassandra-builds"
-          sh "git clone --depth 1 --single-branch https://gitbox.apache.org/repos/asf/cassandra-builds.git"
-          sh "./cassandra-builds/build-scripts/cassandra-test-report.sh"
-          junit testResults: '**/build/test/**/TEST*.xml,**/cqlshlib.xml,**/nosetests.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
-
-          // the following should fail on any installation other than ci-cassandra.apache.org
-          //  TODO: keep jenkins infrastructure related settings in `cassandra_job_dsl_seed.groovy`
-          warnError('cannot send notifications') {
-              script {
-                changes = formatChanges(currentBuild.changeSets)
-                echo "changes: ${changes}"
-              }
-              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. <https://github.com/apache/cassandra/commit/${env.GIT_COMMIT}|${env.GIT_COMMIT}>\n${changes}"
-              emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${env.GIT_COMMIT}", presendScript: '${FILE,path="cassandra-builds/jenkins-dsl/cassandra_email_presend.groovy"}', body: '''
--------------------------------------------------------------------------------
-Build ${ENV,var="JOB_NAME"} #${BUILD_NUMBER} ${BUILD_STATUS}
-URL: ${BUILD_URL}
--------------------------------------------------------------------------------
-Changes:
-${CHANGES}
--------------------------------------------------------------------------------
-Failed Tests:
-${FAILED_TESTS,maxTests=500,showMessage=false,showStack=false}
--------------------------------------------------------------------------------
-For complete test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/
-'''
-          }
-          sh "echo \"summary) cassandra-builds: `git -C cassandra-builds log -1 --pretty=format:'%H %an %ad %s'`\" > builds.head"
-          sh "./cassandra-builds/jenkins-dsl/print-shas.sh"
-          sh "xz TESTS-TestSuites.xml"
-          sh "wget --retry-connrefused --waitretry=1 \"\${BUILD_URL}/timestamps/?time=HH:mm:ss&timeZone=UTC&appendLog\" -qO - > console.log || echo wget failed"
-          sh "xz console.log"
-          sh "echo \"For test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/\""
+        summateStatus()
       }
-      post {
-          always {
-              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'console.log.xz,TESTS-TestSuites.xml.xz')])])
-          }
+    }
+  }
+  post {
+    always {
+      generateTestReports()
+      sendNotifications()
+    }
+  }
+}
+
+///////////////////////////
+//// scripting support ////
+///////////////////////////
+
+def jdksSupported() { return ["11", "17"] }
+def archsSupported() { return ["amd64", "arm64"] }
+def pythonsSupported() { return ["3.8", "3.11"] }
+def jdkDefault() { return "11" }
+def pythonDefault() { return "3.8" }
+
+def pipelineProfiles() {
+    return [
+        'packaging': ['artifacts', 'lint', 'debian', 'redhat'],
+        'skinny': ['lint', 'cqlsh-test', 'test', 'jvm-dtest', 'simulator-dtest', 'dtest'],
+        'pre-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'simulator-dtest', 'dtest', 'dtest-latest'],
+        'pre-commit w/ upgrades': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test', 'test-latest', 'stress-test', 'test-burn', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-upgrade'],
+        'post-commit': ['artifacts', 'lint', 'debian', 'redhat', 'fqltool-test', 'cqlsh-test', 'test-cdc', 'test', 'test-latest', 'test-compression', 'stress-test', 'test-burn', 'long-test', 'test-oa', 'test-system-keyspace-directory', 'jvm-dtest', 'jvm-dtest-upgrade', 'simulator-dtest', 'dtest', 'dtest-novnode', 'dtest-latest', 'dtest-large', 'dtest-large-novnode', 'dtest-upgrade', 'dtest-upgrade-novnode', 'dtest-upgrade-large', 'dtest-upgrade-novnode-large'],
+        'custom': []
+    ]
+}
+
+def tasks() {
+    // Steps config
+    def buildSteps = [
+      'jar': [script: 'build-jars.sh', toCopy: null],
+      'artifacts': [script: 'build-artifacts.sh', toCopy: 'apache-cassandra-*.tar.gz,apache-cassandra-*.jar,apache-cassandra-*.pom'],
+      'lint': [script: 'check-code.sh', toCopy: null],
+      'debian': [script: 'build-debian.sh', toCopy: 'cassandra_*,cassandra-tools_*'],
+      'redhat': [script: 'build-redhat.sh rpm', toCopy: '*.rpm'],
+    ]
+    buildSteps.each() {
+        it.value.put('type', 'build')
+        it.value.put('size', 'small')
+        it.value.put('splits', 1)
+    }
+
+    def testSteps = [
+      'cqlsh-test': [splits: 1],
+      'fqltool-test': [splits: 1, size: 'small'],
+      'test-cdc': [splits: 8],
+      'test': [splits: 8],
+      'test-latest': [splits: 8],
+      'test-compression': [splits: 8],
+      'stress-test': [splits: 1, size: 'small'],
+      'test-burn': [splits: 8, size: 'large'],
+      'long-test': [splits: 8],
+      'test-oa': [splits: 8],
+      'test-system-keyspace-directory': [splits: 8],
+      'jvm-dtest': [splits: 8, size: 'large'],
+      'jvm-dtest-upgrade': [splits: 8, size: 'large'],
+      'simulator-dtest': [splits: 1],
+      'dtest': [splits: 64, size: 'large'],
+      'dtest-novnode': [splits: 64, size: 'large'],
+      'dtest-latest': [splits: 64, size: 'large'],
+      'dtest-large': [splits: 8, size: 'large'],
+      'dtest-large-novnode': [splits: 8, size: 'large'],
+      'dtest-upgrade': [splits: 64, size: 'large'],
+      'dtest-upgrade-novnode': [splits: 64, size: 'large'],
+      'dtest-upgrade-large': [splits: 64, size: 'large'],
+      'dtest-upgrade-novnode-large': [splits: 64, size: 'large'],
+    ]
+    testSteps.each() {
+        it.value.put('type', 'test')
+        it.value.put('script', '.build/docker/run-tests.sh')
+        if (!it.value['size']) {
+             it.value.put('size', 'medium')
+        }
+        if (it.key.startsWith('dtest')) {
+            it.value.put('python-dtest', true)
+        }
+    }
+
+    def stepsMap = buildSteps + testSteps
+
+    // define matrix axes
+    def Map matrix_axes = [
+        arch: archsSupported(),
+        jdk: jdksSupported(),
+        python: pythonsSupported(),
+        cython: ['yes', 'no'],
+        step: stepsMap.keySet(),
+        split: (1..64).toList() // needs to be bigger than any max splits
+    ]
+
+    def List _axes = getMatrixAxes(matrix_axes).findAll { axis ->
+        (isArchEnabled(axis['arch'])) && // skip disabled archs
+        (isJdkEnabled(axis['jdk'])) && // skip disabled jdks
+        (isStageEnabled(axis['step'])) && // skip disabled steps
+        !(axis['python'] != pythonDefault() && 'cqlsh-test' != axis['step']) && // Use only python 3.8 for all tests but cqlsh-test
+        !(axis['cython'] != 'no' && 'cqlsh-test' != axis['step']) && // cython only for cqlsh-test, disable for others
+        !(axis['jdk'] != jdkDefault() && ('cqlsh-test' == axis['step'] || 'simulator-dtest' == axis['step'] || axis['step'].contains('dtest-upgrade'))) && // run cqlsh-test, simulator-dtest, *dtest-upgrade only with jdk11
+        // Disable splits for all but proper stages
+        !(axis['split'] > 1 && !stepsMap.findAll { entry -> entry.value.splits >= axis['split'] }.keySet().contains(axis['step'])) &&
+        // run only the build types on non-amd64
+        !(axis['arch'] != 'amd64' && stepsMap.findAll { entry -> 'build' == entry.value.type }.keySet().contains(axis['step']))
+    }
+
+    def Map tasks = [
+      // FIXME where is this used ?
+      jars: [failFast: true],
+      tests: [failFast: !isPostCommit()], // FIXME all buildSteps are always failFast
+    ]
+
+    for (def axis in _axes) {
+      def cell = axis
+      def name = getStepName(cell, stepsMap[cell.step])
+      tasks[cell.step == "jar" ? "jars" : "tests"][name] = { ->
+        "${stepsMap[cell.step].type}"(stepsMap[cell.step], cell)
+      }
+    }
+
+    return tasks
+}
+
+@NonCPS
+def List getMatrixAxes(Map matrix_axes) {
+    List axes = []
+    matrix_axes.each { axis, values ->
+        List axisList = []
+        values.each { value ->
+            axisList << [(axis): value]
+        }
+        axes << axisList
+    }
+    axes.combinations()*.sum()
+}
+
+def getStepName(cell, command) {
+  arch = "amd64" == cell.arch ? "" : " ${cell.arch}"
+  python = "cqlsh-test" != cell.step ? "" : " python${cell.python}"
+  cython = "no" == cell.cython ? "" : " cython"
+  split = command.splits > 1 ? " ${cell.split}/${command.splits}" : ""
+  return "${cell.step}${arch} jdk${cell.jdk}${python}${cython}${split}"
+}
+
+/**
+ * Return the default JDK defined by build.xml
+ **/
+def javaVersionDefault() {
+  sh (returnStdout: true, script: 'grep \'property\\s*name=\"java.default\"\' build.xml | sed -ne \'s/.*value=\"\\([^\"]*\\)\".*/\\1/p\'').trim()
+}
+
+/**
+ * Return the supported JDKs defined by build.xml
+ **/
+def javaVersionsSupported() {
+  sh (returnStdout: true, script: 'grep \'property\\s*name=\"java.supported\"\' build.xml | sed -ne \'s/.*value=\"\\([^\"]*\\)\".*/\\1/p\'').trim()
+}
+
+/**
+ * Is this a post-commit build (or a pre-commit build)
+ **/
+def isPostCommit() {
+  // any build of a branch found on github.com/apache/cassandra is considered a post-commit (post-merge) CI run
+  return params.repository && params.repository.contains("apache/cassandra") // no params exist first build
+}
+
+/**
+ * Are we running on ci-cassandra.apache.org ?
+ **/
+def isCanonical() {
+  return "${JENKINS_URL}".contains("ci-cassandra.apache.org")
+}
+
+def isStageEnabled(stage) {
+  return "jar" == stage || pipelineProfiles()[params.profile].contains(stage) || ("custom" == params.profile && stage ==~ params.profile_custom_regexp)
+}
+
+def isArchEnabled(arch) {
+  return params.architecture == arch || "all" == params.architecture
+}
+
+def isJdkEnabled(jdk) {
+  return params.jdk == jdk || "all" == params.jdk
+}
+
+/**
+ * Renders build script into pipeline steps
+ **/
+def build(command, cell) {
+  def build_script = ".build/docker/${command.script}"
+  retry(2) {
+    node(getNodeLabel(command, cell)) {
+      withEnv(cell.collect { k, v -> "${k}=${v}" }) {
+        ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}") {
+            cleanAgent(cell.step)
+            cleanWs()
+            fetchSource(cell.step, cell.arch, cell.jdk)
+            def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}_jdk${cell.jdk}_${cell.arch}.log"
+
+            catchError(buildResult: null, message: 'Build task failed', stageResult: 'FAILURE') {
+                // pipe to tee needs pipefail
+                def script_vars = "#!/bin/bash \n set -o pipefail ; "
+                sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee build/${logfile}"
+                if ("jar" == cell.step) { // TODO only stash the project built files. all dependency libraries are restored from the local maven repo using `ant resolver-dist-lib`
+                    stash name: "${cell.arch}_${cell.jdk}", useDefaultExcludes: false //, includes: '**/*.jar' //, includes: "*.jar,classes/**,test/classes/**,tools/**"
+                }
+                dir("build") {
+                  copyToNightlies("${command.toCopy}", "${STAGE_NAME}/jdk${cell.jdk}/${cell.arch}/")
+                }
+            }
+            dir("build") {
+              sh "xz -f ${logfile}"
+              archiveArtifacts artifacts: "*${logfile}.xz", fingerprint: true
+              copyToNightlies("${logfile}.xz", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
+            }
+            cleanAgent(cell.step)
+        }
       }
     }
   }
 }
 
-def copyTestResults(target, build_number) {
-    step([$class: 'CopyArtifact',
-            projectName: "${env.JOB_NAME}-${target}",
-            optional: true,
-            fingerprintArtifacts: true,
-            selector: specific("${build_number}"),
-            target: target]);
+def test(command, cell) {
+  def splits = command.splits ? command.splits : 1
+  def python = cell.python
+  def cython = cell.cython
+  retry(2) {
+    node(getNodeLabel(command, cell)) {
+      withEnv(cell.collect { k, v -> "${k}=${v}" }) {
+        ws("workspace/${JOB_NAME}/${BUILD_NUMBER}/${cell.step}/${cell.arch}/jdk-${cell.jdk}/python-${cell.python}") {
+          cleanAgent(cell.step)
+          cleanWs()
+          fetchSource(cell.step, cell.arch, cell.jdk)
+          def cell_suffix = "_jdk${cell.jdk}_python_${cell.python}_${cell.cython}_${cell.arch}_${cell.split}_${splits}"
+          def logfile = "stage-logs/${JOB_NAME}_${BUILD_NUMBER}_${cell.step}${cell_suffix}.log"
+
+          // pipe to tee needs pipefail
+          def script_vars = "#!/bin/bash \n set -o pipefail ; "
+          script_vars = "${script_vars} python_version=\'${cell.python}\'"
+          if ("cqlsh-test" == cell.step) {
+              script_vars = "${script_vars} cython=\'${cell.cython}\'"
+          }
+          if (command.containsKey('python-dtest')) {
+            checkout changelog: false, poll: false, scm: scmGit(branches: [[name: params.dtest_branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true), [$class: 'RelativeTargetDirectory', relativeTargetDir: "${WORKSPACE}/build/cassandra-dtest"]], userRemoteConfigs: [[url: params.dtest_repository]])
+            script_vars = "${script_vars} cassandra_dtest_dir='${WORKSPACE}/build/cassandra-dtest'"
+          }
+          catchError(buildResult: null, message: 'Tests failed', stageResult: 'FAILURE') {
+            if (cell.step.startsWith("jvm-dtest-upgrade")) {
+                try {
+                    unstash name: "jvm_dtests_${arch}_${jdk}"
+                } catch (error) {
+                    sh label: "RUNNING build_dtest_jars...", script: "${script_vars} .build/docker/run-tests.sh build_dtest_jars ${cell.jdk} 2>&1 | tee build/${logfile}"
+                    stash name: "jvm_dtests_${cell.arch}_${cell.jdk}", includes: '**/dtest*.jar'
+                }
+            }
+            sh label: "RUNNING TESTS ${cell.step}...", script: "${script_vars} .build/docker/run-tests.sh ${cell.step} '${cell.split}/${splits}' ${cell.jdk} 2>&1 | tee -a build/${logfile}"
+            dir("build") {
+              // unique files names
+              sh """
+                    mkdir -p test/output/${cell.step}
+                    find test/output -type f -name TEST*.xml -execdir mkdir -p jdk_${cell.jdk}/${cell.arch} ';' -execdir mv {} jdk_${cell.jdk}/${cell.arch}/{} ';'
+                    find test/output -name cqlshlib.xml -execdir mv cqlshlib.xml ${cell.step}/cqlshlib${cell_suffix}.xml ';'
+                    find test/output -name nosetests.xml -execdir mv nosetests.xml ${cell.step}/nosetests${cell_suffix}.xml ';'
+                """
+              junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
+
+              // compress
+              sh "find test/output -type f -name *.xml -exec sh -c 'xz -f {} &' ';' ; wait "
+            }
+          }
+          dir("build") {
+              sh "xz -f ${logfile}"
+              archiveArtifacts artifacts: "${logfile}.xz,test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz", fingerprint: true
+              copyToNightlies("${logfile}.xz,test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+          }
+          cleanAgent(cell.step)
+        }
+      }
+    }
+  }
 }
 
-def formatChanges(changeLogSets) {
-    def result = ''
-    for (int i = 0; i < changeLogSets.size(); i++) {
-        def entries = changeLogSets[i].items
-        for (int j = 0; j < entries.length; j++) {
-            def entry = entries[j]
-            result = result + "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}\n"
-        }
+def fetchSource(stage, arch, jdk) {
+    if ("jar" == stage) {
+        checkout changelog: false, scm: scmGit(branches: [[name: params.branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true)], userRemoteConfigs: [[url: params.repository]])
+        sh "mkdir -p build/stage-logs"
+    } else {
+        unstash name: "${arch}_${jdk}"
     }
-    return result
+}
+
+def getNodeLabel(command, cell) {
+  echo "using node label: cassandra-${cell.arch}-${command.size}"
+  return "cassandra-${cell.arch}-${command.size}"
+}
+
+def copyToNightlies(sourceFiles, remoteDirectory='') {
+    if (!isCanonical() || "" == sourceFiles) {
+        return;
+    }
+
+    def remotePath = remoteDirectory.startsWith("cassandra/") ? "${remoteDirectory}" : "cassandra/${JOB_NAME}/${BUILD_NUMBER}/${remoteDirectory}"
+    def attempt = 1
+    retry(9) {
+        if (attempt > 1) { sleep(60 * attempt) }
+        sshPublisher(
+        continueOnError: true, failOnError: false,
+        publishers: [
+            sshPublisherDesc(
+            configName: "Nightlies",
+            transfers: [ sshTransfer( sourceFiles: sourceFiles, remoteDirectory: remotePath) ]
+            )
+        ])
+    }
+    echo "archived to https://nightlies.apache.org/${remotePath}"
+}
+
+def cleanAgent(job_name) {
+  if (isCanonical()) {
+    def maxJobHours = 12
+    echo "Cleaning project, and pruning docker for '${job_name}' on ${NODE_NAME}…" ;
+    sh """
+        git clean -qxdff -e build/test/jmh-result.json || true;
+        if pgrep -xa docker || pgrep -af "build/docker" || pgrep -af "cassandra-builds/build-scripts" ; then docker system prune --all --force --filter "until=${maxJobHours}h" || true ; else  docker system prune --force --volumes || true ;  fi;
+      """
+  }
+}
+
+//  CASSANDRA-18130
+def saveAgentReport() {
+  if (isCanonical()) {
+    //
+    // echo "Updating disk usage report…";
+    // sh """
+    //     ( echo "----" ;
+    //     echo \$(date) ;
+    //     echo "${JOB_NAME} ${BUILD_NUMBER} ${STAGE_NAME}" ;
+    //     du -xm / 2>/dev/null | sort -rn | head -n 30 ;
+    //     df -h ) | tee -a \$(date +"%Y%m%d%H%M")-disk-usage-stats.txt
+    //   """
+    //   copyToNightlies("*-disk-usage-stats.txt", "cassandra/agents/${NODE_NAME}/disk-usage/")
+    //   sh 'rm *-disk-usage-stats.txt'
+  }
+}
+
+/////////////////////////////////////////
+////// scripting support for summary ////
+/////////////////////////////////////////
+
+def summateStatus() {
+  // FIXME stageResults is never in binding :shrug:
+  //  stageResults code has been removed in the pipeline above, implement it from scratch
+  //catchError(buildResult: null, message: 'unknown stageResults states') {
+  //  if(stageResults.find { "FAILURE" == it.value }) {
+  //    currentBuild.result='FAILURE'
+  //    error("Build failed due to failed stages")
+  //  } else if(stageResults.find { "UNSTABLE" == it.value || "ABORTED" == it.value }) {
+  //    if ("ABORTED" != currentBuild.result) { currentBuild.result='UNSTABLE' }
+  //    echo("Build unstable due to unstable or aborted stages")
+  //  }
+  //}
+}
+
+def generateTestReports() {
+  node('cassandra-amd64-large') {
+    cleanWs()
+    checkout changelog: false, scm: scmGit(branches: [[name: params.branch]], extensions: [cloneOption(depth: 1, noTags: true, reference: '', shallow: true)], userRemoteConfigs: [[url: params.repository]])
+    copyArtifacts filter: 'test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz', fingerprintArtifacts: true, projectName: env.JOB_NAME, selector: specific(env.BUILD_NUMBER), target: "build/", optional: true
+    if (fileExists('build/test/output')) {
+
+        // merge splits for each target's test report, other axes are kept separate. TODO for loop could be parallelised
+        sh """
+                find build/test/ -name TEST-*.xml.xz -exec xz -f --decompress {} ';'
+                find build/test/ -name cqlshlib*.xml.xz -exec xz -f --decompress {} ';'
+                find build/test/ -name nosetests*.xml.xz -exec xz -f --decompress {} ';'
+
+                for target in \$(ls build/test/output/) ; do
+                  if test -d build/test/output/\${target} ; then
+                    mkdir -p build/test/reports/\${target}
+                    echo "Report for \${target} (\$(find build/test/output/\${target} -name '*.xml' | wc -l) test files)"
+                    CASSANDRA_DOCKER_ANT_OPTS="-Dbuild.test.output.dir=build/test/output/\${target} -Dbuild.test.report.dir=build/test/reports/\${target}"
+                    export CASSANDRA_DOCKER_ANT_OPTS
+                    .build/docker/_docker_run.sh bullseye-build.docker ci/generate-test-report.sh
+                  fi
+                done
+
+                .build/docker/_docker_run.sh bullseye-build.docker ci/generate-ci-summary.sh || echo "failed generate-ci-summary.sh"
+                
+                tar -cf build/results_details.tar -C build/test/ reports && xz -9f build/results_details.tar
+            """
+
+      dir('build/') {
+        archiveArtifacts artifacts: "ci_summary.html,results_details.tar.xz", fingerprint: true
+        copyToNightlies('results_details.tar.xz')
+      }
+    }
+  }
+}
+
+def sendNotifications() {
+  if (isPostCommit() && isCanonical()) {
+    // the following is expected only to work on ci-cassandra.apache.org
+    try {
+      script {
+        changes = formatChangeLogChanges(currentBuild.changeSets)
+        echo "changes: ${changes}"
+      }
+      slackSend channel: '#cassandra-builds', message: ":apache: <${BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. <https://github.com/apache/cassandra/commit/${GIT_COMMIT}|${GIT_COMMIT}>\n${changes}"
+      emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${GIT_COMMIT}", presendScript: 'msg.removeHeader("In-Reply-To"); msg.removeHeader("References")', body: emailContent()
+    } catch (Exception ex) {
+      echo 'failed to send notifications  ' + ex.toString()
+    }
+  }
+}
+
+def formatChangeLogChanges(changeLogSets) {
+  def result = ''
+  for (int i = 0; i < changeLogSets.size(); i++) {
+    def entries = changeLogSets[i].items
+    for (int j = 0; j < entries.length; j++) {
+      def entry = entries[j]
+      result = result + "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}\n"
+    }
+  }
+  return result
+}
+
+def emailContent() {
+  return '''
+  -------------------------------------------------------------------------------
+  Build ${ENV,var="JOB_NAME"} #${BUILD_NUMBER} ${BUILD_STATUS}
+  URL: ${BUILD_URL}
+  -------------------------------------------------------------------------------
+  Changes:
+  ${CHANGES}
+  -------------------------------------------------------------------------------
+  Failed Tests:
+  ${FAILED_TESTS,maxTests=500,showMessage=false,showStack=false}
+  -------------------------------------------------------------------------------
+  For complete test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/
+  '''
 }
