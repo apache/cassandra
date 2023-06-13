@@ -189,6 +189,37 @@ role_manager: CassandraRoleManager
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer: AllowAllNetworkAuthorizer
 
+# CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
+# access from certain CIDRs
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllCIDRAuthorizer,
+# CassandraCIDRAuthorizer}.
+# - AllowAllCIDRAuthorizer allows access from any CIDR to any user - set it to disable CIDR authorization.
+# - CassandraCIDRAuthorizer stores user's CIDR permissions in system_auth.cidr_permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
+#   system_auth tables being used by this feature may be lost when a host goes down.
+cidr_authorizer:
+  class_name: AllowAllCIDRAuthorizer
+  # Below parameters are used only when CIDR authorizer is enabled
+  # parameters:
+    # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.
+    # Set this setting to true, to enable CIDR authorization for superusers as well.
+    # Note: CIDR checks cannot be performed for JMX calls
+    # cidr_checks_for_superusers: true
+
+    # CIDR authorizer when enabled, supports MONITOR and ENFORCE modes. Default mode is MONITOR
+    # In MONITOR mode, CIDR checks are NOT enforced. Instead, CIDR groups of users accesses are logged using
+    # nospamlogger. A warning message would be logged if a user accesses from unauthorized CIDR group (but access won't
+    # be rejected). An info message would be logged otherwise.
+    # In ENFORCE mode, CIDR checks are enforced, i.e, users accesses would be rejected if attempted from unauthorized
+    # CIDR groups.
+    # cidr_authorizer_mode: MONITOR
+
+    # Refresh interval for CIDR groups cache, this value is considered in minutes
+    # cidr_groups_cache_refresh_interval: 5
+
+    # Maximum number of entries an IP to CIDR groups cache can accommodate
+    # ip_cache_max_size: 100
+
 # Depending on the auth strategy of the cluster, it can be beneficial to iterate
 # from root to table (root -> ks -> table) instead of table to root (table -> ks -> root).
 # As the auth entries are whitelisting, once a permission is found you know it to be

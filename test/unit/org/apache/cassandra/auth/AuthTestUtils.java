@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.List;
+import java.util.Map;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -32,20 +34,31 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CIDR;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.AlterRoleStatement;
+import org.apache.cassandra.cql3.statements.AuthenticationStatement;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.cql3.statements.CreateRoleStatement;
+import org.apache.cassandra.cql3.statements.DropRoleStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.auth.AuthKeyspace.CIDR_GROUPS;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.junit.Assert.assertNotNull;
 
 
@@ -133,6 +146,84 @@ public class AuthTestUtils
         }
     }
 
+    public static class LocalCIDRGroupsMappingManager extends CIDRGroupsMappingManager
+    {
+        @Override
+        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        @Override
+        UntypedResultSet process(String query, ConsistencyLevel cl)
+        {
+            return QueryProcessor.executeInternal(query);
+        }
+
+        public static String getCidrTuplesSet(List<CIDR> cidrs)
+        {
+            return getCidrTuplesSetString(cidrs);
+        }
+    }
+
+    public static class LocalCIDRPermissionsManager extends CIDRPermissionsManager
+    {
+        @Override
+        public ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        @Override
+        public UntypedResultSet process(String query, ConsistencyLevel cl)
+        {
+            return QueryProcessor.executeInternal(query);
+        }
+    }
+
+    public static class LocalCassandraCIDRAuthorizer extends CassandraCIDRAuthorizer
+    {
+        CIDRAuthorizerMode cidrAuthorizerMode;
+
+        public LocalCassandraCIDRAuthorizer()
+        {
+            cidrAuthorizerMode = CIDRAuthorizerMode.ENFORCE;
+        }
+
+        public LocalCassandraCIDRAuthorizer(CIDRAuthorizerMode mode)
+        {
+            cidrAuthorizerMode = mode;
+        }
+
+        @Override
+        protected void createManagers()
+        {
+            cidrPermissionsManager = new LocalCIDRPermissionsManager();
+            cidrGroupsMappingManager = new LocalCIDRGroupsMappingManager();
+        }
+
+        @Override
+        protected boolean isMonitorMode()
+        {
+            return cidrAuthorizerMode == CIDRAuthorizerMode.MONITOR;
+        }
+
+        CIDRPermissionsCache getCidrPermissionsCache()
+        {
+            return cidrPermissionsCache;
+        }
+    }
+
+    public static class LocalAllowAllCIDRAuthorizer extends AllowAllCIDRAuthorizer
+    {
+        @Override
+        protected void createManagers()
+        {
+            cidrPermissionsManager = new LocalCIDRPermissionsManager();
+            cidrGroupsMappingManager = new LocalCIDRGroupsMappingManager();
+        }
+    }
+
     public static class LocalPasswordAuthenticator extends PasswordAuthenticator
     {
         @Override
@@ -170,6 +261,13 @@ public class AuthTestUtils
         return networkPemissionsTable.metric.readLatency.latency.getCount();
     }
 
+    public static long getCidrPermissionsReadCount()
+    {
+        ColumnFamilyStore cidrPemissionsTable =
+        Keyspace.open(SchemaConstants.AUTH_KEYSPACE_NAME).getColumnFamilyStore(AuthKeyspace.CIDR_PERMISSIONS);
+        return cidrPemissionsTable.metric.readLatency.latency.getCount();
+    }
+
     public static long getRolePermissionsReadCount()
     {
         ColumnFamilyStore rolesPemissionsTable =
@@ -190,6 +288,59 @@ public class AuthTestUtils
         roleOptions.setOption(IRoleManager.Option.LOGIN, true);
         roleOptions.setOption(IRoleManager.Option.PASSWORD, "ignored");
         return roleOptions;
+    }
+
+    private static ClientState getClientState()
+    {
+        ClientState state = ClientState.forInternalCalls();
+        state.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        return state;
+    }
+
+    public static AuthenticationStatement authWithoutInvalidate(String query, Object... args)
+    {
+        CQLStatement statement = QueryProcessor.parseStatement(String.format(query, args)).prepare(ClientState.forInternalCalls());
+        assert statement instanceof CreateRoleStatement
+               || statement instanceof AlterRoleStatement
+               || statement instanceof DropRoleStatement;
+        AuthenticationStatement authStmt = (AuthenticationStatement) statement;
+
+        authStmt.execute(getClientState());
+
+        return authStmt;
+    }
+
+    public static AuthenticationStatement auth(String query, Object... args)
+    {
+        AuthenticationStatement authStmt = authWithoutInvalidate(query, args);
+
+        // invalidate roles cache so that any changes to the underlying roles are picked up
+        Roles.cache.invalidate();
+
+        return authStmt;
+    }
+
+    public static void createUsersWithCidrAccess(Map<String, List<String>> userToCidrPermsMapping)
+    {
+        for (Map.Entry<String, List<String>> userMapping : userToCidrPermsMapping.entrySet())
+        {
+            authWithoutInvalidate(
+                "CREATE ROLE %s WITH password = 'password' AND LOGIN = true AND ACCESS FROM CIDRS {'%s'}",
+                 userMapping.getKey(), String.join("', '", userMapping.getValue()));
+        }
+        Roles.cache.invalidate();
+    }
+
+    public static void insertCidrsMappings(Map<String, List<CIDR>> cidrsMapping)
+    {
+        for (Map.Entry<String, List<CIDR>> cidrMapping : cidrsMapping.entrySet())
+        {
+            QueryProcessor.executeInternal(format("insert into %s.%s(cidr_group, cidrs) values('%s', %s );",
+                                                  AUTH_KEYSPACE_NAME, CIDR_GROUPS, cidrMapping.getKey(),
+                                                  AuthTestUtils.LocalCIDRGroupsMappingManager.getCidrTuplesSet(
+                                                  cidrMapping.getValue())));
+        }
+        DatabaseDescriptor.getCIDRAuthorizer().loadCidrGroupsCache(); // update cache with CIDRs inserted above
     }
 
     // mTLS authenticators related utility methods

@@ -1204,7 +1204,7 @@ createUserStatement returns [CreateRoleStatement stmt]
         {
            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
-        $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), ifNotExists); }
+        $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), CIDRPermissions.all(), ifNotExists); }
     ;
 
 /**
@@ -1225,7 +1225,7 @@ alterUserStatement returns [AlterRoleStatement stmt]
          {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
          }
-         $stmt = new AlterRoleStatement(name, opts, null, ifExists);
+         $stmt = new AlterRoleStatement(name, opts, null, null, ifExists);
       }
     ;
 
@@ -1277,15 +1277,20 @@ listUsersStatement returns [ListRolesStatement stmt]
  *  SUPERUSER = (true|false)
  *  LOGIN = (true|false)
  *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
+ *  ACCESS TO ALL DATACENTERS
+ *  ACCESS TO DATACENTERS { dcPermission (, dcPermission)* }
+ *  ACCESS FROM ALL CIDRS
+ *  ACCESS FROM CIDRS { cidrPermission (, cidrPermission)* }
  */
 createRoleStatement returns [CreateRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
         DCPermissions.Builder dcperms = DCPermissions.builder();
+        CIDRPermissions.Builder cidrperms = CIDRPermissions.builder();
         boolean ifNotExists = false;
     }
     : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? name=userOrRoleName
-      ( K_WITH roleOptions[opts, dcperms] )?
+      ( K_WITH roleOptions[opts, dcperms, cidrperms] )?
       {
         // set defaults if they weren't explictly supplied
         if (!opts.getLogin().isPresent())
@@ -1300,7 +1305,7 @@ createRoleStatement returns [CreateRoleStatement stmt]
         {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
-        $stmt = new CreateRoleStatement(name, opts, dcperms.build(), ifNotExists);
+        $stmt = new CreateRoleStatement(name, opts, dcperms.build(), cidrperms.build(), ifNotExists);
       }
     ;
 
@@ -1312,21 +1317,26 @@ createRoleStatement returns [CreateRoleStatement stmt]
  *  SUPERUSER = (true|false)
  *  LOGIN = (true|false)
  *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
+ *  ACCESS TO ALL DATACENTERS
+ *  ACCESS TO DATACENTERS { dcPermission (, dcPermission)* }
+ *  ACCESS FROM ALL CIDRS
+ *  ACCESS FROM CIDRS { cidrPermission (, cidrPermission)* }
  */
 alterRoleStatement returns [AlterRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
         DCPermissions.Builder dcperms = DCPermissions.builder();
+        CIDRPermissions.Builder cidrperms = CIDRPermissions.builder();
         boolean ifExists = false;
     }
     : K_ALTER K_ROLE (K_IF K_EXISTS { ifExists = true; })? name=userOrRoleName
-      ( K_WITH roleOptions[opts, dcperms] )?
+      ( K_WITH roleOptions[opts, dcperms, cidrperms] )?
       {
          if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
          {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
          }
-         $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null, ifExists);
+         $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null, cidrperms.isModified() ? cidrperms.build() : null, ifExists);
       }
     ;
 
@@ -1355,11 +1365,11 @@ listRolesStatement returns [ListRolesStatement stmt]
       { $stmt = new ListRolesStatement(grantee, recursive); }
     ;
 
-roleOptions[RoleOptions opts, DCPermissions.Builder dcperms]
-    : roleOption[opts, dcperms] (K_AND roleOption[opts, dcperms])*
+roleOptions[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
+    : roleOption[opts, dcperms, cidrperms] (K_AND roleOption[opts, dcperms, cidrperms])*
     ;
 
-roleOption[RoleOptions opts, DCPermissions.Builder dcperms]
+roleOption[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
     :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     |  K_HASHED K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
@@ -1367,10 +1377,16 @@ roleOption[RoleOptions opts, DCPermissions.Builder dcperms]
     |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
     |  K_ACCESS K_TO K_ALL K_DATACENTERS { dcperms.all(); }
     |  K_ACCESS K_TO K_DATACENTERS '{' dcPermission[dcperms] (',' dcPermission[dcperms])* '}'
+    |  K_ACCESS K_FROM K_ALL K_CIDRS { cidrperms.all(); }
+    |  K_ACCESS K_FROM K_CIDRS '{' cidrPermission[cidrperms] (',' cidrPermission[cidrperms])* '}'
     ;
 
 dcPermission[DCPermissions.Builder builder]
     : dc=STRING_LITERAL { builder.add($dc.text); }
+    ;
+
+cidrPermission[CIDRPermissions.Builder builder]
+    : cidr=STRING_LITERAL { builder.add($cidr.text); }
     ;
 
 // for backwards compatibility in CREATE/ALTER USER, this has no '='
@@ -1987,6 +2003,7 @@ basic_unreserved_keyword returns [String str]
         | K_PARTITION
         | K_GROUP
         | K_DATACENTERS
+        | K_CIDRS
         | K_ACCESS
         | K_DEFAULT
         | K_MBEAN

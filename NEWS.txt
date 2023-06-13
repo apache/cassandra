@@ -71,6 +71,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new authorizer, CIDR authorizer, to restrict user access based on CIDR groups.
     - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
       Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
       Please consult upgrade section to know more details when upgrading from older Cassandra versions.

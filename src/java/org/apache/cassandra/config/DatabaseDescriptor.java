@@ -68,6 +68,7 @@ import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.ICIDRAuthorizer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -181,6 +182,8 @@ public class DatabaseDescriptor
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
+    private static ICIDRAuthorizer cidrAuthorizer;
+
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
@@ -1582,6 +1585,72 @@ public class DatabaseDescriptor
     public static void setNetworkAuthorizer(INetworkAuthorizer networkAuthorizer)
     {
         DatabaseDescriptor.networkAuthorizer = networkAuthorizer;
+    }
+
+    public static ICIDRAuthorizer getCIDRAuthorizer()
+    {
+        return cidrAuthorizer;
+    }
+
+    public static void setCIDRAuthorizer(ICIDRAuthorizer cidrAuthorizer)
+    {
+        DatabaseDescriptor.cidrAuthorizer = cidrAuthorizer;
+    }
+
+    public static boolean getCidrChecksForSuperusers()
+    {
+        boolean defaultCidrChecksForSuperusers = false;
+
+        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
+            return defaultCidrChecksForSuperusers;
+
+        String value = conf.cidr_authorizer.parameters.get("cidr_checks_for_superusers");
+        if (value == null || value.isEmpty())
+            return defaultCidrChecksForSuperusers;
+
+        return Boolean.parseBoolean(value);
+    }
+
+    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
+    {
+        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
+
+        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
+            return defaultCidrAuthorizerMode;
+
+        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
+        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
+            return defaultCidrAuthorizerMode;
+
+        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
+    }
+
+    public static int getCidrGroupsCacheRefreshInterval()
+    {
+        int defaultCidrGroupsCacheRefreshInterval = 5; // mins
+
+        if (conf.cidr_authorizer == null  || conf.cidr_authorizer.parameters == null)
+            return defaultCidrGroupsCacheRefreshInterval;
+
+        String cidrGroupsCacheRefreshInterval = conf.cidr_authorizer.parameters.get("cidr_groups_cache_refresh_interval");
+        if (cidrGroupsCacheRefreshInterval == null || cidrGroupsCacheRefreshInterval.isEmpty())
+            return defaultCidrGroupsCacheRefreshInterval;
+
+        return Integer.parseInt(cidrGroupsCacheRefreshInterval);
+    }
+
+    public static int getIpCacheMaxSize()
+    {
+        int defaultIpCacheMaxSize = 100;
+
+        if (conf.cidr_authorizer == null  || conf.cidr_authorizer.parameters == null)
+            return defaultIpCacheMaxSize;
+
+        String ipCacheMaxSize = conf.cidr_authorizer.parameters.get("ip_cache_max_size");
+        if (ipCacheMaxSize == null || ipCacheMaxSize.isEmpty())
+            return defaultIpCacheMaxSize;
+
+        return Integer.parseInt(ipCacheMaxSize);
     }
 
     public static void setAuthFromRoot(boolean fromRoot)
