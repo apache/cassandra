@@ -132,7 +132,8 @@ public class RandomSchemaTest extends CQLTester.InMemory
                     {
                         assert it.hasNext();
                         ColumnMetadata meta = it.next();
-                        literals.add(!expected[idx].hasRemaining() ? "empty" : meta.type.asCQL3Type().toCQLLiteral(expected[idx]));
+                        ByteBuffer expct = expected[idx];
+                        literals.add(expct == null ? "null" : !expct.hasRemaining() ? "empty" : meta.type.asCQL3Type().toCQLLiteral(expct));
                     }
                     throw new AssertionError(String.format("Failure at attempt %d with schema\n%s\nfor values %s", i, createTable, literals), t);
                 }
