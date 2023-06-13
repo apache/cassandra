@@ -109,12 +109,11 @@ host (and optional port number) are given on the command line, they take
 precedence over any defaults.""" % globals()
 
 
-##start of arg
 parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                  usage="Usage: %(prog)s [options] [host [port]]",
                                  prog='cqlsh')
 
-parser.add_argument('-v','--version', action='version',version='cqlsh ' + version)  ##new line
+parser.add_argument('-v','--version', action='version',version='cqlsh ' + version)
 
 parser.add_argument("-C", "--color", action='store_true', dest='color',
                   help='Always use color output')
