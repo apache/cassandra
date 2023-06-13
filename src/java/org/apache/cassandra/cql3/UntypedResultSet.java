@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -38,7 +39,21 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -65,9 +80,9 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         return new FromResultList(results);
     }
 
-    public static UntypedResultSet create(SelectStatement select, QueryPager pager, int pageSize)
+    public static UntypedResultSet create(SelectStatement select, QueryPager pager, PageSize pageSize, @Nullable Runnable onNextPageListener)
     {
-        return new FromPager(select, pager, pageSize);
+        return new FromPager(select, pager, pageSize, onNextPageListener);
     }
 
     /**
@@ -79,9 +94,10 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                                           ConsistencyLevel cl,
                                           ClientState clientState,
                                           QueryPager pager,
-                                          int pageSize)
+                                          PageSize pageSize,
+                                          @Nullable Runnable onNextPageListener)
     {
-        return new FromDistributedPager(select, cl, clientState, pager, pageSize);
+        return new FromDistributedPager(select, cl, clientState, pager, pageSize, onNextPageListener);
     }
 
     public boolean isEmpty()
@@ -183,15 +199,17 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     {
         private final SelectStatement select;
         private final QueryPager pager;
-        private final int pageSize;
+        private final PageSize pageSize;
         private final List<ColumnSpecification> metadata;
+        private final Runnable onNextPageListener;
 
-        private FromPager(SelectStatement select, QueryPager pager, int pageSize)
+        private FromPager(SelectStatement select, QueryPager pager, PageSize pageSize, Runnable onNextPageListener)
         {
             this.select = select;
             this.pager = pager;
             this.pageSize = pageSize;
             this.metadata = select.getResultMetadata().requestNames();
+            this.onNextPageListener = onNextPageListener;
         }
 
         public int size()
@@ -221,6 +239,8 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                         try (ReadExecutionController executionController = pager.executionController();
                              PartitionIterator iter = pager.fetchPageInternal(pageSize, executionController))
                         {
+                            if (onNextPageListener != null)
+                                onNextPageListener.run();
                             currentPage = select.process(iter, nowInSec, true).rows.iterator();
                         }
                     }
@@ -244,13 +264,16 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         private final ConsistencyLevel cl;
         private final ClientState clientState;
         private final QueryPager pager;
-        private final int pageSize;
+        private final PageSize pageSize;
         private final List<ColumnSpecification> metadata;
+        private final Runnable onNextPageListener;
 
         private FromDistributedPager(SelectStatement select,
                                      ConsistencyLevel cl,
                                      ClientState clientState,
-                                     QueryPager pager, int pageSize)
+                                     QueryPager pager,
+                                     PageSize pageSize,
+                                     Runnable onNextPageListener)
         {
             this.select = select;
             this.cl = cl;
@@ -258,6 +281,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             this.pager = pager;
             this.pageSize = pageSize;
             this.metadata = select.getResultMetadata().requestNames();
+            this.onNextPageListener = onNextPageListener;
         }
 
         public int size()
@@ -286,6 +310,8 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
                         try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, nanoTime()))
                         {
+                            if (onNextPageListener != null)
+                                onNextPageListener.run();
                             currentPage = select.process(iter, nowInSec, true).rows.iterator();
                         }
                     }

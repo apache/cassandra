@@ -35,15 +35,13 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -74,6 +72,8 @@ import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -88,7 +88,10 @@ public class BatchlogManager implements BatchlogManagerMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=BatchlogManager";
     private static final long REPLAY_INTERVAL = 10 * 1000; // milliseconds
-    static final int DEFAULT_PAGE_SIZE = 128;
+
+    private static final int MAX_ROWS = 128;
+    private static final int MAX_SIZE = 4 * 1024 * 1024; // 4 MB
+    private static final PageSize DEFAULT_PAGE_SIZE = new PageSize(MAX_ROWS, MAX_SIZE);
 
     private static final Logger logger = LoggerFactory.getLogger(BatchlogManager.class);
     public static final BatchlogManager instance = new BatchlogManager();
@@ -212,16 +215,13 @@ public class BatchlogManager implements BatchlogManagerMBean
         setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKiB());
 
         TimeUUID limitUuid = TimeUUID.maxAtUnixMillis(currentTimeMillis() - getBatchlogTimeout());
-        ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
-        int pageSize = calculatePageSize(store);
         // There cannot be any live content where token(id) <= token(lastReplayedUuid) as every processed batch is
         // deleted, but the tombstoned content may still be present in the tables. To avoid walking over it we specify
         // token(id) > token(lastReplayedUuid) as part of the query.
         String query = String.format("SELECT id, mutations, version FROM %s.%s WHERE token(id) > token(?) AND token(id) <= token(?)",
                                      SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.BATCHES);
-        UntypedResultSet batches = executeInternalWithPaging(query, pageSize, lastReplayedUuid, limitUuid);
-        processBatchlogEntries(batches, pageSize, rateLimiter);
+        processBatchlogEntries(query, lastReplayedUuid, limitUuid, rateLimiter);
         lastReplayedUuid = limitUuid;
         logger.trace("Finished replayFailedBatches");
     }
@@ -247,25 +247,20 @@ public class BatchlogManager implements BatchlogManagerMBean
         }
     }
 
-    // read less rows (batches) per page if they are very large
-    static int calculatePageSize(ColumnFamilyStore store)
+    private void processBatchlogEntries(String query, TimeUUID lastReplayedUuid, TimeUUID limitUuid, RateLimiter rateLimiter)
     {
-        double averageRowSize = store.getMeanPartitionSize();
-        if (averageRowSize <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        return (int) Math.max(1, Math.min(DEFAULT_PAGE_SIZE, 4 * 1024 * 1024 / averageRowSize));
-    }
-
-    private void processBatchlogEntries(UntypedResultSet batches, int pageSize, RateLimiter rateLimiter)
-    {
-        int positionInPage = 0;
-        ArrayList<ReplayingBatch> unfinishedBatches = new ArrayList<>(pageSize);
+        ArrayList<ReplayingBatch> unfinishedBatches = new ArrayList<>(MAX_ROWS);
 
         Set<UUID> hintedNodes = new HashSet<>();
         Set<TimeUUID> replayedBatches = new HashSet<>();
         Exception caughtException = null;
         int skipped = 0;
+
+        UntypedResultSet batches = executeInternalWithPaging(query, DEFAULT_PAGE_SIZE, () -> {
+            // We have reached the end of a batch. To avoid keeping more than a page of mutations in memory,
+            // finish processing the page before requesting the next row.
+            finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
+        }, lastReplayedUuid, limitUuid);
 
         // Sending out batches for replay without waiting for them, so that one stuck batch doesn't affect others
         for (UntypedResultSet.Row row : batches)
@@ -292,18 +287,10 @@ public class BatchlogManager implements BatchlogManagerMBean
                 remove(id);
                 ++skipped;
             }
-
-            if (++positionInPage == pageSize)
-            {
-                // We have reached the end of a batch. To avoid keeping more than a page of mutations in memory,
-                // finish processing the page before requesting the next row.
-                finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
-                positionInPage = 0;
-            }
         }
 
         // finalize the incomplete last page of batches
-        if (positionInPage > 0)
+        if (!unfinishedBatches.isEmpty())
             finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
 
         if (caughtException != null)

@@ -30,6 +30,7 @@ import java.util.concurrent.Future;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -43,8 +44,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -120,15 +121,15 @@ public class Coordinator implements ICoordinator
         try
         {
             ResultMessage res = prepared.execute(QueryState.forInternalCalls(),
-                                   QueryOptions.create(toCassandraCL(commitConsistencyLevel),
-                                                       boundBBValues,
-                                                       false,
-                                                       Integer.MAX_VALUE,
-                                                       null,
-                                                       toCassandraSerialCL(serialConsistencyLevel),
-                                                       ProtocolVersion.CURRENT,
-                                                       null),
-                                   nanoTime());
+                                                 QueryOptions.create(toCassandraCL(commitConsistencyLevel),
+                                                                     boundBBValues,
+                                                                     false,
+                                                                     PageSize.NONE,
+                                                                     null,
+                                                                     toCassandraSerialCL(serialConsistencyLevel),
+                                                                     ProtocolVersion.CURRENT,
+                                                                     null),
+                                                 nanoTime());
             // Collect warnings reported during the query.
             CoordinatorWarnings.done();
             if (res != null)
@@ -165,9 +166,9 @@ public class Coordinator implements ICoordinator
     }
 
     @Override
-    public QueryResult executeWithPagingWithResult(String query, ConsistencyLevel consistencyLevelOrigin, int pageSize, Object... boundValues)
+    public QueryResult executeWithPagingWithResult(String query, ConsistencyLevel consistencyLevelOrigin, PageSize pageSize, Object... boundValues)
     {
-        if (pageSize <= 0)
+        if (pageSize.isZero())
             throw new IllegalArgumentException("Page size should be strictly positive but was " + pageSize);
 
         return instance.sync(() -> {

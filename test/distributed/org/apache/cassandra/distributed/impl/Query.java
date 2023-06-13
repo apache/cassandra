@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -76,7 +77,7 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
                                              QueryOptions.create(commitConsistency,
                                                                  boundBBValues,
                                                                  false,
-                                                                 Integer.MAX_VALUE,
+                                                                 PageSize.NONE,
                                                                  null,
                                                                  serialConsistency,
                                                                  ProtocolVersion.V4,

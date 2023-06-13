@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.Date;
 import java.util.Iterator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.collect.Iterators;
 import org.junit.Assert;
@@ -28,6 +30,7 @@ import org.junit.Test;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -64,7 +67,7 @@ public class GroupByTest extends TestBaseImpl
                 String query = withKeyspace("SELECT concat(ck) FROM %s.tbl GROUP BY pk " + limitClause);
                 for (int i = 1; i <= 4; i++)
                 {
-                    Iterator<Object[]> rows = cluster.coordinator(2).executeWithPaging(query, ConsistencyLevel.ALL, i);
+                    Iterator<Object[]> rows = cluster.coordinator(2).executeWithPaging(query, ConsistencyLevel.ALL, PageSize.inRows(i));
                     assertRows(Iterators.toArray(rows, Object[].class));
                 }
             }
@@ -89,9 +92,9 @@ public class GroupByTest extends TestBaseImpl
             for (String limitClause : new String[]{ "", "LIMIT 1", "LIMIT 10", "PER PARTITION LIMIT 1", "PER PARTITION LIMIT 10" })
             {
                 String query = withKeyspace("SELECT concat(ck) FROM %s.tbl GROUP BY pk " + limitClause);
-                for (int i = 1; i <= 4; i++)
+                for (PageSize pageSize : IntStream.of(1, 2, 3, 4).mapToObj(PageSize::inRows).collect(Collectors.toList()))
                 {
-                    Iterator<Object[]> rows = cluster.coordinator(2).executeWithPaging(query, ConsistencyLevel.ALL, i);
+                    Iterator<Object[]> rows = cluster.coordinator(2).executeWithPaging(query, ConsistencyLevel.ALL, pageSize);
                     assertRows(Iterators.toArray(rows, Object[].class));
                 }
             }
@@ -110,18 +113,18 @@ public class GroupByTest extends TestBaseImpl
             cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (pk, ck, v1, v2, v3) values (1,2,'2','2','2')"), ConsistencyLevel.ALL);
             cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (pk, ck, v1, v2, v3) values (1,3,'3','3','3')"), ConsistencyLevel.ALL);
 
-            for (int i = 1; i <= 4; i++)
+            for (PageSize pageSize : IntStream.of(1, 2, 3, 4).mapToObj(PageSize::inRows).collect(Collectors.toList()))
             {
                 assertRows(cluster.coordinator(1).executeWithPaging(withKeyspace("select concat(v1), concat(v2), concat(v3) from %s.tbl where pk = 1 group by pk"),
-                                                                    ConsistencyLevel.ALL, i),
+                                                                    ConsistencyLevel.ALL, pageSize),
                            row("_ 1 2 3", "_ 1 2 3", "_ 1 2 3"));
 
                 assertRows(cluster.coordinator(1).executeWithPaging(withKeyspace("select concat(v1), concat(v2), concat(v3) from %s.tbl where pk = 1 group by pk limit 1"),
-                                                                    ConsistencyLevel.ALL, i),
+                                                                    ConsistencyLevel.ALL, pageSize),
                            row("_ 1 2 3", "_ 1 2 3", "_ 1 2 3"));
 
                 assertRows(cluster.coordinator(1).executeWithPaging(withKeyspace("select * from %s.tbl where pk = 1 group by pk"),
-                                                                    ConsistencyLevel.ALL, i),
+                                                                    ConsistencyLevel.ALL, pageSize),
                            row(1, 1, "1", "1", "1"));
             }
         }
@@ -140,7 +143,7 @@ public class GroupByTest extends TestBaseImpl
             cluster.get(1).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=0 AND ck=0"));
             cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=1 AND ck=1"));
             String query = withKeyspace("SELECT * FROM %s.tbl GROUP BY pk");
-            Iterator<Object[]> rows = coordinator.executeWithPaging(query, ConsistencyLevel.ALL, 1);
+            Iterator<Object[]> rows = coordinator.executeWithPaging(query, ConsistencyLevel.ALL, PageSize.inRows(1));
             assertRows(Iterators.toArray(rows, Object[].class));
 
             try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
@@ -171,7 +174,7 @@ public class GroupByTest extends TestBaseImpl
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.testWithTimestamp (pk, time, v) VALUES (2, '2016-09-27 16:26:20 UTC', 10)"), ConsistencyLevel.QUORUM);
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.testWithTimestamp (pk, time, v) VALUES (2, '2016-09-27 16:30:00 UTC', 11)"), ConsistencyLevel.QUORUM);
 
-            for (int pageSize : new int[] {2, 3, 4, 5, 7, 10})
+            for (PageSize pageSize : IntStream.of(2, 3, 4, 5, 7, 10).mapToObj(PageSize::inRows).collect(Collectors.toList()))
             {
                 for (String startingTime : new String[] {"", ", '2016-09-27 UTC'"} )
                 {
@@ -234,7 +237,7 @@ public class GroupByTest extends TestBaseImpl
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.testWithDate (pk, time, v) VALUES (2, '2016-11-01', 10)"), ConsistencyLevel.QUORUM);
             cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.testWithDate (pk, time, v) VALUES (2, '2016-11-02', 11)"), ConsistencyLevel.QUORUM);
 
-            for (int pageSize : new int[] {2, 3, 4, 5, 7, 10})
+            for (PageSize pageSize : IntStream.of(2, 3, 4, 5, 7, 10).mapToObj(PageSize::inRows).collect(Collectors.toList()))
             {
                 for (String startingTime : new String[] {"", ", '2016-06-01'"} )
                 {
@@ -295,7 +298,7 @@ public class GroupByTest extends TestBaseImpl
                 cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.testWithTime (pk, date, time, v) VALUES (1, '2016-09-28', '16:26:20', 9)"), ConsistencyLevel.QUORUM);
                 cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.testWithTime (pk, date, time, v) VALUES (1, '2016-09-28', '16:26:30', 10)"), ConsistencyLevel.QUORUM);
 
-                for (int pageSize : new int[] {2, 3, 4, 5, 7, 10})
+                for (PageSize pageSize : IntStream.of(2, 3, 4, 5, 7, 10).mapToObj(PageSize::inRows).collect(Collectors.toList()))
                 {
 
                     String stmt = "SELECT pk, date, floor(time, 5m), min(v), max(v), count(v) FROM %s.testWithTime GROUP BY pk, date, floor(time, 5m)";

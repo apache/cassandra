@@ -96,7 +96,7 @@ public class RandomizedPagingStateTest
             pkBytes.put((byte) rnd.nextInt());
         pkBytes.flip().rewind();
 
-        PagingState state = new PagingState(pkBytes, mark, rnd.nextInt(MAX_REMAINING) + 1, rnd.nextInt(MAX_REMAINING) + 1);
+        PagingState state = new PagingState(pkBytes, mark, rnd.nextInt(MAX_REMAINING) + 1, rnd.nextInt(MAX_REMAINING) + 1, rnd.nextInt(MAX_REMAINING) + 1);
         ByteBuffer serialized = state.serialize(ProtocolVersion.V3);
         Assert.assertTrue(PagingState.isLegacySerialized(serialized));
         Assert.assertFalse(PagingState.isModernSerialized(serialized));
