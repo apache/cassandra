@@ -19,6 +19,9 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
+import java.util.List;
+import java.util.Collections;
+
 /**
  * An interface that provides an application with the ability
  * to query liveness information of a node in the cluster. It
@@ -36,6 +39,28 @@ public interface IFailureDetector
      * @return true if UP and false if DOWN.
      */
     public boolean isAlive(InetAddressAndPort ep);
+
+    /**
+     * Sorts the endpoints based on their response time.
+     * Nodes at smaller indexes have faster response time than nodes at higher indexes.
+     * @param List<InetAddressAndPort> endpoints.
+     * @return void.
+     */
+    public default void sortEndpointsByResponseTime(List<InetAddressAndPort> endpoints)
+    {
+        Collections.sort(endpoints, (InetAddressAndPort epA, InetAddressAndPort epB) -> { return isEpAResponseTimeSlowerThanEpB(epA, epB) ? 1 : -1; });
+    }
+
+    /**
+     * Indicates if endpoint A has longer response time than endpoint B.
+     * @param InetAddressAndPort epA.
+     * @param InetAddressAndPort epB.
+     * @return boolean.
+     */
+    public default boolean isEpAResponseTimeSlowerThanEpB(InetAddressAndPort epA, InetAddressAndPort epB)
+    {
+        throw new UnsupportedOperationException("Method that compares Endpoint A response time VS Endpoint B was not implemented.");
+    }
 
     /**
      * This method is invoked by any entity wanting to interrogate the status of an endpoint.
