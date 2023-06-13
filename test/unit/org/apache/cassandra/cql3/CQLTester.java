@@ -558,6 +558,7 @@ public abstract class CQLTester
         DatabaseDescriptor.setAuthenticator(new AuthTestUtils.LocalPasswordAuthenticator());
         DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
         DatabaseDescriptor.setNetworkAuthorizer(new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+        DatabaseDescriptor.setCIDRAuthorizer(new AuthTestUtils.LocalCassandraCIDRAuthorizer());
 
         // The CassandraRoleManager constructor set the supported and alterable options based on
         // DatabaseDescriptor authenticator type so it needs to be created only after the authenticator is set.
@@ -576,6 +577,7 @@ public abstract class CQLTester
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
         DatabaseDescriptor.getNetworkAuthorizer().setup();
+        DatabaseDescriptor.getCIDRAuthorizer().setup();
         Schema.instance.registerListener(new AuthSchemaChangeListener());
 
         AuthCacheService.initializeAndRegisterCaches();

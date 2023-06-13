@@ -34,13 +34,16 @@ public class CreateRoleStatement extends AuthenticationStatement
     private final RoleResource role;
     private final RoleOptions opts;
     final DCPermissions dcPermissions;
+    final CIDRPermissions cidrPermissions;
     private final boolean ifNotExists;
 
-    public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions, boolean ifNotExists)
+    public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions,
+                               CIDRPermissions cidrPermissions, boolean ifNotExists)
     {
         this.role = RoleResource.role(name.getName());
         this.opts = options;
         this.dcPermissions = dcPermissions;
+        this.cidrPermissions = cidrPermissions;
         this.ifNotExists = ifNotExists;
     }
 
@@ -58,13 +61,18 @@ public class CreateRoleStatement extends AuthenticationStatement
     {
         opts.validate();
 
+        if (role.getRoleName().isEmpty())
+            throw new InvalidRequestException("Role name can't be an empty string");
+
         if (dcPermissions != null)
         {
             dcPermissions.validate();
         }
 
-        if (role.getRoleName().isEmpty())
-            throw new InvalidRequestException("Role name can't be an empty string");
+        if (cidrPermissions != null)
+        {
+            cidrPermissions.validate();
+        }
 
         // validate login here before authorize to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
@@ -84,6 +92,10 @@ public class CreateRoleStatement extends AuthenticationStatement
         {
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
         }
+
+        if (cidrPermissions != null)
+            DatabaseDescriptor.getCIDRAuthorizer().setCidrGroupsForRole(role, cidrPermissions);
+
         grantPermissionsToCreator(state);
 
         return null;

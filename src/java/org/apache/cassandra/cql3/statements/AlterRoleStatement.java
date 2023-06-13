@@ -36,18 +36,21 @@ public class AlterRoleStatement extends AuthenticationStatement
     private final RoleResource role;
     private final RoleOptions opts;
     final DCPermissions dcPermissions;
+    final CIDRPermissions cidrPermissions;
     private final boolean ifExists;
 
     public AlterRoleStatement(RoleName name, RoleOptions opts)
     {
-        this(name, opts, null, false);
+        this(name, opts, null, null, false);
     }
 
-    public AlterRoleStatement(RoleName name, RoleOptions opts, DCPermissions dcPermissions, boolean ifExists)
+    public AlterRoleStatement(RoleName name, RoleOptions opts, DCPermissions dcPermissions,
+                              CIDRPermissions cidrPermissions, boolean ifExists)
     {
         this.role = RoleResource.role(name.getName());
         this.opts = opts;
         this.dcPermissions = dcPermissions;
+        this.cidrPermissions = cidrPermissions;
         this.ifExists = ifExists;
     }
 
@@ -55,13 +58,19 @@ public class AlterRoleStatement extends AuthenticationStatement
     {
         opts.validate();
 
+        if (opts.isEmpty() && dcPermissions == null && cidrPermissions == null)
+            throw new InvalidRequestException("ALTER [ROLE|USER] can't be empty");
+
         if (dcPermissions != null)
         {
             dcPermissions.validate();
         }
 
-        if (opts.isEmpty() && dcPermissions == null)
-            throw new InvalidRequestException("ALTER [ROLE|USER] can't be empty");
+        if (cidrPermissions != null)
+        {
+            // Ensure input CIDR group names are valid, i.e, existing in CIDR groups mapping table
+            cidrPermissions.validate();
+        }
 
         // validate login here before authorize to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
@@ -107,8 +116,13 @@ public class AlterRoleStatement extends AuthenticationStatement
     {
         if (!opts.isEmpty())
             DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts);
+
         if (dcPermissions != null)
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
+
+        if (cidrPermissions != null)
+            DatabaseDescriptor.getCIDRAuthorizer().setCidrGroupsForRole(role, cidrPermissions);
+
         return null;
     }
 

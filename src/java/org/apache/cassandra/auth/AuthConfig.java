@@ -115,6 +115,14 @@ public final class AuthConfig
             throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator.class_name, false);
         }
 
+        // cidr authorizer
+        ICIDRAuthorizer cidrAuthorizer = ICIDRAuthorizer.newCIDRAuthorizer(conf.cidr_authorizer);
+        DatabaseDescriptor.setCIDRAuthorizer(cidrAuthorizer);
+        if (cidrAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
+        {
+            throw new ConfigurationException(conf.cidr_authorizer + " can't be used with " + conf.authenticator, false);
+        }
+
         // Validate at last to have authenticator, authorizer, role-manager and internode-auth setup
         // in case these rely on each other.
 
@@ -122,6 +130,7 @@ public final class AuthConfig
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
         networkAuthorizer.validateConfiguration();
+        cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 }

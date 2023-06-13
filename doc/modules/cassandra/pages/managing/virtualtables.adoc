@@ -66,6 +66,10 @@ The following table describes the virtual tables:
 |caches |Displays the general cache information including cache name, capacity_bytes, entry_count, hit_count, hit_ratio double,
 recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and size_bytes.
 
+|cidr_filtering_metrics_counts |Counts metrics specific to CIDR filtering.
+
+|cidr_filtering_metrics_latencies |Latencies metrics specific to CIDR filtering.
+
 |clients |Lists information about all connected clients.
 
 |coordinator_read_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator reads.
@@ -242,6 +246,31 @@ counters |       26214400 |           0 |         0 |       NaN |               
     rows |              0 |           0 |         0 |       NaN |                          0 |                              0 |             0 |          0
 
 (4 rows)
+....
+
+
+=== CIDR filtering metrics Virtual Tables
+The `cidr_filtering_metrics_counts` virtual table lists counts metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_counts` virtual table lists metrics similar to below.
+
+....
+cqlsh> select * from system_views.cidr_filtering_metrics_counts;
+ name                                                   | value
+--------------------------------------------------------+-------
+                         CIDR groups cache reload count |     2
+ Number of CIDR accesses accepted from CIDR group - aws |    15
+ Number of CIDR accesses accepted from CIDR group - gcp |    30
+ Number of CIDR accesses rejected from CIDR group - gcp |     6
+....
+
+The `cidr_filtering_metrics_latencies` virtual table lists latencies metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_latencies` virtual table lists below metrics.
+
+....
+cqlsh> select * from system_views.cidr_filtering_metrics_latencies;
+ name                                        | max   | p50th | p95th | p999th | p99th
+---------------------------------------------+-------+-------+-------+--------+-------
+                    CIDR checks latency (ns) | 24601 |     1 | 11864 |  24601 | 24601
+       CIDR groups cache reload latency (ns) | 42510 | 42510 | 42510 |  42510 | 42510
+ Lookup IP in CIDR groups cache latency (ns) |     1 |     1 |     1 |      1 |     1
 ....
 
 === CQL metrics Virtual Table

@@ -72,7 +72,8 @@ public class AddIdentityStatementTest
         SchemaLoader.setupAuth(new AuthTestUtils.LocalCassandraRoleManager(),
                                new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+                               new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
+                               new AuthTestUtils.LocalCassandraCIDRAuthorizer());
         AuthCacheService.initializeAndRegisterCaches();
         setupPrivilegedUser();
     }

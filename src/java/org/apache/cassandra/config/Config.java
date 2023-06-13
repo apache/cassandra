@@ -82,6 +82,8 @@ public class Config
     public String role_manager;
     public ParameterizedClass crypto_provider;
     public String network_authorizer;
+    public ParameterizedClass cidr_authorizer;
+
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
     public volatile int permissions_cache_max_entries = 1000;
