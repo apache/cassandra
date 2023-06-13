@@ -82,7 +82,8 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                                                                .build())
                                      .withPartitionColumnsCount(1)
                                      .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)
-                                                               .withMaxDepth(2)
+                                                               // map of vector of map crossed the size cut-off for one of the tests, so changed max depth from 2 to 1, so we can't have the second map
+                                                               .withMaxDepth(1)
                                                                .build())
                                      .withClusteringColumnsBetween(1, 2)
                                      .withRegularColumnsBetween(1, 5)
