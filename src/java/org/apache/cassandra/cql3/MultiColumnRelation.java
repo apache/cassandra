@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -158,9 +159,13 @@ public class MultiColumnRelation extends Relation
         return new MultiColumnRestriction.EQRestriction(receivers, term);
     }
 
+    @Override
     protected Restriction newNEQRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        throw invalidRequest("%s cannot be used for multi-column relations", operator());
+        List<ColumnMetadata> receivers = receivers(table);
+        Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
+        MarkerOrList skippedValues = MarkerOrList.list(Collections.singletonList(term));
+        return MultiColumnRestriction.SliceRestriction.fromSkippedValues(receivers, skippedValues);
     }
 
     @Override

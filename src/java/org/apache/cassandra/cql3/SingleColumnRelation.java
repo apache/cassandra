@@ -203,7 +203,11 @@ public final class SingleColumnRelation extends Relation
     {
         ColumnMetadata columnDef = table.getExistingColumn(entity);
         if (mapKey == null)
-            throw invalidRequest("NEQ restrictions are supported only on map columns");
+        {
+            Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
+            MarkerOrList skippedValues = MarkerOrList.list(Collections.singletonList(term));
+            return SingleColumnRestriction.SliceRestriction.fromSkippedValues(columnDef, skippedValues);
+        }
 
         List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
         Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, table.keyspace, boundNames);
