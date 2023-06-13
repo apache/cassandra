@@ -295,6 +295,7 @@ public class AbstractTypeTest
     public void json()
     {
         Gen<AbstractType<?>> typeGen = genBuilder()
+                                       .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER))
                                        // toCQLLiteral is lossy, which causes deserialization to produce different bytes
                                        .withoutPrimitive(DecimalType.instance)
                                        // does not support toJSONString
