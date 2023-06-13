@@ -236,13 +236,14 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "all")
-                              .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2"))
+                              .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2", "TLSv1.3"))
                               .build());
         }).start())
         {
             InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
             int port = cluster.get(1).config().broadcastAddress().getPort();
 
+            // deprecated
             TlsConnection tls10Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1"));
             Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
                                 ConnectResult.FAILED_TO_NEGOTIATE, tls10Connection.connect());
@@ -257,6 +258,11 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
                                 ConnectResult.NEGOTIATED, tls12Connection.connect());
             Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
+
+            TlsConnection tls13Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.3"));
+            Assert.assertEquals("Should be possible to establish a TLSv1.3 connection",
+                                ConnectResult.NEGOTIATED, tls13Connection.connect());
+            Assert.assertEquals("TLSv1.3", tls13Connection.lastProtocol());
         }
     }
 
