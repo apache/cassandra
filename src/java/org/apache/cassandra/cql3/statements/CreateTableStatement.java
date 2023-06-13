@@ -345,7 +345,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
             if (!properties.definedOrdering.isEmpty())
             {
                 List<ColumnIdentifier> nonClusterColumn = properties.definedOrdering.keySet().stream()
-                                                          .filter((id) -> !columnAliases.contains(id)).collect(Collectors.toList());
+                                                                                    .filter((id) -> !columnAliases.contains(id))
+                                                                                    .collect(Collectors.toList());
 
                 if (!nonClusterColumn.isEmpty())
                 {
