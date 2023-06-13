@@ -41,6 +41,7 @@ public class VectorSelector extends Selector
 {
     protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
     {
+        @Override
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             VectorType<?> type = (VectorType<?>) readType(metadata, in);
