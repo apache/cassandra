@@ -97,13 +97,13 @@ public class AdaptiveControllerTest extends ControllerTest
     public void testFromOptions()
     {
         Map<String, String> options = new HashMap<>();
-        options.put(AdaptiveController.STARTING_SCALING_PARAMETER, "0");
         options.put(AdaptiveController.MIN_SCALING_PARAMETER, "-10");
         options.put(AdaptiveController.MAX_SCALING_PARAMETER, "32");
         options.put(AdaptiveController.INTERVAL_SEC, "120");
         options.put(AdaptiveController.THRESHOLD, "0.15");
         options.put(AdaptiveController.MIN_COST, "5");
         options.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
+        options.put(Controller.SCALING_PARAMETERS_OPTION, "T5");
 
         int[] scalingParameters = new int[30];
         Arrays.fill(scalingParameters, 1);
@@ -125,18 +125,43 @@ public class AdaptiveControllerTest extends ControllerTest
 
         for (int i = 0; i < 10; i++)
         {
-            assertEquals(0, controller2.getScalingParameter(i));
-            assertEquals(0, controller2.getPreviousScalingParameter(i));
+            assertEquals(3, controller2.getScalingParameter(i));
+            assertEquals(3, controller2.getPreviousScalingParameter(i));
         }
         AdaptiveController.getControllerConfigPath(keyspaceName, tableName).delete();
 
-        Controller controller3 = testFromOptions(true, options);
+        Map<String, String> options2 = new HashMap<>();
+        options2.put(AdaptiveController.MIN_SCALING_PARAMETER, "-10");
+        options2.put(AdaptiveController.MAX_SCALING_PARAMETER, "32");
+        options2.put(AdaptiveController.INTERVAL_SEC, "120");
+        options2.put(AdaptiveController.THRESHOLD, "0.15");
+        options2.put(AdaptiveController.MIN_COST, "5");
+        options2.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
+        options2.put(Controller.SCALING_PARAMETERS_OPTION, "L5");
+        Controller controller3 = testFromOptions(true, options2);
         assertTrue(controller3 instanceof AdaptiveController);
 
         for (int i = 0; i < 10; i++)
         {
-            assertEquals(0, controller3.getScalingParameter(i));
-            assertEquals(0, controller3.getPreviousScalingParameter(i));
+            assertEquals(-3, controller3.getScalingParameter(i));
+            assertEquals(-3, controller3.getPreviousScalingParameter(i));
+        }
+
+        Map<String, String> options3 = new HashMap<>();
+        options3.put(AdaptiveController.MIN_SCALING_PARAMETER, "-10");
+        options3.put(AdaptiveController.MAX_SCALING_PARAMETER, "32");
+        options3.put(AdaptiveController.INTERVAL_SEC, "120");
+        options3.put(AdaptiveController.THRESHOLD, "0.15");
+        options3.put(AdaptiveController.MIN_COST, "5");
+        options3.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
+        options3.put(Controller.STATIC_SCALING_FACTORS_OPTION, "4");
+        Controller controller4 = testFromOptions(true, options3);
+        assertTrue(controller4 instanceof AdaptiveController);
+
+        for (int i = 0; i < 10; i++)
+        {
+            assertEquals(4, controller4.getScalingParameter(i));
+            assertEquals(4, controller4.getPreviousScalingParameter(i));
         }
     }
 
@@ -144,7 +169,6 @@ public class AdaptiveControllerTest extends ControllerTest
     public void testValidateOptions()
     {
         Map<String, String> options = new HashMap<>();
-        options.put(AdaptiveController.STARTING_SCALING_PARAMETER, "0");
         options.put(AdaptiveController.MIN_SCALING_PARAMETER, "-10");
         options.put(AdaptiveController.MAX_SCALING_PARAMETER, "32");
         options.put(AdaptiveController.INTERVAL_SEC, "120");
@@ -153,6 +177,28 @@ public class AdaptiveControllerTest extends ControllerTest
         options.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
 
         super.testValidateOptions(options, true);
+
+        Map<String, String> options2 = new HashMap<>();
+        options2.put(AdaptiveController.MIN_SCALING_PARAMETER, "-10");
+        options2.put(AdaptiveController.MAX_SCALING_PARAMETER, "32");
+        options2.put(AdaptiveController.INTERVAL_SEC, "120");
+        options2.put(AdaptiveController.THRESHOLD, "0.15");
+        options2.put(AdaptiveController.MIN_COST, "5");
+        options2.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
+        options2.put(Controller.STATIC_SCALING_FACTORS_OPTION, "1,2,3");
+
+        super.testValidateOptions(options2, true);
+
+        Map<String, String> options3 = new HashMap<>();
+        options3.put(AdaptiveController.MIN_SCALING_PARAMETER, "-10");
+        options3.put(AdaptiveController.MAX_SCALING_PARAMETER, "32");
+        options3.put(AdaptiveController.INTERVAL_SEC, "120");
+        options3.put(AdaptiveController.THRESHOLD, "0.15");
+        options3.put(AdaptiveController.MIN_COST, "5");
+        options3.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
+        options3.put(Controller.SCALING_PARAMETERS_OPTION, "1,2,3");
+
+        super.testValidateOptions(options3, true);
     }
 
     @Test
