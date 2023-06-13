@@ -1535,24 +1535,8 @@ public abstract class CQLTester
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
                 if (!Objects.equal(expectedByteValue, actualValue))
                 {
-                    // TODO confirm this isn't a bug...
-                    // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
-                    // If the user writes a null for each column, then the whole tuple is null
-                    if (type instanceof UserType && actualValue == null)
-                    {
-                        UDTValue value = (UDTValue) codec.deserialize(expectedByteValue, version);
-                        boolean allNull = true;
-                        for (int c = 0; c < value.getType().size(); c++)
-                        {
-                            if (!value.isNull(c))
-                            {
-                                // don't match
-                                allNull = false;
-                                break;
-                            }
-                        }
-                        if (allNull) continue;
-                    }
+                    if (isEmptyContainerNull(type, codec, version, expectedByteValue, actualValue))
+                        continue;
                     int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
                     int actualBytes = actualValue == null ? -1 : actualValue.remaining();
                     Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), " +
@@ -1582,6 +1566,45 @@ public abstract class CQLTester
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %s)",
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
+    }
+
+    private static boolean isEmptyContainerNull(AbstractType<?> type,
+                                                ByteBuffer expectedByteValue, ByteBuffer actualValue)
+    {
+        // MAINTANCE : this MUST be in-sync with the DataType version
+
+        // TODO confirm this isn't a bug...
+        // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
+        // If the user writes a null for each column, then the whole tuple is null
+        if (type.isUDT() && actualValue == null)
+        {
+            ByteBuffer[] cells = ((TupleType) type).split(ByteBufferAccessor.instance, expectedByteValue);
+            return Stream.of(cells).allMatch(b -> b == null);
+        }
+        return false;
+    }
+
+    private static boolean isEmptyContainerNull(DataType type,
+                                                com.datastax.driver.core.TypeCodec<Object> codec,
+                                                com.datastax.driver.core.ProtocolVersion version,
+                                                ByteBuffer expectedByteValue, ByteBuffer actualValue)
+    {
+        // MAINTANCE : this MUST be in-sync with the AbstractType version
+
+        // TODO confirm this isn't a bug...
+        // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
+        // If the user writes a null for each column, then the whole tuple is null
+        if (type instanceof UserType && actualValue == null)
+        {
+            UDTValue value = (UDTValue) codec.deserialize(expectedByteValue, version);
+            for (int c = 0; c < value.getType().size(); c++)
+            {
+                if (!value.isNull(c))
+                    return false;
+            }
+            return true;
+        }
+        return false;
     }
 
     protected void assertRowCountNet(ResultSet r1, int expectedCount)
@@ -1624,15 +1647,8 @@ public abstract class CQLTester
                     Object actualValueDecoded = actualValue == null ? null : column.type.getSerializer().deserialize(actualValue);
                     if (!Objects.equal(expected != null ? expected[j] : null, actualValueDecoded))
                     {
-                        // TODO confirm this isn't a bug...
-                        // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
-                        // If the user writes a null for each column, then the whole tuple is null
-                        if (column.type.isUDT() && actualValue == null)
-                        {
-                            ByteBuffer[] cells = ((TupleType) column.type).split(ByteBufferAccessor.instance, expectedByteValue);
-                            if (Stream.of(cells).allMatch(b -> b == null))
-                                continue; // nothing to see here...
-                        }
+                        if (isEmptyContainerNull(column.type, expectedByteValue, actualValue))
+                            continue;
                         error.append(String.format("Invalid value for row %d column %d (%s of type %s), expected <%s> but got <%s>",
                                                    i,
                                                    j,
