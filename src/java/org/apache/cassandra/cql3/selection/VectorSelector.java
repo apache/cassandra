@@ -74,8 +74,7 @@ public class VectorSelector extends Selector
     {
         assert type.isVector() : String.format("Unable to create vector selector from typs %s", type.asCQL3Type());
         VectorType<?> vt = (VectorType<?>) type;
-        // TODO : should CollectionFactory be renamed?  Its used by Collections, Tuples, and Vectors
-        return new CollectionFactory(type, factories)
+        return new MultiElementFactory(type, factories)
         {
             protected String getColumnName()
             {
