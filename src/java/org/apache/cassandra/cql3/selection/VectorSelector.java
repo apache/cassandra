@@ -65,7 +65,10 @@ public class VectorSelector extends Selector
     private VectorSelector(VectorType<?> type, List<Selector> elements)
     {
         super(Kind.VECTOR_SELECTOR);
-        Preconditions.checkArgument(elements.size() == type.dimension, "Unable to create a vector select of type %s from %s elements", type.asCQL3Type(), elements.size());
+        Preconditions.checkArgument(elements.size() == type.dimension,
+                                    "Unable to create a vector select of type %s from %s elements",
+                                    type.asCQL3Type(),
+                                    elements.size());
         this.type = type;
         this.elements = elements;
     }
