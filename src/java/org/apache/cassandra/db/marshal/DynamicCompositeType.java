@@ -586,11 +586,24 @@ public class DynamicCompositeType extends AbstractCompositeType
         DynamicParsedComparator(String part)
         {
             String[] splits = part.split("@");
-            if (splits.length != 2)
-                throw new IllegalArgumentException("Invalid component representation: " + part);
-
-            comparatorName = splits[0];
-            remainingPart = splits[1];
+            switch (splits.length)
+            {
+                default:
+                    throw new IllegalArgumentException("Invalid component representation: " + part);
+                case 1:
+                {
+                    // empty is allowed for some types, so leave this to the higher level to validate empty makes sense for the type
+                    comparatorName = splits[0];
+                    remainingPart = "";
+                }
+                break;
+                case 2:
+                {
+                    comparatorName = splits[0];
+                    remainingPart = splits[1];
+                }
+                break;
+            }
 
             try
             {

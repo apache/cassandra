@@ -230,6 +230,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             part = p.getRemainingPart();
 
             ByteBuffer component = type.fromString(unescape(part));
+            type.validate(component);
             totalLength += p.getComparatorSerializedSize() + 2 + component.remaining() + 1;
             components.add(component);
             comparators.add(p);
