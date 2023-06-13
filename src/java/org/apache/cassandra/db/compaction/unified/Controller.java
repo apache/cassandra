@@ -193,6 +193,13 @@ public abstract class Controller
         OverlapInclusionMethod.valueOf(System.getProperty(PREFIX + OVERLAP_INCLUSION_METHOD_OPTION,
                                                           OverlapInclusionMethod.TRANSITIVE.toString()).toUpperCase());
 
+    /**
+     * The scaling parameters W, one per bucket index and separated by a comma.
+     * Higher indexes will use the value of the last index with a W specified.
+     */
+    static final String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    static final String STATIC_SCALING_FACTORS_OPTION = "static_scaling_factors";
+
     protected final MonotonicClock clock;
     protected final Environment env;
     protected final double[] survivalFactors;
