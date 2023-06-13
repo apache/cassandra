@@ -117,7 +117,7 @@ public class IndexContext
         this.indexMetrics = indexMetadata == null ? null : new IndexMetrics(this);
         this.viewManager = new IndexViewManager(this);
         this.columnQueryMetrics = isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(this)
-                                              : new ColumnQueryMetrics.BKDIndexMetrics(this);
+                                              : new ColumnQueryMetrics.BalancedTreeIndexMetrics(this);
 
         // We currently only support the NoOpAnalyzer
         this.indexAnalyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap());

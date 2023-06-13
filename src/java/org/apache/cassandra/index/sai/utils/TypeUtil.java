@@ -210,7 +210,7 @@ public class TypeUtil
         if (type instanceof InetAddressType || type instanceof IntegerType || type instanceof DecimalType)
             return ByteSource.optionalFixedLength(ByteBufferAccessor.instance, value);
         // The LongType.asComparableBytes uses variableLengthInteger which doesn't play well with
-        // the KDTree because it is expecting fixed length data. So for SAI we use a optionalSignedFixedLengthNumber
+        // the balanced tree because it is expecting fixed length data. So for SAI we use a optionalSignedFixedLengthNumber
         // to keep all comparable values the same length
         else if (type instanceof LongType)
             return ByteSource.optionalSignedFixedLengthNumber(ByteBufferAccessor.instance, value);

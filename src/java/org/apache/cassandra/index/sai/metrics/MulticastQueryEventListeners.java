@@ -28,9 +28,9 @@ public final class MulticastQueryEventListeners
         return new Multicast2TrieIndexEventListener(ctx, listener);
     }
 
-    public static QueryEventListener.BlockBalancedTreeEventListener of(QueryContext ctx, QueryEventListener.BlockBalancedTreeEventListener listener)
+    public static QueryEventListener.BalancedTreeEventListener of(QueryContext ctx, QueryEventListener.BalancedTreeEventListener listener)
     {
-        return new Multicast2BKDIndexEventListener(ctx, listener);
+        return new Multicast2BalancedTreeEventListener(ctx, listener);
     }
 
     public static class Multicast2TrieIndexEventListener implements QueryEventListener.TrieIndexEventListener
@@ -67,17 +67,17 @@ public final class MulticastQueryEventListeners
         }
     }
 
-    public static class Multicast2BKDIndexEventListener implements QueryEventListener.BlockBalancedTreeEventListener
+    public static class Multicast2BalancedTreeEventListener implements QueryEventListener.BalancedTreeEventListener
     {
         private final QueryContext ctx;
-        private final QueryEventListener.BlockBalancedTreeEventListener listener;
-        private final Multicast2BKDPostingListEventListener postingListEventListener;
+        private final QueryEventListener.BalancedTreeEventListener listener;
+        private final Multicast2BalancedTreePostingListEventListener postingListEventListener;
 
-        private Multicast2BKDIndexEventListener(QueryContext ctx, QueryEventListener.BlockBalancedTreeEventListener listener)
+        private Multicast2BalancedTreeEventListener(QueryContext ctx, QueryEventListener.BalancedTreeEventListener listener)
         {
             this.ctx = ctx;
             this.listener = listener;
-            this.postingListEventListener = new Multicast2BKDPostingListEventListener(ctx, listener.postingListEventListener());
+            this.postingListEventListener = new Multicast2BalancedTreePostingListEventListener(ctx, listener.postingListEventListener());
         }
 
         @Override
@@ -95,7 +95,7 @@ public final class MulticastQueryEventListeners
         @Override
         public void postingListsHit(int count)
         {
-            ctx.bbtPostingListsHit++;
+            ctx.balancedTreePostingListsHit++;
             listener.postingListsHit(count);
         }
 
@@ -103,7 +103,7 @@ public final class MulticastQueryEventListeners
         public void onSegmentHit()
         {
             ctx.segmentsHit++;
-            ctx.bbtSegmentsHit++;
+            ctx.balancedTreeSegmentsHit++;
             listener.onSegmentHit();
         }
 
@@ -114,12 +114,12 @@ public final class MulticastQueryEventListeners
         }
     }
 
-    public static class Multicast2BKDPostingListEventListener implements QueryEventListener.PostingListEventListener
+    public static class Multicast2BalancedTreePostingListEventListener implements QueryEventListener.PostingListEventListener
     {
         private final QueryContext ctx;
         private final QueryEventListener.PostingListEventListener listener;
 
-        Multicast2BKDPostingListEventListener(QueryContext ctx, QueryEventListener.PostingListEventListener listener)
+        Multicast2BalancedTreePostingListEventListener(QueryContext ctx, QueryEventListener.PostingListEventListener listener)
         {
             this.ctx = ctx;
             this.listener = listener;
@@ -128,14 +128,14 @@ public final class MulticastQueryEventListeners
         @Override
         public void onAdvance()
         {
-            ctx.bbtPostingsSkips++;
+            ctx.balancedTreePostingsSkips++;
             listener.onAdvance();
         }
 
         @Override
         public void postingDecoded(long postingDecoded)
         {
-            ctx.bbtPostingsDecodes += postingDecoded;
+            ctx.balancedTreePostingsDecodes += postingDecoded;
             listener.postingDecoded(postingDecoded);
         }
     }

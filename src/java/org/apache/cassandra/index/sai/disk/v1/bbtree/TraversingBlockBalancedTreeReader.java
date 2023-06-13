@@ -35,12 +35,12 @@ import org.apache.lucene.util.MathUtil;
 
 /**
  * Base reader for a block balanced tree previously written with {@link BlockBalancedTreeWriter}.
- *
+ * <p>
  * Holds the index tree on heap and enables its traversal via {@link #traverse(IndexTreeTraversalCallback)}.
  */
 public class TraversingBlockBalancedTreeReader implements Closeable
 {
-    final FileHandle indexFile;
+    final FileHandle treeIndexFile;
     final int bytesPerValue;
     final int numLeaves;
     final byte[] minPackedValue;
@@ -48,19 +48,18 @@ public class TraversingBlockBalancedTreeReader implements Closeable
     // Packed array of byte[] holding all split values in the full binary tree:
     final byte[] packedIndex;
     final long pointCount;
-    final int leafNodeOffset;
     final int maxPointsInLeafNode;
     final int packedBytesLength;
 
-    TraversingBlockBalancedTreeReader(FileHandle indexFile, long root)
+    TraversingBlockBalancedTreeReader(FileHandle treeIndexFile, long treeIndexRoot)
     {
-        this.indexFile = indexFile;
+        this.treeIndexFile = treeIndexFile;
 
-        try (RandomAccessReader reader = indexFile.createReader();
+        try (RandomAccessReader reader = treeIndexFile.createReader();
              IndexInputReader in = IndexInputReader.create(reader))
         {
             SAICodecUtils.validate(in);
-            in.seek(root);
+            in.seek(treeIndexRoot);
 
             maxPointsInLeafNode = in.readVInt();
             bytesPerValue = in.readVInt();
@@ -69,7 +68,6 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             // Read index:
             numLeaves = in.readVInt();
             assert numLeaves > 0;
-            leafNodeOffset = numLeaves;
 
             minPackedValue = new byte[packedBytesLength];
             maxPackedValue = new byte[packedBytesLength];
@@ -92,7 +90,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         }
         catch (Throwable t)
         {
-            FileUtils.closeQuietly(indexFile);
+            FileUtils.closeQuietly(treeIndexFile);
             throw Throwables.unchecked(t);
         }
     }
@@ -107,7 +105,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
     @Override
     public void close()
     {
-        FileUtils.closeQuietly(indexFile);
+        FileUtils.closeQuietly(treeIndexFile);
     }
 
     void traverse(IndexTreeTraversalCallback callback)
@@ -142,9 +140,6 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         }
     }
 
-    /**
-     * Copy of BKDReader#getTreeDepth()
-     */
     private int getTreeDepth()
     {
         // First +1 because all the non-leave nodes makes another power
@@ -168,7 +163,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         private int nodeID;
         // level is 1-based so that we can do level-1 w/o checking each time:
         private int level;
-        private int splitDim;
+        private boolean leafNode;
 
         // used to read the packed byte[]
         private final ByteArrayDataInput in;
@@ -178,8 +173,6 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         private final int[] leftNodePositions;
         // holds the address, in the packed byte[] index, of the right-node of each level:
         private final int[] rightNodePositions;
-        // holds the splitDim for each level:
-        private final int[] splitDims;
         // true if the per-dim delta we read for the node at this level is a negative offset vs. the last split on this dim; this is a packed
         // 2D array, i.e. to access array[level][dim] you read from negativeDeltas[level*numDims+dim].  this will be true if the last time we
         // split on this dimension, we next pushed to the left subtree:
@@ -200,7 +193,6 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             leftNodePositions = new int[treeDepth + 1];
             rightNodePositions = new int[treeDepth + 1];
             splitValuesStack = new byte[treeDepth + 1][];
-            splitDims = new int[treeDepth + 1];
             negativeDeltas = new boolean[treeDepth + 1];
 
             in = new ByteArrayDataInput(packedIndex);
@@ -218,8 +210,8 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             if (splitPackedValueStack[level] == null)
                 splitPackedValueStack[level] = new byte[packedBytesLength];
             System.arraycopy(negativeDeltas, level - 1, negativeDeltas, level, 1);
-            assert splitDim != -1;
-            negativeDeltas[level + splitDim] = true;
+            assert !leafNode;
+            negativeDeltas[level] = true;
             in.setPosition(nodePosition);
             readNodeData(true);
         }
@@ -232,8 +224,8 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             if (splitPackedValueStack[level] == null)
                 splitPackedValueStack[level] = new byte[packedBytesLength];
             System.arraycopy(negativeDeltas, level - 1, negativeDeltas, level, 1);
-            assert splitDim != -1;
-            negativeDeltas[level + splitDim] = false;
+            assert !leafNode;
+            negativeDeltas[level] = false;
             in.setPosition(nodePosition);
             readNodeData(false);
         }
@@ -242,17 +234,17 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         {
             nodeID /= 2;
             level--;
-            splitDim = splitDims[level];
+            leafNode = false;
         }
 
         public boolean isLeafNode()
         {
-            return nodeID >= leafNodeOffset;
+            return nodeID >= numLeaves;
         }
 
         public boolean nodeExists()
         {
-            return nodeID - leafNodeOffset < leafNodeOffset;
+            return nodeID - numLeaves < numLeaves;
         }
 
         public int getNodeID()
@@ -267,13 +259,6 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             return splitPackedValueStack[level];
         }
 
-        /** Only valid after pushLeft or pushRight, not pop! */
-        public int getSplitDim()
-        {
-            assert !isLeafNode();
-            return splitDim;
-        }
-
         public long getLeafBlockFP()
         {
             assert isLeafNode() : "nodeID=" + nodeID + " is not a leaf";
@@ -284,7 +269,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         {
             assert !isLeafNode();
             scratch.bytes = splitValuesStack[level];
-            scratch.offset = splitDim * bytesPerValue;
+            scratch.offset = 0;
             return scratch;
         }
 
@@ -296,14 +281,11 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             if (!isLeft)
                 leafBlockFPStack[level] += in.readVLong();
 
-            if (isLeafNode())
-                splitDim = -1;
-            else
+            leafNode = isLeafNode();
+            if (!leafNode)
             {
                 // read split dim, prefix, firstDiffByteDelta encoded as int:
                 int code = in.readVInt();
-                splitDim = 0;
-                splitDims[level] = splitDim;
                 int prefix = code % (1 + bytesPerValue);
                 int suffix = bytesPerValue - prefix;
 
@@ -315,14 +297,14 @@ public class TraversingBlockBalancedTreeReader implements Closeable
                 if (suffix > 0)
                 {
                     int firstDiffByteDelta = code / (1 + bytesPerValue);
-                    if (negativeDeltas[level + splitDim])
+                    if (negativeDeltas[level])
                         firstDiffByteDelta = -firstDiffByteDelta;
-                    int oldByte = splitValuesStack[level][splitDim * bytesPerValue + prefix] & 0xFF;
-                    splitValuesStack[level][splitDim * bytesPerValue + prefix] = (byte) (oldByte + firstDiffByteDelta);
-                    in.readBytes(splitValuesStack[level], splitDim * bytesPerValue + prefix + 1, suffix - 1);
+                    int oldByte = splitValuesStack[level][prefix] & 0xFF;
+                    splitValuesStack[level][prefix] = (byte) (oldByte + firstDiffByteDelta);
+                    in.readBytes(splitValuesStack[level], prefix + 1, suffix - 1);
                 }
 
-                int leftNumBytes = nodeID * 2 < leafNodeOffset ? in.readVInt() : 0;
+                int leftNumBytes = nodeID * 2 < numLeaves ? in.readVInt() : 0;
 
                 leftNodePositions[level] = in.getPosition();
                 rightNodePositions[level] = leftNodePositions[level] + leftNumBytes;

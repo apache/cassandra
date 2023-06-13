@@ -53,7 +53,7 @@ import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.packed.DirectWriter;
 
 /**
- * Handles intersection of a multidimensional shape in byte[] space with a block KD-tree previously written with
+ * Handles intersection of a point or point range with a block balanced tree previously written with
  * {@link BlockBalancedTreeWriter}.
  */
 public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader implements Closeable
@@ -71,15 +71,15 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
      * Performs a blocking read.
      */
     public BlockBalancedTreeReader(IndexContext indexContext,
-                                   FileHandle balancedTreeFile,
-                                   long balancedTreeIndexRoot,
+                                   FileHandle treeIndexFile,
+                                   long treeIndexRoot,
                                    FileHandle postingsFile,
-                                   long balancedTreePostingsRoot) throws IOException
+                                   long treePostingsRoot) throws IOException
     {
-        super(balancedTreeFile, balancedTreeIndexRoot);
+        super(treeIndexFile, treeIndexRoot);
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
-        this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, balancedTreePostingsRoot);
+        this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, treePostingsRoot);
         leafOrderMapReader = DirectReaders.getReaderForBitsPerValue((byte) DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1));
     }
 
@@ -101,7 +101,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BlockBalancedTreeEventListener listener, QueryContext context)
+    public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
     {
         Relation relation = visitor.compare(minPackedValue, maxPackedValue);
 
@@ -112,37 +112,37 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         }
 
         listener.onSegmentHit();
-        IndexInput balancedTreeInput = IndexFileUtils.instance.openInput(indexFile);
+        IndexInput treeInput = IndexFileUtils.instance.openInput(treeIndexFile);
         IndexInput postingsInput = IndexFileUtils.instance.openInput(postingsFile);
         IndexInput postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
         PackedIndexTree index = new PackedIndexTree();
 
         Intersection intersection = relation == Relation.CELL_INSIDE_QUERY
-                                    ? new Intersection(balancedTreeInput, postingsInput, postingsSummaryInput, index, listener, context)
-                                    : new FilteringIntersection(balancedTreeInput, postingsInput, postingsSummaryInput, index, visitor, listener, context);
+                                    ? new Intersection(treeInput, postingsInput, postingsSummaryInput, index, listener, context)
+                                    : new FilteringIntersection(treeInput, postingsInput, postingsSummaryInput, index, visitor, listener, context);
 
         return intersection.execute();
     }
 
     /**
-     * Synchronous intersection of a multidimensional shape in byte[] space with a block KD-tree
-     * previously written with {@link BlockBalancedTreeWriter}.
+     * Synchronous intersection of a point or point range with a block balanced tree previously written
+     * with {@link BlockBalancedTreeWriter}.
      */
     private class Intersection
     {
         private final Stopwatch queryExecutionTimer = Stopwatch.createStarted();
         final QueryContext context;
 
-        final IndexInput balancedTreeInput;
+        final IndexInput treeInput;
         final IndexInput postingsInput;
         final IndexInput postingsSummaryInput;
         final PackedIndexTree index;
-        final QueryEventListener.BlockBalancedTreeEventListener listener;
+        final QueryEventListener.BalancedTreeEventListener listener;
 
-        Intersection(IndexInput balancedTreeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
-                     PackedIndexTree index, QueryEventListener.BlockBalancedTreeEventListener listener, QueryContext context)
+        Intersection(IndexInput treeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
+                     PackedIndexTree index, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
         {
-            this.balancedTreeInput = balancedTreeInput;
+            this.treeInput = treeInput;
             this.postingsInput = postingsInput;
             this.postingsSummaryInput = postingsSummaryInput;
             this.index = index;
@@ -158,14 +158,14 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
                 executeInternal(postingLists);
 
-                FileUtils.closeQuietly(balancedTreeInput);
+                FileUtils.closeQuietly(treeInput);
 
                 return mergePostings(postingLists);
             }
             catch (Throwable t)
             {
                 if (!(t instanceof QueryCancelledException))
-                    logger.error(indexContext.logMessage("Balanced tree intersection failed on {}"), indexFile.path(), t);
+                    logger.error(indexContext.logMessage("Balanced tree intersection failed on {}"), treeIndexFile.path(), t);
 
                 closeOnException();
                 throw Throwables.cleaned(t);
@@ -179,7 +179,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
         protected void closeOnException()
         {
-            FileUtils.closeQuietly(balancedTreeInput);
+            FileUtils.closeQuietly(treeInput);
             FileUtils.closeQuietly(postingsInput);
             FileUtils.closeQuietly(postingsSummaryInput);
         }
@@ -201,7 +201,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
             {
                 if (logger.isTraceEnabled())
                     logger.trace(indexContext.logMessage("[{}] Intersection completed in {} microseconds. {} leaf and internal posting lists hit."),
-                                 indexFile.path(), elapsedMicros, postingLists.size());
+                                 treeIndexFile.path(), elapsedMicros, postingLists.size());
                 return MergePostingList.merge(postingLists, () -> FileUtils.close(postingsInput, postingsSummaryInput));
             }
         }
@@ -246,11 +246,11 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         private final byte[] packedValue;
         private final short[] origIndex;
 
-        FilteringIntersection(IndexInput balancedTreeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
+        FilteringIntersection(IndexInput treeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
                               PackedIndexTree index, IntersectVisitor visitor,
-                              QueryEventListener.BlockBalancedTreeEventListener listener, QueryContext context)
+                              QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
         {
-            super(balancedTreeInput, postingsInput, postingsSummaryInput, index, listener, context);
+            super(treeInput, postingsInput, postingsSummaryInput, index, listener, context);
             this.visitor = visitor;
             this.packedValue = new byte[packedBytesLength];
             this.origIndex = new short[maxPointsInLeafNode];
@@ -293,26 +293,26 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
         private void filterLeaf(PriorityQueue<PeekablePostingList> postingLists) throws IOException
         {
-            balancedTreeInput.seek(index.getLeafBlockFP());
+            treeInput.seek(index.getLeafBlockFP());
 
-            int count = balancedTreeInput.readVInt();
+            int count = treeInput.readVInt();
 
             // loading doc ids occurred here prior
 
-            int orderMapLength = balancedTreeInput.readVInt();
+            int orderMapLength = treeInput.readVInt();
 
-            long orderMapPointer = balancedTreeInput.getFilePointer();
+            long orderMapPointer = treeInput.getFilePointer();
 
-            SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(balancedTreeInput);
+            SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(treeInput);
             for (int x = 0; x < count; x++)
             {
                 origIndex[x] = (short) LeafOrderMap.getValue(randomAccessInput, orderMapPointer, x, leafOrderMapReader);
             }
 
             // seek beyond the ordermap
-            balancedTreeInput.seek(orderMapPointer + orderMapLength);
+            treeInput.seek(orderMapPointer + orderMapLength);
 
-            FixedBitSet fixedBitSet = visitDocValues(balancedTreeInput, count, visitor, origIndex);
+            FixedBitSet fixedBitSet = visitDocValues(treeInput, count, visitor, origIndex);
 
             int nodeID = index.getNodeID();
 
@@ -325,17 +325,13 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
         void visitNode(PriorityQueue<PeekablePostingList> postingLists, byte[] cellMinPacked, byte[] cellMaxPacked) throws IOException
         {
-            int splitDim = index.getSplitDim();
-            assert splitDim >= 0 : "splitDim=" + splitDim;
-            assert splitDim < 1;
-
             byte[] splitPackedValue = index.getSplitPackedValue();
             BytesRef splitDimValue = index.getSplitDimValue();
             assert splitDimValue.length == bytesPerValue;
 
             // make sure cellMin <= splitValue <= cellMax:
-            assert FutureArrays.compareUnsigned(cellMinPacked, 0, bytesPerValue, splitDimValue.bytes, splitDimValue.offset, splitDimValue.offset + bytesPerValue) <= 0 : "bytesPerDim=" + bytesPerValue + " splitDim=" + splitDim + " numDims=" + 1;
-            assert FutureArrays.compareUnsigned(cellMaxPacked, 0, bytesPerValue, splitDimValue.bytes, splitDimValue.offset, splitDimValue.offset + bytesPerValue) >= 0 : "bytesPerDim=" + bytesPerValue + " splitDim=" + splitDim + " numDims=" + 1;
+            assert FutureArrays.compareUnsigned(cellMinPacked, 0, bytesPerValue, splitDimValue.bytes, splitDimValue.offset, splitDimValue.offset + bytesPerValue) <= 0 : "bytesPerValue=" + bytesPerValue;
+            assert FutureArrays.compareUnsigned(cellMaxPacked, 0, bytesPerValue, splitDimValue.bytes, splitDimValue.offset, splitDimValue.offset + bytesPerValue) >= 0 : "bytesPerValue=" + bytesPerValue;
 
             // Recurse on left subtree:
             System.arraycopy(cellMaxPacked, 0, splitPackedValue, 0, packedBytesLength);

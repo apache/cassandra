@@ -27,7 +27,7 @@ public interface QueryEventListener
     /**
      * Collector for balanced tree file related metrics.
      */
-    interface BlockBalancedTreeEventListener
+    interface BalancedTreeEventListener
     {
         /**
          * Per-segment balanced tree index intersection time in given units. Recorded when intersection completes.

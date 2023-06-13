@@ -101,7 +101,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReaderOneDim(2, buffer);
+        final BlockBalancedTreeReader reader = finishAndOpenReader(2, buffer);
 
         PostingList intersection = performIntersection(reader, NONE_MATCH);
         assertNull(intersection);
@@ -152,7 +152,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReaderOneDim(5, buffer);
+        final BlockBalancedTreeReader reader = finishAndOpenReader(5, buffer);
 
         PostingList postingList = performIntersection(reader, buildQuery(8, 15));
 
@@ -188,7 +188,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReaderOneDim(50, buffer);
+        final BlockBalancedTreeReader reader = finishAndOpenReader(50, buffer);
 
         final PostingList intersection = performIntersection(reader, buildQuery(1017, 1096));
         assertNull(intersection);
@@ -196,7 +196,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
 
     private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
     {
-        QueryEventListener.BlockBalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BlockBalancedTreeEventListener.class);
+        QueryEventListener.BalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BalancedTreeEventListener.class);
         when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
         return reader.intersect(visitor, bkdIndexEventListener, mock(QueryContext.class));
     }
@@ -235,7 +235,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         };
     }
 
-    private BlockBalancedTreeReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, BlockBalancedTreeRamBuffer buffer) throws Exception
+    private BlockBalancedTreeReader finishAndOpenReader(int maxPointsPerLeaf, BlockBalancedTreeRamBuffer buffer) throws Exception
     {
         setBDKPostingsWriterSizing(8, 2);
         final NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,

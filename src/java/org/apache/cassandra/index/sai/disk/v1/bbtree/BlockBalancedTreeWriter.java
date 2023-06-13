@@ -36,10 +36,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.Sorter;
+import org.apache.lucene.util.bkd.BKDWriter;
 import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 
 /**
- * This is a specialisation of the lucene BKDWriter that only writes a single dimension
+ * This is a specialisation of the Lucene {@link BKDWriter} that only writes a single dimension
  * balanced tree.
  * <p>
  * Recursively builds a block balanced tree to assign all incoming points to smaller
@@ -51,6 +52,8 @@ import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
  *
  * <p>
  * <b>NOTE</b>: This can write at most Integer.MAX_VALUE * <code>maxPointsInLeafNode</code> total points.
+ * <p>
+ * @see BKDWriter
  */
 public class BlockBalancedTreeWriter
 {
@@ -113,7 +116,7 @@ public class BlockBalancedTreeWriter
         if (reader.needsSorting())
             MutablePointsReaderUtils.sort(Math.toIntExact(maxDoc), bytesPerValue, reader, 0, Math.toIntExact(reader.size()));
 
-        OneDimensionBKDWriter oneDimWriter = new OneDimensionBKDWriter(out, callback);
+        TreeWriter oneDimWriter = new TreeWriter(out, callback);
 
         reader.intersect((docID, packedValue) -> oneDimWriter.add(packedValue, docID));
 
@@ -143,7 +146,7 @@ public class BlockBalancedTreeWriter
         }
     }
 
-    private class OneDimensionBKDWriter
+    private class TreeWriter
     {
         private final IndexOutput out;
         private final List<Long> leafBlockFilePointer = new ArrayList<>();
@@ -161,7 +164,7 @@ public class BlockBalancedTreeWriter
         private int leafCount;
         private long lastDocID;
 
-        OneDimensionBKDWriter(IndexOutput out, Callback callback)
+        TreeWriter(IndexOutput out, Callback callback)
         {
             this.out = out;
             this.callback = callback;
@@ -396,8 +399,8 @@ public class BlockBalancedTreeWriter
     {
         int numLeaves = leafBlockFPs.length;
 
-        // Possibly rotate the leaf block FPs, if the index not fully balanced binary tree (only happens
-        // if it was created by OneDimensionBKDWriter).  In this case the leaf nodes may straddle the two bottom
+        // Possibly rotate the leaf block FPs, if the index is not a fully balanced binary tree (only happens
+        // if it was created by TreeWriter).  In this case the leaf nodes may straddle the two bottom
         // levels of the binary tree:
         if (numLeaves > 1)
         {

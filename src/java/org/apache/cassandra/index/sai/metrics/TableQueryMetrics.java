@@ -122,10 +122,10 @@ public class TableQueryMetrics extends AbstractMetrics
 
         private void recordNumericIndexCacheMetrics(QueryContext events)
         {
-            balancedTreePostingsNumPostings.update(events.bbtPostingListsHit);
+            balancedTreePostingsNumPostings.update(events.balancedTreePostingListsHit);
 
-            balancedTreePostingsSkips.update(events.bbtPostingsSkips);
-            balancedTreePostingsDecodes.update(events.bbtPostingsDecodes);
+            balancedTreePostingsSkips.update(events.balancedTreePostingsSkips);
+            balancedTreePostingsDecodes.update(events.balancedTreePostingsDecodes);
         }
 
         public void record(QueryContext queryContext)
@@ -156,7 +156,7 @@ public class TableQueryMetrics extends AbstractMetrics
                 recordStringIndexCacheMetrics(queryContext);
             }
 
-            if (queryContext.bbtSegmentsHit > 0)
+            if (queryContext.balancedTreeSegmentsHit > 0)
             {
                 recordNumericIndexCacheMetrics(queryContext);
             }

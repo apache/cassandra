@@ -51,10 +51,10 @@ public class QueryContext
     public long triePostingsSkips = 0;
     public long triePostingsDecodes = 0;
 
-    public long bbtPostingListsHit = 0;
-    public long bbtSegmentsHit = 0;
-    public long bbtPostingsSkips = 0;
-    public long bbtPostingsDecodes = 0;
+    public long balancedTreePostingListsHit = 0;
+    public long balancedTreeSegmentsHit = 0;
+    public long balancedTreePostingsSkips = 0;
+    public long balancedTreePostingsDecodes = 0;
 
     public boolean queryTimedOut = false;
 

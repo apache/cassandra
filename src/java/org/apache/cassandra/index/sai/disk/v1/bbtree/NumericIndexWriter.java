@@ -36,11 +36,10 @@ import org.apache.lucene.util.packed.PackedLongValues;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-
 /**
- * Specialized writer for 1-dim point values, that builds them into a {@link BlockBalancedTreeWriter} with auxiliary
+ * Specialized writer for point values, that builds them into a {@link BlockBalancedTreeWriter} with auxiliary
  * posting lists on eligible tree levels.
- *
+ * <p>
  * Given a sorted input {@link IntersectingPointValues}, the flush process is optimised because we don't need to
  * buffer all point values to sort them.
  */
@@ -119,24 +118,24 @@ public class NumericIndexWriter
      */
     public SegmentMetadata.ComponentMetadataMap writeAll(IntersectingPointValues values) throws IOException
     {
-        long balancedTreePosition;
+        long treePosition;
         SegmentMetadata.ComponentMetadataMap components = new SegmentMetadata.ComponentMetadataMap();
 
         LeafCallback leafCallback = new LeafCallback();
 
-        try (IndexOutput balancedTreeOutput = indexDescriptor.openPerIndexOutput(IndexComponent.BALANCED_TREE, indexContext, true))
+        try (IndexOutput treeOutput = indexDescriptor.openPerIndexOutput(IndexComponent.BALANCED_TREE, indexContext, true))
         {
             // The SSTable balanced tree component file is opened in append mode, so our offset is the current file pointer.
-            long balancedTreeOffset = balancedTreeOutput.getFilePointer();
+            long treeOffset = treeOutput.getFilePointer();
 
-            balancedTreePosition = writer.writeField(balancedTreeOutput, values, leafCallback);
+            treePosition = writer.writeField(treeOutput, values, leafCallback);
 
-            // If the balancedTreePosition is less than 0 then we didn't write any values out
+            // If the treePosition is less than 0 then we didn't write any values out
             // and the index is empty
-            if (balancedTreePosition < 0)
+            if (treePosition < 0)
                 return components;
 
-            long balancedTreeLength = balancedTreeOutput.getFilePointer() - balancedTreeOffset;
+            long treeLength = treeOutput.getFilePointer() - treeOffset;
 
             Map<String, String> attributes = new LinkedHashMap<>();
             attributes.put("max_points_in_leaf_node", Integer.toString(writer.getMaxPointsInLeafNode()));
@@ -144,10 +143,10 @@ public class NumericIndexWriter
             attributes.put("num_points", Long.toString(writer.getPointCount()));
             attributes.put("bytes_per_dim", Long.toString(writer.getBytesPerValue()));
 
-            components.put(IndexComponent.BALANCED_TREE, balancedTreePosition, balancedTreeOffset, balancedTreeLength, attributes);
+            components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
         }
 
-        try (TraversingBlockBalancedTreeReader reader = new TraversingBlockBalancedTreeReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext), balancedTreePosition);
+        try (TraversingBlockBalancedTreeReader reader = new TraversingBlockBalancedTreeReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext), treePosition);
              IndexOutput postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true))
         {
             long postingsOffset = postingsOutput.getFilePointer();

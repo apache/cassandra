@@ -45,8 +45,8 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    private final BlockBalancedTreeReader balancedTreeReader;
-    private final QueryEventListener.BlockBalancedTreeEventListener perColumnEventListener;
+    private final BlockBalancedTreeReader treeReader;
+    private final QueryEventListener.BalancedTreeEventListener perColumnEventListener;
 
     NumericIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                 PerColumnIndexFiles perIndexFiles,
@@ -55,23 +55,23 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
 
-        final long balancedTreePosition = metadata.getIndexRoot(IndexComponent.BALANCED_TREE);
-        assert balancedTreePosition >= 0;
+        final long treePosition = metadata.getIndexRoot(IndexComponent.BALANCED_TREE);
+        assert treePosition >= 0;
         final long postingsPosition = metadata.getIndexRoot(IndexComponent.POSTING_LISTS);
         assert postingsPosition >= 0;
 
-        balancedTreeReader = new BlockBalancedTreeReader(indexContext,
-                                                         indexFiles.balancedTree(),
-                                                         balancedTreePosition,
-                                                         indexFiles.postingLists(),
-                                                         postingsPosition);
-        perColumnEventListener = (QueryEventListener.BlockBalancedTreeEventListener)indexContext.getColumnQueryMetrics();
+        treeReader = new BlockBalancedTreeReader(indexContext,
+                                                 indexFiles.balancedTree(),
+                                                 treePosition,
+                                                 indexFiles.postingLists(),
+                                                 postingsPosition);
+        perColumnEventListener = (QueryEventListener.BalancedTreeEventListener)indexContext.getColumnQueryMetrics();
     }
 
     @Override
     public long indexFileCacheSize()
     {
-        return balancedTreeReader.memoryUsage();
+        return treeReader.memoryUsage();
     }
 
     @Override
@@ -83,9 +83,9 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
 
         if (exp.getOp().isEqualityOrRange())
         {
-            final BlockBalancedTreeReader.IntersectVisitor query = balancedTreeQueryFrom(exp, balancedTreeReader.getBytesPerValue());
-            QueryEventListener.BlockBalancedTreeEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
-            PostingList postingList = balancedTreeReader.intersect(query, listener, context);
+            final BlockBalancedTreeReader.IntersectVisitor query = balancedTreeQueryFrom(exp, treeReader.getBytesPerValue());
+            QueryEventListener.BalancedTreeEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
+            PostingList postingList = treeReader.intersect(query, listener, context);
             return toIterator(postingList, context);
         }
         else
@@ -99,14 +99,14 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     {
         return MoreObjects.toStringHelper(this)
                           .add("indexContext", indexContext)
-                          .add("count", balancedTreeReader.getPointCount())
-                          .add("bytesPerValue", balancedTreeReader.getBytesPerValue())
+                          .add("count", treeReader.getPointCount())
+                          .add("bytesPerValue", treeReader.getBytesPerValue())
                           .toString();
     }
 
     @Override
     public void close()
     {
-        balancedTreeReader.close();
+        treeReader.close();
     }
 }

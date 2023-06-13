@@ -172,9 +172,9 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         }
     }
 
-    private QueryEventListener.BlockBalancedTreeEventListener mockEventListener()
+    private QueryEventListener.BalancedTreeEventListener mockEventListener()
     {
-        QueryEventListener.BlockBalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BlockBalancedTreeEventListener.class);
+        QueryEventListener.BalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BalancedTreeEventListener.class);
         when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
         return bkdIndexEventListener;
     }

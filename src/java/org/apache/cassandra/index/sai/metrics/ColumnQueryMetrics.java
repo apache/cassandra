@@ -70,12 +70,12 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
         }
     }
 
-    public static class BKDIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.BlockBalancedTreeEventListener
+    public static class BalancedTreeIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.BalancedTreeEventListener
     {
-        private static final String BKD_POSTINGS_TYPE = "KDTreePostings";
+        private static final String BALANCED_TREE_POSTINGS_TYPE = "BalancedTreePostings";
 
         /**
-         * BKD index metrics.
+         * Balanced Tree index metrics.
          */
         private final Timer intersectionLatency;
         private final Meter postingsNumPostings;
@@ -83,16 +83,16 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 
         private final QueryEventListener.PostingListEventListener postingsListener;
 
-        public BKDIndexMetrics(IndexContext indexContext)
+        public BalancedTreeIndexMetrics(IndexContext indexContext)
         {
             super(indexContext);
 
-            intersectionLatency = Metrics.timer(createMetricName("KDTreeIntersectionLatency"));
-            intersectionEarlyExits = Metrics.meter(createMetricName("KDTreeIntersectionEarlyExits"));
+            intersectionLatency = Metrics.timer(createMetricName("BalancedTreeIntersectionLatency"));
+            intersectionEarlyExits = Metrics.meter(createMetricName("BalancedTreeIntersectionEarlyExits"));
 
-            postingsNumPostings = Metrics.meter(createMetricName("NumPostings", BKD_POSTINGS_TYPE));
+            postingsNumPostings = Metrics.meter(createMetricName("NumPostings", BALANCED_TREE_POSTINGS_TYPE));
 
-            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", BKD_POSTINGS_TYPE));
+            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", BALANCED_TREE_POSTINGS_TYPE));
 
             postingsListener = new PostingListEventsMetrics(postingDecodes);
         }
