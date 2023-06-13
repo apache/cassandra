@@ -75,6 +75,7 @@ if [ "$cython" = "yes" ]; then
 else
     TESTSUITE_NAME="${TESTSUITE_NAME}.no_cython"
 fi
+TESTSUITE_NAME="${TESTSUITE_NAME}.$(uname -m)"
 
 ################################
 #
@@ -116,7 +117,7 @@ sed -r "s/<[\/]?testsuites>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cql
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 
 # don't do inline sed for linux+mac compat
-sed "s/testsuite errors=\(\".*\"\) failures=\(\".*\"\) hostname=\(\".*\"\) name=\"pytest\"/testsuite errors=\1 failures=\2 hostname=\3 name=\"${TESTSUITE_NAME}\"/g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+sed "s/testsuite name=\"pytest\"/testsuite name=\"${TESTSUITE_NAME}\"/g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 sed "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml

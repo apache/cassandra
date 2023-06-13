@@ -51,3 +51,6 @@ RUN update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architectu
 
 # python3 is needed for the gen-doc target
 RUN pip install --upgrade pip
+
+# dependencies for .build/ci/ci_parser.py
+RUN pip install beautifulsoup4==4.12.3 jinja2==3.1.3

@@ -180,13 +180,14 @@ _main() {
   # ant test setup
   export TMP_DIR="${DIST_DIR}/tmp"
   [ -d ${TMP_DIR} ] || mkdir -p "${TMP_DIR}"
-  export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR}"
+  export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Dbuild.test.output.dir=${DIST_DIR}/test/output/${target}"
 
   # fresh virtualenv and test logs results everytime
-  [[ "/" == "${DIST_DIR}" ]] || rm -rf "${DIST_DIR}/test/{html,output,logs}"
+  [[ "/" == "${DIST_DIR}" ]] || rm -rf "${DIST_DIR}/test/{html,output,logs,reports}"
 
   # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.
-  ant -quiet -silent resolver-dist-lib
+  #  also recreate some of the non-build files we need
+  ant -quiet -silent resolver-dist-lib _createVersionPropFile
 
   case ${target} in
     "stress-test")
@@ -240,6 +241,9 @@ _main() {
       fi
       ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
+    "build_dtest_jars")
+      _build_all_dtest_jars
+      ;;
     "jvm-dtest-upgrade" | "jvm-dtest-upgrade-novnode")
       _build_all_dtest_jars
       [ "jvm-dtest-upgrade-novnode" == "${target}" ] || ANT_TEST_OPTS="${ANT_TEST_OPTS} -Dcassandra.dtest.num_tokens=16"
@@ -262,7 +266,7 @@ _main() {
   esac
 
   # merge all unit xml files into one, and print summary test numbers
-  ant -quiet -silent generate-unified-test-report
+  ant -quiet -silent generate-test-report
 
   popd  >/dev/null
 }

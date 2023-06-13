@@ -1,4 +1,5 @@
 5.0-beta2
+ * Fix FBUtilities' parsing of gcp cos_containerd kernel versions (CASSANDRA-18594)
  * Clean up KeyRangeIterator classes (CASSANDRA-19428)
  * Warn clients about possible consistency violations for filtering queries against multiple mutable columns (CASSANDRA-19489)
  * Align buffer with commitlog segment size (CASSANDRA-19471)

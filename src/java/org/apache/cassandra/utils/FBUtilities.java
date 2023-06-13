@@ -66,11 +66,12 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -1405,14 +1406,20 @@ public class FBUtilities
         if (!isLinux)
             return null;
 
+        String output = null;
         try
         {
-            String output = exec(Map.of(), Duration.ofSeconds(5), 1024, 1024, "uname", "-r");
+            output = exec(Map.of(), Duration.ofSeconds(5), 1024, 1024, "uname", "-r");
 
             if (output.isEmpty())
                 throw new RuntimeException("Error while trying to get kernel version, 'uname -r' returned empty output");
 
             return parseKernelVersion(output);
+        }
+        catch (SemverException e)
+        {
+            logger.error("SemverException parsing {}", output, e);
+            throw e;
         }
         catch (IOException | TimeoutException e)
         {
@@ -1429,6 +1436,7 @@ public class FBUtilities
     static Semver parseKernelVersion(String versionString)
     {
         Preconditions.checkNotNull(versionString, "kernel version cannot be null");
+        // ignore blank lines
         try (Scanner scanner = new Scanner(versionString))
         {
             while (scanner.hasNextLine())
@@ -1436,6 +1444,11 @@ public class FBUtilities
                 String version = scanner.nextLine().trim();
                 if (version.isEmpty())
                     continue;
+
+                if (version.endsWith("+"))
+                        // gcp's cos_containerd has a trailing +
+                        version = StringUtils.chop(version);
+
                 return new Semver(version, Semver.SemverType.LOOSE);
             }
         }
