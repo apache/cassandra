@@ -388,6 +388,8 @@ public final class CassandraGenerators
         {
             ColumnMetadata col = it.next();
             types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
+            if (i < partitionColumns)
+                types[i] = types[i].withoutEmptyData();
             if (i >= partitionColumns && i < primaryKeyColumns)
                 // clustering doesn't allow null...
                 types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
