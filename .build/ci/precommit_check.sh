@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,14 +15,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# variables, with defaults
-[ "x${CASSANDRA_DIR}" != "x" ] || { CASSANDRA_DIR="$(dirname "$0")/.."; }
 
-# pre-conditions
-command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
-[ -d "${CASSANDRA_DIR}" ] || { echo >&2 "Directory ${CASSANDRA_DIR} must exist"; exit 1; }
-[ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
+source "logging.sh"
 
-# execute
-ant -f "${CASSANDRA_DIR}/build.xml" check # dependency-check # FIXME dependency-check now requires NVD key downloaded first
-exit $?
+skip_mypy=(
+    "./logging_helper.py"
+)
+
+failed=0
+log_progress "Linting ci_parser..."
+for i in `find . -maxdepth 1 -name "*.py"`; do
+    log_progress "Checking $i..."
+    flake8 "$i"
+    if [[ $? != 0 ]]; then
+        failed=1
+    fi
+
+    if [[ ! " ${skip_mypy[*]} " =~ ${i} ]]; then
+        mypy --ignore-missing-imports "$i"
+        if [[ $? != 0 ]]; then
+            failed=1
+        fi
+    fi
+done
+
+
+if [[ $failed -eq 1 ]]; then
+    log_error "Failed linting. See above errors; don't merge until clean."
+    exit 1
+else
+    log_progress "All scripts passed checks"
+    exit 0
+fi
