@@ -68,11 +68,11 @@ public class Vectors
     }
 
     /**
-     * Returns the exact ListType from the items if it can be known.
+     * Returns the exact VectorType from the items if it can be known.
      *
-     * @param items the items mapped to the list elements
+     * @param items the items mapped to the vector elements
      * @param mapper the mapper used to retrieve the element types from the items
-     * @return the exact ListType from the items if it can be known or <code>null</code>
+     * @return the exact VectorType from the items if it can be known or <code>null</code>
      */
     public static <T> VectorType<?> getExactListTypeIfKnown(List<T> items,
                                                             java.util.function.Function<T, AbstractType<?>> mapper)
