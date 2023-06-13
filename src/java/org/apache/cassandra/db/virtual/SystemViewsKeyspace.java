@@ -51,6 +51,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new LogMessagesTable(VIRTUAL_VIEWS))
                     .add(new SnapshotsTable(VIRTUAL_VIEWS))
                     .addAll(LocalRepairTables.getAll(VIRTUAL_VIEWS))
+                    .addAll(CIDRFilteringMetricsTable.getAll(VIRTUAL_VIEWS))
                     .build());
     }
 }

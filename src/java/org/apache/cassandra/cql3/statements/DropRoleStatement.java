@@ -75,6 +75,7 @@ public class DropRoleStatement extends AuthenticationStatement
         DatabaseDescriptor.getAuthorizer().revokeAllFrom(role);
         DatabaseDescriptor.getAuthorizer().revokeAllOn(role);
         DatabaseDescriptor.getNetworkAuthorizer().drop(role);
+        DatabaseDescriptor.getCIDRAuthorizer().dropCidrPermissionsForRole(role);
         return null;
     }
     

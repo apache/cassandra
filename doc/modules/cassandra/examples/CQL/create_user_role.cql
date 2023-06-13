@@ -12,3 +12,6 @@ CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
 
 CREATE USER alice WITH PASSWORD 'password_a';
 CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
+
+CREATE ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
+CREATE ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };

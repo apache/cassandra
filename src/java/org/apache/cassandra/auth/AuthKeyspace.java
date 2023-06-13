@@ -55,6 +55,8 @@ public final class AuthKeyspace
     public static final String ROLE_PERMISSIONS = "role_permissions";
     public static final String RESOURCE_ROLE_INDEX = "resource_role_permissons_index";
     public static final String NETWORK_PERMISSIONS = "network_permissions";
+    public static final String CIDR_PERMISSIONS = "cidr_permissions";
+    public static final String CIDR_GROUPS = "cidr_groups";
 
     public static final long SUPERUSER_SETUP_DELAY = SUPERUSER_SETUP_DELAY_MS.getLong();
 
@@ -102,6 +104,28 @@ public final class AuthKeyspace
               + "dcs frozen<set<text>>, "
               + "PRIMARY KEY(role))");
 
+    public static final String CIDR_PERMISSIONS_TBL_ROLE_COL_NAME = "role";
+    public static final String CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME = "cidr_groups";
+    private static final TableMetadata CIDRPermissions =
+    parse(CIDR_PERMISSIONS,
+          "user cidr permissions",
+          "CREATE TABLE %s ("
+          + CIDR_PERMISSIONS_TBL_ROLE_COL_NAME + " text, "
+          + CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME + " frozen<set<text>>, "
+          + "PRIMARY KEY(" + CIDR_PERMISSIONS_TBL_ROLE_COL_NAME + "))"
+    );
+
+    public static final String CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME = "cidr_group";
+    public static final String CIDR_GROUPS_TBL_CIDRS_COL_NAME = "cidrs";
+    private static final TableMetadata CIDRGroups =
+    parse(CIDR_GROUPS,
+          "cidr groups to cidrs mapping",
+          "CREATE TABLE %s ("
+          + CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME + " text, "
+          + CIDR_GROUPS_TBL_CIDRS_COL_NAME + " frozen<set<tuple<inet, smallint>>>, "
+          + "PRIMARY KEY(" + CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME + "))"
+    );
+
     private static TableMetadata parse(String name, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, name), SchemaConstants.AUTH_KEYSPACE_NAME)
@@ -115,6 +139,8 @@ public final class AuthKeyspace
     {
         return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
-                                       Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex, NetworkPermissions));
+                                       Tables.of(Roles, RoleMembers, RolePermissions,
+                                                 ResourceRoleIndex, NetworkPermissions,
+                                                 CIDRPermissions, CIDRGroups));
     }
 }
