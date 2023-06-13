@@ -56,6 +56,7 @@ import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.RateLimiter;
@@ -1112,11 +1113,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         synchronized (data)
         {
-            Memtable current = data.getView().getCurrentMemtable();
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                if (!cfs.data.getView().getCurrentMemtable().isClean())
-                    return flushMemtable(current, reason);
-            return waitForFlushes();
+            if (!data.getView().liveMemtables.isEmpty())
+            {
+                Memtable current = data.getView().getCurrentMemtable();
+                for (ColumnFamilyStore cfs : concatWithIndexes())
+                    if (!cfs.data.getView().getCurrentMemtable().isClean())
+                        return flushMemtable(current, reason);
+                return waitForFlushes();
+            }
+            else
+            {
+                return Futures.immediateFuture(CommitLogPosition.NONE);
+            }
         }
     }
 
