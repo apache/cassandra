@@ -130,7 +130,8 @@ public class TypeParserTest
     {
         assertForEachPartitioner(partitioner -> {
             AbstractType<?> type = partitioner.partitionOrdering(null);
-            if (type instanceof PartitionerDefinedOrder)
+            if (DatabaseDescriptor.getStorageCompatibilityMode().isAfter(5) &&
+                type instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
                 type = tmp.withPartitionKeyType(Int32Type.instance);
@@ -200,7 +201,8 @@ public class TypeParserTest
     {
         assertForEachPartitioner(partitioner -> {
             AbstractType<?> type = partitioner.partitionOrdering(null);
-            if (type instanceof PartitionerDefinedOrder)
+            if (DatabaseDescriptor.getStorageCompatibilityMode().isAfter(5) &&
+                type instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
                 type = tmp.withPartitionKeyType(baseType);
