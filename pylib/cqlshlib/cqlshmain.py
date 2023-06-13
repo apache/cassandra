@@ -19,7 +19,6 @@ import codecs
 import configparser
 import csv
 import getpass
-#import optparse
 import argparse
 import os
 import re
@@ -161,13 +160,8 @@ parser.add_argument("-t", "--tty", action='store_true', dest='tty',
 parser.add_argument("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
                   help=argparse.SUPPRESS)
 
-# use cfoptions for config file
-        ###now cfarguments with update to argparse
+# use cfarguments for config file
 
-###opt_values = optparse.Values()                           the old code from optparse
-###(cfoptions, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
-
-###start of arg
 cfarguments, args = parser.parse_known_args()
 
 # BEGIN history config
@@ -203,7 +197,6 @@ except OSError:
 
 DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
 
-###if hasattr(cfarguments, 'cqlshrc'):   changed because argparse will keep it in namespace as None instead of not including it
 if cfarguments.cqlshrc != None:
     CONFIG_FILE = os.path.expanduser(cfarguments.cqlshrc)
     if not os.path.exists(CONFIG_FILE):
@@ -511,7 +504,6 @@ class Shell(cmd.Cmd):
 
     def show_version(self):
         vers = self.connection_versions.copy()
-        #####copy the arguement from the version replacement up top
         vers['shver'] = version
         # system.Versions['cql'] apparently does not reflect changes with
         # set_cql_version.
@@ -2060,7 +2052,6 @@ def should_use_color():
         pass
     return True
 
-import optparse
 def read_options(cmdlineargs, environment=os.environ):
     configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
@@ -2121,7 +2112,6 @@ def read_options(cmdlineargs, environment=os.environ):
     argvalues.execute = None
     argvalues.insecure_password_without_warning = False
 
-    ###(options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)    this is the old code from optparse
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
 
     # Credentials from cqlshrc will be expanded,
@@ -2130,10 +2120,10 @@ def read_options(cmdlineargs, environment=os.environ):
     #   cqlsh --credentials=~/.cassandra/creds
     #   cqlsh --credentials ~/.cassandra/creds
     
-    if options.credentials != None:    #####this line was not inititally here, need to find out how this works when all args are not input (some are None)
+    if options.credentials != None:    
         options.credentials = os.path.expanduser(options.credentials)
 
-    if options.credentials != None:    #####this line was not inititally here, need to find out how this works when all args are not input (some are None)
+    if options.credentials != None:  
         if not is_file_secure(options.credentials):
             print("\nWarning: Credentials file '{0}' exists but is not used, because:"
                 "\n  a. the file owner is not the current user; or"
@@ -2147,7 +2137,7 @@ def read_options(cmdlineargs, environment=os.environ):
 
     if not options.username:
         credentials = configparser.ConfigParser()
-        if options.credentials != None:    #####this line was not inititally here, need to find out how this works when all args are not input (some are None)
+        if options.credentials != None:   
             credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
@@ -2155,7 +2145,7 @@ def read_options(cmdlineargs, environment=os.environ):
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
-        if options.credentials != None:    #####this line was not inititally here, need to find out how this works when all args are not input (some are None)
+        if options.credentials != None:   
             rawcredentials.read(options.credentials)
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
@@ -2190,7 +2180,6 @@ def read_options(cmdlineargs, environment=os.environ):
     port = environment.get('CQLSH_PORT', port)
 
 
-    ###what to do about this
     if len(arguments) > 0:
         hostname = arguments[0]
     if len(arguments) > 1:
