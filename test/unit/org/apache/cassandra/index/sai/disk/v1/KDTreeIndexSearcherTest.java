@@ -36,7 +36,7 @@ import org.apache.cassandra.db.marshal.NumberType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.v1.kdtree.KDTreeIndexBuilder;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.KDTreeIndexBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcher;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;

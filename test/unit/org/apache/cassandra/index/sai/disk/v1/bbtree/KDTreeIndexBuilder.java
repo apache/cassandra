@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -109,7 +109,7 @@ public class KDTreeIndexBuilder
     NumericIndexSegmentSearcher flushAndOpen() throws IOException
     {
         final TermsIterator termEnum = new MemtableTermsIterator(null, null, terms);
-        final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues.fromTermEnum(termEnum, type);
+        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues.fromTermEnum(termEnum, type);
 
         final SegmentMetadata metadata;
 

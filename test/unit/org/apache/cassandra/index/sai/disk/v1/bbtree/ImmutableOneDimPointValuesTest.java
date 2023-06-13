@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,7 +45,7 @@ public class ImmutableOneDimPointValuesTest
     {
         final int minTerm = 0, maxTerm = 10;
         final TermsIterator termEnum = buildDescTermEnum(minTerm, maxTerm);
-        final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues
+        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues
                 .fromTermEnum(termEnum, Int32Type.instance);
 
         pointValues.intersect(assertingVisitor(minTerm));
@@ -56,7 +56,7 @@ public class ImmutableOneDimPointValuesTest
     {
         final int minTerm = 3, maxTerm = 13;
         final TermsIterator termEnum = buildDescTermEnum(minTerm, maxTerm);
-        final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues
+        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues
                 .fromTermEnum(termEnum, Int32Type.instance);
 
         expectedException.expect(IllegalStateException.class);
@@ -68,16 +68,16 @@ public class ImmutableOneDimPointValuesTest
     {
         final int minTerm = 2, maxTerm = 7;
         final TermsIterator termEnum = buildDescTermEnum(minTerm, maxTerm);
-        final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues.fromTermEnum(termEnum, Int32Type.instance);
+        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues.fromTermEnum(termEnum, Int32Type.instance);
 
         MutablePointsReaderUtils.sort(2, Int32Type.instance.valueLengthIfFixed(), pointValues, 0, Math.toIntExact(pointValues.size()));
 
         pointValues.intersect(assertingVisitor(minTerm));
     }
 
-    private MutableOneDimPointValues.IntersectVisitor assertingVisitor(int minTerm)
+    private IntersectingPointValues.IntersectVisitor assertingVisitor(int minTerm)
     {
-        return new MutableOneDimPointValues.IntersectVisitor()
+        return new IntersectingPointValues.IntersectVisitor()
         {
             int term = minTerm;
             int postingCounter = 0;

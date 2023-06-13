@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 
@@ -24,14 +24,14 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.packed.DirectWriter;
 
-public class LeafOrderMap
+class LeafOrderMap
 {
-    public static int getValue(RandomAccessInput in, long offset, int index, DirectReaders.Reader reader)
+    static int getValue(RandomAccessInput in, long offset, int index, DirectReaders.Reader reader)
     {
         return Math.toIntExact(reader.get(in, offset, index));
     }
 
-    public static void write(final int[] array, int length, int maxValue, final DataOutput out) throws IOException
+    static void write(final int[] array, int length, int maxValue, final DataOutput out) throws IOException
     {
         final int bits = DirectWriter.unsignedBitsRequired(maxValue);
         final DirectWriter writer = DirectWriter.getInstance(out, length, bits);

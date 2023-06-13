@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 
 public class BKDReaderTest extends SAIRandomizedTester
 {
-    private final BKDReader.IntersectVisitor NONE_MATCH = new BKDReader.IntersectVisitor()
+    private final BlockBalancedTreeReader.IntersectVisitor NONE_MATCH = new BlockBalancedTreeReader.IntersectVisitor()
     {
         @Override
         public boolean visit(byte[] packedValue)
@@ -63,7 +63,7 @@ public class BKDReaderTest extends SAIRandomizedTester
         }
     };
 
-    private final BKDReader.IntersectVisitor ALL_MATCH = new BKDReader.IntersectVisitor()
+    private final BlockBalancedTreeReader.IntersectVisitor ALL_MATCH = new BlockBalancedTreeReader.IntersectVisitor()
     {
         @Override
         public boolean visit(byte[] packedValue)
@@ -92,7 +92,7 @@ public class BKDReaderTest extends SAIRandomizedTester
     public void testAdvance() throws Exception
     {
         final int numRows = between(1000, 2000);
-        final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(Integer.BYTES);
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
 
         byte[] scratch = new byte[4];
         for (int docID = 0; docID < numRows; docID++)
@@ -101,7 +101,7 @@ public class BKDReaderTest extends SAIRandomizedTester
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BKDReader reader = finishAndOpenReaderOneDim(2, buffer);
+        final BlockBalancedTreeReader reader = finishAndOpenReaderOneDim(2, buffer);
 
         PostingList intersection = performIntersection(reader, NONE_MATCH);
         assertNull(intersection);
@@ -131,7 +131,7 @@ public class BKDReaderTest extends SAIRandomizedTester
         // exercised in a test. To do this we need to ensure that we have
         // at least one leaf that has all the same value and that all of
         // that leaf is requested in a query.
-        final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(Integer.BYTES);
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         byte[] scratch = new byte[4];
 
         for (int docID = 0; docID < 10; docID++)
@@ -152,7 +152,7 @@ public class BKDReaderTest extends SAIRandomizedTester
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BKDReader reader = finishAndOpenReaderOneDim(5, buffer);
+        final BlockBalancedTreeReader reader = finishAndOpenReaderOneDim(5, buffer);
 
         PostingList postingList = performIntersection(reader, buildQuery(8, 15));
 
@@ -174,7 +174,7 @@ public class BKDReaderTest extends SAIRandomizedTester
     @Test
     public void testResourcesReleaseWhenQueryDoesntMatchAnything() throws Exception
     {
-        final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(Integer.BYTES);
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         byte[] scratch = new byte[4];
         for (int docID = 0; docID < 1000; docID++)
         {
@@ -188,22 +188,22 @@ public class BKDReaderTest extends SAIRandomizedTester
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BKDReader reader = finishAndOpenReaderOneDim(50, buffer);
+        final BlockBalancedTreeReader reader = finishAndOpenReaderOneDim(50, buffer);
 
         final PostingList intersection = performIntersection(reader, buildQuery(1017, 1096));
         assertNull(intersection);
     }
 
-    private PostingList performIntersection(BKDReader reader, BKDReader.IntersectVisitor visitor)
+    private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
     {
         QueryEventListener.BKDIndexEventListener bkdIndexEventListener = mock(QueryEventListener.BKDIndexEventListener.class);
         when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
         return reader.intersect(visitor, bkdIndexEventListener, mock(QueryContext.class));
     }
 
-    private BKDReader.IntersectVisitor buildQuery(int queryMin, int queryMax)
+    private BlockBalancedTreeReader.IntersectVisitor buildQuery(int queryMin, int queryMax)
     {
-        return new BKDReader.IntersectVisitor()
+        return new BlockBalancedTreeReader.IntersectVisitor()
         {
             @Override
             public boolean visit(byte[] packedValue)
@@ -235,7 +235,7 @@ public class BKDReaderTest extends SAIRandomizedTester
         };
     }
 
-    private BKDReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, BKDTreeRamBuffer buffer) throws Exception
+    private BlockBalancedTreeReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, BlockBalancedTreeRamBuffer buffer) throws Exception
     {
         setBDKPostingsWriterSizing(8, 2);
         final NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
@@ -252,10 +252,10 @@ public class BKDReaderTest extends SAIRandomizedTester
 
         FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext);
         FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
-        return new BKDReader(indexContext,
-                             kdtreeHandle,
-                             bkdPosition,
-                             kdtreePostingsHandle,
-                             postingsPosition);
+        return new BlockBalancedTreeReader(indexContext,
+                                           kdtreeHandle,
+                                           bkdPosition,
+                                           kdtreePostingsHandle,
+                                           postingsPosition);
     }
 }

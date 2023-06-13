@@ -29,8 +29,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.kdtree.BKDTreeRamBuffer;
-import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -81,14 +81,14 @@ public abstract class SegmentBuilder
     public static class KDTreeSegmentBuilder extends SegmentBuilder
     {
         protected final byte[] buffer;
-        private final BKDTreeRamBuffer kdTreeRamBuffer;
+        private final BlockBalancedTreeRamBuffer kdTreeRamBuffer;
 
         public KDTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
         {
             super(termComparator, limiter);
 
             int typeSize = TypeUtil.fixedSizeOf(termComparator);
-            this.kdTreeRamBuffer = new BKDTreeRamBuffer(typeSize);
+            this.kdTreeRamBuffer = new BlockBalancedTreeRamBuffer(typeSize);
             this.buffer = new byte[typeSize];
             this.totalBytesAllocated = this.kdTreeRamBuffer.ramBytesUsed();
         }

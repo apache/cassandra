@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.nio.ByteBuffer;
 
@@ -27,9 +27,9 @@ import org.apache.lucene.util.FutureArrays;
 
 import static org.apache.lucene.index.PointValues.Relation.CELL_INSIDE_QUERY;
 
-public class BKDQueries
+public class BlockBalancedTreeQueries
 {
-    private static final BKDReader.IntersectVisitor MATCH_ALL = new BKDReader.IntersectVisitor()
+    private static final BlockBalancedTreeReader.IntersectVisitor MATCH_ALL = new BlockBalancedTreeReader.IntersectVisitor()
     {
         @Override
         public boolean visit(byte[] packedValue)
@@ -44,7 +44,7 @@ public class BKDQueries
         }
     };
 
-    public static BKDReader.IntersectVisitor bkdQueryFrom(Expression expression, int bytesPerValue)
+    public static BlockBalancedTreeReader.IntersectVisitor bkdQueryFrom(Expression expression, int bytesPerValue)
     {
         if (expression.lower == null && expression.upper == null)
         {
@@ -76,7 +76,7 @@ public class BKDQueries
         return buffer;
     }
 
-    private static abstract class RangeQuery implements BKDReader.IntersectVisitor
+    private static abstract class RangeQuery implements BlockBalancedTreeReader.IntersectVisitor
     {
         final int bytesPerValue;
 

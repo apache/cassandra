@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,7 +30,7 @@ public class BKDTreeRamBufferTest
     @Test
     public void shouldKeepInsertionOrder()
     {
-        final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(Integer.BYTES);
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         int currentValue = 202;
         for (int i = 0; i < 100; ++i)
         {
@@ -54,7 +54,7 @@ public class BKDTreeRamBufferTest
     @Test
     public void shouldBeSortable()
     {
-        final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(Integer.BYTES);
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         int value = 301;
         for (int i = 0; i < 100; ++i)
         {

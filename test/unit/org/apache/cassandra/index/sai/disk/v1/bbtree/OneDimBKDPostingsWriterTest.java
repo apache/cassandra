@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,7 +64,7 @@ public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
         Arrays.asList(postings(1, 5, 7), postings(3, 4, 6), postings(2, 8, 10), postings(11, 12, 13));
 
         setBDKPostingsWriterSizing(1, 2);
-        OneDimBKDPostingsWriter writer = new OneDimBKDPostingsWriter(leaves, indexContext);
+        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter(leaves, indexContext);
 
         // should build postings for nodes 2 & 3 (lvl 2) and 8, 10, 12, 14 (lvl 4)
         writer.onLeaf(64, 1, pathToRoot(1, 2, 4, 8, 16));
@@ -78,7 +78,7 @@ public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
             fp = writer.finish(output);
         }
 
-        BKDPostingsIndex postingsIndex = new BKDPostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
         assertEquals(10, postingsIndex.size());
 
         // Internal postings...
@@ -114,7 +114,7 @@ public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
         List<PackedLongValues> leaves = Collections.singletonList(postings(1, 2, 3));
 
         setBDKPostingsWriterSizing(1, 5);
-        OneDimBKDPostingsWriter writer = new OneDimBKDPostingsWriter(leaves, indexContext);
+        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter(leaves, indexContext);
 
         // The tree is too short to have any internal posting lists.
         writer.onLeaf(16, 1, pathToRoot(1, 2, 4, 8));
@@ -126,7 +126,7 @@ public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
         }
 
         // There is only a single posting list...the leaf posting list.
-        BKDPostingsIndex postingsIndex = new BKDPostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
         assertEquals(1, postingsIndex.size());
     }
 
@@ -136,7 +136,7 @@ public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
         List<PackedLongValues> leaves = Collections.singletonList(postings(1, 2, 3));
 
         setBDKPostingsWriterSizing(2, 2);
-        OneDimBKDPostingsWriter writer = new OneDimBKDPostingsWriter(leaves, indexContext);
+        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter(leaves, indexContext);
 
         // The tree is too short to have any internal posting lists.
         writer.onLeaf(16, 1, pathToRoot(1, 2, 4, 8));
@@ -148,11 +148,11 @@ public class OneDimBKDPostingsWriterTest extends SAIRandomizedTester
         }
 
         // There is only a single posting list...the leaf posting list.
-        BKDPostingsIndex postingsIndex = new BKDPostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
         assertEquals(1, postingsIndex.size());
     }
 
-    private void assertPostingReaderEquals(BKDPostingsIndex postingsIndex, int nodeID, long... postings) throws IOException
+    private void assertPostingReaderEquals(BlockBalancedTreePostingsIndex postingsIndex, int nodeID, long... postings) throws IOException
     {
         assertPostingReaderEquals(indexDescriptor.openPerIndexInput(IndexComponent.POSTING_LISTS, indexContext),
                                   postingsIndex.getPostingsFilePointer(nodeID),

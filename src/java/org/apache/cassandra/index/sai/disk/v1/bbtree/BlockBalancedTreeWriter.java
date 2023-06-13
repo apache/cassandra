@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +28,6 @@ import com.google.common.base.MoreObjects;
 
 import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.GrowableByteArrayDataOutput;
 import org.apache.lucene.store.IndexOutput;
@@ -36,15 +35,15 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.IntroSorter;
-import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.Sorter;
 import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 
 /**
- * This is a specialisation of the lucene BKDWriter that only writes a single dimension.
+ * This is a specialisation of the lucene BKDWriter that only writes a single dimension
+ * balanced tree.
  * <p>
- * Recursively builds a block KD-tree to assign all incoming points in N-dim space to smaller
- * and smaller N-dim rectangles (cells) until the number of points in a given
+ * Recursively builds a block balanced tree to assign all incoming points to smaller
+ * and smaller rectangles (cells) until the number of points in a given
  * rectangle is &lt;= <code>maxPointsInLeafNode</code>.  The tree is
  * fully balanced, which means the leaf nodes will have between 50% and 100% of
  * the requested <code>maxPointsInLeafNode</code>.  Values that fall exactly
@@ -53,15 +52,10 @@ import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
  * <p>
  * See <a href="https://www.cs.duke.edu/~pankaj/publications/papers/bkd-sstd.pdf">this paper</a> for details.
  *
- * <p>This consumes heap during writing: it allocates a <code>LongBitSet(numPoints)</code>,
- * and then uses up to the specified {@code maxMBSortInHeap} heap space for writing.
- *
  * <p>
  * <b>NOTE</b>: This can write at most Integer.MAX_VALUE * <code>maxPointsInLeafNode</code> total points.
- *
- * lucene.experimental
  */
-public class BKDWriter
+public class BlockBalancedTreeWriter
 {
     // Enable to check that values are added to the tree in correct order and within bounds
     private static final boolean DEBUG = false;
@@ -71,14 +65,13 @@ public class BKDWriter
 
     private final int bytesPerValue;
     private final BytesRef scratchBytesRef1 = new BytesRef();
-    private final LongBitSet docsSeen;
     private final int maxPointsInLeafNode;
     private final byte[] minPackedValue;
     private final byte[] maxPackedValue;
     private long pointCount;
     private final long maxDoc;
 
-    public BKDWriter(long maxDoc, int bytesPerValue, int maxPointsInLeafNode)
+    public BlockBalancedTreeWriter(long maxDoc, int bytesPerValue, int maxPointsInLeafNode)
     {
         if (maxPointsInLeafNode <= 0)
             throw new IllegalArgumentException("maxPointsInLeafNode must be > 0; got " + maxPointsInLeafNode);
@@ -89,7 +82,6 @@ public class BKDWriter
         this.maxPointsInLeafNode = maxPointsInLeafNode;
         this.bytesPerValue = bytesPerValue;
         this.maxDoc = maxDoc;
-        docsSeen = new LongBitSet(maxDoc);
 
         minPackedValue = new byte[bytesPerValue];
         maxPackedValue = new byte[bytesPerValue];
@@ -111,12 +103,10 @@ public class BKDWriter
     }
 
     /**
-     * Write a field from a {@link MutablePointValues}. This way of writing
-     * points is faster than regular writes with BKDWriter#add since
-     * there is opportunity for reordering points before writing them to
-     * disk. This method does not use transient disk in order to reorder points.
+     * Write the point values from a {@link IntersectingPointValues}. The points can be reordered before writing
+     * to disk and does not use transient disk for reordering.
      */
-    public long writeField(IndexOutput out, MutableOneDimPointValues reader,
+    public long writeField(IndexOutput out, IntersectingPointValues reader,
                            final OneDimensionBKDWriterCallback callback) throws IOException
     {
         SAICodecUtils.writeHeader(out);
@@ -192,7 +182,6 @@ public class BKDWriter
 
             System.arraycopy(packedValue, 0, leafValues, leafCount * bytesPerValue, bytesPerValue);
             leafDocs[leafCount] = docID;
-            docsSeen.set(docID);
             leafCount++;
 
             if (leafCount == maxPointsInLeafNode)
@@ -646,8 +635,6 @@ public class BKDWriter
         out.writeBytes(maxPackedValue, 0, bytesPerValue);
 
         out.writeVLong(pointCount);
-
-        out.writeVLong(docsSeen.cardinality());
 
         out.writeVInt(packedIndex.length);
         out.writeBytes(packedIndex, 0, packedIndex.length);

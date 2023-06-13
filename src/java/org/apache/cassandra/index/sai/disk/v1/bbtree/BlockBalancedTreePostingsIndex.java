@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 
@@ -30,14 +30,14 @@ import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.validate;
 
 /**
  * Mapping between node ID and an offset to its auxiliary posting list (containing every row id from all leaves
- * reachable from that node. See {@link OneDimBKDPostingsWriter}).
+ * reachable from that node. See {@link BlockBalancedTreePostingsWriter}).
  */
-class BKDPostingsIndex
+class BlockBalancedTreePostingsIndex
 {
     private final int size;
     public final IntLongMap index = new IntLongHashMap();
 
-    BKDPostingsIndex(FileHandle postingsFileHandle, long filePosition) throws IOException
+    BlockBalancedTreePostingsIndex(FileHandle postingsFileHandle, long filePosition) throws IOException
     {
         try (RandomAccessReader reader = postingsFileHandle.createReader();
              IndexInputReader input = IndexInputReader.create(reader))

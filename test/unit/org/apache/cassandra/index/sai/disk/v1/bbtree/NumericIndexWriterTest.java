@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.nio.ByteBuffer;
 
@@ -65,7 +65,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
     @Test
     public void shouldFlushFromRamBuffer() throws Exception
     {
-        final BKDTreeRamBuffer ramBuffer = new BKDTreeRamBuffer(Integer.BYTES);
+        final BlockBalancedTreeRamBuffer ramBuffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         final int numRows = 120;
         int currentValue = numRows;
         for (int i = 0; i < numRows; ++i)
@@ -75,7 +75,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
             ramBuffer.addPackedValue(i, new BytesRef(scratch));
         }
 
-        final MutableOneDimPointValues pointValues = ramBuffer.asPointValues();
+        final IntersectingPointValues pointValues = ramBuffer.asPointValues();
 
         int docCount = pointValues.getDocCount();
 
@@ -90,14 +90,14 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext);
         final FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
 
-        try (BKDReader reader = new BKDReader(indexContext,
-                                              kdtreeHandle,
-                                              indexMetas.get(IndexComponent.KD_TREE).root,
-                                              kdtreePostingsHandle,
-                                              indexMetas.get(IndexComponent.POSTING_LISTS).root))
+        try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
+                                                                          kdtreeHandle,
+                                                                          indexMetas.get(IndexComponent.KD_TREE).root,
+                                                                          kdtreePostingsHandle,
+                                                                          indexMetas.get(IndexComponent.POSTING_LISTS).root))
         {
             final Counter visited = Counter.newCounter();
-            try (final PostingList ignored = reader.intersect(new BKDReader.IntersectVisitor()
+            try (final PostingList ignored = reader.intersect(new BlockBalancedTreeReader.IntersectVisitor()
             {
                 @Override
                 public boolean visit(byte[] packedValue)
@@ -125,7 +125,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
     {
         final int maxSegmentRowId = 100;
         final TermsIterator termEnum = buildTermEnum(0, maxSegmentRowId);
-        final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues
+        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues
                                                        .fromTermEnum(termEnum, Int32Type.instance);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
@@ -138,15 +138,15 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext);
         final FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
 
-        try (BKDReader reader = new BKDReader(indexContext,
-                                              kdtreeHandle,
-                                              indexMetas.get(IndexComponent.KD_TREE).root,
-                                              kdtreePostingsHandle,
-                                              indexMetas.get(IndexComponent.POSTING_LISTS).root
+        try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
+                                                                          kdtreeHandle,
+                                                                          indexMetas.get(IndexComponent.KD_TREE).root,
+                                                                          kdtreePostingsHandle,
+                                                                          indexMetas.get(IndexComponent.POSTING_LISTS).root
         ))
         {
             final Counter visited = Counter.newCounter();
-            try (final PostingList ignored = reader.intersect(new BKDReader.IntersectVisitor()
+            try (final PostingList ignored = reader.intersect(new BlockBalancedTreeReader.IntersectVisitor()
             {
                 @Override
                 public boolean visit(byte[] packedValue)

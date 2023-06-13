@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 
@@ -25,30 +25,29 @@ import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.util.bkd.BKDWriter;
 
 /**
- * {@link MutablePointValues} that prevents buffered points from reordering, and always skips sorting phase in Lucene
+ * {@link org.apache.lucene.codecs.MutablePointValues} that prevents buffered points from reordering, and always skips sorting phase in Lucene
  * It's the responsibility of the underlying implementation to ensure that all points are correctly sorted.
  * <p>
  * It allows to take advantage of an optimised 1-dim writer {@link BKDWriter}
- * (that is enabled only for {@link MutablePointValues}), and reduce number of times we sort point values.
+ * (that is enabled only for {@link org.apache.lucene.codecs.MutablePointValues}), and reduce number of times we sort point values.
  */
-public class ImmutableOneDimPointValues extends MutableOneDimPointValues
+public class ImmutableIntersectingPointValues extends IntersectingPointValues
 {
     private final TermsIterator termEnum;
     private final byte[] scratch;
 
-    private ImmutableOneDimPointValues(TermsIterator termEnum, AbstractType<?> termComparator)
+    private ImmutableIntersectingPointValues(TermsIterator termEnum, AbstractType<?> termComparator)
     {
         this.termEnum = termEnum;
         this.scratch = new byte[TypeUtil.fixedSizeOf(termComparator)];
     }
 
-    public static ImmutableOneDimPointValues fromTermEnum(TermsIterator termEnum, AbstractType<?> termComparator)
+    public static ImmutableIntersectingPointValues fromTermEnum(TermsIterator termEnum, AbstractType<?> termComparator)
     {
-        return new ImmutableOneDimPointValues(termEnum, termComparator);
+        return new ImmutableIntersectingPointValues(termEnum, termComparator);
     }
 
     @Override

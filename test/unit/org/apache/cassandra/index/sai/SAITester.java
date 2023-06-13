@@ -78,7 +78,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
-import org.apache.cassandra.index.sai.disk.v1.kdtree.OneDimBKDPostingsWriter;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreePostingsWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -163,7 +163,7 @@ public abstract class SAITester extends CQLTester
     public void removeAllInjections() throws Exception
     {
         Injections.deleteAll();
-        setBDKPostingsWriterSizing(OneDimBKDPostingsWriter.MINIMUM_POSTINGS_LEAVES, OneDimBKDPostingsWriter.POSTINGS_SKIP);
+        setBDKPostingsWriterSizing(BlockBalancedTreePostingsWriter.MINIMUM_POSTINGS_LEAVES, BlockBalancedTreePostingsWriter.POSTINGS_SKIP);
     }
 
     public static Randomization getRandom()
@@ -732,9 +732,9 @@ public abstract class SAITester extends CQLTester
 
     protected static void setBDKPostingsWriterSizing(int minimumPostingsLeaves, int postingsSkip) throws Exception
     {
-        Field mplField = OneDimBKDPostingsWriter.class.getDeclaredField("MINIMUM_POSTINGS_LEAVES");
+        Field mplField = BlockBalancedTreePostingsWriter.class.getDeclaredField("MINIMUM_POSTINGS_LEAVES");
         mplField.setAccessible(true);
-        Field psField = OneDimBKDPostingsWriter.class.getDeclaredField("POSTINGS_SKIP");
+        Field psField = BlockBalancedTreePostingsWriter.class.getDeclaredField("POSTINGS_SKIP");
         psField.setAccessible(true);
         Field modifiersField = Field.class.getDeclaredField("modifiers");
         modifiersField.setAccessible(true);

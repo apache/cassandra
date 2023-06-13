@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import org.junit.Test;
 
@@ -42,7 +42,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
     {
         int lowerBound = between(-10, 10);
         Expression expression = buildExpression(Operator.GTE, lowerBound);
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
         assertTrue(query.visit(toSortableBytes(lowerBound)));
@@ -58,7 +58,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
     {
         int lowerBound = between(-10, 10);
         Expression expression = buildExpression(Operator.GT, lowerBound);
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
         assertFalse(query.visit(toSortableBytes(lowerBound)));
@@ -74,7 +74,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
     {
         int upperBound = between(-10, 10);
         Expression expression = buildExpression(Operator.LTE, upperBound);
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertTrue(query.visit(toSortableBytes(upperBound - 1)));
         assertTrue(query.visit(toSortableBytes(upperBound)));
@@ -90,7 +90,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
     {
         int upper = between(-10, 10);
         Expression expression = buildExpression(Operator.LT, upper);
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertTrue(query.visit(toSortableBytes(upper - 1)));
         assertFalse(query.visit(toSortableBytes(upper)));
@@ -107,7 +107,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
         int lowerBound = between(-15, 15);
         int upperBound = lowerBound + 5;
         Expression expression = buildExpression(Operator.GTE, lowerBound).add(Operator.LTE, Int32Type.instance.decompose(upperBound));
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
         assertTrue(query.visit(toSortableBytes(lowerBound)));
@@ -129,7 +129,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
         int lowerBound = between(-15, 15);
         int upperBound = lowerBound + 5;
         Expression expression = buildExpression(Operator.GT, lowerBound).add(Operator.LT, Int32Type.instance.decompose(upperBound));
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
         assertFalse(query.visit(toSortableBytes(lowerBound)));
@@ -151,7 +151,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
         int lowerBound = between(-15, 15);
         int upperBound = lowerBound + 5;
         Expression expression = buildExpression(Operator.GT, lowerBound).add(Operator.LTE, Int32Type.instance.decompose(upperBound));
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
         assertFalse(query.visit(toSortableBytes(lowerBound)));
@@ -173,7 +173,7 @@ public class BKDQueriesTest extends SAIRandomizedTester
         int lowerBound = between(-15, 15);
         int upperBound = lowerBound + 5;
         Expression expression = buildExpression(Operator.GTE, lowerBound).add(Operator.LT, Int32Type.instance.decompose(upperBound));
-        BKDReader.IntersectVisitor query = BKDQueries.bkdQueryFrom(expression, 4);
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.bkdQueryFrom(expression, 4);
 
         assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
         assertTrue(query.visit(toSortableBytes(lowerBound)));

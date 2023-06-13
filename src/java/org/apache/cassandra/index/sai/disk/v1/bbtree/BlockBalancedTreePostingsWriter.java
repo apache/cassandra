@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -53,21 +53,19 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
- * Writes auxiliary posting lists for bkd tree nodes. If a node has a posting list attached, it will contain every row
- * id
- * from all leaves reachable from that node.
+ * Writes auxiliary posting lists for bbtree nodes. If a node has a posting list attached, it will contain every row
+ * id from all leaves reachable from that node.
  *
  * Writer is stateful, because it needs to collect data from bkd index data structure first to find set of eligible
  * nodes and leaf nodes reachable from them.
  *
  * This is an optimised writer for 1-dim points, where we know that leaf blocks are written in value order (in this
- * order we pass them to the {@link BKDWriter}). That allows us to skip reading the leaves, instead just order leaf
- * blocks by their offset in the index file, and correlate them with buffered posting lists. We can't make this
- * assumption for multi-dim case.
+ * order we pass them to the {@link BlockBalancedTreeWriter}). That allows us to skip reading the leaves, instead
+ * just order leaf blocks by their offset in the index file, and correlate them with buffered posting lists.
  */
-public class OneDimBKDPostingsWriter implements TraversingBKDReader.IndexTreeTraversalCallback
+public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedTreeReader.IndexTreeTraversalCallback
 {
-    private static final Logger logger = LoggerFactory.getLogger(OneDimBKDPostingsWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(BlockBalancedTreePostingsWriter.class);
 
     /**
      * Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list.
@@ -88,7 +86,7 @@ public class OneDimBKDPostingsWriter implements TraversingBKDReader.IndexTreeTra
     int numNonLeafPostings = 0;
     int numLeafPostings = 0;
 
-    OneDimBKDPostingsWriter(List<PackedLongValues> postings, IndexContext indexContext)
+    BlockBalancedTreePostingsWriter(List<PackedLongValues> postings, IndexContext indexContext)
     {
         this.postings = postings;
         this.indexContext = indexContext;

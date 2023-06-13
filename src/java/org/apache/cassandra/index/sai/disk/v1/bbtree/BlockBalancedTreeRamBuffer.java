@@ -15,13 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
@@ -30,9 +29,9 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 
 /**
- * On-heap buffer for point values that provides a sortable view of itself as {@link MutablePointValues}.
+ * On-heap buffer for point values that provides a sortable view of itself as {@link IntersectingPointValues}.
  */
-public class BKDTreeRamBuffer implements Accountable
+public class BlockBalancedTreeRamBuffer implements Accountable
 {
     private final Counter bytesUsed;
     private final ByteBlockPool bytes;
@@ -45,7 +44,7 @@ public class BKDTreeRamBuffer implements Accountable
     private int lastSegmentRowID = -1;
     private boolean closed = false;
 
-    public BKDTreeRamBuffer(int pointNumBytes)
+    public BlockBalancedTreeRamBuffer(int pointNumBytes)
     {
         this.bytesUsed = Counter.newCounter();
         this.pointNumBytes = pointNumBytes;
@@ -99,13 +98,13 @@ public class BKDTreeRamBuffer implements Accountable
         return endingBytesAllocated - startingBytesUsed;
     }
 
-    public MutableOneDimPointValues asPointValues()
+    public IntersectingPointValues asPointValues()
     {
         ensureOpen();
         // building packed longs is destructive
         closed = true;
         final PackedLongValues docIDs = docIDsBuilder.build();
-        return new MutableOneDimPointValues()
+        return new IntersectingPointValues()
         {
             final int[] ords = new int[numPoints];
 

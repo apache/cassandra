@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.Closeable;
 
@@ -34,11 +34,11 @@ import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.MathUtil;
 
 /**
- * Base reader for a block KD-tree previously written with {@link BKDWriter}.
+ * Base reader for a block balanced tree previously written with {@link BlockBalancedTreeWriter}.
  *
- * Holds index tree on heap and enables its traversal via {@link #traverse(IndexTreeTraversalCallback)}.
+ * Holds the index tree on heap and enables its traversal via {@link #traverse(IndexTreeTraversalCallback)}.
  */
-public class TraversingBKDReader implements Closeable
+public class TraversingBlockBalancedTreeReader implements Closeable
 {
     final FileHandle indexFile;
     final int bytesPerValue;
@@ -52,7 +52,7 @@ public class TraversingBKDReader implements Closeable
     final int maxPointsInLeafNode;
     final int packedBytesLength;
 
-    TraversingBKDReader(FileHandle indexFile, long root)
+    TraversingBlockBalancedTreeReader(FileHandle indexFile, long root)
     {
         this.indexFile = indexFile;
 
@@ -85,9 +85,6 @@ public class TraversingBKDReader implements Closeable
             }
 
             pointCount = in.readVLong();
-
-            // docCount, unused
-            in.readVInt();
 
             int numBytes = in.readVInt();
             packedIndex = new byte[numBytes];

@@ -35,8 +35,8 @@ import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
-import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.ImmutableIntersectingPointValues;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
@@ -158,7 +158,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                                indexContext,
                                                                TypeUtil.fixedSizeOf(termComparator),
                                                                maxSegmentRowId);
-            indexMetas = writer.writeAll(ImmutableOneDimPointValues.fromTermEnum(terms, termComparator));
+            indexMetas = writer.writeAll(ImmutableIntersectingPointValues.fromTermEnum(terms, termComparator));
             numRows = writer.getPointCount();
         }
 

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 
@@ -23,7 +23,7 @@ import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
 
-public abstract class MutableOneDimPointValues extends MutablePointValues
+public abstract class IntersectingPointValues extends MutablePointValues
 {
     private static final byte[] EMPTY = new byte[0];
 
@@ -108,10 +108,11 @@ public abstract class MutableOneDimPointValues extends MutablePointValues
 
     public interface IntersectVisitor
     {
-        /** Called for all documents in a leaf cell that crosses the query.  The consumer
-         *  should scrutinize the packedValue to decide whether to accept it.  In the 1D case,
-         *  values are visited in increasing order, and in the case of ties, in increasing
-         *  docID order. */
+        /**
+         * Called for all documents in a leaf cell that crosses the query.  The consumer should scrutinize the
+         * packedValue to decide whether to accept it. Values are visited in increasing order, and in the case of ties,
+         * in increasing docID order.
+         */
         void visit(long docID, byte[] packedValue) throws IOException;
     }
 }

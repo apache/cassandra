@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -54,9 +54,9 @@ import org.apache.lucene.util.packed.DirectWriter;
 
 /**
  * Handles intersection of a multidimensional shape in byte[] space with a block KD-tree previously written with
- * {@link BKDWriter}.
+ * {@link BlockBalancedTreeWriter}.
  */
-public class BKDReader extends TraversingBKDReader implements Closeable
+public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -65,23 +65,23 @@ public class BKDReader extends TraversingBKDReader implements Closeable
     private final IndexContext indexContext;
     private final FileHandle postingsFile;
     private final FileHandle kdtreeFile;
-    private final BKDPostingsIndex postingsIndex;
+    private final BlockBalancedTreePostingsIndex postingsIndex;
     private final DirectReaders.Reader leafOrderMapReader;
 
     /**
      * Performs a blocking read.
      */
-    public BKDReader(IndexContext indexContext,
-                     FileHandle kdtreeFile,
-                     long bkdIndexRoot,
-                     FileHandle postingsFile,
-                     long bkdPostingsRoot) throws IOException
+    public BlockBalancedTreeReader(IndexContext indexContext,
+                                   FileHandle kdtreeFile,
+                                   long bkdIndexRoot,
+                                   FileHandle postingsFile,
+                                   long bkdPostingsRoot) throws IOException
     {
         super(kdtreeFile, bkdIndexRoot);
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
         this.kdtreeFile = kdtreeFile;
-        this.postingsIndex = new BKDPostingsIndex(postingsFile, bkdPostingsRoot);
+        this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, bkdPostingsRoot);
         byte bits = (byte) DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1);
         leafOrderMapReader = DirectReaders.getReaderForBitsPerValue(bits);
     }
@@ -136,7 +136,7 @@ public class BKDReader extends TraversingBKDReader implements Closeable
 
     /**
      * Synchronous intersection of a multidimensional shape in byte[] space with a block KD-tree
-     * previously written with {@link BKDWriter}.
+     * previously written with {@link BlockBalancedTreeWriter}.
      */
     private class Intersection
     {

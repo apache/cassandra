@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sai.disk.v1.kdtree;
+package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +30,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -42,14 +41,14 @@ import static com.google.common.base.Preconditions.checkArgument;
  * Specialized writer for 1-dim point values, that builds them into a BKD tree with auxiliary posting lists on eligible
  * tree levels.
  *
- * Given sorted input {@link MutablePointValues}, 1-dim case allows to optimise flush process, because we don't need to
+ * Given sorted input {@link org.apache.lucene.codecs.MutablePointValues}, 1-dim case allows to optimise flush process, because we don't need to
  * buffer all point values to sort them.
  */
 public class NumericIndexWriter
 {
-    public static final int MAX_POINTS_IN_LEAF_NODE = BKDWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+    public static final int MAX_POINTS_IN_LEAF_NODE = BlockBalancedTreeWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
 
-    private final BKDWriter writer;
+    private final BlockBalancedTreeWriter writer;
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
     private final int bytesPerValue;
@@ -77,7 +76,7 @@ public class NumericIndexWriter
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
         this.bytesPerValue = bytesPerValue;
-        this.writer = new BKDWriter(maxSegmentRowId + 1, bytesPerValue, maxPointsInLeafNode);
+        this.writer = new BlockBalancedTreeWriter(maxSegmentRowId + 1, bytesPerValue, maxPointsInLeafNode);
     }
 
     @Override
@@ -89,7 +88,7 @@ public class NumericIndexWriter
                           .toString();
     }
 
-    public static class LeafCallback implements BKDWriter.OneDimensionBKDWriterCallback
+    public static class LeafCallback implements BlockBalancedTreeWriter.OneDimensionBKDWriterCallback
     {
         final List<PackedLongValues> postings = new ArrayList<>();
 
@@ -99,7 +98,7 @@ public class NumericIndexWriter
         }
 
         @Override
-        public void writeLeafDocs(BKDWriter.RowIDAndIndex[] sortedByRowID, int offset, int count)
+        public void writeLeafDocs(BlockBalancedTreeWriter.RowIDAndIndex[] sortedByRowID, int offset, int count)
         {
             PackedLongValues.Builder builder = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
 
@@ -112,13 +111,13 @@ public class NumericIndexWriter
     }
 
     /**
-     * Writes a k-d tree and posting lists from a {@link MutablePointValues}.
+     * Writes a k-d tree and posting lists from a {@link org.apache.lucene.codecs.MutablePointValues}.
      *
      * @param values points to write
      *
      * @return metadata describing the location and size of this kd-tree in the overall SSTable kd-tree component file
      */
-    public SegmentMetadata.ComponentMetadataMap writeAll(MutableOneDimPointValues values) throws IOException
+    public SegmentMetadata.ComponentMetadataMap writeAll(IntersectingPointValues values) throws IOException
     {
         long bkdPosition;
         SegmentMetadata.ComponentMetadataMap components = new SegmentMetadata.ComponentMetadataMap();
@@ -148,12 +147,12 @@ public class NumericIndexWriter
             components.put(IndexComponent.KD_TREE, bkdPosition, bkdOffset, bkdLength, attributes);
         }
 
-        try (TraversingBKDReader reader = new TraversingBKDReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext), bkdPosition);
+        try (TraversingBlockBalancedTreeReader reader = new TraversingBlockBalancedTreeReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext), bkdPosition);
              IndexOutput postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true))
         {
             long postingsOffset = postingsOutput.getFilePointer();
 
-            OneDimBKDPostingsWriter postingsWriter = new OneDimBKDPostingsWriter(leafCallback.postings, indexContext);
+            BlockBalancedTreePostingsWriter postingsWriter = new BlockBalancedTreePostingsWriter(leafCallback.postings, indexContext);
             reader.traverse(postingsWriter);
 
             // The kd-tree postings writer already writes its own header & footer.
