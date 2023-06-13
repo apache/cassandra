@@ -269,7 +269,7 @@
       <dependency>
         <groupId>com.google.guava</groupId>
         <artifactId>guava</artifactId>
-        <version>27.0-jre</version>
+        <version>32.0.1-jre</version>
         <exclusions>
           <exclusion>
             <artifactId>jsr305</artifactId>
@@ -281,10 +281,6 @@
           </exclusion>
           <exclusion>
             <artifactId>listenablefuture</artifactId>
-            <groupId>com.google.guava</groupId>
-          </exclusion>
-          <exclusion>
-            <artifactId>failureaccess</artifactId>
             <groupId>com.google.guava</groupId>
           </exclusion>
           <exclusion>
