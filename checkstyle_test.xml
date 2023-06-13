@@ -23,6 +23,8 @@
   <property name="severity" value="error"/>
 
   <property name="fileExtensions" value="java, properties, xml"/>
+  
+  <property name="cacheFile" value="${checkstyle.log.dir}/checkstyle_test_cachefile"/>
 
   <module name="BeforeExecutionExclusionFileFilter">
     <property name="fileNamePattern" value="module\-info\.java$"/>
