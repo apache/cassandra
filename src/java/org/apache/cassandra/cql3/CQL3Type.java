@@ -523,9 +523,9 @@ public interface CQL3Type
             this.type = type;
         }
 
-        public Vector(AbstractType<?> type, int dimensions)
+        public Vector(AbstractType<?> elementType, int dimensions)
         {
-            this.type = VectorType.getInstance(type, dimensions);
+            this.type = VectorType.getInstance(elementType, dimensions);
         }
 
         @Override
