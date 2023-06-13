@@ -258,22 +258,6 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j8_unit_tests
           - j8_build
-    - j8_utests_oa:
-        requires:
-          - start_j8_unit_tests
-          - j8_build
-    - start_j8_utests_oa_repeat:
-        type: approval
-    - j8_utests_oa_repeat:
-        requires:
-          - start_j8_utests_oa_repeat
-          - j8_build
-    - start_j11_utests_oa_repeat:
-        type: approval
-    - j11_utests_oa_repeat:
-        requires:
-          - start_j11_utests_oa_repeat
-          - j8_build
     - start_j8_unit_tests_repeat:
         type: approval
     - j8_unit_tests_repeat:
@@ -371,10 +355,6 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j11_unit_tests
           - j8_build
-    - j11_utests_oa:
-        requires:
-          - start_j11_unit_tests
-          - j8_build
     - start_j11_unit_tests_repeat:
         type: approval
     - j11_unit_tests_repeat:
@@ -382,6 +362,30 @@ j8_separate_jobs: &j8_separate_jobs
           - start_j11_unit_tests_repeat
           - j8_build
     # specialized unit tests (all run on request)
+    - start_j8_utests_oa:
+        type: approval
+    - j8_utests_oa:
+        requires:
+          - start_j8_utests_oa
+          - j8_build
+    - start_j8_utests_oa_repeat:
+        type: approval
+    - j8_utests_oa_repeat:
+        requires:
+          - start_j8_utests_oa_repeat
+          - j8_build
+    - start_j11_utests_oa:
+        type: approval
+    - j11_utests_oa:
+        requires:
+          - start_j11_utests_oa
+          - j8_build
+    - start_j11_utests_oa_repeat:
+        type: approval
+    - j11_utests_oa_repeat:
+        requires:
+          - start_j11_utests_oa_repeat
+          - j8_build
     - start_j8_utests_long:
         type: approval
     - j8_utests_long:
@@ -1142,16 +1146,6 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_unit_tests
           - j11_build
-    - j11_utests_oa:
-        requires:
-          - start_j11_unit_tests
-          - j11_build
-    - start_j11_utests_oa_repeat:
-        type: approval
-    - j11_utests_oa_repeat:
-        requires:
-          - start_j11_utests_oa_repeat
-          - j11_build
     - start_j11_unit_tests_repeat:
         type: approval
     - j11_unit_tests_repeat:
@@ -1296,6 +1290,18 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j11_cqlsh-dtests-offheap
           - j11_build
     # specialized unit tests (all run on request)
+    - start_j11_utests_oa:
+        type: approval
+    - j11_utests_oa:
+        requires:
+          - start_j11_utests_oa
+          - j11_build
+    - start_j11_utests_oa_repeat:
+        type: approval
+    - j11_utests_oa_repeat:
+        requires:
+          - start_j11_utests_oa_repeat
+          - j11_build
     - start_j11_utests_long:
         type: approval
     - j11_utests_long:
