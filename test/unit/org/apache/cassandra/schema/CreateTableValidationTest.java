@@ -146,7 +146,7 @@ public class CreateTableValidationTest extends CQLTester
     public void testCreateTableInWrongOrdering()
     {
         expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC, ck1 DESC);",
-                        "The order of columns in the CLUSTERING ORDER directive must be the one of the clustering key");
+                        "The order of columns in the CLUSTERING ORDER directive must match that of the clustering columns");
     }
 
     @Test
