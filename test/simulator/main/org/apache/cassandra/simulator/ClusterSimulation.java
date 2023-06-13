@@ -117,7 +117,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                             FutureCallback.class,
                                             io.netty.util.concurrent.GenericFutureListener.class,
                                             io.netty.channel.FileRegion.class,
-                                            io.netty.util.ReferenceCounted.class
+                                            io.netty.util.ReferenceCounted.class,
+                                            io.netty.util.concurrent.FastThreadLocal.class
                                         };
 
     public static final Class<?>[] ISOLATE = new Class<?>[0];
