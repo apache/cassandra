@@ -411,10 +411,11 @@ public class Tracker
         Throwable fail;
         fail = updateSizeTracking(emptySet(), sstables, null);
 
-        notifyDiscarded(memtable);
-
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
         fail = notifyAdded(sstables, false, memtable, fail);
+
+        // make sure index sees flushed index files before dicarding memtable index
+        notifyDiscarded(memtable);
 
         if (!isDummy() && !cfstore.isValid())
             dropSSTables();
