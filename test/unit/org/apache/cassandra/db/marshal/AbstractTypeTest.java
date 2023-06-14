@@ -173,7 +173,7 @@ public class AbstractTypeTest
     }
 
     @Test
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void eqHashSafe()
     {
         StringBuilder sb = new StringBuilder();
