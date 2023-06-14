@@ -87,7 +87,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         if (!(elementType instanceof FloatType))
             throw new InvalidRequestException(String.format("vectors may only use float. given %s", elementType.asCQL3Type()));
         if (dimension <= 0)
-            throw new InvalidRequestException(String.format("vectors may only have positive dimentions; given %d", dimension));
+            throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
         this.dimension = dimension;
         this.elementSerializer = elementType.getSerializer();

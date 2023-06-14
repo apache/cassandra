@@ -29,6 +29,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class VectorInvalidQueryTest extends SAITester
 {
     @Test
+    public void cannotCreateEmptyVectorColumn()
+    {
+        assertThatThrownBy(() -> execute(String.format("CREATE TABLE %s.%s (pk int, str_val text, val vector<float, 0>, PRIMARY KEY(pk))",
+                                                       KEYSPACE, createTableName())))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("vectors may only have positive dimensions; given 0");
+    }
+
+    @Test
+    public void cannotQueryEmptyVectorColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        assertThatThrownBy(() -> execute("SELECT similarity_cosine((vector<float, 0>) [], []) FROM %s"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("vectors may only have positive dimensions; given 0");
+    }
+
+    @Test
     public void cannotInsertWrongNumberOfDimensions()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
