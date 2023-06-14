@@ -672,9 +672,9 @@ public interface CQL3Type
             return new RawTuple(ts);
         }
 
-        public static Raw vector(CQL3Type.Raw t, int dimention)
+        public static Raw vector(CQL3Type.Raw t, int dimension)
         {
-            return new RawVector(t, dimention);
+            return new RawVector(t, dimension);
         }
 
         private static class RawType extends Raw
