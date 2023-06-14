@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -32,6 +33,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 
 import org.junit.Test;
 
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -102,5 +104,62 @@ public class CreateTableValidationTest extends CQLTester
             DatabaseDescriptor.setTableCountWarnThreshold(tableCountWarn);
             DatabaseDescriptor.setKeyspaceCountWarnThreshold(keyspaceCountWarn);
         }
+    }
+
+    @Test
+    public void testCreateTableOnSelectedClusteringColumn()
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+    }
+
+    @Test
+    public void testCreateTableOnAllClusteringColumns()
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);");
+    }
+
+    @Test
+    public void testCreateTableErrorOnNonClusteringKey()
+    {
+        String expectedMessage = "Only clustering key columns can be defined in CLUSTERING ORDER directive";
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, v ASC);",
+                        expectedMessage+": [v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC);",
+                        expectedMessage+": [v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk ASC);",
+                        expectedMessage+": [pk]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk ASC, ck1 DESC);",
+                        expectedMessage+": [pk]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, pk DESC);",
+                        expectedMessage+": [pk]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk DESC, v DESC);",
+                        expectedMessage+": [pk, v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk DESC, v DESC, ck1 DESC);",
+                        expectedMessage+": [pk, v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, v ASC);",
+                        expectedMessage+": [v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC, ck1 DESC);",
+                        expectedMessage+": [v]");
+    }
+
+    @Test
+    public void testCreateTableInWrongOrder()
+    {
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC, ck1 DESC);",
+                        "The order of columns in the CLUSTERING ORDER directive must match that of the clustering columns");
+    }
+
+    @Test
+    public void testCreateTableWithMissingClusteringColumn()
+    {
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC);",
+                        "Missing CLUSTERING ORDER for column ck1");
+    }
+
+    private void expectedFailure(String statement, String errorMsg)
+    {
+
+        assertThatExceptionOfType(InvalidRequestException.class)
+        .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
     }
 }
