@@ -243,6 +243,7 @@ public class AbstractTypeTest
     }
 
     @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void comparableBytes()
     {
         Gen<AbstractType<?>> gen = genBuilder()
