@@ -296,6 +296,7 @@ public class AbstractTypeTest
     }
 
     @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void json()
     {
         Gen<AbstractType<?>> typeGen = genBuilder()
