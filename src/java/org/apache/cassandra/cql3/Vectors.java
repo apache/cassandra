@@ -59,7 +59,7 @@ public class Vectors
         if (!(receiver.type instanceof VectorType))
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 
-        // If there is no elements, we can't say it's an exact match (an empty list if fundamentally polymorphic).
+        // If there is no elements, we can't say it's an exact match (an empty vector if fundamentally polymorphic).
         if (elements.isEmpty())
             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
 
