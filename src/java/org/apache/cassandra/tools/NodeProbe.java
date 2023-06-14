@@ -1133,11 +1133,6 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getCompactionThroughputMbPerSec();
     }
 
-    public double getCompactionRate()
-    {
-        return compactionProxy.getCompactionRate();
-    }
-
     public void setBatchlogReplayThrottle(int value)
     {
         ssProxy.setBatchlogReplayThrottleInKB(value);
@@ -1651,6 +1646,9 @@ public class NodeProbe implements AutoCloseable
             switch(metricName)
             {
                 case "BytesCompacted":
+                case "CompactionsAborted":
+                case "CompactionsReduced":
+                case "SSTablesDroppedFromCompaction":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
                             CassandraMetricsRegistry.JmxCounterMBean.class);

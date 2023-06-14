@@ -52,8 +52,7 @@ public class CompactionStats extends NodeToolCmd
         PrintStream out = probe.output().out;
         TableBuilder tableBuilder = new TableBuilder();
         pendingTasksAndConcurrentCompactorsStats(probe, tableBuilder);
-        compactionsCompletedStats(probe, tableBuilder);
-        compactionThroughputStats(probe, tableBuilder);
+        compactionsStats(probe, tableBuilder);
         tableBuilder.printTo(out);
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable, out, tableBuilder);
@@ -82,7 +81,7 @@ public class CompactionStats extends NodeToolCmd
         return numTotalPendingTasks;
     }
 
-    private void compactionsCompletedStats(NodeProbe probe, TableBuilder tableBuilder)
+    private void compactionsStats(NodeProbe probe, TableBuilder tableBuilder)
     {
         Long completedTasks = (Long) probe.getCompactionMetric("CompletedTasks");
         tableBuilder.add("compactions completed", completedTasks.toString());
@@ -90,26 +89,31 @@ public class CompactionStats extends NodeToolCmd
         CassandraMetricsRegistry.JmxMeterMBean totalCompactionsCompletedMetrics =
                 (CassandraMetricsRegistry.JmxMeterMBean)probe.getCompactionMetric("TotalCompactionsCompleted");
 
+        CassandraMetricsRegistry.JmxCounterMBean bytesCompacted =
+        (CassandraMetricsRegistry.JmxCounterMBean)probe.getCompactionMetric("BytesCompacted");
+        tableBuilder.add("data compacted", FileUtils.stringifyFileSize(Double.parseDouble(Long.toString(bytesCompacted.getCount()))));
+
+        CassandraMetricsRegistry.JmxCounterMBean compactionsAborted =
+        (CassandraMetricsRegistry.JmxCounterMBean)probe.getCompactionMetric("CompactionsAborted");
+        tableBuilder.add("compactions aborted", Long.toString(compactionsAborted.getCount()));
+
+        CassandraMetricsRegistry.JmxCounterMBean compactionsReduced =
+        (CassandraMetricsRegistry.JmxCounterMBean)probe.getCompactionMetric("CompactionsReduced");
+        tableBuilder.add("compactions reduced", Long.toString(compactionsReduced.getCount()));
+
+        CassandraMetricsRegistry.JmxCounterMBean sstablesDroppedFromCompaction =
+        (CassandraMetricsRegistry.JmxCounterMBean)probe.getCompactionMetric("SSTablesDroppedFromCompaction");
+        tableBuilder.add("sstables dropped from compaction", Long.toString(sstablesDroppedFromCompaction.getCount()));
+
         NumberFormat formatter = new DecimalFormat("0.00");
 
         tableBuilder.add("minute rate", String.format("%s/second", formatter.format(totalCompactionsCompletedMetrics.getOneMinuteRate())));
         tableBuilder.add("5 minute rate", String.format("%s/second", formatter.format(totalCompactionsCompletedMetrics.getFiveMinuteRate())));
         tableBuilder.add("15 minute rate", String.format("%s/second", formatter.format(totalCompactionsCompletedMetrics.getFifteenMinuteRate())));
         tableBuilder.add("mean rate", String.format("%s/second", formatter.format(totalCompactionsCompletedMetrics.getMeanRate())));
-    }
 
-    private void compactionThroughputStats(NodeProbe probe, TableBuilder tableBuilder)
-    {
         double configured = probe.getCompactionThroughput();
-        double actual = probe.getCompactionRate() / (1024 * 1024);
-
-        tableBuilder.add("compaction throughput (MBps)", configured == 0 ? "throttling disabled (0)" : Double.toString(actual));
-
-        if (configured != 0)
-        {
-            double percentage = (actual / configured) * 100;
-            tableBuilder.add("compaction throughput ratio", String.format("%s MBps / %s MBps (%s%s)", actual, configured, percentage, "%"));
-        }
+        tableBuilder.add("compaction throughput (MBps)", configured == 0 ? "throttling disabled (0)" : Double.toString(configured));
     }
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable, PrintStream out, TableBuilder table)
