@@ -107,6 +107,7 @@ public class Election
         if (!updateInitiator(null, new Initiator(FBUtilities.getBroadcastAddressAndPort(), UUID.randomUUID())))
             throw new IllegalStateException("Migration already initiated by " + initiator.get());
 
+        logger.info("No previous migration detected, initiating");
         Collection<Pair<InetAddressAndPort, ClusterMetadataHolder>> metadatas = fanoutAndWait(messaging, sendTo, Verb.TCM_INIT_MIG_REQ, initiator.get());
         if (metadatas.size() != sendTo.size())
         {
@@ -175,7 +176,7 @@ public class Election
             @Override
             public void onResponse(Message<RSP> msg)
             {
-                logger.debug("Received a {} response from {}: {}", msg.verb(), msg.from(), msg.payload);
+                logger.info("Received a {} response from {}: {}", msg.verb(), msg.from(), msg.payload);
                 responses.add(Pair.create(msg.from(), msg.payload));
                 cdl.decrement();
             }
@@ -183,12 +184,15 @@ public class Election
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
             {
-                logger.debug("Received a failure response from {}: {}", from, reason);
+                logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
                 cdl.decrement();
             }
         };
 
-        sendTo.forEach((ep) -> messaging.sendWithCallback(Message.out(verb, payload), ep, callback));
+        sendTo.forEach((ep) -> {
+            logger.info("Election for metadata migration sending {} ({}) to {}", verb, payload.toString(), ep);
+            messaging.sendWithCallback(Message.out(verb, payload), ep, callback);
+        });
         cdl.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
         return responses.snapshot();
     }
@@ -198,10 +202,12 @@ public class Election
         @Override
         public void doVerb(Message<Initiator> message) throws IOException
         {
+            logger.info("Received election initiation message {} from {}", message.payload, message.from());
             if (!updateInitiator(null, message.payload))
                 throw new IllegalStateException(String.format("Got duplicate initiate migration message from %s, migration is already started by %s", message.from(), initiator()));
 
             // todo; disallow ANY changes to state managed in ClusterMetadata
+            logger.info("Sending initiation response");
             messaging.send(message.responseWith(new ClusterMetadataHolder(message.payload, ClusterMetadata.current())), message.from());
         }
     }
@@ -211,6 +217,7 @@ public class Election
         @Override
         public void doVerb(Message<Initiator> message) throws IOException
         {
+            logger.info("Received election abort message {} from {}", message.payload, message.from());
             if (!message.from().equals(initiator().initiator) || !updateInitiator(message.payload, null))
                 logger.error("Could not clear initiator - initiator is set to {}, abort message received from {}", initiator(), message.payload);
         }

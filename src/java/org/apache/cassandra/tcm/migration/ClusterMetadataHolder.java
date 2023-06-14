@@ -39,6 +39,15 @@ public class ClusterMetadataHolder
         this.metadata = metadata;
     }
 
+    @Override
+    public String toString()
+    {
+        return "ClusterMetadataHolder{" +
+               "coordinator=" + coordinator +
+               ", epoch=" + metadata.epoch +
+               '}';
+    }
+
     private static class Serializer implements IVersionedSerializer<ClusterMetadataHolder>
     {
         @Override

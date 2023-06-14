@@ -543,6 +543,11 @@ public class ClusterUtils
         instance.runOnInstance(() -> TestChangeListener.instance.unpause());
     }
 
+    public static boolean isMigrating(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> ClusterMetadataService.instance().isMigrating());
+    }
+
     public static interface SerializablePredicate<T> extends Predicate<T>, Serializable
     {}
 

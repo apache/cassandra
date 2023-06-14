@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 
 public class Replication
 {
+    private static final Logger logger = LoggerFactory.getLogger(Replication.class);
     public static Replication EMPTY = new Replication(ImmutableList.<Entry>builder().build());
 
     public static final Serializer serializer = new Serializer();
@@ -207,6 +208,14 @@ public class Replication
 
         public void doVerb(Message<LogState> message) throws IOException
         {
+            // If another node (CMS or otherwise) is sending log notifications then
+            // we can infer that the post-upgrade enablement of CMS has completed
+            if (ClusterMetadataService.instance().isMigrating())
+            {
+                logger.info("Received metadata log notification from {}, marking in progress migration complete", message.from());
+                ClusterMetadataService.instance().migrated();
+            }
+
             log.append(message.payload);
             if (log.hasGaps())
             {

@@ -30,6 +30,8 @@ import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Unin
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.membership.NodeId;
 
@@ -37,8 +39,37 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
 
+
 public class ClusterMetadataUpgradeTest extends UpgradeTestBase
 {
+
+    @Test
+    public void simpleUpgradeTest() throws Throwable
+    {
+        new TestCase()
+        .nodes(3)
+        .nodesToUpgrade(1, 2, 3)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                .set(Constants.KEY_DTEST_FULL_STARTUP, true))
+        .singleUpgradeToCurrentFrom(v41.toStrict())
+        .setup((cluster) -> {
+            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':2}"));
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        })
+        .runAfterClusterUpgrade((cluster) -> {
+            cluster.get(1).nodetoolResult("addtocms").asserts().success();
+            cluster.forEach(i ->
+            {
+                // The cast is unpleasant, but safe to do so as the upgraded instance is running the current version.
+                assertFalse("node " + i.config().num() + " is still in MIGRATING STATE",
+                            ClusterUtils.isMigrating((IInvokableInstance) i));
+            });
+            cluster.get(2).nodetoolResult("addtocms").asserts().success();
+            cluster.get(1).nodetoolResult("addtocms").asserts().failure();
+            cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
+        }).run();
+    }
+
     @Test
     public void upgradeIgnoreHostsTest() throws Throwable
     {
