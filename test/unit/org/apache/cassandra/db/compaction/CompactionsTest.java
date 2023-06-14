@@ -186,12 +186,14 @@ public class CompactionsTest
         // disable compaction while flushing
         store.disableAutoCompaction();
 
-        //Populate sstable1 with with keys [0a..29a]
-        populate(KEYSPACE1, CF_STANDARD1, 0, 29, "a",3); //ttl=3s
+        //Populate sstable1 with with keys [0a..29aaaaaaaaaaa] Partitions have to be big enough 
+        //that prevent the size dependent AbstractCompactionStrategy.worthDroppingTombstones to trigger 
+        //a compaction.
+        populate(KEYSPACE1, CF_STANDARD1, 0, 29, "aaaaaaaaaaa",3); //ttl=3s
         Util.flush(store);
 
         //Populate sstable2 with with keys [0b..29b] (keys do not overlap with SSTable1, but the range is almost fully covered)
-        long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 0, 29, "b", 3); //ttl=3s
+        long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 0, 29, "bbbbbbbbbbb", 3); //ttl=3s
         Util.flush(store);
 
         assertEquals(2, store.getLiveSSTables().size());

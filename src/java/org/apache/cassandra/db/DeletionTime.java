@@ -195,42 +195,103 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
             return legacySerializer;
     }
 
-    // Serializer for Usigned Integer ldt
+    /* Serializer for Usigned Integer ldt
+     *
+     * ldt is encoded as a uint in seconds since unix epoch, it can go up o 2106-02-07T06:28:13+00:00 only. 
+     * mfda is a positive timestamp. We use the sign bit to encode LIVE DeletionTimes
+     * Throw IOException to mark sstable as corrupt.
+     */
     public static class Serializer implements ISerializer<DeletionTime>
     {
+        // We use the sign bit to signal LIVE DeletionTimes
+        private final static int IS_LIVE_DELETION = 0b1000_0000;
+
         public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
         {
-            out.writeInt(delTime.localDeletionTimeUnsignedInteger);
-            out.writeLong(delTime.markedForDeleteAt());
+            if (delTime == LIVE)
+                out.writeByte(IS_LIVE_DELETION);
+            else
+            {
+                // The sign bit is zero here, so we can write a long directly
+                out.writeLong(delTime.markedForDeleteAt());
+                out.writeInt(delTime.localDeletionTimeUnsignedInteger);
+            }
         }
 
         public DeletionTime deserialize(DataInputPlus in) throws IOException
         {
-            int localDeletionTimeUnsignedInteger = in.readInt();
-            long mfda = in.readLong();
-            return mfda == Long.MIN_VALUE && localDeletionTimeUnsignedInteger == Cell.NO_DELETION_TIME_UNSIGNED_INTEGER
-                 ? LIVE
-                 : new DeletionTime(mfda, localDeletionTimeUnsignedInteger);
+            int flags = in.readByte();
+            if ((flags & IS_LIVE_DELETION) != 0)
+            {
+                if ((flags & 0xFF) != IS_LIVE_DELETION)
+                    throw new IOException("Corrupted sstable. Invalid flags found deserializing DeletionTime: " + Integer.toBinaryString(flags & 0xFF));
+                return LIVE;
+            }
+            else
+            {
+                // Read the remaining 7 bytes
+                int bytes1 = in.readByte();
+                int bytes2 = in.readShort();
+                int bytes4 = in.readInt();
+
+                long mfda = readBytesToMFDA(flags, bytes1, bytes2, bytes4);
+                int localDeletionTimeUnsignedInteger = in.readInt();
+
+                return new DeletionTime(mfda, localDeletionTimeUnsignedInteger);
+            }
         }
 
-        public DeletionTime deserialize(ByteBuffer buf, int offset)
+        public DeletionTime deserialize(ByteBuffer buf, int offset) throws IOException
         {
-            int localDeletionTimeUnsignedInteger = buf.getInt(offset);
-            long mfda = buf.getLong(offset + 4);
-            return mfda == Long.MIN_VALUE && localDeletionTimeUnsignedInteger == Cell.NO_DELETION_TIME_UNSIGNED_INTEGER
-                   ? LIVE
-                   : new DeletionTime(mfda, localDeletionTimeUnsignedInteger);
+            int flags = buf.get(offset);
+            if ((flags & IS_LIVE_DELETION) != 0)
+            {
+                if ((flags & 0xFF) != IS_LIVE_DELETION)
+                    throw new IOException("Corrupted sstable. Invalid flags found deserializing DeletionTime: " + Integer.toBinaryString(flags & 0xFF));
+                return LIVE;
+            }
+            else
+            {
+                long mfda = buf.getLong(offset);
+                int localDeletionTimeUnsignedInteger = buf.getInt(offset + TypeSizes.LONG_SIZE);
+
+                return new DeletionTime(mfda, localDeletionTimeUnsignedInteger);
+            }
         }
 
         public void skip(DataInputPlus in) throws IOException
         {
-            in.skipBytesFully(4 + 8);
+            int flags = in.readByte();
+            if ((flags & IS_LIVE_DELETION) != 0)
+            {
+                if ((flags & 0xFF) != IS_LIVE_DELETION)
+                    throw new IOException("Corrupted sstable. Invalid flags found deserializing DeletionTime: " + Integer.toBinaryString(flags & 0xFF));
+                // We read the flags already and there's nothing left to skip over
+                return;
+            }
+            else
+                // We read the flags already but there is mfda and ldt to skip over still
+                in.skipBytesFully(TypeSizes.LONG_SIZE - 1 + TypeSizes.INT_SIZE);
         }
 
         public long serializedSize(DeletionTime delTime)
         {
-            return TypeSizes.sizeof(Integer.MAX_VALUE)
-                   + TypeSizes.sizeof(delTime.markedForDeleteAt());
+            if (delTime == LIVE)
+                // Just the flags
+                return 1;
+            else
+                // 1 for the flags, 7 for mfda and 4 for ldt
+                return TypeSizes.LONG_SIZE
+                       + TypeSizes.INT_SIZE;
+        }
+
+        private long readBytesToMFDA(int flagsByte, int bytes1, int bytes2, int bytes4)
+        {
+                long mfda = flagsByte & 0xFFL;
+                mfda = (mfda << 8) + (bytes1 & 0xFFL);
+                mfda = (mfda << 16) + (bytes2 & 0xFFFFL);
+                mfda = (mfda << 32) + (bytes4 & 0xFFFFFFFFL);
+                return mfda;
         }
     }
 
