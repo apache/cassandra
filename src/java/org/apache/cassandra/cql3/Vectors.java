@@ -149,7 +149,7 @@ public class Vectors
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            return getExactVectorTypeIfKnown(elements, e -> e.getCompatibleTypeIfKnown(keyspace));
+            return getExactVectorTypeIfKnown(elements, e -> e.getExactTypeIfKnown(keyspace));
         }
 
         @Override
