@@ -37,6 +37,16 @@ public class Decommission extends NodeToolCmd
     {
         try
         {
+            if (probe.getStorageService().isDecommissioning())
+            {
+                probe.output().out.println("This node is still decommissioning.");
+                return;
+            }
+            if ("DECOMMISSIONED".equals(probe.getStorageService().getBootstrapState()))
+            {
+                probe.output().out.println("Node was already decommissioned.");
+                return;
+            }
             probe.decommission(force);
         } catch (InterruptedException e)
         {

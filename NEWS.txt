@@ -164,6 +164,7 @@ New features
     - Added `sstablepartitions` offline tool to find large partitions in sstables.
     - `cassandra-stress` has a new option called '-jmx' which enables a user to pass username and password to JMX (CASSANDRA-18544)
     - It is possible to read all credentials for `cassandra-stress` from a file via option `-credentials-file` (CASSANDRA-18544)
+    - nodetool info displays bootstrap state a node is in as well as if it was decommissioned or if it failed to decommission (CASSANDRA-18555)
 
 Upgrading
 ---------
