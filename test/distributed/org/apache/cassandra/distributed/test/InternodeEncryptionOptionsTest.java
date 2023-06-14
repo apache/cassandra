@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.net.InetAddress;
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
@@ -217,6 +218,16 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         }
     }
 
+    /**
+     * Tests that the negotiated protocol is the highest common protocol between the client and server.
+     * <p> 
+     * Note: This test uses TLSV1.1, which is disabled by default in JDK 8 and higher. If the test fails with 
+     * FAILED_TO_NEGOTIATE, it may be necessary to check the java.security file in your JDK installation and remove 
+     * TLSv1.1 from the jdk.tls.disabledAlgorithms.
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-18540">CASSANDRA-18540</a>
+     * @see <a href="https://senthilnayagan.medium.com/tlsv1-and-tlsv1-1-protocols-disabled-by-default-in-javas-latest-patch-released-on-april-20-2021-52c309f6b16d">
+     *     TLSv1 and TLSv1.1 Protocols are Disabled in Java!</a>
+     */
     @Test
     public void negotiatedProtocolMustBeAcceptedProtocolTest() throws Throwable
     {
@@ -225,7 +236,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "all")
-                              .put("accepted_protocols", Collections.singletonList("TLSv1.1"))
+                              .put("accepted_protocols", ImmutableList.of("TLSv1.1", "TLSv1.2"))
                               .build());
         }).start())
         {
@@ -243,9 +254,9 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
 
             TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
-            Assert.assertEquals("Should not be possible to establish a TLSv1.2 connection",
-                                ConnectResult.FAILED_TO_NEGOTIATE, tls12Connection.connect());
-            tls12Connection.assertReceivedHandshakeException();
+            Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
+                                ConnectResult.NEGOTIATED, tls12Connection.connect());
+            Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
         }
     }
 
