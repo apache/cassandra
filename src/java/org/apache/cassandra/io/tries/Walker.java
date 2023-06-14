@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.tries;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
 
@@ -184,7 +185,7 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
 
     public interface Extractor<RESULT, VALUE>
     {
-        RESULT extract(VALUE walker, int payloadPosition, int payloadFlags);
+        RESULT extract(VALUE walker, int payloadPosition, int payloadFlags) throws IOException;
     }
 
     /**
@@ -268,9 +269,10 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
      * is in the trie when looking for 'abc' or 'ac', but accepted when looking for 'aa').
      * In order to not have to go back to data that may have exited cache, payloads are extracted when the node is
      * visited (instead of saving the node's position), which requires an extractor to be passed as parameter.
+     * @throws IOException 
      */
     @SuppressWarnings("unchecked")
-    public <RESULT> RESULT prefix(ByteComparable key, Extractor<RESULT, CONCRETE> extractor)
+    public <RESULT> RESULT prefix(ByteComparable key, Extractor<RESULT, CONCRETE> extractor) throws IOException
     {
         RESULT payload = null;
 
@@ -304,9 +306,10 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
      * does not take that into account. E.g. if trie contains "abba", "as" and "ask", looking for "asking" will find
      * "ask" as the match, but max(lesserBranch) will point to "abba" instead of the correct "as". This problem can
      * only occur if there is a valid prefix match.
+     * @throws IOException 
      */
     @SuppressWarnings("unchecked")
-    public <RESULT> RESULT prefixAndNeighbours(ByteComparable key, Extractor<RESULT, CONCRETE> extractor)
+    public <RESULT> RESULT prefixAndNeighbours(ByteComparable key, Extractor<RESULT, CONCRETE> extractor) throws IOException
     {
         RESULT payload = null;
         greaterBranch = NONE;
@@ -358,16 +361,16 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
 
     public interface PayloadToString
     {
-        String payloadAsString(ByteBuffer buf, int payloadPos, int payloadFlags, Version version);
+        String payloadAsString(ByteBuffer buf, int payloadPos, int payloadFlags, Version version) throws IOException;
     }
 
-    public void dumpTrie(PrintStream out, PayloadToString payloadReader, Version version)
+    public void dumpTrie(PrintStream out, PayloadToString payloadReader, Version version) throws IOException
     {
         out.print("ROOT");
         dumpTrie(out, payloadReader, root, "", version);
     }
 
-    private void dumpTrie(PrintStream out, PayloadToString payloadReader, long node, String indent, Version version)
+    private void dumpTrie(PrintStream out, PayloadToString payloadReader, long node, String indent, Version version) throws IOException
     {
         go(node);
         int bits = payloadFlags();
