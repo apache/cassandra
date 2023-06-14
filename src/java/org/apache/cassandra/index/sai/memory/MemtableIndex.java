@@ -30,18 +30,23 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class MemtableIndex
 {
     private final TrieMemoryIndex index;
+
+    private final IndexContext indexContext;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
 
     public MemtableIndex(IndexContext indexContext)
     {
         this.index = new TrieMemoryIndex(indexContext);
+        this.indexContext = indexContext;
     }
 
     public long writeCount()

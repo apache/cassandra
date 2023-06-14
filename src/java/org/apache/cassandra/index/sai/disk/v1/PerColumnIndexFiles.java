@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.util.EnumMap;
 import java.util.Map;
 
+import jnr.ffi.annotations.In;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;

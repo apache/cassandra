@@ -80,6 +80,8 @@ public class TrieMemoryIndex
         this.analyzerFactory = indexContext.getAnalyzerFactory();
         this.validator = indexContext.getValidator();
         this.isLiteral = TypeUtil.isLiteral(validator);
+
+
     }
 
     /**

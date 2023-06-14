@@ -786,15 +786,18 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             switch (operator)
             {
                 case CONTAINS:
+                case NOT_CONTAINS:
                     assert type instanceof CollectionType;
                     CollectionType<?> ct = (CollectionType<?>)type;
                     type = ct.kind == CollectionType.Kind.SET ? ct.nameComparator() : ct.valueComparator();
                     break;
                 case CONTAINS_KEY:
+                case NOT_CONTAINS_KEY:
                     assert type instanceof MapType;
                     type = ((MapType<?, ?>)type).nameComparator();
                     break;
                 case IN:
+                case NOT_IN:
                     type = ListType.getInstance(type, false);
                     break;
                 default:

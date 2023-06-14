@@ -87,6 +87,9 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         if (!expression.getOp().isEquality())
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression: " + expression));
 
+        if (reader == null)
+            return KeyRangeIterator.empty();
+
         final ByteComparable term = ByteComparable.fixedLength(expression.lower.value.encoded);
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
         PostingList postingList = reader.exactMatch(term, listener, queryContext);
