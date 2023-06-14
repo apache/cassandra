@@ -236,6 +236,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
          *
          * This function is dead code, it exists to help authors debug when a failing test is found.
          */
+        @SuppressWarnings("unused")
         public Builder withFixedSeed(long seed)
         {
             this.seed = seed;
@@ -246,6 +247,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
          * Used to override how many examples to run with.  This is dead code, but exists to allow authors to run the test
          * many times to make sure its stable before committing.
          */
+        @SuppressWarnings("unused")
         public Builder withExamples(int examples)
         {
             this.examples = examples;
