@@ -205,7 +205,7 @@ public class AbstractTypeTest
                 }
                 try
                 {
-                    Method eq = t.getDeclaredMethod("equals", Object.class);
+                    t.getDeclaredMethod("equals", Object.class);
                     hasEq = true;
                 }
                 catch (NoSuchMethodException e)
@@ -214,7 +214,7 @@ public class AbstractTypeTest
                 }
                 try
                 {
-                    Method hash = t.getDeclaredMethod("hashCode");
+                    t.getDeclaredMethod("hashCode");
                     hasHashCode = true;
                 }
                 catch (NoSuchMethodException e)
@@ -332,6 +332,7 @@ public class AbstractTypeTest
     }
 
     @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void nested()
     {
         Map<Class<? extends AbstractType>, Function<? super AbstractType<?>, Integer>> complexTypes = ImmutableMap.of(MapType.class, ignore -> 2,
@@ -440,6 +441,7 @@ public class AbstractTypeTest
     }
 
     @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void serde()
     {
         Gen<AbstractType<?>> typeGen = genBuilder()
@@ -534,6 +536,7 @@ public class AbstractTypeTest
     }
 
     @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void ordering()
     {
         Gen<AbstractType<?>> types = genBuilder()
@@ -603,11 +606,13 @@ public class AbstractTypeTest
         return os;
     }
 
+    @SuppressWarnings("unchecked")
     private static Comparator<Object> comparator(AbstractType<?> type)
     {
         return (Comparator<Object>) AbstractTypeGenerators.comparator(type);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private List<ByteBuffer> decompose(AbstractType type, List<Object> value)
     {
         List<ByteBuffer> expected = new ArrayList<>(value.size());
@@ -623,10 +628,6 @@ public class AbstractTypeTest
                                      .withoutEmpty();
     }
 
-    private static Gen<Example> examples(int samples)
-    {
-        return examples(samples, genBuilder().build());
-    }
     private static Gen<Example> examples(int samples, Gen<AbstractType<?>> typeGen)
     {
         Gen<Example> gen = rnd -> {
