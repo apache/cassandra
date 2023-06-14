@@ -545,7 +545,7 @@ public class AbstractTypeTest
         qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
             List<ByteBuffer> actual = decompose(type, example.samples);
-            Collections.sort(actual, type);
+            actual.sort(type);
             List<ByteBuffer>[] byteOrdered = new List[ByteComparable.Version.values().length];
             List<OrderedBytes>[] rawByteOrdered = new List[ByteComparable.Version.values().length];
             for (int i = 0; i < byteOrdered.length; i++)
@@ -560,7 +560,7 @@ public class AbstractTypeTest
                 rawByteOrdered[i].sort(type);
             }
 
-            Collections.sort(example.samples, comparator(type));
+            example.samples.sort(comparator(type));
             List<Object> real = new ArrayList<>(actual.size());
             for (ByteBuffer bb : actual)
                 real.add(type.compose(bb));
