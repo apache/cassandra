@@ -139,7 +139,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                        DecoratedKey maxKey,
                        AbstractType<?> termComparator,
                        MemtableTermsIterator terms,
-                       long maxSegmentRowId) throws IOException
+                       long maxSSTableRowId) throws IOException
     {
         long numRows;
         SegmentMetadata.ComponentMetadataMap indexMetas;
@@ -157,8 +157,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                                indexContext,
                                                                TypeUtil.fixedSizeOf(termComparator),
-                                                               maxSegmentRowId);
-            indexMetas = writer.writeAll(ImmutableIntersectingPointValues.fromTermEnum(terms, termComparator));
+                                                               maxSSTableRowId);
+            indexMetas = writer.writeCompleteSegment(ImmutableIntersectingPointValues.fromTermEnum(terms, termComparator));
             numRows = writer.getPointCount();
         }
 

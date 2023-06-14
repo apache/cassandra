@@ -31,9 +31,9 @@ import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class ImmutableIntersectingPointValuesTest
 {
@@ -70,7 +70,7 @@ public class ImmutableIntersectingPointValuesTest
         final TermsIterator termEnum = buildDescTermEnum(minTerm, maxTerm);
         final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues.fromTermEnum(termEnum, Int32Type.instance);
 
-        MutablePointsReaderUtils.sort(2, Int32Type.instance.valueLengthIfFixed(), pointValues, 0, Math.toIntExact(pointValues.size()));
+        assertFalse(pointValues.needsSorting());
 
         pointValues.intersect(assertingVisitor(minTerm));
     }
@@ -83,13 +83,13 @@ public class ImmutableIntersectingPointValuesTest
             int postingCounter = 0;
 
             @Override
-            public void visit(long docID, byte[] packedValue)
+            public void visit(long rowID, byte[] packedValue)
             {
                 final ByteComparable actualTerm = ByteComparable.fixedLength(packedValue);
                 final ByteComparable expectedTerm = ByteComparable.of(term);
 
                 assertEquals(0, ByteComparable.compare(actualTerm, expectedTerm, ByteComparable.Version.OSS50));
-                assertEquals(postingCounter, docID);
+                assertEquals(postingCounter, rowID);
 
                 if (postingCounter >= 2)
                 {

@@ -114,7 +114,7 @@ public abstract class SegmentBuilder
                                                                indexContext,
                                                                TypeUtil.fixedSizeOf(termComparator),
                                                                maxSegmentRowId);
-            return writer.writeAll(blockBalancedTreeRamBuffer.asPointValues());
+            return writer.writeCompleteSegment(blockBalancedTreeRamBuffer.asPointValues());
         }
     }
 

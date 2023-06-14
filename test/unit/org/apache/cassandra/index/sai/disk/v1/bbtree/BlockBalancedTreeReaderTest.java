@@ -127,10 +127,10 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     public void testSameValuesInLeaf() throws Exception
     {
         // While a bit synthetic this test is designed to test that the
-        // BKDReader.FilteringIntersection.visitRawDocValues method is
-        // exercised in a test. To do this we need to ensure that we have
-        // at least one leaf that has all the same value and that all of
-        // that leaf is requested in a query.
+        // BlockBalancedTreeReader.FilteringIntersection.visitRawDocValues
+        // method is exercised in a test. To do this we need to ensure that
+        // we have at least one leaf that has all the same value and that
+        // all of that leaf is requested in a query.
         final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         byte[] scratch = new byte[4];
 
@@ -196,9 +196,9 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
 
     private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
     {
-        QueryEventListener.BalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BalancedTreeEventListener.class);
-        when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
-        return reader.intersect(visitor, bkdIndexEventListener, mock(QueryContext.class));
+        QueryEventListener.BalancedTreeEventListener balancedTreeEventListener = mock(QueryEventListener.BalancedTreeEventListener.class);
+        when(balancedTreeEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
+        return reader.intersect(visitor, balancedTreeEventListener, mock(QueryContext.class));
     }
 
     private BlockBalancedTreeReader.IntersectVisitor buildQuery(int queryMin, int queryMax)
@@ -244,18 +244,18 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(buffer.numRows()));
 
-        final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(buffer.asPointValues());
-        final long bkdPosition = metadata.get(IndexComponent.BALANCED_TREE).root;
-        assertThat(bkdPosition, is(greaterThan(0L)));
+        final SegmentMetadata.ComponentMetadataMap metadata = writer.writeCompleteSegment(buffer.asPointValues());
+        final long treePosition = metadata.get(IndexComponent.BALANCED_TREE).root;
+        assertThat(treePosition, is(greaterThan(0L)));
         final long postingsPosition = metadata.get(IndexComponent.POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
-        FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
+        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
+        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
         return new BlockBalancedTreeReader(indexContext,
-                                           kdtreeHandle,
-                                           bkdPosition,
-                                           kdtreePostingsHandle,
+                                           treeHandle,
+                                           treePosition,
+                                           treePostingsHandle,
                                            postingsPosition);
     }
 }

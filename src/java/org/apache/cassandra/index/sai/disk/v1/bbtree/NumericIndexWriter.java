@@ -46,6 +46,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class NumericIndexWriter
 {
     public static final int MAX_POINTS_IN_LEAF_NODE = BlockBalancedTreeWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+    private static final int DEFAULT_POSTINGS_SIZE = 128;
 
     private final BlockBalancedTreeWriter writer;
     private final IndexDescriptor indexDescriptor;
@@ -70,7 +71,7 @@ public class NumericIndexWriter
                               int bytesPerValue,
                               long maxSegmentRowId)
     {
-        checkArgument(maxSegmentRowId >= 0, "[%s] maxRowId must be non-negative value, but got %s", indexContext.getIndexName(), maxSegmentRowId);
+        checkArgument(maxSegmentRowId >= 0, "[%s] maxSegmentRowId must be non-negative value, but got %s", indexContext.getIndexName(), maxSegmentRowId);
 
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
@@ -82,14 +83,14 @@ public class NumericIndexWriter
     public String toString()
     {
         return MoreObjects.toStringHelper(this)
-                          .add("bytesPerDim", bytesPerValue)
-                          .add("bufferedPoints", writer.getPointCount())
+                          .add("indexContext", indexContext)
+                          .add("bytesPerValue", bytesPerValue)
                           .toString();
     }
 
-    public static class LeafCallback implements BlockBalancedTreeWriter.Callback
+    private static class LeafCallback implements BlockBalancedTreeWriter.Callback
     {
-        final List<PackedLongValues> postings = new ArrayList<>();
+        final List<PackedLongValues> postings = new ArrayList<>(DEFAULT_POSTINGS_SIZE);
 
         public int numLeaves()
         {
@@ -110,15 +111,16 @@ public class NumericIndexWriter
     }
 
     /**
-     * Writes a balanced tree and posting lists from a {@link org.apache.lucene.codecs.MutablePointValues}.
+     * Writes a balanced tree and posting lists from a {@link IntersectingPointValues}.
      *
      * @param values points to write
      *
      * @return metadata describing the location and size of this balanced tree in the overall SSTable balanced tree component file
      */
-    public SegmentMetadata.ComponentMetadataMap writeAll(IntersectingPointValues values) throws IOException
+    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(IntersectingPointValues values) throws IOException
     {
         long treePosition;
+
         SegmentMetadata.ComponentMetadataMap components = new SegmentMetadata.ComponentMetadataMap();
 
         LeafCallback leafCallback = new LeafCallback();
@@ -128,10 +130,9 @@ public class NumericIndexWriter
             // The SSTable balanced tree component file is opened in append mode, so our offset is the current file pointer.
             long treeOffset = treeOutput.getFilePointer();
 
-            treePosition = writer.writeField(treeOutput, values, leafCallback);
+            treePosition = writer.writeTree(treeOutput, values, leafCallback);
 
-            // If the treePosition is less than 0 then we didn't write any values out
-            // and the index is empty
+            // If the treePosition is less than 0 then we didn't write any values out and the index is empty
             if (treePosition < 0)
                 return components;
 
@@ -141,7 +142,7 @@ public class NumericIndexWriter
             attributes.put("max_points_in_leaf_node", Integer.toString(writer.getMaxPointsInLeafNode()));
             attributes.put("num_leaves", Integer.toString(leafCallback.numLeaves()));
             attributes.put("num_points", Long.toString(writer.getPointCount()));
-            attributes.put("bytes_per_dim", Long.toString(writer.getBytesPerValue()));
+            attributes.put("bytes_per_value", Long.toString(writer.getBytesPerValue()));
 
             components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
         }

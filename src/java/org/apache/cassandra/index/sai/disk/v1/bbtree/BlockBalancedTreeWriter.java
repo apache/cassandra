@@ -58,7 +58,7 @@ import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 public class BlockBalancedTreeWriter
 {
     // Enable to check that values are added to the tree in correct order and within bounds
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     // Default maximum number of point in each leaf block
     public static final int DEFAULT_MAX_POINTS_IN_LEAF_NODE = 1024;
@@ -105,241 +105,85 @@ public class BlockBalancedTreeWriter
     /**
      * Write the point values from a {@link IntersectingPointValues}. The points can be reordered before writing
      * to disk and does not use transient disk for reordering.
+     * <p>
+     * Visual representation of the disk format:
+     * <pre>
+     *
+     * +========+=======================================+==================+========+
+     * | HEADER | LEAF BLOCK LIST                       | BALANCED TREE    | FOOTER |
+     * +========+================+=====+================+==================+========+
+     *          | LEAF BLOCK (0) | ... | LEAF BLOCK (N) | VALUES PER LEAF  |
+     *          +----------------+-----+----------------+------------------|
+     *          | ORDER INDEX    |                      | BYTES PER VALUE  |
+     *          +----------------+                      +------------------+
+     *          | PREFIX         |                      | NUMBER OF LEAVES |
+     *          +----------------+                      +------------------+
+     *          | VALUES         |                      | MINIMUM VALUE    |
+     *          +----------------+                      +------------------+
+     *                                                  | MAXIMUM VALUE    |
+     *                                                  +------------------+
+     *                                                  | TOTAL VALUES     |
+     *                                                  +------------------+
+     *                                                  | INDEX TREE       |
+     *                                                  +--------+---------+
+     *                                                  | LENGTH | BYTES   |
+     *                                                  +--------+---------+
+     *  </pre>
+     *
+     * @param treeOutput The {@link IndexOutput} to write the balanced tree to
+     * @param reader The {@link IntersectingPointValues} containing the values and rowIDs to be written
+     * @param callback The {@link Callback} used to record the leaf postings for each leaf
+     *
+     * @return The file pointer to the beginning of the balanced tree
      */
-    public long writeField(IndexOutput out, IntersectingPointValues reader,
-                           final Callback callback) throws IOException
+    public long writeTree(IndexOutput treeOutput, IntersectingPointValues reader,
+                          final Callback callback) throws IOException
     {
-        SAICodecUtils.writeHeader(out);
+        SAICodecUtils.writeHeader(treeOutput);
 
         // We are only ever dealing with one dimension, so we can sort the points in ascending order
         // and write out the values
         if (reader.needsSorting())
             MutablePointsReaderUtils.sort(Math.toIntExact(maxDoc), bytesPerValue, reader, 0, Math.toIntExact(reader.size()));
 
-        TreeWriter oneDimWriter = new TreeWriter(out, callback);
+        TreeWriter treeWriter = new TreeWriter(treeOutput, callback);
 
-        reader.intersect((docID, packedValue) -> oneDimWriter.add(packedValue, docID));
+        reader.intersect((rowID, packedValue) -> treeWriter.add(packedValue, rowID));
 
-        long filePointer = oneDimWriter.finish();
+        pointCount = treeWriter.finish();
 
-        SAICodecUtils.writeFooter(out);
+        long filePointer = pointCount == 0 ? -1 : treeOutput.getFilePointer();
+
+        writeIndex(treeOutput, maxPointsInLeafNode, treeWriter.leafBlockStartValues, treeWriter.leafBlockFilePointer);
+
+        SAICodecUtils.writeFooter(treeOutput);
+
         return filePointer;
     }
 
-    interface Callback
+    private void writeIndex(IndexOutput out, int countPerLeaf, List<byte[]> leafBlockStartValues, List<Long> leafBlockFilePointer) throws IOException
     {
-        void writeLeafDocs(RowIDAndIndex[] leafDocs, int offset, int count);
+        int numInnerNodes = leafBlockStartValues.size();
+        byte[] splitPackedValues = new byte[(1 + numInnerNodes) * (1 + bytesPerValue)];
+        rotateToTree(1, 0, numInnerNodes, splitPackedValues, leafBlockStartValues);
+        long[] leafBlockFPs = leafBlockFilePointer.stream().mapToLong(l -> l).toArray();
+        byte[] packedIndex = packIndex(leafBlockFPs, splitPackedValues);
+
+        out.writeVInt(countPerLeaf);
+        out.writeVInt(bytesPerValue);
+
+        assert leafBlockFPs.length > 0;
+        out.writeVInt(leafBlockFPs.length);
+
+        out.writeBytes(minPackedValue, 0, bytesPerValue);
+        out.writeBytes(maxPackedValue, 0, bytesPerValue);
+
+        out.writeVLong(pointCount);
+
+        out.writeVInt(packedIndex.length);
+        out.writeBytes(packedIndex, 0, packedIndex.length);
     }
 
-    public static class RowIDAndIndex
-    {
-        public int valueOrderIndex;
-        public long rowID;
-
-        @Override
-        public String toString()
-        {
-            return MoreObjects.toStringHelper(this)
-                              .add("valueOrderIndex", valueOrderIndex)
-                              .add("rowID", rowID)
-                              .toString();
-        }
-    }
-
-    private class TreeWriter
-    {
-        private final IndexOutput out;
-        private final List<Long> leafBlockFilePointer = new ArrayList<>();
-        private final List<byte[]> leafBlockStartValues = new ArrayList<>();
-        private final byte[] leafValues = new byte[maxPointsInLeafNode * bytesPerValue];
-        private final long[] leafDocs = new long[maxPointsInLeafNode];
-        private final RowIDAndIndex[] rowIDAndIndexes = new RowIDAndIndex[maxPointsInLeafNode];
-        private final int[] orderIndex = new int[maxPointsInLeafNode];
-        private final Callback callback;
-        private final GrowableByteArrayDataOutput scratchOut = new GrowableByteArrayDataOutput(32 * 1024);
-        private final GrowableByteArrayDataOutput scratchOut2 = new GrowableByteArrayDataOutput(2 * 1024);
-        private final byte[] lastPackedValue = new byte[bytesPerValue];
-
-        private long valueCount;
-        private int leafCount;
-        private long lastDocID;
-
-        TreeWriter(IndexOutput out, Callback callback)
-        {
-            this.out = out;
-            this.callback = callback;
-
-            for (int x = 0; x < rowIDAndIndexes.length; x++)
-            {
-                rowIDAndIndexes[x] = new RowIDAndIndex();
-            }
-        }
-
-        void add(byte[] packedValue, long docID) throws IOException
-        {
-            if (DEBUG)
-                valueInOrder(valueCount + leafCount, lastPackedValue, packedValue, 0, docID, lastDocID);
-
-            System.arraycopy(packedValue, 0, leafValues, leafCount * bytesPerValue, bytesPerValue);
-            leafDocs[leafCount] = docID;
-            leafCount++;
-
-            if (leafCount == maxPointsInLeafNode)
-            {
-                // We write a block once we hit exactly the max count ... this is different from
-                // when we write N > 1 dimensional points where we write between max/2 and max per leaf block
-                writeLeafBlock();
-                leafCount = 0;
-            }
-
-            if (DEBUG)
-                if ((lastDocID = docID) < 0)
-                    throw new AssertionError("document id must be >= 0; got " + docID);
-        }
-
-        public long finish() throws IOException
-        {
-            if (leafCount > 0)
-            {
-                writeLeafBlock();
-                leafCount = 0;
-            }
-
-            if (valueCount == 0)
-            {
-                return -1;
-            }
-
-            pointCount = valueCount;
-
-            long indexFP = out.getFilePointer();
-
-            int numInnerNodes = leafBlockStartValues.size();
-
-            byte[] index = new byte[(1 + numInnerNodes) * (1 + bytesPerValue)];
-            rotateToTree(1, 0, numInnerNodes, index, leafBlockStartValues);
-            long[] arr = new long[leafBlockFilePointer.size()];
-            for (int i = 0; i < leafBlockFilePointer.size(); i++)
-            {
-                arr[i] = leafBlockFilePointer.get(i);
-            }
-            writeIndex(out, maxPointsInLeafNode, arr, index);
-            return indexFP;
-        }
-
-        private void writeLeafBlock() throws IOException
-        {
-            assert leafCount != 0;
-            if (valueCount == 0)
-            {
-                System.arraycopy(leafValues, 0, minPackedValue, 0, bytesPerValue);
-            }
-            System.arraycopy(leafValues, (leafCount - 1) * bytesPerValue, maxPackedValue, 0, bytesPerValue);
-
-            valueCount += leafCount;
-
-            if (leafBlockFilePointer.size() > 0)
-            {
-                // Save the first (minimum) value in each leaf block except the first, to build the split value index in the end:
-                leafBlockStartValues.add(ArrayUtil.copyOfSubArray(leafValues, 0, bytesPerValue));
-            }
-            leafBlockFilePointer.add(out.getFilePointer());
-            checkMaxLeafNodeCount(leafBlockFilePointer.size());
-
-            // Find per-dim common prefix:
-            int prefix = bytesPerValue;
-            int offset = (leafCount - 1) * bytesPerValue;
-            for (int j = 0; j < bytesPerValue; j++)
-            {
-                if (leafValues[j] != leafValues[offset + j])
-                {
-                    prefix = j;
-                    break;
-                }
-            }
-
-            int commonPrefixLength = prefix;
-
-            assert scratchOut.getPosition() == 0;
-
-            out.writeVInt(leafCount);
-
-            for (int x = 0; x < leafCount; x++)
-            {
-                rowIDAndIndexes[x].valueOrderIndex = x;
-                rowIDAndIndexes[x].rowID = leafDocs[x];
-            }
-
-            final Sorter sorter = new IntroSorter()
-            {
-                RowIDAndIndex pivot;
-
-                @Override
-                protected void swap(int i, int j)
-                {
-                    RowIDAndIndex o = rowIDAndIndexes[i];
-                    rowIDAndIndexes[i] = rowIDAndIndexes[j];
-                    rowIDAndIndexes[j] = o;
-                }
-
-                @Override
-                protected void setPivot(int i)
-                {
-                    pivot = rowIDAndIndexes[i];
-                }
-
-                @Override
-                protected int comparePivot(int j)
-                {
-                    return Long.compare(pivot.rowID, rowIDAndIndexes[j].rowID);
-                }
-            };
-
-            sorter.sort(0, leafCount);
-
-            // write leaf rowID -> orig index
-            scratchOut2.reset();
-
-            // iterate in row ID order to get the row ID index for the given value order index
-            // place into an array to be written as packed ints
-            for (int x = 0; x < leafCount; x++)
-            {
-                final int valueOrderIndex = rowIDAndIndexes[x].valueOrderIndex;
-                orderIndex[valueOrderIndex] = x;
-            }
-
-            LeafOrderMap.write(orderIndex, leafCount, maxPointsInLeafNode - 1, scratchOut2);
-
-            out.writeVInt(scratchOut2.getPosition());
-            out.writeBytes(scratchOut2.getBytes(), 0, scratchOut2.getPosition());
-
-            if (callback != null) callback.writeLeafDocs(rowIDAndIndexes, 0, leafCount);
-
-            writeCommonPrefixLength(scratchOut, commonPrefixLength, leafValues);
-
-            scratchBytesRef1.length = bytesPerValue;
-            scratchBytesRef1.bytes = leafValues;
-
-            IntFunction<BytesRef> packedValues = (i) -> {
-                scratchBytesRef1.offset = bytesPerValue * i;
-                return scratchBytesRef1;
-            };
-            if (DEBUG)
-                valuesInOrderAndBounds(leafCount,
-                                       ArrayUtil.copyOfSubArray(leafValues, 0, bytesPerValue),
-                                       ArrayUtil.copyOfSubArray(leafValues, (leafCount - 1) * bytesPerValue, leafCount * bytesPerValue),
-                                       packedValues,
-                                       leafDocs);
-
-            writeLeafBlockPackedValues(scratchOut, commonPrefixLength, leafCount, packedValues);
-
-            out.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition());
-
-            scratchOut.reset();
-        }
-    }
-
-    // TODO: there must be a simpler way?
     private void rotateToTree(int nodeID, int offset, int count, byte[] index, List<byte[]> leafBlockStartValues)
     {
         if (count == 1)
@@ -383,14 +227,6 @@ public class BlockBalancedTreeWriter
         else
         {
             assert count == 0;
-        }
-    }
-
-    private void checkMaxLeafNodeCount(int numLeaves)
-    {
-        if ((1 + bytesPerValue) * (long) numLeaves > ArrayUtil.MAX_ARRAY_LENGTH)
-        {
-            throw new IllegalStateException("too many nodes; increase maxPointsInLeafNode (currently " + maxPointsInLeafNode + ") and reindex");
         }
     }
 
@@ -446,17 +282,6 @@ public class BlockBalancedTreeWriter
 
             return index;
         }
-    }
-
-    /** Appends the current contents of writeBuffer as another block on the growing in-memory file */
-    private int appendBlock(RAMIndexOutput writeBuffer, List<byte[]> blocks)
-    {
-        int pos = Math.toIntExact(writeBuffer.getFilePointer());
-        byte[] bytes = new byte[pos];
-        writeBuffer.writeTo(bytes);
-        writeBuffer.reset();
-        blocks.add(bytes);
-        return pos;
     }
 
     /**
@@ -596,6 +421,17 @@ public class BlockBalancedTreeWriter
         }
     }
 
+    /** Appends the current contents of writeBuffer as another block on the growing in-memory file */
+    private int appendBlock(RAMIndexOutput writeBuffer, List<byte[]> blocks)
+    {
+        int pos = Math.toIntExact(writeBuffer.getFilePointer());
+        byte[] bytes = new byte[pos];
+        writeBuffer.writeTo(bytes);
+        writeBuffer.reset();
+        blocks.add(bytes);
+        return pos;
+    }
+
     private long getLeftMostLeafBlockFP(long[] leafBlockFPs, int nodeID)
     {
         // TODO: can we do this cheaper, e.g. a closed form solution instead of while loop?  Or
@@ -617,153 +453,327 @@ public class BlockBalancedTreeWriter
         return result;
     }
 
-    private void writeIndex(IndexOutput out, int countPerLeaf, long[] leafBlockFPs, byte[] splitPackedValues) throws IOException
+    interface Callback
     {
-        byte[] packedIndex = packIndex(leafBlockFPs, splitPackedValues);
-        writeIndex(out, countPerLeaf, leafBlockFPs.length, packedIndex);
+        void writeLeafDocs(RowIDAndIndex[] leafDocs, int offset, int count);
     }
 
-    private void writeIndex(IndexOutput out, int countPerLeaf, int numLeaves, byte[] packedIndex) throws IOException
+    static class RowIDAndIndex
     {
-        out.writeVInt(countPerLeaf);
-        out.writeVInt(bytesPerValue);
+        public int valueOrderIndex;
+        public long rowID;
 
-        assert numLeaves > 0;
-        out.writeVInt(numLeaves);
-
-        out.writeBytes(minPackedValue, 0, bytesPerValue);
-        out.writeBytes(maxPackedValue, 0, bytesPerValue);
-
-        out.writeVLong(pointCount);
-
-        out.writeVInt(packedIndex.length);
-        out.writeBytes(packedIndex, 0, packedIndex.length);
-    }
-
-    private void writeLeafBlockPackedValues(DataOutput out, int commonPrefixLength, int count, IntFunction<BytesRef> packedValues) throws IOException
-    {
-        if (commonPrefixLength == bytesPerValue)
+        @Override
+        public String toString()
         {
-            // all values in this block are equal
-            out.writeByte((byte) -1);
+            return MoreObjects.toStringHelper(this)
+                              .add("valueOrderIndex", valueOrderIndex)
+                              .add("rowID", rowID)
+                              .toString();
         }
-        else
+    }
+
+    private class TreeWriter
+    {
+        private final IndexOutput treeOutput;
+        private final List<Long> leafBlockFilePointer = new ArrayList<>();
+        private final List<byte[]> leafBlockStartValues = new ArrayList<>();
+        private final byte[] leafValues = new byte[maxPointsInLeafNode * bytesPerValue];
+        private final long[] leafRowIDs = new long[maxPointsInLeafNode];
+        private final RowIDAndIndex[] rowIDAndIndexes = new RowIDAndIndex[maxPointsInLeafNode];
+        private final int[] orderIndex = new int[maxPointsInLeafNode];
+        private final Callback callback;
+        private final GrowableByteArrayDataOutput scratchOut = new GrowableByteArrayDataOutput(32 * 1024);
+        private final GrowableByteArrayDataOutput scratchOut2 = new GrowableByteArrayDataOutput(2 * 1024);
+        private final byte[] lastPackedValue = new byte[bytesPerValue];
+
+        private long valueCount;
+        private int leafValueCount;
+        private long lastRowID;
+
+        TreeWriter(IndexOutput treeOutput, Callback callback)
         {
-            assert commonPrefixLength < bytesPerValue;
-            out.writeByte((byte) 0);
-            int compressedByteOffset = commonPrefixLength;
-            commonPrefixLength++;
-            for (int i = 0; i < count; )
+            assert callback != null : "Callback cannot be null in TreeWriter";
+
+            this.treeOutput = treeOutput;
+            this.callback = callback;
+
+            for (int x = 0; x < rowIDAndIndexes.length; x++)
             {
-                // do run-length compression on the byte at compressedByteOffset
-                int runLen = runLen(packedValues, i, Math.min(i + 0xff, count), compressedByteOffset);
-                assert runLen <= 0xff;
-                BytesRef first = packedValues.apply(i);
-                byte prefixByte = first.bytes[first.offset + compressedByteOffset];
-                out.writeByte(prefixByte);
-                out.writeByte((byte) runLen);
-                writeLeafBlockPackedValuesRange(out, commonPrefixLength, i, i + runLen, packedValues);
-                i += runLen;
-                assert i <= count;
+                rowIDAndIndexes[x] = new RowIDAndIndex();
             }
         }
-    }
 
-
-    private void writeLeafBlockPackedValuesRange(DataOutput out, int commonPrefixLength, int start, int end, IntFunction<BytesRef> packedValues) throws IOException
-    {
-        for (int i = start; i < end; ++i)
+        void add(byte[] packedValue, long docID) throws IOException
         {
-            BytesRef ref = packedValues.apply(i);
-            assert ref.length == bytesPerValue;
+            if (DEBUG)
+                valueInOrder(valueCount + leafValueCount, lastPackedValue, packedValue, 0, docID, lastRowID);
 
-            out.writeBytes(ref.bytes, ref.offset + commonPrefixLength, bytesPerValue - commonPrefixLength);
-        }
-    }
+            System.arraycopy(packedValue, 0, leafValues, leafValueCount * bytesPerValue, bytesPerValue);
+            leafRowIDs[leafValueCount] = docID;
+            leafValueCount++;
 
-    private static int runLen(IntFunction<BytesRef> packedValues, int start, int end, int byteOffset)
-    {
-        BytesRef first = packedValues.apply(start);
-        byte b = first.bytes[first.offset + byteOffset];
-        for (int i = start + 1; i < end; ++i)
-        {
-            BytesRef ref = packedValues.apply(i);
-            byte b2 = ref.bytes[ref.offset + byteOffset];
-            assert Byte.toUnsignedInt(b2) >= Byte.toUnsignedInt(b);
-            if (b != b2)
+            if (leafValueCount == maxPointsInLeafNode)
             {
-                return i - start;
+                // We write a block once we hit exactly the max count
+                writeLeafBlock();
+                leafValueCount = 0;
+            }
+
+            if (DEBUG)
+                if ((lastRowID = docID) < 0)
+                    throw new AssertionError("document id must be >= 0; got " + docID);
+        }
+
+        /**
+         * Write a leaf block if we have unwritten values and return the total number of values added
+         */
+        public long finish() throws IOException
+        {
+            if (leafValueCount > 0)
+                writeLeafBlock();
+
+            return valueCount;
+        }
+
+        private void writeLeafBlock() throws IOException
+        {
+            assert leafValueCount != 0;
+            if (valueCount == 0)
+            {
+                System.arraycopy(leafValues, 0, minPackedValue, 0, bytesPerValue);
+            }
+            System.arraycopy(leafValues, (leafValueCount - 1) * bytesPerValue, maxPackedValue, 0, bytesPerValue);
+
+            valueCount += leafValueCount;
+
+            if (leafBlockFilePointer.size() > 0)
+            {
+                // Save the first (minimum) value in each leaf block except the first, to build the split value index in the end:
+                leafBlockStartValues.add(ArrayUtil.copyOfSubArray(leafValues, 0, bytesPerValue));
+            }
+            leafBlockFilePointer.add(treeOutput.getFilePointer());
+            checkMaxLeafNodeCount(leafBlockFilePointer.size());
+
+            // Find per-dim common prefix:
+            int commonPrefixLength = bytesPerValue;
+            int offset = (leafValueCount - 1) * bytesPerValue;
+            for (int j = 0; j < bytesPerValue; j++)
+            {
+                if (leafValues[j] != leafValues[offset + j])
+                {
+                    commonPrefixLength = j;
+                    break;
+                }
+            }
+
+            assert scratchOut.getPosition() == 0;
+
+            treeOutput.writeVInt(leafValueCount);
+
+            for (int x = 0; x < leafValueCount; x++)
+            {
+                rowIDAndIndexes[x].valueOrderIndex = x;
+                rowIDAndIndexes[x].rowID = leafRowIDs[x];
+            }
+
+            final Sorter sorter = new IntroSorter()
+            {
+                RowIDAndIndex pivot;
+
+                @Override
+                protected void swap(int i, int j)
+                {
+                    RowIDAndIndex o = rowIDAndIndexes[i];
+                    rowIDAndIndexes[i] = rowIDAndIndexes[j];
+                    rowIDAndIndexes[j] = o;
+                }
+
+                @Override
+                protected void setPivot(int i)
+                {
+                    pivot = rowIDAndIndexes[i];
+                }
+
+                @Override
+                protected int comparePivot(int j)
+                {
+                    return Long.compare(pivot.rowID, rowIDAndIndexes[j].rowID);
+                }
+            };
+
+            sorter.sort(0, leafValueCount);
+
+            // write leaf rowID -> orig index
+            scratchOut2.reset();
+
+            // iterate in row ID order to get the row ID index for the given value order index
+            // place into an array to be written as packed ints
+            for (int x = 0; x < leafValueCount; x++)
+                orderIndex[rowIDAndIndexes[x].valueOrderIndex] = x;
+
+            LeafOrderMap.write(orderIndex, leafValueCount, maxPointsInLeafNode - 1, scratchOut2);
+
+            treeOutput.writeVInt(scratchOut2.getPosition());
+            treeOutput.writeBytes(scratchOut2.getBytes(), 0, scratchOut2.getPosition());
+
+            callback.writeLeafDocs(rowIDAndIndexes, 0, leafValueCount);
+
+            writeCommonPrefix(scratchOut, commonPrefixLength, leafValues);
+
+            scratchBytesRef1.length = bytesPerValue;
+            scratchBytesRef1.bytes = leafValues;
+
+            IntFunction<BytesRef> packedValues = (i) -> {
+                scratchBytesRef1.offset = bytesPerValue * i;
+                return scratchBytesRef1;
+            };
+            if (DEBUG)
+                valuesInOrderAndBounds(leafValueCount,
+                                       ArrayUtil.copyOfSubArray(leafValues, 0, bytesPerValue),
+                                       ArrayUtil.copyOfSubArray(leafValues, (leafValueCount - 1) * bytesPerValue, leafValueCount * bytesPerValue),
+                                       packedValues,
+                                       leafRowIDs);
+
+            writeLeafBlockPackedValues(scratchOut, commonPrefixLength, leafValueCount, packedValues);
+
+            treeOutput.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition());
+
+            scratchOut.reset();
+        }
+
+        private void checkMaxLeafNodeCount(int numLeaves)
+        {
+            if ((1 + bytesPerValue) * (long) numLeaves > ArrayUtil.MAX_ARRAY_LENGTH)
+            {
+                throw new IllegalStateException("too many nodes; increase maxPointsInLeafNode (currently " + maxPointsInLeafNode + ") and reindex");
             }
         }
-        return end - start;
-    }
 
-    private void writeCommonPrefixLength(DataOutput out, int commonPrefixLength, byte[] packedValue) throws IOException
-    {
-        out.writeVInt(commonPrefixLength);
-        if (commonPrefixLength > 0)
-            out.writeBytes(packedValue, 0, commonPrefixLength);
-    }
-
-    // The following 3 methods are only used when DEBUG is true:
-
-    private void valueInBounds(BytesRef packedValue, byte[] minPackedValue, byte[] maxPackedValue)
-    {
-        if (FutureArrays.compareUnsigned(packedValue.bytes,
-                                         packedValue.offset,
-                                         packedValue.offset + bytesPerValue,
-                                         minPackedValue,
-                                         0,
-                                         bytesPerValue) < 0)
+        private void writeCommonPrefix(DataOutput treeOutput, int commonPrefixLength, byte[] packedValue) throws IOException
         {
-            throw new AssertionError("value=" + new BytesRef(packedValue.bytes, packedValue.offset, bytesPerValue) +
-                                     " is < minPackedValue=" + new BytesRef(minPackedValue));
+            treeOutput.writeVInt(commonPrefixLength);
+            if (commonPrefixLength > 0)
+                treeOutput.writeBytes(packedValue, 0, commonPrefixLength);
         }
 
-        if (FutureArrays.compareUnsigned(packedValue.bytes,
-                                         packedValue.offset,
-                                         packedValue.offset + bytesPerValue,
-                                         maxPackedValue, 0,
-                                         bytesPerValue) > 0)
+        private void writeLeafBlockPackedValues(DataOutput out, int commonPrefixLength, int count, IntFunction<BytesRef> packedValues) throws IOException
         {
-            throw new AssertionError("value=" + new BytesRef(packedValue.bytes, packedValue.offset, bytesPerValue) +
-                                     " is > maxPackedValue=" + new BytesRef(maxPackedValue));
-        }
-    }
-
-    private void valuesInOrderAndBounds(int count, byte[] minPackedValue, byte[] maxPackedValue, IntFunction<BytesRef> values, long[] docs)
-    {
-        byte[] lastPackedValue = new byte[bytesPerValue];
-        long lastDoc = -1;
-        for (int i = 0; i < count; i++)
-        {
-            BytesRef packedValue = values.apply(i);
-            assert packedValue.length == bytesPerValue;
-            valueInOrder(i, lastPackedValue, packedValue.bytes, packedValue.offset, docs[i], lastDoc);
-            lastDoc = docs[i];
-
-            // Make sure this value does in fact fall within this leaf cell:
-            valueInBounds(packedValue, minPackedValue, maxPackedValue);
-        }
-    }
-
-    private void valueInOrder(long ord, byte[] lastPackedValue, byte[] packedValue, int packedValueOffset, long doc, long lastDoc)
-    {
-        int dimOffset = 0;
-        if (ord > 0)
-        {
-            int cmp = FutureArrays.compareUnsigned(lastPackedValue, dimOffset, dimOffset + bytesPerValue, packedValue, packedValueOffset + dimOffset, packedValueOffset + dimOffset + bytesPerValue);
-            if (cmp > 0)
+            if (commonPrefixLength == bytesPerValue)
             {
-                throw new AssertionError("values out of order: last value=" + new BytesRef(lastPackedValue) +
-                                         " current value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
-                                         " ord=" + ord);
+                // all values in this block are equal
+                out.writeByte((byte) -1);
             }
-            if (cmp == 0 && doc < lastDoc)
+            else
             {
-                throw new AssertionError("docs out of order: last doc=" + lastDoc + " current doc=" + doc + " ord=" + ord);
+                assert commonPrefixLength < bytesPerValue;
+                out.writeByte((byte) 0);
+                int compressedByteOffset = commonPrefixLength;
+                commonPrefixLength++;
+                for (int i = 0; i < count; )
+                {
+                    // do run-length compression on the byte at compressedByteOffset
+                    int runLen = runLen(packedValues, i, Math.min(i + 0xff, count), compressedByteOffset);
+                    assert runLen <= 0xff;
+                    BytesRef first = packedValues.apply(i);
+                    byte prefixByte = first.bytes[first.offset + compressedByteOffset];
+                    out.writeByte(prefixByte);
+                    out.writeByte((byte) runLen);
+                    writeLeafBlockPackedValuesRange(out, commonPrefixLength, i, i + runLen, packedValues);
+                    i += runLen;
+                    assert i <= count;
+                }
             }
         }
-        System.arraycopy(packedValue, packedValueOffset, lastPackedValue, 0, bytesPerValue);
+
+        private void writeLeafBlockPackedValuesRange(DataOutput out, int commonPrefixLength, int start, int end, IntFunction<BytesRef> packedValues) throws IOException
+        {
+            for (int i = start; i < end; ++i)
+            {
+                BytesRef ref = packedValues.apply(i);
+                assert ref.length == bytesPerValue;
+
+                out.writeBytes(ref.bytes, ref.offset + commonPrefixLength, bytesPerValue - commonPrefixLength);
+            }
+        }
+
+        private int runLen(IntFunction<BytesRef> packedValues, int start, int end, int byteOffset)
+        {
+            BytesRef first = packedValues.apply(start);
+            byte b = first.bytes[first.offset + byteOffset];
+            for (int i = start + 1; i < end; ++i)
+            {
+                BytesRef ref = packedValues.apply(i);
+                byte b2 = ref.bytes[ref.offset + byteOffset];
+                assert Byte.toUnsignedInt(b2) >= Byte.toUnsignedInt(b);
+                if (b != b2)
+                {
+                    return i - start;
+                }
+            }
+            return end - start;
+        }
+
+        // The following 3 methods are only used when DEBUG is true:
+
+        private void valueInBounds(BytesRef packedValue, byte[] minPackedValue, byte[] maxPackedValue)
+        {
+            if (FutureArrays.compareUnsigned(packedValue.bytes,
+                                             packedValue.offset,
+                                             packedValue.offset + bytesPerValue,
+                                             minPackedValue,
+                                             0,
+                                             bytesPerValue) < 0)
+            {
+                throw new AssertionError("value=" + new BytesRef(packedValue.bytes, packedValue.offset, bytesPerValue) +
+                                         " is < minPackedValue=" + new BytesRef(minPackedValue));
+            }
+
+            if (FutureArrays.compareUnsigned(packedValue.bytes,
+                                             packedValue.offset,
+                                             packedValue.offset + bytesPerValue,
+                                             maxPackedValue, 0,
+                                             bytesPerValue) > 0)
+            {
+                throw new AssertionError("value=" + new BytesRef(packedValue.bytes, packedValue.offset, bytesPerValue) +
+                                         " is > maxPackedValue=" + new BytesRef(maxPackedValue));
+            }
+        }
+
+        private void valuesInOrderAndBounds(int count, byte[] minPackedValue, byte[] maxPackedValue, IntFunction<BytesRef> values, long[] docs)
+        {
+            byte[] lastPackedValue = new byte[bytesPerValue];
+            long lastDoc = -1;
+            for (int i = 0; i < count; i++)
+            {
+                BytesRef packedValue = values.apply(i);
+                assert packedValue.length == bytesPerValue;
+                valueInOrder(i, lastPackedValue, packedValue.bytes, packedValue.offset, docs[i], lastDoc);
+                lastDoc = docs[i];
+
+                // Make sure this value does in fact fall within this leaf cell:
+                valueInBounds(packedValue, minPackedValue, maxPackedValue);
+            }
+        }
+
+        private void valueInOrder(long ord, byte[] lastPackedValue, byte[] packedValue, int packedValueOffset, long doc, long lastDoc)
+        {
+            int dimOffset = 0;
+            if (ord > 0)
+            {
+                int cmp = FutureArrays.compareUnsigned(lastPackedValue, dimOffset, dimOffset + bytesPerValue, packedValue, packedValueOffset + dimOffset, packedValueOffset + dimOffset + bytesPerValue);
+                if (cmp > 0)
+                {
+                    throw new AssertionError("values out of order: last value=" + new BytesRef(lastPackedValue) +
+                                             " current value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
+                                             " ord=" + ord);
+                }
+                if (cmp == 0 && doc < lastDoc)
+                {
+                    throw new AssertionError("docs out of order: last doc=" + lastDoc + " current doc=" + doc + " ord=" + ord);
+                }
+            }
+            System.arraycopy(packedValue, packedValueOffset, lastPackedValue, 0, bytesPerValue);
+        }
     }
 }

@@ -118,7 +118,7 @@ public class BlockBalancedTreeIndexBuilder
                                                            columnContext,
                                                            TypeUtil.fixedSizeOf(type),
                                                            maxSegmentRowId);
-        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeAll(pointValues);
+        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(pointValues);
         metadata = new SegmentMetadata(0,
                                        size,
                                        minSegmentRowId,

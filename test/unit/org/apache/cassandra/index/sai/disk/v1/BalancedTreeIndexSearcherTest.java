@@ -47,7 +47,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class KDTreeIndexSearcherTest extends SAIRandomizedTester
+public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
 {
     private static final short EQ_TEST_LOWER_BOUND_INCLUSIVE = 0;
     private static final short EQ_TEST_UPPER_BOUND_EXCLUSIVE = 3;

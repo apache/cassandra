@@ -20,7 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 import java.io.IOException;
 import java.util.stream.IntStream;
 
-import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ByteBlockPool;
@@ -32,6 +32,7 @@ import org.apache.lucene.util.packed.PackedLongValues;
 /**
  * On-heap buffer for point values that provides a sortable view of itself as {@link IntersectingPointValues}.
  */
+@NotThreadSafe
 public class BlockBalancedTreeRamBuffer implements Accountable
 {
     private final Counter bytesUsed;
@@ -68,9 +69,9 @@ public class BlockBalancedTreeRamBuffer implements Accountable
 
     public long addPackedValue(int segmentRowId, BytesRef value)
     {
-        ensureOpen();
-
+        assert !closed : "Expected open buffer.";
         assert value.length == packedValue.length : "The value has length=" + value.length + " but should be " + packedValue.length;
+        assert segmentRowId != lastSegmentRowID : "Duplicate segment row ID";
 
         long startingBytesUsed = bytesUsed.get();
         long startingRowIDsBytesUsed = rowIDsBuilder.ramBytesUsed();
@@ -78,11 +79,8 @@ public class BlockBalancedTreeRamBuffer implements Accountable
         rowIDsBuilder.add(segmentRowId);
         bytes.append(value);
 
-        if (segmentRowId != lastSegmentRowID)
-        {
-            numRows++;
-            lastSegmentRowID = segmentRowId;
-        }
+        numRows++;
+        lastSegmentRowID = segmentRowId;
 
         numPoints++;
 
@@ -94,7 +92,7 @@ public class BlockBalancedTreeRamBuffer implements Accountable
 
     public IntersectingPointValues asPointValues()
     {
-        ensureOpen();
+        assert !closed : "Expected open buffer.";
         // building packed longs is destructive
         closed = true;
         final PackedLongValues rowIDs = rowIDsBuilder.build();
@@ -163,10 +161,5 @@ public class BlockBalancedTreeRamBuffer implements Accountable
                 return numRows;
             }
         };
-    }
-
-    private void ensureOpen()
-    {
-        Preconditions.checkState(!closed, "Expected open buffer.");
     }
 }

@@ -405,7 +405,7 @@ public enum CassandraRelevantProperties
 
     /**
      * Skip, or the sampling interval, for selecting a bkd tree level that is eligible for an auxiliary posting list.
-     * Sampling starts from 0, but bkd tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
+     * Sampling starts from 0, but balanced tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
      * level 0, because there is no node at level 0).
      */
     SAI_POSTINGS_SKIP("cassandra.sai.postings_skip", "3"),

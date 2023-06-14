@@ -25,8 +25,6 @@ import org.apache.lucene.util.BytesRef;
 
 public abstract class IntersectingPointValues extends MutablePointValues
 {
-    private static final byte[] EMPTY = new byte[0];
-
     public boolean needsSorting()
     {
         return size() > 1;
@@ -41,27 +39,21 @@ public abstract class IntersectingPointValues extends MutablePointValues
     }
 
     @Override
-    public long size()
-    {
-        return 1;
-    }
-
-    @Override
     public void getValue(int i, BytesRef packedValue)
     {
-        // no-op
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public byte getByteAt(int i, int k)
     {
-        return 0;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public int getDocID(int i)
     {
-        return 0;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -85,13 +77,13 @@ public abstract class IntersectingPointValues extends MutablePointValues
     @Override
     public byte[] getMinPackedValue()
     {
-        return EMPTY;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public byte[] getMaxPackedValue()
     {
-        return EMPTY;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -100,19 +92,13 @@ public abstract class IntersectingPointValues extends MutablePointValues
         return 1;
     }
 
-    @Override
-    public int getBytesPerDimension()
-    {
-        return 0;
-    }
-
     public interface IntersectVisitor
     {
         /**
-         * Called for all documents in a leaf cell that crosses the query.  The consumer should scrutinize the
+         * Called for all values in a leaf cell that crosses the query.  The consumer should scrutinize the
          * packedValue to decide whether to accept it. Values are visited in increasing order, and in the case of ties,
-         * in increasing docID order.
+         * in increasing rowID order.
          */
-        void visit(long docID, byte[] packedValue) throws IOException;
+        void visit(long rowID, byte[] packedValue) throws IOException;
     }
 }

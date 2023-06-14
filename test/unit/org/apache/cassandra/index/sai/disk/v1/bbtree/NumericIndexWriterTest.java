@@ -85,15 +85,15 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                                                            indexContext,
                                                            Integer.BYTES,
                                                            docCount);
-        indexMetas = writer.writeAll(pointValues);
+        indexMetas = writer.writeCompleteSegment(pointValues);
 
-        final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
-        final FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
+        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
+        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
 
         try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
-                                                                          kdtreeHandle,
+                                                                          treeHandle,
                                                                           indexMetas.get(IndexComponent.BALANCED_TREE).root,
-                                                                          kdtreePostingsHandle,
+                                                                          treePostingsHandle,
                                                                           indexMetas.get(IndexComponent.POSTING_LISTS).root))
         {
             final Counter visited = Counter.newCounter();
@@ -133,15 +133,15 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                                                            indexContext,
                                                            TypeUtil.fixedSizeOf(Int32Type.instance),
                                                            maxSegmentRowId);
-        indexMetas = writer.writeAll(pointValues);
+        indexMetas = writer.writeCompleteSegment(pointValues);
 
-        final FileHandle kdtreeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
-        final FileHandle kdtreePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
+        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
+        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
 
         try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
-                                                                          kdtreeHandle,
+                                                                          treeHandle,
                                                                           indexMetas.get(IndexComponent.BALANCED_TREE).root,
-                                                                          kdtreePostingsHandle,
+                                                                          treePostingsHandle,
                                                                           indexMetas.get(IndexComponent.POSTING_LISTS).root
         ))
         {
@@ -174,9 +174,9 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
 
     private QueryEventListener.BalancedTreeEventListener mockEventListener()
     {
-        QueryEventListener.BalancedTreeEventListener bkdIndexEventListener = mock(QueryEventListener.BalancedTreeEventListener.class);
-        when(bkdIndexEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
-        return bkdIndexEventListener;
+        QueryEventListener.BalancedTreeEventListener balancedTreeEventListener = mock(QueryEventListener.BalancedTreeEventListener.class);
+        when(balancedTreeEventListener.postingListEventListener()).thenReturn(mock(QueryEventListener.PostingListEventListener.class));
+        return balancedTreeEventListener;
     }
 
     private TermsIterator buildTermEnum(int startTermInclusive, int endTermExclusive)

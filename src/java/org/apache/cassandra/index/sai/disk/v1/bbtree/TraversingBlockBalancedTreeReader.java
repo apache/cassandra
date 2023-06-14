@@ -36,7 +36,7 @@ import org.apache.lucene.util.MathUtil;
 /**
  * Base reader for a block balanced tree previously written with {@link BlockBalancedTreeWriter}.
  * <p>
- * Holds the index tree on heap and enables its traversal via {@link #traverse(IndexTreeTraversalCallback)}.
+ * Holds the index tree on heap and enables its traversal via {@link #traverse(TraversalCallback)}.
  */
 public class TraversingBlockBalancedTreeReader implements Closeable
 {
@@ -108,12 +108,12 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         FileUtils.closeQuietly(treeIndexFile);
     }
 
-    void traverse(IndexTreeTraversalCallback callback)
+    void traverse(TraversalCallback callback)
     {
         traverse(callback, new PackedIndexTree(), new IntArrayList());
     }
 
-    private void traverse(IndexTreeTraversalCallback callback, PackedIndexTree index, IntArrayList pathToRoot)
+    private void traverse(TraversalCallback callback, PackedIndexTree index, IntArrayList pathToRoot)
     {
         if (index.isLeafNode())
         {
@@ -151,7 +151,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         return MathUtil.log(numLeaves, 2) + 2;
     }
 
-    interface IndexTreeTraversalCallback
+    interface TraversalCallback
     {
         void onLeaf(int leafNodeID, long leafBlockFP, IntArrayList pathToRoot);
     }

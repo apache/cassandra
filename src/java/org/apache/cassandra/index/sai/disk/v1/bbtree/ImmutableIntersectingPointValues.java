@@ -47,6 +47,18 @@ public class ImmutableIntersectingPointValues extends IntersectingPointValues
     }
 
     @Override
+    public boolean needsSorting()
+    {
+        return false;
+    }
+
+    @Override
+    public long size()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void intersect(IntersectVisitor visitor) throws IOException
     {
         while (termEnum.hasNext())

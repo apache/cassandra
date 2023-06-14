@@ -63,7 +63,7 @@ import static com.google.common.base.Preconditions.checkState;
  * order we pass them to the {@link BlockBalancedTreeWriter}). That allows us to skip reading the leaves, instead
  * just order leaf blocks by their offset in the index file, and correlate them with buffered posting lists.
  */
-public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedTreeReader.IndexTreeTraversalCallback
+public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedTreeReader.TraversalCallback
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockBalancedTreePostingsWriter.class);
 
