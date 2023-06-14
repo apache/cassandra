@@ -20,7 +20,6 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.security.CodeSource;
@@ -553,7 +552,7 @@ public class AbstractTypeTest
             {
                 byteOrdered[i] = new ArrayList<>(actual);
                 ByteComparable.Version version = ByteComparable.Version.values()[i];
-                Collections.sort(byteOrdered[i], (a, b) -> ByteComparable.compare(fromBytes(type, a), fromBytes(type, b), version));
+                byteOrdered[i].sort((a, b) -> ByteComparable.compare(fromBytes(type, a), fromBytes(type, b), version));
 
                 rawByteOrdered[i] = actual.stream()
                                           .map(bb -> new OrderedBytes(ByteSourceInverse.readBytes(fromBytes(type, bb).asComparableBytes(version)), bb))
