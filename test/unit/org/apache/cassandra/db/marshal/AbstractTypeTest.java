@@ -116,6 +116,7 @@ public class AbstractTypeTest
     }
 
     @Test
+    @SuppressWarnings("rawtypes")
     public void allTypesCovered()
     {
         // this test just makes sure that all types are covered and no new type is left out
