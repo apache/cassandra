@@ -48,10 +48,10 @@ public class Vectors
     }
 
     /**
-     * Tests that the list with the specified elements can be assigned to the specified column.
+     * Tests that the vector with the specified elements can be assigned to the specified column.
      *
      * @param receiver the receiving column
-     * @param elements the list elements
+     * @param elements the vector elements
      */
     public static AssignmentTestable.TestResult testVectorAssignment(ColumnSpecification receiver,
                                                                      List<? extends AssignmentTestable> elements)
