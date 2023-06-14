@@ -929,7 +929,7 @@ public interface Selectable extends AssignmentTestable
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            return Vectors.getExactListTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+            return Vectors.getExactVectorTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
         }
 
         @Override

@@ -74,8 +74,8 @@ public class Vectors
      * @param mapper the mapper used to retrieve the element types from the items
      * @return the exact VectorType from the items if it can be known or <code>null</code>
      */
-    public static <T> VectorType<?> getExactListTypeIfKnown(List<T> items,
-                                                            java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> VectorType<?> getExactVectorTypeIfKnown(List<T> items,
+                                                              java.util.function.Function<T, AbstractType<?>> mapper)
     {
         // TODO - this doesn't feel right... if you are dealing with a literal then the value is `null`, so we will ignore
         // if there are multiple times, we randomly select the first?  This logic matches Lists.getExactListTypeIfKnown but feels flawed
@@ -149,7 +149,7 @@ public class Vectors
         @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            return getExactListTypeIfKnown(elements, e -> e.getCompatibleTypeIfKnown(keyspace));
+            return getExactVectorTypeIfKnown(elements, e -> e.getCompatibleTypeIfKnown(keyspace));
         }
 
         @Override
