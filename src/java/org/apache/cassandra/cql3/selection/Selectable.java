@@ -881,7 +881,7 @@ public interface Selectable extends AssignmentTestable
     public static class WithVector implements Selectable
     {
         /**
-         * The list elements
+         * The vector elements
          */
         private final List<Selectable> selectables;
 
