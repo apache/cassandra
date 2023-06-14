@@ -177,6 +177,10 @@ public class Info extends NodeToolCmd
         {
             out.printf("%-23s: (node is not joined to the cluster)%n", "Token");
         }
+
+        out.printf("%-23s: %s%n", "Bootstrap state", probe.getStorageService().getBootstrapState());
+        out.printf("%-23s: %s%n", "Decommissioning", probe.getStorageService().isDecommissioning());
+        out.printf("%-23s: %s%n", "Decommission failed", probe.getStorageService().isDecommissionFailed());
     }
 
     /**
