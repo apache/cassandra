@@ -138,6 +138,7 @@ public class AbstractTypeTest
             throw new AssertionError("Uncovered types:\n" + sb);
     }
 
+    @SuppressWarnings("rawtypes")
     private boolean isTestType(Class<? extends AbstractType> klass)
     {
         String name = klass.getCanonicalName();
