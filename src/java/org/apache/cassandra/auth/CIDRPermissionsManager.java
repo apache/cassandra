@@ -69,7 +69,8 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
                                                     SchemaConstants.AUTH_KEYSPACE_NAME,
                                                     AuthKeyspace.CIDR_PERMISSIONS,
                                                     AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME);
-        authorizeUserForCidrStatement = (SelectStatement) QueryProcessor.getStatement(getCIDRsforUserQuery, ClientState.forInternalCalls());
+        authorizeUserForCidrStatement = (SelectStatement) QueryProcessor.getStatement(getCIDRsforUserQuery,
+                                                                                      ClientState.forInternalCalls());
     }
 
     @VisibleForTesting
@@ -183,7 +184,8 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
             {
                 // Prevent running the query we know will fail so as not to increment unavailable stats for a performance
                 // optimization
-                throw new RuntimeException("insufficient live nodes for " + AuthProperties.instance.getReadConsistencyLevel() +
+                throw new RuntimeException("insufficient live nodes for " +
+                                           AuthProperties.instance.getReadConsistencyLevel() +
                                            "pre-warm query again system_auth." + AuthKeyspace.CIDR_PERMISSIONS);
             }
 

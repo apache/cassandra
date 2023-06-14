@@ -50,7 +50,8 @@ public class CIDRFilteringStatsTest extends CQLTester
         AuthCacheService.initializeAndRegisterCaches();
 
         String KS_NAME = SchemaConstants.VIRTUAL_VIEWS;
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, CIDRFilteringMetricsTable.getAll(KS_NAME)));
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME,
+                                                                      CIDRFilteringMetricsTable.getAll(KS_NAME)));
 
         startJMXServer();
     }
@@ -58,8 +59,12 @@ public class CIDRFilteringStatsTest extends CQLTester
     @Before
     public void before()
     {
-        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user1", Collections.singletonList("cidrGroup1")));
-        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1", Collections.singletonList(CIDR.getInstance("10.20.30.5/24"))));
+        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user1",
+                                                                         Collections.singletonList("cidrGroup1")));
+
+        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1",
+                                                                   Collections.singletonList(
+                                                                   CIDR.getInstance("10.20.30.5/24"))));
     }
 
     @Test
@@ -114,12 +119,18 @@ public class CIDRFilteringStatsTest extends CQLTester
 
         String output = tool.getStdout();
 
-        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_ACCESSES_ACCEPTED_COUNT_NAME_PREFIX);
-        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX);
-        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_GROUPS_CACHE_RELOAD_COUNT_NAME);
+        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable
+                                    .CIDR_ACCESSES_ACCEPTED_COUNT_NAME_PREFIX);
+        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable
+                                    .CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX);
+        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable
+                                    .CIDR_GROUPS_CACHE_RELOAD_COUNT_NAME);
 
-        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable.CIDR_CHECKS_LATENCY_NAME);
-        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable.CIDR_GROUPS_CACHE_RELOAD_LATENCY_NAME);
-        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable.LOOKUP_CIDR_GROUPS_FOR_IP_LATENCY_NAME);
+        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable
+                                    .CIDR_CHECKS_LATENCY_NAME);
+        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable
+                                    .CIDR_GROUPS_CACHE_RELOAD_LATENCY_NAME);
+        assertThat(output).contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable
+                                    .LOOKUP_CIDR_GROUPS_FOR_IP_LATENCY_NAME);
     }
 }

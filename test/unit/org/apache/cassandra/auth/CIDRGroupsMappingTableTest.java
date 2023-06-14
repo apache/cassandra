@@ -90,7 +90,8 @@ public class CIDRGroupsMappingTableTest
         "255.0.0.0/8"
         );
 
-        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable = buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
 
         for (String cidr : validCIDRs)
         {
@@ -111,7 +112,8 @@ public class CIDRGroupsMappingTableTest
 
         Collections.shuffle(validCIDRs);
 
-        CIDRGroupsMappingTable<String> ipv6CidrGroupsMappingTable = buildCidrGroupsMappingTable(validCIDRs, ipv6CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv6CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(validCIDRs, ipv6CidrGroupsMappingTableBuilder);
 
         for (String cidr : validCIDRs)
         {
@@ -147,7 +149,8 @@ public class CIDRGroupsMappingTableTest
     public void ipv4MappedCIDRsInIpv6Tree()
     {
         // IPv4 mapped IPv6 gets converted to IPv4
-        ipv6CidrGroupsMappingTableBuilder.add(CIDR.getInstance("0:0:0:0:0:ffff:192.1.56.10/96"), "0:0:0:0:0:ffff:192.1.56.10/96");
+        ipv6CidrGroupsMappingTableBuilder.add(CIDR.getInstance("0:0:0:0:0:ffff:192.1.56.10/96"),
+                                              "0:0:0:0:0:ffff:192.1.56.10/96");
         assertThatThrownBy(ipv6CidrGroupsMappingTableBuilder::build)
         .hasMessage("Invalid CIDR format, expecting IPv6, received IPv4")
         .isInstanceOf(IllegalArgumentException.class);
@@ -157,7 +160,8 @@ public class CIDRGroupsMappingTableTest
     public void duplicateKeys()
     {
         List<String> validCIDRs = Arrays.asList("0:0:0:0:0:ffff:192.1.56.10/100", "::ffff:192.1.56.10/100");
-        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable = buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
 
         Set<String> result = longestMatchForIP(ipv4CidrGroupsMappingTable, "0:0:0:0:0:ffff:192.1.56.10");
         Set<String> expected = Sets.newHashSet(validCIDRs);
@@ -168,7 +172,8 @@ public class CIDRGroupsMappingTableTest
     public void withOverlappingCIDRs()
     {
         List<String> validCIDRs = Arrays.asList("127.0.0.0/24", "127.0.1.0/24", "0.0.0.0/24");
-        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable = buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
 
         assertThat(longestMatchForIP(ipv4CidrGroupsMappingTable, "127.1.1.5")).isNull();
         assertThat(singleMatchForIp(ipv4CidrGroupsMappingTable, "127.0.0.5")).isEqualTo("127.0.0.0/24");
@@ -184,7 +189,8 @@ public class CIDRGroupsMappingTableTest
                                                 "127.0.0.0/24",
                                                 "127.0.0.112/26",
                                                 "112.0.0.0/6");
-        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable = buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(validCIDRs, ipv4CidrGroupsMappingTableBuilder);
         assertThat(singleMatchForIp(ipv4CidrGroupsMappingTable, "127.1.1.5")).isEqualTo("0.0.0.0/0");
         assertThat(singleMatchForIp(ipv4CidrGroupsMappingTable, "127.0.0.114")).isEqualTo("127.0.0.112/26");
         assertThat(singleMatchForIp(ipv4CidrGroupsMappingTable, "113.0.0.5")).isEqualTo("112.0.0.0/6");
@@ -196,8 +202,8 @@ public class CIDRGroupsMappingTableTest
     @Test
     public void testLongestMatchWithInvalidIP()
     {
-        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable = buildCidrGroupsMappingTable(Collections.singletonList("20.20.20.20/20"),
-                                                                                                ipv4CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(Collections.singletonList("20.20.20.20/20"), ipv4CidrGroupsMappingTableBuilder);
         assertThatThrownBy(() -> longestMatchForIP(ipv4CidrGroupsMappingTable, "2000.20"))
         .hasMessage("2000.20 is not a valid IP String")
         .isInstanceOf(IllegalArgumentException.class);
@@ -206,7 +212,8 @@ public class CIDRGroupsMappingTableTest
     @Test
     public void testEmptyCidrsList()
     {
-        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable = buildCidrGroupsMappingTable(Collections.emptyList(), ipv4CidrGroupsMappingTableBuilder);
+        CIDRGroupsMappingTable<String> ipv4CidrGroupsMappingTable =
+            buildCidrGroupsMappingTable(Collections.emptyList(), ipv4CidrGroupsMappingTableBuilder);
         Set<String> cidrGroups = longestMatchForIP(ipv4CidrGroupsMappingTable, "20.20.20.20");
         assertThat(cidrGroups).isEmpty();
     }

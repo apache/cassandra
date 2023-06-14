@@ -83,7 +83,8 @@ public class CIDRGroupsMappingCache
         ipToCidrGroupsCache.invalidateAll();
 
         cidrAuthorizerMetrics.cacheReloadCount.inc();
-        cidrAuthorizerMetrics.cacheReloadLatency.update(MonotonicClock.Global.approxTime.now() - startTimeNanos, TimeUnit.NANOSECONDS);
+        cidrAuthorizerMetrics.cacheReloadLatency.update(MonotonicClock.Global.approxTime.now() - startTimeNanos,
+                                                        TimeUnit.NANOSECONDS);
     }
 
     /**
@@ -115,7 +116,8 @@ public class CIDRGroupsMappingCache
         Preconditions.checkNotNull(currentCidrGroupsMappingLoader);
         Set<String> cidrGroups = currentCidrGroupsMappingLoader.lookupCidrGroupsCacheForIp(ipAddr);
 
-        cidrAuthorizerMetrics.lookupCidrGroupsForIpLatency.update(MonotonicClock.Global.approxTime.now() - startTimeNanos, TimeUnit.NANOSECONDS);
+        cidrAuthorizerMetrics.lookupCidrGroupsForIpLatency.update(MonotonicClock.Global.approxTime.now() - startTimeNanos,
+                                                                  TimeUnit.NANOSECONDS);
 
         return cidrGroups;
     }

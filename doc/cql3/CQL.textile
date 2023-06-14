@@ -2614,7 +2614,7 @@ h3. 3.4.6
 * Allow to grant permission for all tables in a keyspace (see "CASSANDRA-17027":https://issues.apache.org/jira/browse/CASSANDRA-17027).
 * Allow to use pure monotonic functions on the last attribute of the @GROUP BY@ clause (see "CASSANDRA-11871":https://issues.apache.org/jira/browse/CASSANDRA-11871).
 * Add floor function to allow grouping by time range (see "CASSANDRA-11871":https://issues.apache.org/jira/browse/CASSANDRA-11871).
-* Add support for CIDR filtering in @CREATE ROLE@ and @ALTER ROLE@ statements
+* Add support for adding and updating CIDR permissions using @CREATE ROLE@ and @ALTER ROLE@ statements
 
 h3. 3.4.5
 

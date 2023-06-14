@@ -113,12 +113,14 @@ public class CIDRFilteringMetricsTable implements CIDRFilteringMetricsTableMBean
 
             for (Map.Entry<String, Counter> entry : cidrAuthorizerMetrics.acceptedCidrAccessCount.entrySet())
             {
-                addRow(result, CIDR_ACCESSES_ACCEPTED_COUNT_NAME_PREFIX + entry.getKey(), entry.getValue().getCount());
+                addRow(result, CIDR_ACCESSES_ACCEPTED_COUNT_NAME_PREFIX + entry.getKey(),
+                       entry.getValue().getCount());
             }
 
             for (Map.Entry<String, Counter> entry : cidrAuthorizerMetrics.rejectedCidrAccessCount.entrySet())
             {
-                addRow(result, CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX + entry.getKey(), entry.getValue().getCount());
+                addRow(result, CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX + entry.getKey(),
+                       entry.getValue().getCount());
             }
 
             addRow(result, CIDR_GROUPS_CACHE_RELOAD_COUNT_NAME, cidrAuthorizerMetrics.cacheReloadCount.getCount());
@@ -176,10 +178,14 @@ public class CIDRFilteringMetricsTable implements CIDRFilteringMetricsTableMBean
         {
             SimpleDataSet result = new SimpleDataSet(metadata());
 
-            CIDRAuthorizerMetrics cidrAuthorizerMetrics = DatabaseDescriptor.getCIDRAuthorizer().getCidrAuthorizerMetrics();
+            CIDRAuthorizerMetrics cidrAuthorizerMetrics =
+            DatabaseDescriptor.getCIDRAuthorizer().getCidrAuthorizerMetrics();
+
             addRow(result, CIDR_CHECKS_LATENCY_NAME, cidrAuthorizerMetrics.cidrChecksLatency.getSnapshot());
-            addRow(result, CIDR_GROUPS_CACHE_RELOAD_LATENCY_NAME, cidrAuthorizerMetrics.cacheReloadLatency.getSnapshot());
-            addRow(result, LOOKUP_CIDR_GROUPS_FOR_IP_LATENCY_NAME, cidrAuthorizerMetrics.lookupCidrGroupsForIpLatency.getSnapshot());
+            addRow(result, CIDR_GROUPS_CACHE_RELOAD_LATENCY_NAME,
+                   cidrAuthorizerMetrics.cacheReloadLatency.getSnapshot());
+            addRow(result, LOOKUP_CIDR_GROUPS_FOR_IP_LATENCY_NAME,
+                   cidrAuthorizerMetrics.lookupCidrGroupsForIpLatency.getSnapshot());
 
             return result;
         }
@@ -198,8 +204,11 @@ public class CIDRFilteringMetricsTable implements CIDRFilteringMetricsTableMBean
     {
         String countsMetricsTableName = SchemaConstants.VIRTUAL_VIEWS + '.' +
                                         CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.TABLE_NAME;
-        SelectStatement getCountsMetricsStatement = (SelectStatement) QueryProcessor.getStatement(String.format("SELECT * FROM %s", countsMetricsTableName),
-                                                                                                  ClientState.forInternalCalls());
+
+        SelectStatement getCountsMetricsStatement =
+            (SelectStatement) QueryProcessor.getStatement(String.format("SELECT * FROM %s", countsMetricsTableName),
+                                                          ClientState.forInternalCalls());
+
         Map<String, Long> metrics = new HashMap<>();
 
         UntypedResultSet result = retrieveRows(getCountsMetricsStatement);
@@ -220,8 +229,10 @@ public class CIDRFilteringMetricsTable implements CIDRFilteringMetricsTableMBean
     {
         String latenciesMetricsTableName = SchemaConstants.VIRTUAL_VIEWS + '.' +
                                            CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable.TABLE_NAME;
-        SelectStatement getLatenciesMetricsStatement = (SelectStatement) QueryProcessor.getStatement(String.format("SELECT * FROM %s", latenciesMetricsTableName),
-                                                                                                     ClientState.forInternalCalls());
+
+        SelectStatement getLatenciesMetricsStatement =
+            (SelectStatement) QueryProcessor.getStatement(String.format("SELECT * FROM %s", latenciesMetricsTableName),
+                                                          ClientState.forInternalCalls());
 
         Map<String, List<Double>> metrics = new HashMap<>();
 

@@ -305,7 +305,8 @@ public class AuthTestUtils
     {
         for (Map.Entry<String, List<String>> userMapping : userToCidrPermsMapping.entrySet())
         {
-            authWithoutInvalidate("CREATE ROLE %s WITH password = 'password' AND LOGIN = true AND ACCESS FROM CIDRS {'%s'}",
+            authWithoutInvalidate(
+                "CREATE ROLE %s WITH password = 'password' AND LOGIN = true AND ACCESS FROM CIDRS {'%s'}",
                  userMapping.getKey(), String.join("', '", userMapping.getValue()));
         }
         Roles.cache.invalidate();
@@ -316,8 +317,9 @@ public class AuthTestUtils
         for (Map.Entry<String, List<CIDR>> cidrMapping : cidrsMapping.entrySet())
         {
             QueryProcessor.executeInternal(format("insert into %s.%s(cidr_group, cidrs) values('%s', %s );",
-                                                  AUTH_KEYSPACE_NAME, CIDR_GROUPS,
-                                                  cidrMapping.getKey(), AuthTestUtils.LocalCIDRGroupsMappingManager.getCidrTuplesSet(cidrMapping.getValue())));
+                                                  AUTH_KEYSPACE_NAME, CIDR_GROUPS, cidrMapping.getKey(),
+                                                  AuthTestUtils.LocalCIDRGroupsMappingManager.getCidrTuplesSet(
+                                                  cidrMapping.getValue())));
         }
         DatabaseDescriptor.getCIDRAuthorizer().loadCidrGroupsCache(); // update cache with CIDRs inserted above
     }

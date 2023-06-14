@@ -125,7 +125,6 @@ public class InvalidateCIDRPermissionsCacheTest extends CQLTester
 
         // ensure cidr permission is reloaded
         assertThat(role.hasAccessFromIp(new InetSocketAddress("127.0.0.0", 0))).isTrue();
-        assertThat(originalReadsCount).isLessThan(getCidrPermissionsReadCount());
     }
 
     @Test

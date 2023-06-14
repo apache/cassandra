@@ -130,7 +130,8 @@ public final class CIDR
         // Calculate the bit number within that byte, where netmask bit ends
         int bitOffset = netMask % Byte.SIZE;
 
-        // In that byte, set bits after netmask bit to 0 for starting IP, to 1 for ending IP, keeping bits before including netmask bit as it is
+        // In that byte, set bits after netmask bit to 0 for starting IP, to 1 for ending IP,
+        // keeping bits before including netmask bit as it is
         int unsignedByte = Byte.toUnsignedInt(startIpBytes[byteOffset]);
         startIpBytes[byteOffset] = (byte) (unsignedByte & (0xff << (Byte.SIZE - bitOffset)));
         endIpBytes[byteOffset] = (byte) (unsignedByte | (0xFF >>> bitOffset));

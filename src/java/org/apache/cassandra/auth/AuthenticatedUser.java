@@ -19,7 +19,6 @@ package org.apache.cassandra.auth;
 
 import java.net.InetSocketAddress;
 import java.util.Set;
-
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.DatabaseDescriptor;

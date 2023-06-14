@@ -137,7 +137,8 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
     public Set<Pair<InetAddress, Short>> retrieveCidrsFromRow(UntypedResultSet.Row row)
     {
         if (!row.has(AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME))
-            throw new RuntimeException("Invalid row, doesn't have column " + AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME);
+            throw new RuntimeException("Invalid row, doesn't have column " +
+                                       AuthKeyspace.CIDR_GROUPS_TBL_CIDRS_COL_NAME);
 
         Set<Pair<InetAddress, Short>> cidrs = new HashSet<>();
         TupleType tupleType = new TupleType(Arrays.asList(InetAddressType.instance, ShortType.instance));

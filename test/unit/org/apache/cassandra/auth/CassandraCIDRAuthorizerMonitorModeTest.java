@@ -93,8 +93,11 @@ public class CassandraCIDRAuthorizerMonitorModeTest extends CQLTester
     @Test
     public void testCidrAccesses()
     {
-        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user1", Collections.singletonList("cidrGroup1")));
-        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1", Collections.singletonList(CIDR.getInstance("10.20.30.5/24"))));
+        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user1",
+                                                                         Collections.singletonList("cidrGroup1")));
+        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1",
+                                                                   Collections.singletonList(
+                                                                   CIDR.getInstance("10.20.30.5/24"))));
 
         testValidCidrAccess("user1", "10.20.30.5");
         testValidCidrAccess("user1", "20.20.30.5");
@@ -103,8 +106,11 @@ public class CassandraCIDRAuthorizerMonitorModeTest extends CQLTester
     @Test
     public void testNonexistingCidrLogin()
     {
-        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user11", Collections.singletonList("cidrGroup11")));
-        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup11", Collections.singletonList(CIDR.getInstance("200.30.40.60/24"))));
+        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user11",
+                                                                         Collections.singletonList("cidrGroup11")));
+        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup11",
+                                                                   Collections.singletonList(
+                                                                   CIDR.getInstance("200.30.40.60/24"))));
 
         testValidCidrAccess("user11", "250.30.40.60");
     }
@@ -119,8 +125,11 @@ public class CassandraCIDRAuthorizerMonitorModeTest extends CQLTester
         conf.cidr_authorizer = new ParameterizedClass(CassandraCIDRAuthorizer.class.getName(), new HashMap<>());
         conf.cidr_authorizer.parameters.put("cidr_checks_for_superusers", String.valueOf(true));
 
-        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1", Collections.singletonList(CIDR.getInstance("200.30.40.60/24"))));
-        AuthTestUtils.auth("alter role %s with access from cidrs {'cidrGroup1'}", CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
+        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1",
+                                                                   Collections.singletonList(
+                                                                   CIDR.getInstance("200.30.40.60/24"))));
+        AuthTestUtils.auth("alter role %s with access from cidrs {'cidrGroup1'}",
+                           CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
         cidrAuthorizer.getCidrPermissionsCache().invalidate();
 
         testValidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "10.20.30.5");

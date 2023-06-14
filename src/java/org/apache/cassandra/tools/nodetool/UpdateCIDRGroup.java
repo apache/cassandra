@@ -44,6 +44,14 @@ public class UpdateCIDRGroup extends NodeToolCmd
 
         String cidrGroupName = args.get(0);
 
-        probe.updateCidrGroup(cidrGroupName, new ArrayList<>(args.subList(1, args.size())));
+        try
+        {
+            probe.updateCidrGroup(cidrGroupName, new ArrayList<>(args.subList(1, args.size())));
+        }
+        catch (IllegalArgumentException e)
+        {
+            // IllegalArgumentException message going to stdout, so throw different type of exception to land in stderr
+            throw new RuntimeException(e);
+        }
     }
 }

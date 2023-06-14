@@ -60,8 +60,8 @@ public class CIDRFilteringMetricsTableTest extends CQLTester
 
     private static void setupSuperUser()
     {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                                     + "VALUES ('%s', true, true, '%s')",
+        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) " +
+                                                     "VALUES ('%s', true, true, '%s')",
                                                      AUTH_KEYSPACE_NAME,
                                                      AuthKeyspace.ROLES,
                                                      CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
@@ -93,7 +93,8 @@ public class CIDRFilteringMetricsTableTest extends CQLTester
     {
         CIDRAuthorizerMetrics cidrAuthorizerMetrics = DatabaseDescriptor.getCIDRAuthorizer().getCidrAuthorizerMetrics();
 
-        String getMetricsQuery = "SELECT * FROM " + KS_NAME + '.' + CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.TABLE_NAME;
+        String getMetricsQuery = "SELECT * FROM " + KS_NAME + '.' +
+                                 CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.TABLE_NAME;
         UntypedResultSet vtsRows = execute(getMetricsQuery);
 
         assertEquals(5, vtsRows.size());
@@ -106,16 +107,20 @@ public class CIDRFilteringMetricsTableTest extends CQLTester
             long metricValue = row.getLong(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.VALUE_COL);
             assertTrue(metricValue != 0);
 
-            if (CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_GROUPS_CACHE_RELOAD_COUNT_NAME.equals(metricName))
+            if (CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_GROUPS_CACHE_RELOAD_COUNT_NAME
+                .equals(metricName))
                 assertEquals(cidrAuthorizerMetrics.cacheReloadCount.getCount(), metricValue, 0);
             else
             {
-                if (metricName.contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX))
+                if (metricName.contains(CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable
+                                        .CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX))
                     assertEquals(cidrAuthorizerMetrics.rejectedCidrAccessCount.get(metricName.split(
-                    CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX)[1]).getCount(), metricValue, 0);
+                        CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable
+                        .CIDR_ACCESSES_REJECTED_COUNT_NAME_PREFIX)[1]).getCount(), metricValue, 0);
                 else
                     assertEquals(cidrAuthorizerMetrics.acceptedCidrAccessCount.get(metricName.split(
-                    CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable.CIDR_ACCESSES_ACCEPTED_COUNT_NAME_PREFIX)[1]).getCount(), metricValue, 0);
+                        CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable
+                        .CIDR_ACCESSES_ACCEPTED_COUNT_NAME_PREFIX)[1]).getCount(), metricValue, 0);
             }
         }
     }
@@ -138,7 +143,8 @@ public class CIDRFilteringMetricsTableTest extends CQLTester
     {
         CIDRAuthorizerMetrics cidrAuthorizerMetrics = DatabaseDescriptor.getCIDRAuthorizer().getCidrAuthorizerMetrics();
 
-        String getMetricsQuery = "SELECT * FROM " + KS_NAME + '.' + CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable.TABLE_NAME;
+        String getMetricsQuery = "SELECT * FROM " + KS_NAME + '.' +
+                                 CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable.TABLE_NAME;
         UntypedResultSet vtsRows = execute(getMetricsQuery);
 
         assertEquals(3, vtsRows.size());
@@ -167,9 +173,14 @@ public class CIDRFilteringMetricsTableTest extends CQLTester
     @Test
     public void testCidrFilteringStats() throws Throwable
     {
-        CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable countsTable = new CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable(KS_NAME);
-        CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable latenciesTable = new CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable(KS_NAME);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(countsTable, latenciesTable)));
+        CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable countsTable =
+        new CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable(KS_NAME);
+
+        CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable latenciesTable =
+        new CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable(KS_NAME);
+
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(countsTable,
+                                                                                                latenciesTable)));
 
         Map<String, List<String>> usersList = new HashMap<String, List<String>>()
         {{
@@ -181,7 +192,8 @@ public class CIDRFilteringMetricsTableTest extends CQLTester
         {{
             put("cidrGroup1", Collections.singletonList(CIDR.getInstance("10.20.30.5/24")));
             put("cidrGroup2", Arrays.asList(CIDR.getInstance("20.30.40.6/16"), CIDR.getInstance("30.40.50.6/8")));
-            put("cidrGroup3", Arrays.asList(CIDR.getInstance("40.50.60.7/32"), CIDR.getInstance("50.60.70.80/10"), CIDR.getInstance("60.70.80.90/22")));
+            put("cidrGroup3", Arrays.asList(CIDR.getInstance("40.50.60.7/32"), CIDR.getInstance("50.60.70.80/10"),
+                                            CIDR.getInstance("60.70.80.90/22")));
         }};
 
         AuthTestUtils.createUsersWithCidrAccess(usersList);

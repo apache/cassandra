@@ -2045,24 +2045,28 @@ public class NodeProbe implements AutoCloseable
             {
                 case CIDRAuthorizerMetrics.CIDR_CHECKS_LATENCY:
                     return JMX.newMBeanProxy(mbeanServerConn,
-                                             new ObjectName("org.apache.cassandra.metrics:type=CIDRAuthorization,name=" + metricName),
+                                             new ObjectName("org.apache.cassandra.metrics:type=CIDRAuthorization,name="
+                                                            + metricName),
                                              CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
                 case CIDRAuthorizerMetrics.CIDR_GROUPS_CACHE_RELOAD_COUNT:
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                                             new ObjectName("org.apache.cassandra.metrics:type=CIDRGroupsMappingCache,name=" + metricName),
-                                             CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                    return JMX.newMBeanProxy(
+                        mbeanServerConn,
+                        new ObjectName("org.apache.cassandra.metrics:type=CIDRGroupsMappingCache,name=" + metricName),
+                        CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
                 case CIDRAuthorizerMetrics.CIDR_GROUPS_CACHE_RELOAD_LATENCY:
                 case CIDRAuthorizerMetrics.LOOKUP_CIDR_GROUPS_FOR_IP_LATENCY:
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                                             new ObjectName("org.apache.cassandra.metrics:type=CIDRGroupsMappingCache,name=" + metricName),
-                                             CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
+                    return JMX.newMBeanProxy(
+                        mbeanServerConn,
+                        new ObjectName("org.apache.cassandra.metrics:type=CIDRGroupsMappingCache,name=" + metricName),
+                        CassandraMetricsRegistry.JmxTimerMBean.class).getMean();
                 default:
                     if (metricName.contains(CIDRAuthorizerMetrics.CIDR_ACCESSES_REJECTED_COUNT_PREFIX) ||
                         metricName.contains(CIDRAuthorizerMetrics.CIDR_ACCESSES_ACCEPTED_COUNT_PREFIX))
                     {
-                        return JMX.newMBeanProxy(mbeanServerConn,
-                                                 new ObjectName("org.apache.cassandra.metrics:type=mymetricname,name=" + metricName),
-                                                 CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
+                        return JMX.newMBeanProxy(
+                            mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=mymetricname,name=" + metricName),
+                            CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
                     }
 
                     throw new RuntimeException("Unknown metric " + metricName);

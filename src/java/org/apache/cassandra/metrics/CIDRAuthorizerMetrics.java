@@ -63,7 +63,8 @@ public class CIDRAuthorizerMetrics
 
     private void incCounter(ConcurrentHashMap<String, Counter> metric, String metricPrefix, String cidrGroup)
     {
-        metric.computeIfAbsent(cidrGroup, k -> Metrics.counter(factory.createMetricName(metricPrefix + cidrGroup))).inc();
+        metric.computeIfAbsent(cidrGroup,
+                               k -> Metrics.counter(factory.createMetricName(metricPrefix + cidrGroup))).inc();
     }
 
     public void incrRejectedAccessCount(Set<String> cidrGroups)

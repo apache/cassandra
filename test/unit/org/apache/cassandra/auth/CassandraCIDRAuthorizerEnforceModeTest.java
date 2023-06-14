@@ -114,8 +114,8 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
         ClientState clientState = ClientState.forExternalCalls(new InetSocketAddress(ip, 0));
         clientState.login(new AuthenticatedUser(userName));
 
-        assertThatThrownBy(clientState::validateLogin).isInstanceOf(UnauthorizedException.class)
-                                                      .hasMessageContaining(format("You do not have access from this IP %s", ip));
+        assertThatThrownBy(clientState::validateLogin).isInstanceOf(UnauthorizedException.class).hasMessageContaining(
+            format("You do not have access from this IP %s", ip));
     }
 
     @Test
@@ -130,8 +130,10 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
         Map<String, List<CIDR>> cidrsMapping = new HashMap<String, List<CIDR>>()
         {{
             put("cidrGroup1", Collections.singletonList(CIDR.getInstance("10.20.30.5/24")));
-            put("cidrGroup2", Arrays.asList(CIDR.getInstance("1111:2222:3333:4444:5555:6666:7777:8888/106"), CIDR.getInstance("2001:3002::/16")));
-            put("cidrGroup3", Arrays.asList(CIDR.getInstance("40.50.60.7/32"), CIDR.getInstance("50.60.70.80/10"), CIDR.getInstance("60.70.80.90/22")));
+            put("cidrGroup2", Arrays.asList(CIDR.getInstance("1111:2222:3333:4444:5555:6666:7777:8888/106"),
+                                            CIDR.getInstance("2001:3002::/16")));
+            put("cidrGroup3", Arrays.asList(CIDR.getInstance("40.50.60.7/32"), CIDR.getInstance("50.60.70.80/10"),
+                                            CIDR.getInstance("60.70.80.90/22")));
         }};
 
         AuthTestUtils.createUsersWithCidrAccess(usersList);
@@ -170,8 +172,11 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
     @Test
     public void testNonexistingCidrLogin()
     {
-        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user11", Collections.singletonList("cidrGroup11")));
-        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup11", Collections.singletonList(CIDR.getInstance("200.30.40.60/24"))));
+        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap("user11",
+                                                                         Collections.singletonList("cidrGroup11")));
+        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup11",
+                                                                   Collections.singletonList(
+                                                                   CIDR.getInstance("200.30.40.60/24"))));
 
         testInvalidCidrLogin("user11", "250.30.40.60");
     }
@@ -225,7 +230,8 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
 
         assertEmpty(getCidrGroups(role));
 
-        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap(role, Collections.singletonList("cidrGroup1")));
+        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap(role,
+                                                                         Collections.singletonList("cidrGroup1")));
         UntypedResultSet results = getCidrGroups(role);
         Assert.assertEquals(Sets.newHashSet("cidrGroup1"),
                             Iterables.getOnlyElement(results).getFrozenSet("cidr_groups", UTF8Type.instance));
@@ -262,8 +268,9 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
 
         AuthTestUtils.createUsersWithCidrAccess(usersList);
 
-        QueryProcessor.executeInternal(format("insert into %s.%s(cidr_group, cidrs) values('cidrGroup1', { ('10.20.30.5', 33), ('11.20.30.6', 16) } );",
-                                              AUTH_KEYSPACE_NAME, CIDR_GROUPS));
+        QueryProcessor.executeInternal(format(
+            "insert into %s.%s(cidr_group, cidrs) values('cidrGroup1', { ('10.20.30.5', 33), ('11.20.30.6', 16) } );",
+            AUTH_KEYSPACE_NAME, CIDR_GROUPS));
         DatabaseDescriptor.getCIDRAuthorizer().loadCidrGroupsCache(); // update cache with CIDRs inserted above
 
         testInvalidCidrAccess("user1", "10.20.30.5");
@@ -280,8 +287,11 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
         conf.cidr_authorizer = new ParameterizedClass(CassandraCIDRAuthorizer.class.getName(), new HashMap<>());
         conf.cidr_authorizer.parameters.put("cidr_checks_for_superusers", String.valueOf(true));
 
-        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1", Collections.singletonList(CIDR.getInstance("200.30.40.60/24"))));
-        AuthTestUtils.auth("alter role %s with access from cidrs {'cidrGroup1'}", CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
+        AuthTestUtils.insertCidrsMappings(Collections.singletonMap("cidrGroup1",
+                                                                   Collections.singletonList(
+                                                                   CIDR.getInstance("200.30.40.60/24"))));
+        AuthTestUtils.auth("alter role %s with access from cidrs {'cidrGroup1'}",
+                           CassandraRoleManager.DEFAULT_SUPERUSER_NAME);
         cidrAuthorizer.getCidrPermissionsCache().invalidate();
 
         testInvalidCidrAccess(CassandraRoleManager.DEFAULT_SUPERUSER_NAME, "10.20.30.5");

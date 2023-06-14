@@ -103,10 +103,12 @@ public class CIDRGroupsMappingIntervalTreeTest
         IPIntervalNode<Void> internalNode = new IPIntervalNode<>(CIDR.getInstance(parentCidr), null, children);
 
         assertThat(toCidrs(internalNode.left())).describedAs("Check left nodes")
-                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.0.1/24", "10.0.1.1/24"))));
+                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.0.1/24",
+                                                                                              "10.0.1.1/24"))));
 
         assertThat(toCidrs(internalNode.right())).describedAs("Check right nodes")
-                                                 .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.3.1/24", "10.0.4.1/24"))));
+                                                 .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.3.1/24",
+                                                                                               "10.0.4.1/24"))));
     }
 
     @Test
@@ -122,10 +124,12 @@ public class CIDRGroupsMappingIntervalTreeTest
         IPIntervalNode<Void> internalNode = new IPIntervalNode<>(CIDR.getInstance(parentCidr), null, children);
 
         assertThat(toCidrs(internalNode.left())).describedAs("Check left nodes")
-                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("aaaa::0001:ffff/112", "bbbb::0001:ffff/112"))));
+                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("aaaa::0001:ffff/112",
+                                                                                              "bbbb::0001:ffff/112"))));
 
         assertThat(toCidrs(internalNode.right())).describedAs("Check right nodes")
-                                                 .isEqualTo(toCidrs(createLeaves(Arrays.asList("dddd::0001:ffff/112", "eeee::0001:ffff/112"))));
+                                                 .isEqualTo(toCidrs(createLeaves(
+                                                 Arrays.asList("dddd::0001:ffff/112", "eeee::0001:ffff/112"))));
     }
 
     @Test
@@ -142,10 +146,13 @@ public class CIDRGroupsMappingIntervalTreeTest
 
         // The overlapping node "10.0.2.1/24" should be included in both left and right
         assertThat(toCidrs(internalNode.left())).describedAs("Check left nodes")
-                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.0.1/24", "10.0.1.1/24", "10.0.2.1/24"))));
+                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.0.1/24",
+                                                                                              "10.0.1.1/24",
+                                                                                              "10.0.2.1/24"))));
 
         assertThat(toCidrs(internalNode.right())).describedAs("Check right nodes")
-                                                 .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.2.1/24", "10.0.3.1/24"))));
+                                                 .isEqualTo(toCidrs(createLeaves(Arrays.asList("10.0.2.1/24",
+                                                                                               "10.0.3.1/24"))));
     }
 
     @Test
@@ -163,10 +170,15 @@ public class CIDRGroupsMappingIntervalTreeTest
 
         // The overlapping node "10.0.2.1/24" should be included in both left and right
         assertThat(toCidrs(internalNode.left())).describedAs("Check left nodes")
-                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("aaaa::0001:ffff/112", "bbbb::0001:ffff/112", "cccc::0001:ffff/112"))));
+                                                .isEqualTo(toCidrs(createLeaves(Arrays.asList("aaaa::0001:ffff/112",
+                                                                                              "bbbb::0001:ffff/112",
+                                                                                              "cccc::0001:ffff/112"))));
 
         assertThat(toCidrs(internalNode.right())).describedAs("Check right nodes")
-                                                 .isEqualTo(toCidrs(createLeaves(Arrays.asList("cccc::0001:ffff/112", "dddd::0001:ffff/112", "eeee::0001:ffff/112"))));
+                                                 .isEqualTo(toCidrs(createLeaves(
+                                                 Arrays.asList("cccc::0001:ffff/112",
+                                                               "dddd::0001:ffff/112",
+                                                               "eeee::0001:ffff/112"))));
     }
 
     @Test

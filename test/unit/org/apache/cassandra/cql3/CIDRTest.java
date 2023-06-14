@@ -151,9 +151,12 @@ public class CIDRTest
         assertTrue(CIDR.compareIPs(InetAddress.getByName("10.20.30.40"), InetAddress.getByName("10.20.30.39")) > 0);
         assertTrue(CIDR.compareIPs(InetAddress.getByName("10.20.30.40"), InetAddress.getByName("10.20.30.40")) == 0);
 
-        assertTrue(CIDR.compareIPs(InetAddress.getByName("2222:3333::4444:550f"), InetAddress.getByName("2222:5555::4444:550f")) < 0);
-        assertTrue(CIDR.compareIPs(InetAddress.getByName("2222:ffff:ffff:ffff:ffff:ffff:ffff:ffff"), InetAddress.getByName("2222:3333::4444:550f")) > 0);
-        assertTrue(CIDR.compareIPs(InetAddress.getByName("2222:3333::4444:550f"), InetAddress.getByName("2222:3333:0000:0000::4444:550f")) == 0);
+        assertTrue(CIDR.compareIPs(InetAddress.getByName("2222:3333::4444:550f"),
+                                   InetAddress.getByName("2222:5555::4444:550f")) < 0);
+        assertTrue(CIDR.compareIPs(InetAddress.getByName("2222:ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+                                   InetAddress.getByName("2222:3333::4444:550f")) > 0);
+        assertTrue(CIDR.compareIPs(InetAddress.getByName("2222:3333::4444:550f"),
+                                   InetAddress.getByName("2222:3333:0000:0000::4444:550f")) == 0);
 
         assertTrue(CIDR.compareIPs(InetAddress.getByName("10.20.30.40"), InetAddress.getByName("10.22.40.40")) < 0);
         assertTrue(CIDR.compareIPs(InetAddress.getByName("10.24.40.40"), InetAddress.getByName("10.20.30.40")) > 0);
@@ -161,9 +164,12 @@ public class CIDRTest
         assertTrue(CIDR.compareIPs(InetAddress.getByName("0.20.30.40"), InetAddress.getByName("255.20.40.40")) < 0);
         assertTrue(CIDR.compareIPs(InetAddress.getByName("255.20.40.40"), InetAddress.getByName("128.20.30.40")) > 0);
 
-        assertTrue(CIDR.compareIPs(InetAddress.getByName("::ffff:152.153.154.155"), InetAddress.getByName("152.154.154.155")) < 0);
-        assertTrue(CIDR.compareIPs(InetAddress.getByName("::ffff:152.154.154.155"), InetAddress.getByName("152.153.154.155")) > 0);
-        assertTrue(CIDR.compareIPs(InetAddress.getByName("::ffff:152.153.154.155"), InetAddress.getByName("152.153.154.155")) == 0);
+        assertTrue(CIDR.compareIPs(InetAddress.getByName("::ffff:152.153.154.155"),
+                                   InetAddress.getByName("152.154.154.155")) < 0);
+        assertTrue(CIDR.compareIPs(InetAddress.getByName("::ffff:152.154.154.155"),
+                                   InetAddress.getByName("152.153.154.155")) > 0);
+        assertTrue(CIDR.compareIPs(InetAddress.getByName("::ffff:152.153.154.155"),
+                                   InetAddress.getByName("152.153.154.155")) == 0);
     }
 
     @Test
@@ -175,10 +181,14 @@ public class CIDRTest
         assertTrue(CIDR.overlaps(CIDR.getInstance("10.20.30.0/24"), CIDR.getInstance("10.20.30.0/25")));
         assertTrue(CIDR.overlaps(CIDR.getInstance("10.20.30.0/24"), CIDR.getInstance("10.20.30.0/24")));
 
-        assertTrue(CIDR.overlaps(CIDR.getInstance("::ffff:152.153.154.155/120"), CIDR.getInstance("152.153.154.155/24")));
-        assertFalse(CIDR.overlaps(CIDR.getInstance("::ffff:152.153.154.155/120"), CIDR.getInstance("::ffff:152.153.153.155/120")));
+        assertTrue(CIDR.overlaps(CIDR.getInstance("::ffff:152.153.154.155/120"),
+                                 CIDR.getInstance("152.153.154.155/24")));
+        assertFalse(CIDR.overlaps(CIDR.getInstance("::ffff:152.153.154.155/120"),
+                                  CIDR.getInstance("::ffff:152.153.153.155/120")));
 
-        assertTrue(CIDR.overlaps(CIDR.getInstance("2222:3333:4444:5555:6666:7777:8888:9999/16"), CIDR.getInstance("2222:3333:4444:5555:6666:7777:8888:9999/36")));
-        assertFalse(CIDR.overlaps(CIDR.getInstance("2222:3333:4444:5555:6666:7777:8888:9999/16"), CIDR.getInstance("1010:3333:4444:5555:6666:7777:8888:9999/16")));
+        assertTrue(CIDR.overlaps(CIDR.getInstance("2222:3333:4444:5555:6666:7777:8888:9999/16"),
+                                 CIDR.getInstance("2222:3333:4444:5555:6666:7777:8888:9999/36")));
+        assertFalse(CIDR.overlaps(CIDR.getInstance("2222:3333:4444:5555:6666:7777:8888:9999/16"),
+                                  CIDR.getInstance("1010:3333:4444:5555:6666:7777:8888:9999/16")));
     }
 }

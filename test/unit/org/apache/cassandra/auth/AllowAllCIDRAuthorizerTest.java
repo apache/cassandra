@@ -141,7 +141,8 @@ public class AllowAllCIDRAuthorizerTest extends CQLTester
 
         assertEmpty(getCidrGroups(role));
 
-        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap(role, Collections.singletonList("cidrGroup1")));
+        AuthTestUtils.createUsersWithCidrAccess(Collections.singletonMap(role,
+                                                                         Collections.singletonList("cidrGroup1")));
         UntypedResultSet results = getCidrGroups(role);
         Assert.assertEquals(Sets.newHashSet("cidrGroup1"),
                             Iterables.getOnlyElement(results).getFrozenSet("cidr_groups", UTF8Type.instance));

@@ -35,16 +35,26 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.cql3.CIDR;
 
 /**
- * CIDR Interval tree implementation to provide avg O(logN) time complexity for lookup or cache miss.
- * The tree organizes the nodes by placing non-overlapping CIDRs at the same level. In general, CIDRs with the same netmask are
- * located in the same level. Nodes at different levels, i.e, CIDRs with different netmask, can overlap with each other.
- * In addition, there is an optimization to promote a CIDR without any overlap to upper levels, i.e, in such cases
- * a CIDR can co-locate in the same level with other CIDRs having different netmask.
- * Nearer the level to the root, the narrower the CIDR, meaning matching the longer IP prefix.
- * Each node represents an IP range, aka CIDR, and carries a value. In this specific case, the value is CIDR group name(s).
- * A node has left children and the right children.
+ * This class implements CIDR Interval tree and the ability to find longest matching CIDR for the given IP.
+ * CIDRs interval tree is a variant of interval tree. Each node contains a CIDR and a value.
+ * A node has left children array and the right children array.
  * - The left children's CIDRs are either less than the starting IP of parent or overlaps with the parent node.
  * - The right children's CIDRs are either greater than the ending IP of the parent or overlaps with the parent node.
+ * Note that nodes that overlap with the parent node are included in both left and right children arrays.
+ *
+ * The tree organizes nodes by placing non-overlapping CIDRs at the same level. In general, CIDRs with the same net mask
+ * do not overlap, hence are placed in the same level. CIDRs with different net mask may overlap, hence placed at
+ * different levels in the tree. In addition to this, there is an optimisation to promote a CIDR to an upper level, if
+ * it is not overlapping with any CIDR in the parent level, that means, in such cases a CIDR with different net mask can
+ * co-locate in the same level with other CIDRs.
+ *
+ * Levels closer to the root contains CIDRs with higher net mask value. Net mask value decreases as levels further down
+ * from the root. i.e, Nearer the level to the root, the narrower the CIDR, meaning matching the longer IP prefix.
+ *
+ * Search for Longest matching CIDR for an IP starts at level 0, if not found a match, search continues to the next
+ * level, until it finds a match or reaches leaf nodes without a match. That means search terminates on the first match
+ * closest to the root, i.e, locates narrowest matching CIDR.
+ *
  * Example:
  * Assume below CIDRs
  * "128.10.120.2/10", ==> IP range 128.0.0.0 - 128.63.255.255, netmask 10
@@ -60,7 +70,8 @@ import org.apache.cassandra.cql3.CIDR;
  *             /                      /  \
  *            (0.0.0.0 - 255.255.255.255, 0)
  *
- * Note that in this example (10.0.0.0 - 10.63.255.255, 10) doesn't have any overlapping CIDR, hence moved up a level as an optimization
+ * Note that in this example (10.0.0.0 - 10.63.255.255, 10) doesn't have any overlapping CIDR, hence moved up a level as
+ * an optimization
  */
 public class CIDRGroupsMappingIntervalTree<V> implements CIDRGroupsMappingTable<V>
 {
@@ -80,12 +91,14 @@ public class CIDRGroupsMappingIntervalTree<V> implements CIDRGroupsMappingTable<
                                                    ", received " + getIPTypeString(cidr.isIPv6()));
         }
 
-        this.tree = IPIntervalTree.build(new ArrayList<>(cidrMappings.entrySet().stream()
-                                                                     .collect(Collectors.groupingBy(p -> p.getKey().getNetMask(),
-                                                                                                    TreeMap::new,
-                                                                                                    Collectors.toList()))
-                                                                     .descendingMap()
-                                                                     .values()));
+        this.tree = IPIntervalTree.build(new ArrayList<>(cidrMappings
+                                                         .entrySet()
+                                                         .stream()
+                                                         .collect(Collectors.groupingBy(p -> p.getKey().getNetMask(),
+                                                                                        TreeMap::new,
+                                                                                        Collectors.toList()))
+                                                         .descendingMap()
+                                                         .values()));
     }
 
     /**
@@ -179,22 +192,26 @@ public class CIDRGroupsMappingIntervalTree<V> implements CIDRGroupsMappingTable<
                 updateRight(children, updateRight);
             }
             // Scenario - all children nodes are lower than this node
-            else if (index == children.length - 1 && CIDR.compareIPs(this.cidr.getStartIpAddress(), closest.cidr.getEndIpAddress()) > 0)
+            else if (index == children.length - 1 &&
+                     CIDR.compareIPs(this.cidr.getStartIpAddress(), closest.cidr.getEndIpAddress()) > 0)
             {
                 updateLeft(children, updateLeft);
                 updateRight(null, updateRight);
             }
             else // Scenario - part of the children nodes are lower, and the other are greater
             {
-                // When this node does not overlap with the closest, split the array and link left and right children correspondingly.
+                // When this node does not overlap with the closest, split the array and
+                // link left and right children correspondingly.
                 if (CIDR.compareIPs(this.cidr.getStartIpAddress(), closest.cidr.getEndIpAddress()) > 0)
                 {
-                    updateLeft(Arrays.copyOfRange(children, 0, index + 1), updateLeft); // including the closest (node at index) in left
-                    updateRight(Arrays.copyOfRange(children, index + 1, children.length), updateRight); // put the rest in right
+                    // including the closest (node at index) in left
+                    updateLeft(Arrays.copyOfRange(children, 0, index + 1), updateLeft);
+                    // put the rest in right
+                    updateRight(Arrays.copyOfRange(children, index + 1, children.length), updateRight);
                 }
                 else // When the node overlaps, include the closest node in both its left and right children nodes.
                 {
-                    // The parent node overlaps with at most 1 interval in the children. It is because of the nature of CIDR
+                    // The parent node overlaps with at most 1 interval in the children, because of nature of the CIDR.
                     // Increasing the bit mask by 1, divides the range into halfs.
                     // Note that the node@index is included in both left and right
                     // it is because the current interval partially overlaps with the closest interval
@@ -341,7 +358,7 @@ public class CIDRGroupsMappingIntervalTree<V> implements CIDRGroupsMappingTable<
         }
 
         /**
-         * Optimize the levels by moving all non-overlapping CIDRs from lower level to the upper level. Levels are updated in-place
+         * Optimize levels by moving non-overlapping CIDRs from lower level to the upper level. Levels are updated in-place
          * This optimization moves CIDRs closer to the root, hence improves the search to find IP nearer to the root,
          * i.e, avoiding going depth during the search
          * @param upperLevel level for CIDRs with higher netmask value

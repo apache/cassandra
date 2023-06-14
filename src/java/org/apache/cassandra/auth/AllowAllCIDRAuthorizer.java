@@ -49,19 +49,19 @@ public class AllowAllCIDRAuthorizer extends AbstractCIDRAuthorizer
     @Override
     public boolean invalidateCidrPermissionsCache(String roleName)
     {
-        throw new InvalidRequestException("Invalidate CIDR permissions cache opertion not supported by " + getClass().getSimpleName());
+        throw new InvalidRequestException("Invalidate CIDR permissions cache operation not supported by " + getClass().getSimpleName());
     }
 
     @Override
     public void loadCidrGroupsCache()
     {
-        throw new InvalidRequestException("Load CIDR groups cache opertion not supported by " + getClass().getSimpleName());
+        throw new InvalidRequestException("Load CIDR groups cache operation not supported by " + getClass().getSimpleName());
     }
 
     @Override
     public Set<String> lookupCidrGroupsForIp(InetAddress ip)
     {
-        throw new InvalidRequestException("Get CIDR groups for IP opertion not supported by " + getClass().getSimpleName());
+        throw new InvalidRequestException("'Get CIDR groups for IP' operation not supported by " + getClass().getSimpleName());
     }
 
     @Override
