@@ -92,7 +92,6 @@ public abstract class Selector
         AGGREGATE_FUNCTION_SELECTOR(AggregateFunctionSelector.deserializer),
         ELEMENT_SELECTOR(ElementsSelector.ElementSelector.deserializer),
         SLICE_SELECTOR(ElementsSelector.SliceSelector.deserializer),
-        // TODO : does this require we bump messaging version?  I think we are going to for TCM, but good to know ahead of time...
         VECTOR_SELECTOR(VectorSelector.deserializer);
 
         private final SelectorDeserializer deserializer;
