@@ -142,7 +142,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
                     // skip over until completes to LOADED or FAILED_TO_SAVE
                     break;
                 case FAILED_TO_SAVE:
-                    // permanently unlink, but keep in the map; consider panicking instead when this happens
+                    // TODO (consider): panic when a save fails
+                    // permanently unlink, but keep in the map
                     unlink(node);
             }
         }
