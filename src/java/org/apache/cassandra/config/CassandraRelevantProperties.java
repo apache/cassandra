@@ -329,6 +329,21 @@ public enum CassandraRelevantProperties
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
 
+    /**
+     * Delay before checking if gossip is settled.
+     */
+    GOSSIP_SETTLE_MIN_WAIT_MS("cassandra.gossip_settle_min_wait_ms", "5000"),
+
+    /**
+     * Interval delay between checking gossip is settled.
+     */
+    GOSSIP_SETTLE_POLL_INTERVAL_MS("cassandra.gossip_settle_interval_ms", "1000"),
+
+    /**
+     * Number of polls without gossip state change to consider gossip as settled.
+     */
+    GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
+
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
