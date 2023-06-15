@@ -61,7 +61,8 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     private final PrimaryKey.Factory keyFactory;
     private final PrimaryKeyMap primaryKeyMap;
     private final VectorType<float[]> type;
-    private int maxBruteForceRows; // not final so test can inject its own setting
+    private final int maxBruteForceRows; // not final so test can inject its own setting
+    private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
 
     VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                         PerIndexFiles perIndexFiles,
@@ -74,6 +75,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         this.keyFactory = PrimaryKey.factory(indexContext.comparator(), indexContext.indexFeatureSet());
         this.primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap();
         type = (VectorType<float[]>) indexContext.getValidator();
+        cachedBitSets = ThreadLocal.withInitial(() -> new SparseFixedBitSet(graph.size()));
 
         // estimate the number of comparisons that a search would require; use brute force if we have
         // fewer rows involved than that
@@ -87,7 +89,6 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     }
 
     @Override
-    @SuppressWarnings("resource")
     public RangeIterator<PrimaryKey> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         PostingList results = searchPosting(context, exp, keyRange, limit);
@@ -158,7 +159,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         }
 
         // create a bitset of ordinals corresponding to the rows in the given key range
-        SparseFixedBitSet bits = new SparseFixedBitSet(graph.size());
+        SparseFixedBitSet bits = bitSetForSearch();
         boolean hasMatches = false;
         try (var ordinalsView = graph.getOrdinalsView())
         {
@@ -187,13 +188,20 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
         return new BitsOrPostingList(bits);
     }
 
+    private SparseFixedBitSet bitSetForSearch()
+    {
+        var bits = cachedBitSets.get();
+        bits.clear();
+        return bits;
+    }
+
     @Override
     public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
         // are from our own token range so we can use row ids to order the results by vector similarity.
         var maxSegmentRowId = metadata.segmentedRowId(metadata.maxSSTableRowId);
-        SparseFixedBitSet bits = new SparseFixedBitSet(graph.size());
+        SparseFixedBitSet bits = bitSetForSearch();
         int[] bruteForceRows = new int[Math.max(limit, this.maxBruteForceRows)];
         int n = 0;
         try (var ordinalsView = graph.getOrdinalsView())
