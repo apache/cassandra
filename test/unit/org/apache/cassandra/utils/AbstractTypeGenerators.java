@@ -158,6 +158,7 @@ public final class AbstractTypeGenerators
         Collections.sort(types, Comparator.comparing(a -> a.getClass().getName()));
         PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(types);
     }
+
     private static final Set<Class<? extends AbstractType>> NON_PRIMITIVE_TYPES = ImmutableSet.<Class<? extends AbstractType>>builder()
                                                                                               .add(SetType.class)
                                                                                               .add(ListType.class)
@@ -204,6 +205,16 @@ public final class AbstractTypeGenerators
                                                                                           DurationType.class,
                                                                                           DecimalType.class,
                                                                                           CounterColumnType.class);
+
+    public static <T> Releaser overridePrimitiveTypeSupport(AbstractType<T> type, TypeSupport<T> support)
+    {
+        if (!PRIMITIVE_TYPE_DATA_GENS.keySet().contains(type))
+            throw new IllegalArgumentException("Type " + type.asCQL3Type() + " is not a primitive");
+        TypeSupport<?> original = PRIMITIVE_TYPE_DATA_GENS.get(type);
+        PRIMITIVE_TYPE_DATA_GENS.put(type, support);
+        return () -> PRIMITIVE_TYPE_DATA_GENS.put(type, original);
+    }
+
     public static TypeGenBuilder withoutUnsafeEquality()
     {
         // make sure to keep UNSAFE_EQUALITY in-sync
@@ -215,6 +226,12 @@ public final class AbstractTypeGenerators
                                      .withoutPrimitive(DecimalType.instance)
                                      // counters are only for top level
                                      .withoutTypeKinds(TypeKind.COUNTER);
+    }
+
+    public interface Releaser extends AutoCloseable
+    {
+        @Override
+        void close();
     }
 
     public static class TypeGenBuilder
@@ -765,9 +782,10 @@ public final class AbstractTypeGenerators
         {
             // T = Map<A, B> so can not use T here
             MapType<Object, Object> mapType = (MapType<Object, Object>) type;
-            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, valueDomainGen);
+            // do not use valueDomainGen as map doesn't allow null/empty
+            TypeSupport<Object> keySupport = getTypeSupport(mapType.getKeysType(), sizeGen, null);
             Comparator<Object> keyType = keySupport.valueComparator;
-            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, valueDomainGen);
+            TypeSupport<Object> valueSupport = getTypeSupport(mapType.getValuesType(), sizeGen, null);
             Comparator<Object> valueType = valueSupport.valueComparator;
             Comparator<Map<Object, Object>> comparator = (Map<Object, Object> a, Map<Object, Object> b) -> {
                 List<Object> ak = new ArrayList<>(a.keySet());

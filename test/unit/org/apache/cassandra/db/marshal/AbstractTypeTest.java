@@ -58,6 +58,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
+import org.apache.cassandra.utils.AbstractTypeGenerators.Releaser;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -69,11 +70,14 @@ import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport.of;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.typeTree;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.SourceDSL.doubles;
 
 public class AbstractTypeTest
 {
@@ -298,36 +302,42 @@ public class AbstractTypeTest
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void json()
     {
-        Gen<AbstractType<?>> typeGen = genBuilder()
-                                       .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER))
-                                       // toCQLLiteral is lossy, which causes deserialization to produce different bytes
-                                       .withoutPrimitive(DecimalType.instance)
-                                       // does not support toJSONString
-                                       .withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER)
-                                       .build();
-        qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(es -> {
-            AbstractType type = es.type;
-            for (Object example : es.samples)
-            {
-                ByteBuffer bb = type.decompose(example);
-                String json = type.toJSONString(bb, ProtocolVersion.CURRENT);
-                ColumnMetadata column = fake(type);
-                String cqlJson = "{\"" + column.name + "\": " + json + "}";
-                try
+        // Double type is special as NaN and Infinite are treated differently than other code paths as they are convered to null!
+        // This is fine in most cases, but when found in a collection, this is not allowed and can cause flakeyness
+        try (Releaser ignore = overridePrimitiveTypeSupport(DoubleType.instance,
+                                                            of(DoubleType.instance, doubles().between(Double.MIN_VALUE, Double.MAX_VALUE))))
+        {
+            Gen<AbstractType<?>> typeGen = genBuilder()
+                                           .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER))
+                                           // toCQLLiteral is lossy, which causes deserialization to produce different bytes
+                                           .withoutPrimitive(DecimalType.instance)
+                                           // does not support toJSONString
+                                           .withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER)
+                                           .build();
+            qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(es -> {
+                AbstractType type = es.type;
+                for (Object example : es.samples)
                 {
-                    Json.Prepared prepared = new Json.Literal(cqlJson).prepareAndCollectMarkers(null, Collections.singletonList(column), VariableSpecifications.empty());
-                    Term.Raw literal = prepared.getRawTermForColumn(column, false);
-                    assertThat(literal).isNotEqualTo(Constants.NULL_LITERAL);
-                    Term term = literal.prepare(column.ksName, column);
-                    ByteBuffer read = term.bindAndGet(QueryOptions.DEFAULT);
-                    assertBytesEquals(read, bb, "fromJSONString(toJSONString(bb)) != bb");
+                    ByteBuffer bb = type.decompose(example);
+                    String json = type.toJSONString(bb, ProtocolVersion.CURRENT);
+                    ColumnMetadata column = fake(type);
+                    String cqlJson = "{\"" + column.name + "\": " + json + "}";
+                    try
+                    {
+                        Json.Prepared prepared = new Json.Literal(cqlJson).prepareAndCollectMarkers(null, Collections.singletonList(column), VariableSpecifications.empty());
+                        Term.Raw literal = prepared.getRawTermForColumn(column, false);
+                        assertThat(literal).isNotEqualTo(Constants.NULL_LITERAL);
+                        Term term = literal.prepare(column.ksName, column);
+                        ByteBuffer read = term.bindAndGet(QueryOptions.DEFAULT);
+                        assertBytesEquals(read, bb, "fromJSONString(toJSONString(bb)) != bb");
+                    }
+                    catch (Exception e)
+                    {
+                        throw new AssertionError("Unable to parse JSON for " + json + "; type " + type.asCQL3Type(), e);
+                    }
                 }
-                catch (Exception e)
-                {
-                    throw new AssertionError("Unable to parse JSON for " + json + "; type " + type.asCQL3Type(), e);
-                }
-            }
-        });
+            });
+        }
     }
 
     @Test
