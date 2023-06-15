@@ -737,9 +737,7 @@ public interface Selectable extends AssignmentTestable
         {
             // when the target isn't known, fallback to list; cases like "SELECT [1, 2]" can't be known, but used to be list type!
             // If a vector is actually desired, then can use type cast/hints: "SELECT (vector<int, 2>) [k, v1]"
-            if (target == null)
-                return new WithList(selectables);
-            if (target instanceof ListType)
+            if (target == null || target instanceof ListType)
                 return new WithList(selectables);
             else if (target.isVector())
                 return new WithVector(selectables);
