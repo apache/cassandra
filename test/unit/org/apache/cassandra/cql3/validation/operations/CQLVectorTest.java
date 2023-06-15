@@ -33,6 +33,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.assertj.core.api.Assertions;
 
 public class CQLVectorTest extends CQLTester.InMemory
 {
@@ -243,19 +244,25 @@ public class CQLVectorTest extends CQLTester.InMemory
     @Test
     public void udf() throws Throwable
     {
+        // For future authors, if this test starts to fail as vectors become supported in UDFs, please update this test
+        // to test the integration and remove the requirement that we reject UDFs all together
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
-        String function = createFunction(KEYSPACE,
-                                         "",
-                                         "CREATE FUNCTION %s (x vector<int, 2>) " +
-                                         "CALLED ON NULL INPUT " +
-                                         "RETURNS vector<int, 2> " +
-                                         "LANGUAGE java " +
-                                         "AS 'return x;'");
+        Assertions.assertThatThrownBy(() -> createFunction(KEYSPACE,
+                                                           "",
+                                                           "CREATE FUNCTION %s (x vector<int, 2>) " +
+                                                           "CALLED ON NULL INPUT " +
+                                                           "RETURNS vector<int, 2> " +
+                                                           "LANGUAGE java " +
+                                                           "AS 'return x;'"))
+                  .hasRootCauseMessage("Vectors are not supported on UDFs; given vector<int, 2>");
 
-        Vector<Integer> value = vector(1, 2);
-        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", value);
-
-        assertRows(execute("SELECT " + function + "(value) FROM %s WHERE pk=0"), row(value));
-        assertRows(execute("SELECT " + function + "([1, 2]) FROM %s WHERE pk=0"), row(value));
+        Assertions.assertThatThrownBy(() -> createFunction(KEYSPACE,
+                                                           "",
+                                                           "CREATE FUNCTION %s (x list<vector<int, 2>>) " +
+                                                           "CALLED ON NULL INPUT " +
+                                                           "RETURNS list<vector<int, 2>> " +
+                                                           "LANGUAGE java " +
+                                                           "AS 'return x;'"))
+                  .hasRootCauseMessage("Vectors are not supported on UDFs; given list<vector<int, 2>>");
     }
 }
