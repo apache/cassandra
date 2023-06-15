@@ -25,8 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +40,6 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.TableId;
 
-import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
@@ -50,7 +47,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     private static final Logger logger = LoggerFactory.getLogger(SSTableZeroCopyWriter.class);
 
     private volatile SSTableReader finalReader;
-    private final Map<Component.Type, SequentialWriter> componentWriters;
+    private final Map<String, SequentialWriter> componentWriters; // indexed by component name
 
     public SSTableZeroCopyWriter(Builder<?, ?> builder,
                                  LifecycleNewTracker lifecycleNewTracker,
@@ -61,12 +58,8 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         lifecycleNewTracker.trackNew(this);
         this.componentWriters = new HashMap<>();
 
-        if (!descriptor.getFormat().streamingComponents().containsAll(components))
-            throw new AssertionError(format("Unsupported streaming component detected %s",
-                                            Sets.difference(ImmutableSet.copyOf(components), descriptor.getFormat().streamingComponents())));
-
         for (Component c : components)
-            componentWriters.put(c.type, makeWriter(descriptor, c));
+            componentWriters.put(c.name, makeWriter(descriptor, c));
     }
 
     @Override
@@ -195,14 +188,15 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
             writer.close();
     }
 
-    public void writeComponent(Component.Type type, DataInputPlus in, long size) throws ClosedChannelException
+    public void writeComponent(Component component, DataInputPlus in, long size) throws ClosedChannelException
     {
-        logger.info("Writing component {} to {} length {}", type, componentWriters.get(type).getPath(), prettyPrintMemory(size));
+        SequentialWriter writer = componentWriters.get(component.name);
+        logger.info("Writing component {} to {} length {}", component, writer.getPath(), prettyPrintMemory(size));
 
         if (in instanceof AsyncStreamingInputPlus)
-            write((AsyncStreamingInputPlus) in, size, componentWriters.get(type));
+            write((AsyncStreamingInputPlus) in, size, writer);
         else
-            write(in, size, componentWriters.get(type));
+            write(in, size, writer);
     }
 
     private void write(AsyncStreamingInputPlus in, long size, SequentialWriter writer) throws ClosedChannelException
