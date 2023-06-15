@@ -72,7 +72,6 @@ public class RandomSchemaTest extends CQLTester.InMemory
         // make sure ordering is determanstic, else repeatability breaks
         NavigableMap<String, SSTableFormat<?, ?>> formats = new TreeMap<>(DatabaseDescriptor.getSSTableFormats());
         Gen<SSTableFormat<?, ?>> ssTableFormatGen = SourceDSL.arbitrary().pick(new ArrayList<>(formats.values()));
-        // TODO : map() == null, so CQLTester fails as empty != null.... should/could we move this to AbstractType?
         qt().checkAssert(random -> {
             resetSchema();
 
