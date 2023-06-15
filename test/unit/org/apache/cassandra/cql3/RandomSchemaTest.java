@@ -73,6 +73,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
             TableMetadata metadata = new TableMetadataBuilder()
                                      .withKeyspaceName(KEYSPACE)
                                      .withTableKinds(TableMetadata.Kind.REGULAR)
+                                     .withKnownMemtables()
                                      .withDefaultTypeGen(AbstractTypeGenerators.builder()
                                                                                .withoutEmpty()
                                                                                .withUserTypeKeyspace(KEYSPACE)

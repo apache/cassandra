@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -73,6 +74,7 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
@@ -189,6 +191,16 @@ public final class CassandraGenerators
         private Gen<Integer> numClusteringColumnsGen = SourceDSL.integers().between(1, 2);
         private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
         private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
+        private Gen<String> memtableKeyGen = null;
+
+        public TableMetadataBuilder withKnownMemtables()
+        {
+            Set<String> known = MemtableParams.knownDefinitions();
+            // for testing reason, some invalid types are added; filter out
+            List<String> valid = known.stream().filter(name -> !name.startsWith("test_")).collect(Collectors.toList());
+            memtableKeyGen = SourceDSL.arbitrary().pick(valid);
+            return this;
+        }
 
         public TableMetadataBuilder withKeyspaceName(Gen<String> ksNameGen)
         {
@@ -305,11 +317,14 @@ public final class CassandraGenerators
 
             String ks = ksNameGen.generate(rnd);
             String tableName = IDENTIFIER_GEN.generate(rnd);
+            TableParams.Builder params = TableParams.builder();
+            if (memtableKeyGen != null)
+                params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
             TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(Generators.UUID_RANDOM_GEN.generate(rnd)))
                                                          .partitioner(PARTITIONER_GEN.generate(rnd))
                                                          .kind(tableKindGen.generate(rnd))
                                                          .isCounter(BOOLEAN_GEN.generate(rnd))
-                                                         .params(TableParams.builder().build());
+                                                         .params(params.build());
 
             int numPartitionColumns = numPartitionColumnsGen.generate(rnd);
             int numClusteringColumns = numClusteringColumnsGen.generate(rnd);
