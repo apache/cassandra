@@ -741,7 +741,7 @@ public interface Selectable extends AssignmentTestable
                 return new WithList(selectables);
             if (target instanceof ListType)
                 return new WithList(selectables);
-            else if (target instanceof VectorType)
+            else if (target.isVector())
                 return new WithVector(selectables);
             throw new IllegalArgumentException("Unsupported target type: " + target.asCQL3Type());
         }
