@@ -29,7 +29,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 
 /**
  * Format version of indexing component, denoted as [major][minor]. Same forward-compatibility rules apply as to
@@ -37,8 +36,8 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
  */
 public class Version implements Comparable<Version>
 {
-    private static final String SAI_DESCRIPTOR = "SAI";
-    private static final String SAI_SEPARATOR = "+";
+    public static final String SAI_DESCRIPTOR = "SAI";
+    public static final String SAI_SEPARATOR = "+";
 
     // Current version
     public static final Version AA = new Version("aa", V1OnDiskFormat.instance, (c, i) -> defaultFileNameFormat(c, i, "aa"));
@@ -113,12 +112,12 @@ public class Version implements Comparable<Version>
 
     public Component makePerSSTableComponent(IndexComponent indexComponent)
     {
-        return SSTableFormat.Components.Types.CUSTOM.createComponent(fileNameFormatter.format(indexComponent, null));
+        return indexComponent.type.createComponent(fileNameFormatter.format(indexComponent, null));
     }
 
     public Component makePerIndexComponent(IndexComponent indexComponent, IndexContext indexContext)
     {
-        return SSTableFormat.Components.Types.CUSTOM.createComponent(fileNameFormatter.format(indexComponent, indexContext));
+        return indexComponent.type.createComponent(fileNameFormatter.format(indexComponent, indexContext));
     }
 
     public FileNameFormatter fileNameFormatter()

@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -33,7 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -52,13 +53,14 @@ public final class ComponentManifest implements Iterable<Component>
     }
 
     @VisibleForTesting
-    public static ComponentManifest create(Descriptor descriptor)
+    public static ComponentManifest create(SSTable sstable)
     {
-        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(descriptor.getFormat().streamingComponents().size());
+        Set<Component> streamingComponents = sstable.getStreamingComponents();
+        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(streamingComponents.size());
 
-        for (Component component : descriptor.getFormat().streamingComponents())
+        for (Component component : streamingComponents)
         {
-            File file = descriptor.fileFor(component);
+            File file = sstable.descriptor.fileFor(component);
             if (!file.exists())
                 continue;
 

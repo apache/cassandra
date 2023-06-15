@@ -71,22 +71,13 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     {
         public static class Types extends AbstractSSTableFormat.Components.Types
         {
-            public static final Component.Type PARTITION_INDEX = Component.Type.createSingleton("PARTITION_INDEX", "Partitions.db", BtiFormat.class);
-            public static final Component.Type ROW_INDEX = Component.Type.createSingleton("ROW_INDEX", "Rows.db", BtiFormat.class);
+            public static final Component.Type PARTITION_INDEX = Component.Type.createSingleton("PARTITION_INDEX", "Partitions.db", true, BtiFormat.class);
+            public static final Component.Type ROW_INDEX = Component.Type.createSingleton("ROW_INDEX", "Rows.db", true, BtiFormat.class);
         }
 
         public final static Component PARTITION_INDEX = Types.PARTITION_INDEX.getSingleton();
 
         public final static Component ROW_INDEX = Types.ROW_INDEX.getSingleton();
-
-        private final static Set<Component> STREAMING_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                   PARTITION_INDEX,
-                                                                                   ROW_INDEX,
-                                                                                   STATS,
-                                                                                   COMPRESSION_INFO,
-                                                                                   FILTER,
-                                                                                   DIGEST,
-                                                                                   CRC);
 
         private final static Set<Component> PRIMARY_COMPONENTS = ImmutableSet.of(DATA,
                                                                                  PARTITION_INDEX);
@@ -157,12 +148,6 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
     public BtiTableReaderFactory getReaderFactory()
     {
         return readerFactory;
-    }
-
-    @Override
-    public Set<Component> streamingComponents()
-    {
-        return Components.STREAMING_COMPONENTS;
     }
 
     @Override
