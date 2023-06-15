@@ -151,7 +151,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         {
             return String.format("%s(%s:%s)", getClass().getName(), partitioner.getClass().getName(), partitionKeyType);
         }
-        // if cassandra' version is compatible, use the old behaviour
+        // if Cassandra's major version is after 5, use the old behaviour
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
     
