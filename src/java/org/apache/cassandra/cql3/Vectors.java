@@ -44,7 +44,7 @@ public class Vectors
 
     private static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ')', true), elementsType(column.type));
     }
 
     /**
@@ -56,7 +56,7 @@ public class Vectors
     public static AssignmentTestable.TestResult testVectorAssignment(ColumnSpecification receiver,
                                                                      List<? extends AssignmentTestable> elements)
     {
-        if (!(receiver.type instanceof VectorType))
+        if (!receiver.type.isVector())
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 
         // If there is no elements, we can't say it's an exact match (an empty vector if fundamentally polymorphic).
@@ -103,7 +103,7 @@ public class Vectors
         @Override
         public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            if (!(receiver.type instanceof VectorType))
+            if (!receiver.type.isVector())
                 return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
             VectorType<?> type = (VectorType<?>) receiver.type;
             if (elements.size() != type.dimension)
@@ -115,7 +115,7 @@ public class Vectors
         @Override
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!(receiver.type instanceof VectorType))
+            if (!receiver.type.isVector())
                 throw new InvalidRequestException(String.format("Invalid vector literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
             VectorType<?> type = (VectorType<?>) receiver.type;
             if (elements.size() != type.dimension)
