@@ -51,6 +51,7 @@ public class VectorTypeTest
             ByteBuffer bb = type.decompose(c.box());
             assertThat(type.composeAsFloat(bb)).isEqualTo(c.values);
             assertThat(c.unbox(type.compose(bb))).isEqualTo(c.values);
+            assertThat(type.decomposeAsFloat(c.values)).isEqualTo(bb);
         });
     }
 
