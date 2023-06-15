@@ -99,7 +99,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Map<String, String> options)
     {
-        this(factory, backgroundCompactions, options, Controller.fromOptions(factory.getRealm(), options, factory.getRealm().metadata().keyspace, factory.getRealm().metadata().name));
+        this(factory, backgroundCompactions, options, Controller.fromOptions(factory.getRealm(), options));
     }
 
     public UnifiedCompactionStrategy(CompactionStrategyFactory factory, BackgroundCompactions backgroundCompactions, Controller controller)
