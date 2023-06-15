@@ -557,7 +557,7 @@ public class AbstractTypeTest
                 rawByteOrdered[i] = actual.stream()
                                           .map(bb -> new OrderedBytes(ByteSourceInverse.readBytes(fromBytes(type, bb).asComparableBytes(version)), bb))
                                           .collect(Collectors.toList());
-                rawByteOrdered[i].sort(type);
+                rawByteOrdered[i].sort(Comparator.naturalOrder());
             }
 
             example.samples.sort(comparator(type));
