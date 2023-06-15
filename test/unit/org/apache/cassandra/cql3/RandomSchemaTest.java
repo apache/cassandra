@@ -26,7 +26,9 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -35,7 +37,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
@@ -65,9 +69,16 @@ public class RandomSchemaTest extends CQLTester.InMemory
     {
         // in accord branch there is a much cleaner api for this pattern...
         Gen<AbstractTypeGenerators.ValueDomain> domainGen = SourceDSL.integers().between(1, 100).map(i -> i < 2 ? AbstractTypeGenerators.ValueDomain.NULL : i < 4 ? AbstractTypeGenerators.ValueDomain.EMPTY_BYTES : AbstractTypeGenerators.ValueDomain.NORMAL);
+        // make sure ordering is determanstic, else repeatability breaks
+        NavigableMap<String, SSTableFormat<?, ?>> formats = new TreeMap<>(DatabaseDescriptor.getSSTableFormats());
+        Gen<SSTableFormat<?, ?>> ssTableFormatGen = SourceDSL.arbitrary().pick(new ArrayList<>(formats.values()));
         // TODO : map() == null, so CQLTester fails as empty != null.... should/could we move this to AbstractType?
         qt().checkAssert(random -> {
             resetSchema();
+
+            // TODO : when table level override of sstable format is allowed, migrate to that
+            SSTableFormat<?, ?> sstableFormat = ssTableFormatGen.generate(random);
+            DatabaseDescriptor.setSelectedSSTableFormat(sstableFormat);
 
             TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality().withUserTypeKeyspace(KEYSPACE);
             TableMetadata metadata = new TableMetadataBuilder()
@@ -136,7 +147,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                         ByteBuffer expct = expected[idx];
                         literals.add(expct == null ? "null" : !expct.hasRemaining() ? "empty" : meta.type.asCQL3Type().toCQLLiteral(expct));
                     }
-                    throw new AssertionError(String.format("Failure at attempt %d with schema\n%s\nfor values %s", i, createTable, literals), t);
+                    throw new AssertionError(String.format("Failure at attempt %d with schema\n%s\nAnd SSTable Format %s\nfor values %s", i, createTable, DatabaseDescriptor.getSelectedSSTableFormat(), literals), t);
                 }
             }
         });
