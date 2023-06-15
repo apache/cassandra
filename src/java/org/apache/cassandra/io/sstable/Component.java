@@ -52,6 +52,7 @@ public class Component
         public final int id;
         public final String name;
         public final String repr;
+        public final boolean streamable;
         private final Component singleton;
 
         @SuppressWarnings("rawtypes")
@@ -60,31 +61,34 @@ public class Component
         /**
          * Creates a new non-singleton type and registers it a global type registry - see {@link #registerType(Type)}.
          *
-         * @param name        type name, must be unique for this and all parent formats
-         * @param repr        the regular expression to be used to recognize a name represents this type
-         * @param formatClass format class for which this type is defined for
+         * @param name         type name, must be unique for this and all parent formats
+         * @param repr         the regular expression to be used to recognize a name represents this type
+         * @param streamable   whether components of this type should be streamed to other nodes
+         * @param formatClass  format class for which this type is defined for
          */
-        public static Type create(String name, String repr, Class<? extends SSTableFormat<?, ?>> formatClass)
+        public static Type create(String name, String repr, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
-            return new Type(name, repr, false, formatClass);
+            return new Type(name, repr, false, streamable, formatClass);
         }
 
         /**
          * Creates a new singleton type and registers it in a global type registry - see {@link #registerType(Type)}.
          *
-         * @param name        type name, must be unique for this and all parent formats
-         * @param repr        the regular expression to be used to recognize a name represents this type
-         * @param formatClass format class for which this type is defined for
+         * @param name         type name, must be unique for this and all parent formats
+         * @param repr         the regular expression to be used to recognize a name represents this type
+         * @param streamable   whether components of this type should be streamed to other nodes
+         * @param formatClass  format class for which this type is defined for
          */
-        public static Type createSingleton(String name, String repr, Class<? extends SSTableFormat<?, ?>> formatClass)
+        public static Type createSingleton(String name, String repr, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
-            return new Type(name, repr, true, formatClass);
+            return new Type(name, repr, true, streamable, formatClass);
         }
 
-        private Type(String name, String repr, boolean isSingleton, Class<? extends SSTableFormat<?, ?>> formatClass)
+        private Type(String name, String repr, boolean isSingleton, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
             this.name = Objects.requireNonNull(name);
             this.repr = repr;
+            this.streamable = streamable;
             this.id = typesCollector.size();
             this.formatClass = formatClass == null ? SSTableFormat.class : formatClass;
             this.singleton = isSingleton ? new Component(this) : null;

@@ -117,7 +117,7 @@ public class CassandraEntireSSTableStreamWriterTest
 
         EmbeddedChannel channel = new EmbeddedChannel();
         try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
-             ComponentContext context = ComponentContext.create(descriptor))
+             ComponentContext context = ComponentContext.create(sstable))
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
 
@@ -140,7 +140,7 @@ public class CassandraEntireSSTableStreamWriterTest
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
         try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
-             ComponentContext context = ComponentContext.create(descriptor))
+             ComponentContext context = ComponentContext.create(sstable))
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
             writer.write(out);
