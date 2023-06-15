@@ -234,6 +234,22 @@ public enum CassandraRelevantProperties
     GOSSIPER_QUARANTINE_DELAY("cassandra.gossip_quarantine_delay_ms"),
     GOSSIPER_SKIP_WAITING_TO_SETTLE("cassandra.skip_wait_for_gossip_to_settle", "-1"),
     GOSSIP_DISABLE_THREAD_VALIDATION("cassandra.gossip.disable_thread_validation"),
+
+    /**
+     * Delay before checking if gossip is settled.
+     */
+    GOSSIP_SETTLE_MIN_WAIT_MS("cassandra.gossip_settle_min_wait_ms", "5000"),
+
+    /**
+     * Interval delay between checking gossip is settled.
+     */
+    GOSSIP_SETTLE_POLL_INTERVAL_MS("cassandra.gossip_settle_interval_ms", "1000"),
+
+    /**
+     * Number of polls without gossip state change to consider gossip as settled.
+     */
+    GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
+
     IGNORED_SCHEMA_CHECK_ENDPOINTS("cassandra.skip_schema_check_for_endpoints"),
     IGNORED_SCHEMA_CHECK_VERSIONS("cassandra.skip_schema_check_for_versions"),
     IGNORE_CORRUPTED_SCHEMA_TABLES("cassandra.ignore_corrupted_schema_tables"),
