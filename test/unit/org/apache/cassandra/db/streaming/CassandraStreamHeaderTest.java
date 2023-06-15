@@ -108,7 +108,7 @@ public class CassandraStreamHeaderTest
         // verify all component on-disk length is used for ZCS
         CassandraStreamHeader header = header(true, true);
         long transferedSize = header.size();
-        assertEquals(ComponentManifest.create(sstable.descriptor).totalSize(), transferedSize);
+        assertEquals(ComponentManifest.create(sstable).totalSize(), transferedSize);
         assertEquals(transferedSize, header.calculateSize());
 
         // verify that computing file chunks doesn't change transferred size for ZCS
@@ -142,7 +142,7 @@ public class CassandraStreamHeaderTest
 
         TableMetadata metadata = store.metadata();
         SerializationHeader.Component serializationHeader = SerializationHeader.makeWithoutStats(metadata).toComponent();
-        ComponentManifest componentManifest = entireSSTable ? ComponentManifest.create(sstable.descriptor) : null;
+        ComponentManifest componentManifest = entireSSTable ? ComponentManifest.create(sstable) : null;
         DecoratedKey firstKey = entireSSTable ? sstable.getFirst() : null;
 
         return CassandraStreamHeader.builder()
