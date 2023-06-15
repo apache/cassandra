@@ -289,6 +289,13 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     }
 
     @Override
+    public int putFloat(byte[] dst, int offset, float value)
+    {
+        ByteArrayUtil.putFloat(dst, offset, value);
+        return TypeSizes.FLOAT_SIZE;
+    }
+
+    @Override
     public byte[] empty()
     {
         return EMPTY;

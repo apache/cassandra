@@ -19,16 +19,19 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.functions.Arguments;
+import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.NativeFunctions;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 public class CQLVectorTest extends CQLTester.InMemory
@@ -170,9 +173,15 @@ public class CQLVectorTest extends CQLTester.InMemory
         NativeFunctions.instance.add(new NativeScalarFunction("f", type, type)
         {
             @Override
-            public ByteBuffer execute(ProtocolVersion protocol, List<ByteBuffer> parameters)
+            public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
             {
-                return parameters.get(0);
+                return arguments.get(0);
+            }
+
+            @Override
+            public Arguments newArguments(ProtocolVersion version)
+            {
+                return FunctionArguments.newNoopInstance(version, 1);
             }
         });
 
@@ -181,6 +190,44 @@ public class CQLVectorTest extends CQLTester.InMemory
 
         assertRows(execute("SELECT f(value) FROM %s WHERE pk=0"), row(vector));
         assertRows(execute("SELECT f([1, 2]) FROM %s WHERE pk=0"), row(vector));
+    }
+
+    @Test
+    public void specializedFunctions()
+    {
+        VectorType<Float> type = VectorType.getInstance(FloatType.instance, 2);
+        Vector<Float> vector = vector(1.0f, 2.0f);
+
+        NativeFunctions.instance.add(new NativeScalarFunction("f", type, type, type)
+        {
+            @Override
+            public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
+            {
+                float[] left = arguments.get(0);
+                float[] right = arguments.get(1);
+                int size = Math.min(left.length, right.length);
+                float[] sum = new float[size];
+                for (int i = 0; i < size; i++)
+                    sum[i] = left[i] + right[i];
+                return type.decomposeAsFloat(sum);
+            }
+
+            @Override
+            public Arguments newArguments(ProtocolVersion version)
+            {
+                return new FunctionArguments(version,
+                                             (v, b) -> type.composeAsFloat(b),
+                                             (v, b) -> type.composeAsFloat(b));
+            }
+        });
+
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector);
+        execute("INSERT INTO %s (pk, value) VALUES (1, ?)", vector);
+
+        Object[][] expected = { row(vector(2f, 4f)), row(vector(2f, 4f)) };
+        assertRows(execute("SELECT f(value, [1.0, 2.0]) FROM %s"), expected);
+        assertRows(execute("SELECT f([1.0, 2.0], value) FROM %s"), expected);
     }
 
     @Test

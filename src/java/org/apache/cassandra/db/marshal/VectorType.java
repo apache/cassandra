@@ -165,6 +165,30 @@ public final class VectorType<T> extends AbstractType<List<T>>
         return array;
     }
 
+    public ByteBuffer decomposeAsFloat(float[] value)
+    {
+        return decomposeAsFloat(ByteBufferAccessor.instance, value);
+    }
+
+    public <V> V decomposeAsFloat(ValueAccessor<V> accessor, float[] value)
+    {
+        if (!(elementType instanceof FloatType))
+            throw new IllegalStateException("Attempted to read as float, but element type is " + elementType.asCQL3Type());
+        if (value == null)
+            return null;
+        if (value.length != dimension)
+            throw new IllegalArgumentException(String.format("Attempted to add float vector of dimension %d to %s", value.length, asCQL3Type()));
+        // TODO : should we use TypeSizes to be consistent with other code?  Its the same value at the end of the day...
+        V buffer = accessor.allocate(Float.BYTES * dimension);
+        int offset = 0;
+        for (int i = 0; i < dimension; i++)
+        {
+            accessor.putFloat(buffer, offset, value[i]);
+            offset+= Float.BYTES;
+        }
+        return buffer;
+    }
+
     public ByteBuffer decomposeRaw(List<ByteBuffer> elements)
     {
         return decomposeRaw(elements, ByteBufferAccessor.instance);

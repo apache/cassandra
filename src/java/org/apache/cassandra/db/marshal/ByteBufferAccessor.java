@@ -296,6 +296,13 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public int putFloat(ByteBuffer dst, int offset, float value)
+    {
+        dst.putFloat(dst.position() + offset, value);
+        return TypeSizes.FLOAT_SIZE;
+    }
+
+    @Override
     public ByteBuffer empty()
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;

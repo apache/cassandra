@@ -385,6 +385,12 @@ public interface ValueAccessor<V>
      */
     int putLong(V dst, int offset, long value);
 
+    /**
+     * writes the float value {@param value} to {@param dst} at offset {@param offset}
+     * @return the number of bytes written to {@param value}
+     */
+    int putFloat(V dst, int offset, float value);
+
     default int putBytes(V dst, int offset, byte[] src, int srcOffset, int length)
     {
         return ByteArrayAccessor.instance.copyTo(src, srcOffset, dst, this, offset, length);
