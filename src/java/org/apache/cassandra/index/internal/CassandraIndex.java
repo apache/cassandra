@@ -736,7 +736,7 @@ public abstract class CassandraIndex implements Index
         ColumnMetadata indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
-        // if Cassandra's major version is after 5, use the old behaviour
+        // if Cassandra's major version is before 5, use the old behaviour
         boolean isCompatible = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5);
         AbstractType<?> indexedTablePartitionKeyType = baseCfsMetadata.partitioner.partitionOrdering(baseCfsMetadata.partitionKeyType);
         TableMetadata.Builder builder =
