@@ -22,6 +22,7 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.SSTableExport;
 import org.apache.cassandra.tools.ToolRunner;
@@ -34,6 +35,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.JsonUtils;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
@@ -134,38 +136,38 @@ public class SecondaryIndexSSTableExportTest extends CQLTester
 
     private void indexSstableValidation(String createTableCql, String createIndexCql, String insertCql) throws Throwable
     {
-        String SUCEESS_MSG = "Test passed";
-        try
+        Pair<String, String> tableIndex = generateSstable(createTableCql, createIndexCql, insertCql);
+        ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, tableIndex.left);
+        assertTrue(cfs.indexManager.hasIndexes());
+        assertNotNull(cfs.indexManager.getIndexByName(tableIndex.right));
+        for (ColumnFamilyStore columnFamilyStore : cfs.indexManager.getAllIndexColumnFamilyStores())
         {
-            Pair<String, String> tableIndex = generateSstable(createTableCql, createIndexCql, insertCql);
-            ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, tableIndex.left);
-            assertTrue(cfs.indexManager.hasIndexes());
-            assertNotNull(cfs.indexManager.getIndexByName(tableIndex.right));
-            for (ColumnFamilyStore columnFamilyStore : cfs.indexManager.getAllIndexColumnFamilyStores())
+            assertTrue(columnFamilyStore.isIndex());
+            assertFalse(columnFamilyStore.getLiveSSTables().isEmpty());
+            for (SSTableReader sst : columnFamilyStore.getLiveSSTables())
             {
-                assertTrue(columnFamilyStore.isIndex());
-                assertFalse(columnFamilyStore.getLiveSSTables().isEmpty());
-                for (SSTableReader sst : columnFamilyStore.getLiveSSTables())
+                String file = sst.getFilename();
+                try
                 {
-                    String file = sst.getFilename();
                     ToolRunner.ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, file);
                     List<Map<String, Object>> parsed = JsonUtils.JSON_OBJECT_MAPPER.readValue(tool.getStdout(), jacksonListOfMapsType);
                     assertNotNull(tool.getStdout(), parsed.get(0).get("partition"));
                     assertNotNull(tool.getStdout(), parsed.get(0).get("rows"));
                 }
-            }
-            fail(SUCEESS_MSG);
-        }
-        catch (Throwable throwable)
-        {
-            // UPGRADING or NONE
-            if (DatabaseDescriptor.getStorageCompatibilityMode().isAfter(5))
-            {
-                assertEquals(SUCEESS_MSG, throwable.getMessage());
-            }
-            else
-            {
-                System.out.println(throwable.getMessage());
+                catch (AssertionError e)
+                {
+                    // TODO: CASSANDRA-18254 should provide a workaround for pre-5.0 sstables
+                    assertTrue(DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5));
+                    Assertions.assertThat(e.getMessage())
+                              .contains("PartitionerDefinedOrder's toJSONString method needs a partition key type but now is null.");
+                }
+                catch (MismatchedInputException e)
+                {
+                    // TODO: CASSANDRA-18254 should provide a workaround for pre-5.0 sstables
+                    assertTrue(DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5));
+                    Assertions.assertThat(e.getMessage())
+                              .contains("No content to map due to end-of-input");
+                }
             }
         }
     }
