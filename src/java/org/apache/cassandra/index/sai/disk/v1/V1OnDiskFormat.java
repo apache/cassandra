@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,13 +55,15 @@ public class V1OnDiskFormat implements OnDiskFormat
 {
     private static final Logger logger = LoggerFactory.getLogger(V1OnDiskFormat.class);
 
-    private static final Set<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
+    @VisibleForTesting
+    public static final Set<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
                                                                                  IndexComponent.GROUP_META,
                                                                                  IndexComponent.TOKEN_VALUES,
                                                                                  IndexComponent.PRIMARY_KEY_TRIE,
                                                                                  IndexComponent.PRIMARY_KEY_BLOCKS,
                                                                                  IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
-    private static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+    @VisibleForTesting
+    public static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
                                                                              IndexComponent.TERMS_DATA,
                                                                              IndexComponent.POSTING_LISTS);
@@ -170,10 +173,11 @@ public class V1OnDiskFormat implements OnDiskFormat
                 {
                     if (logger.isDebugEnabled())
                     {
-                        logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                                     (checksum ? "Checksum validation" : "Validation"),
+                        logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}. Error: {}"),
+                                     checksum ? "Checksum validation" : "Validation",
                                      indexComponent,
-                                     indexDescriptor.sstableDescriptor);
+                                     indexDescriptor.sstableDescriptor,
+                                     e);
                     }
                     return false;
                 }
