@@ -1,0 +1,55 @@
+= Creating columns with a single value (static column)
+:description: In a table that uses clustering columns, non-clustering columns can be declared static in the table definition.
+
+Static column values are shared among the rows in the partition.
+In a table that uses https://cassandra.apache.org/_/glossary.html#clustering-column[clustering columns], non-clustering columns can be declared static in the table definition.
+https://cassandra.apache.org/_/glossary.html#static-column[Static columns] are only static within a given partition.
+
+In the following example, the `flag` column is static:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/country_flag-table.cql[tag=staticColumn]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/country_flag-table.cql[tag=insert]
+----
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/country_flag-table.cql[tag=select]
+----
+--
+
+Result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$RESULTS/select_initial_from_country_flag.result[]
+----
+--
+====
+
+
+[IMPORTANT]
+====
+The following restrictions apply:
+
+* A table that does not define any clustering columns cannot have a static column.
+The table that does not have clustering columns has a one-row partition in which every column is inherently static.
+* A column designated to be the partition key cannot be static.
+====
+
+You can do xref:developing/batch/batch-good-example.adoc[batch conditional updates to a static column].
+
+Use the `DISTINCT` keyword to select static columns.
+In this case, the database retrieves only the beginning (static column) of the partition.
+

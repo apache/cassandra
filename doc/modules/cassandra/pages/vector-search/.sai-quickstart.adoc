@@ -1,0 +1,198 @@
+= SAI Quickstart
+:description: Follow the steps to get started quickly with Storage-Attached Indexing (SAI).
+
+To get started with Storage-Attached Indexing (SAI), we'll do the following steps:
+
+* Create a keyspace.
+* Create a table.
+* Create an xref:reference:cql-commands/create-custom-index.adoc[index using SAI].
+* Add data.
+* Create and run a query using SAI.
+
+The examples in this quickstart topic show SAI indexes with non-partition key columns.
+// See the next topic, xref:developing/cql/indexing/sai/sai-query.adoc[Examine SAI column index and query rules], for examples that include indexing based on a single column from a composite partition key.
+
+== Create a keyspace
+
+In `cqlsh`, define the `cycling` xref:reference/cql-commands/create-keyspace.adoc[keyspace] to try the commands in a test environment:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/0_create_keyspace.cql[tag=cyclingks]
+----
+
+== Create a database table
+
+Using `cqlsh` or the CQL Console, create a `cyclist_semi_pro` database xref:reference:cql-commands/create-table.adoc[table] in the `cycling` keyspace or the keyspace name of your choice:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro-table.cql[tag=createCyclistSemiProTable]
+----
+
+== Create SAI indexes on the database table
+
+To test a non-trivial query, you'll need some SAI indexes.
+Use xref:reference:cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] commands to create SAI indexes on a few non-primary-key columns in the `cyclist_semi_pro` table:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
+----
+
+Let's take a look at the description of the table and its indexes:
+[tabs]
+====
+Query::
++
+--
+[source,language-cql]
+----
+DESCRIBE TABLE cycling.cyclist_semi_pro;
+----
+--
+
+Result::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_describe.results[tag=cyclistSemiProDescribeResults]
+----
+--
+====
+
+== Add data to your table
+
+Use CQLSH `INSERT` commands to add some data to the `cyclist_semi_pro` database table:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_inserts.cql[tag=createQuickStartIndices]
+----
+
+Adding data in this quickstart topic shows simple `INSERT` commands.
+To load databases with many rows, consider using https://docs.datastax.com/en/dsbulk/doc/index.html[DataStax Bulk Loader for Apache Cassandra].
+
+== Try out CQL queries
+
+Use the CQLSH `SELECT` command to submit queries.
+
+[TIP]
+====
+The supported query operators for tables with SAI indexes:
+include::cassandra:partial$sai/supported-query-operators-list.adoc[]
+include::cassandra:partial$sai/notSupportedOperators.adoc[]
+====
+
+Find a specific semi-pro cyclist:
+
+[tabs]
+====
+Query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_specific_rider.cql[tag=cyclistSelectSpecificRider]
+----
+--
+
+Result::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_specific_rider.results[tag=cyclistSelectSpecificRiderResults]
+----
+--
+====
+
+Find semi-pro cyclists whose age is less than or equal to 23:
+
+[tabs]
+====
+Query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_age.cql[tag=cyclistSelectAge]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_age.results[tag=cyclistSelectAgeResults]
+----
+--
+====
+
+Find semi-pro cyclists from Great Britain:
+
+[tabs]
+====
+Query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_country.cql[tag=cyclistSelectCountry]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_country.results[tag=cyclistSelectCountryResults]
+----
+--
+====
+
+Find semi-pro cyclists who registered between a given date range:
+
+[tabs]
+====
+Query::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_date_range.cql[tag=cyclistSelectDateRange]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$CQL/cyclist_semi_pro_select_date_range.results[tag=cyclistSelectDateRangeResults]
+----
+--
+====
+
+[TIP]
+====
+For query examples with `CONTAINS` clauses that take advantage of SAI collection maps, lists, and sets, be sure to see xref:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsMapExamples[SAI collection map examples with keys, values, and entries] and xref:developing/cql/indexing/sai/collections.adoc#saiUsingCollectionsListAndSetExamples[SAI collection examples with list and set types].
+====
+
+== Removing an SAI index
+
+To remove an SAI index, use `DROP INDEX`.
+
+Example:
+
+[source,language-cql]
+----
+DROP INDEX IF EXISTS cycling.age_sai_idx;
+----
+
+== What's next?
+
+xref:developing/cql/indexing/sai/sai-query.adoc[Using SAI] examines column index and query rules, plus collection maps.

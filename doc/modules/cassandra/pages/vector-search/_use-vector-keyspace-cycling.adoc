@@ -1,0 +1,8 @@
+= Use vector keyspace
+
+Select the keyspace you want to use for your Vector Search table. This example uses `cycling` as the `keyspace name`:
+
+[source,cql]
+----
+include::example$CQL/vector-search/vector-search-cycling.cql[tag=use-vs-keyspace-cycling]
+----
