@@ -59,6 +59,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.Releaser;
+import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
@@ -593,10 +594,13 @@ public class AbstractTypeTest
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void ordering()
     {
-        Gen<AbstractType<?>> types = genBuilder()
-                                     .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
-                                     .withoutTypeKinds(COUNTER) // counters don't allow ordering
-                                     .build();
+        TypeGenBuilder baseline = genBuilder()
+                                  .withoutPrimitive(DurationType.instance) // this uses byte ordering and vint, which makes the ordering effectivlly random from a user's point of view
+                                  .withoutTypeKinds(COUNTER); // counters don't allow ordering
+        // composite requires all elements fit into Short.MAX_VALUE bytes
+        // so try to limit the possible expansion of types
+        Gen<AbstractType<?>> types = baseline.withCompositeElementGen(new TypeGenBuilder(baseline).withDefaultSizeGen(1).withMaxDepth(1).build())
+                                             .build();
         qt().withShrinkCycles(0).forAll(examples(10, types)).checkAssert(example -> {
             AbstractType type = example.type;
             List<ByteBuffer> actual = decompose(type, example.samples);
@@ -675,7 +679,7 @@ public class AbstractTypeTest
         return expected;
     }
 
-    private static AbstractTypeGenerators.TypeGenBuilder genBuilder()
+    private static TypeGenBuilder genBuilder()
     {
         return AbstractTypeGenerators.builder()
                                      // empty is a legacy from 2.x and is only allowed in special cases and not allowed in all... as this class tests all cases, need to limit this type out
