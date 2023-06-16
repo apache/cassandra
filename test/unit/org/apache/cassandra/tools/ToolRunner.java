@@ -395,8 +395,6 @@ public class ToolRunner
          *
          * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual
          * stdErr
-         *
-         * @return The ToolRunner instance
          */
         public void assertCleanStdErr()
         {
@@ -408,8 +406,6 @@ public class ToolRunner
          * 
          * Some JVM configs may output env info on stdErr. We need to remove those to see what was the tool's actual
          * stdErr
-         * 
-         * @return The ToolRunner instance
          */
         public void assertCleanStdErr(List<String> regExpCleaners)
         {
