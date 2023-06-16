@@ -1182,6 +1182,29 @@ client_encryption_options:
     #   TLS_RSA_WITH_AES_256_CBC_SHA
     # ]
 
+jmx_encryption_options:
+  - class_name: org.apache.cassandra.auth.jmx.ConfigurationJmxEncryptionOptionsProvider
+    parameters:
+      - enabled: false
+        keystore: conf/.keystore
+        keystore_password: cassandra
+        # require_client_auth: false
+        #
+        # Set trustore and truststore_password if require_client_auth is true:
+        # truststore: conf/.truststore
+        # truststore_password: cassandra
+        #
+        # More advanced defaults below:
+        # keystore_type: JKS
+        # truststore_type: JKS
+        # protocols: [TLSv1.1,TLSv1.2,TLSv1.3]
+        # cipher_suites: [
+        #   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+        #   TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+        #   TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256,
+        #   TLS_RSA_WITH_AES_128_CBC_SHA, TLS_RSA_WITH_AES_256_CBC_SHA
+        # ]
+
 # internode_compression controls whether traffic between nodes is
 # compressed.
 # Can be:
