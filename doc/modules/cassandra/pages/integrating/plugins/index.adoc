@@ -1,4 +1,5 @@
 = Third-Party Plugins
+:navtitle: Plug-ins
 
 Available third-party plugins for Apache Cassandra
 

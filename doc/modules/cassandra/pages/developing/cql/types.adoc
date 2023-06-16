@@ -19,7 +19,7 @@ The native types supported by CQL are:
 include::example$BNF/native_type.bnf[]
 ----
 
-The following table gives additional informations on the native data
+The following table details additional information on the native data
 types, and on which kind of xref:cql/definitions.adoc#constants[constants] each type supports:
 
 [cols=",,",options="header",]
@@ -51,6 +51,7 @@ generally used as a “conflict-free” timestamp. Also see `timeuuid-functions`
 | `uuid` | `uuid` | A https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID] (of any version)
 | `varchar` | `string` | UTF8 encoded string
 | `varint` | `integer` | Arbitrary-precision integer
+| `vector` | `float` | A fixed length non-null, flattened array of float values https://issues.apache.org/jira/browse/CASSANDRA-18504[CASSANDRA-18504] added this data type to {cass-50}.
 |===
 
 === Counters
