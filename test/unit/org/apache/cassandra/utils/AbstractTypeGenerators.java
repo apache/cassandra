@@ -106,7 +106,7 @@ public final class AbstractTypeGenerators
                                                                                                 .put(DateType.class, "Says its CQL type is timestamp, but that maps to TimestampType; is this actually dead code at this point?")
                                                                                                 .put(LegacyTimeUUIDType.class, "Says its CQL timeuuid type, but that maps to TimeUUIDType; is this actually dead code at this point?")
                                                                                                 .put(PartitionerDefinedOrder.class, "This is a fake type used for ordering partitions using a Partitioner")
-                                                                                                .put((Class<? extends AbstractType<?>>) (Class<? extends AbstractType>) ReversedType.class, "Implementation detail for cluster ordering... its expected the caller will unwrap the clustering type to always get access to the real type")
+                                                                                                .put((Class<? extends AbstractType<?>>) ReversedType.class, "Implementation detail for cluster ordering... its expected the caller will unwrap the clustering type to always get access to the real type")
                                                                                                 .put(DynamicCompositeType.FixedValueComparator.class, "Hack type used for special ordering case, not a real/valid type")
                                                                                                 .put(FrozenType.class, "Fake class only used during parsing... the parsing creates this and the real type under it, then this gets swapped for the real type")
                                                                                                 .build();
@@ -158,7 +158,7 @@ public final class AbstractTypeGenerators
     static
     {
         ArrayList<AbstractType<?>> types = new ArrayList<>(PRIMITIVE_TYPE_DATA_GENS.keySet());
-        Collections.sort(types, Comparator.comparing(a -> a.getClass().getName()));
+        types.sort(Comparator.comparing(a -> a.getClass().getName()));
         PRIMITIVE_TYPE_GEN = SourceDSL.arbitrary().pick(types);
     }
 
@@ -211,7 +211,7 @@ public final class AbstractTypeGenerators
 
     public static <T> Releaser overridePrimitiveTypeSupport(AbstractType<T> type, TypeSupport<T> support)
     {
-        if (!PRIMITIVE_TYPE_DATA_GENS.keySet().contains(type))
+        if (!PRIMITIVE_TYPE_DATA_GENS.containsKey(type))
             throw new IllegalArgumentException("Type " + type.asCQL3Type() + " is not a primitive");
         TypeSupport<?> original = PRIMITIVE_TYPE_DATA_GENS.get(type);
         PRIMITIVE_TYPE_DATA_GENS.put(type, support);
@@ -261,11 +261,13 @@ public final class AbstractTypeGenerators
             defaultSizeGen = other.defaultSizeGen;
             vectorSizeGen = other.vectorSizeGen;
             tupleSizeGen = other.tupleSizeGen;
+            udtName = other.udtName;
             udtSizeGen = other.udtSizeGen;
             primitiveGen = other.primitiveGen;
             userTypeKeyspaceGen = other.userTypeKeyspaceGen;
             defaultSetKeyFunc = other.defaultSetKeyFunc;
             compositeElementGen = other.compositeElementGen;
+            compositeSizeGen = other.compositeSizeGen;
             typeFilter = other.typeFilter;
         }
 
@@ -281,6 +283,7 @@ public final class AbstractTypeGenerators
             return this;
         }
 
+        @SuppressWarnings("unused")
         public TypeGenBuilder withDefaultSetKey(Function<Integer, Gen<AbstractType<?>>> mapKeyFunc)
         {
             this.defaultSetKeyFunc = mapKeyFunc;
@@ -289,7 +292,7 @@ public final class AbstractTypeGenerators
 
         public TypeGenBuilder withDefaultSetKey(TypeGenBuilder builder)
         {
-            this.defaultSetKeyFunc = maxDepth -> builder.buildRecursive(maxDepth);
+            this.defaultSetKeyFunc = builder::buildRecursive;
             return this;
         }
 
@@ -310,24 +313,28 @@ public final class AbstractTypeGenerators
             return this;
         }
 
+        @SuppressWarnings("unused")
         public TypeGenBuilder withVectorSizeGen(Gen<Integer> sizeGen)
         {
             this.vectorSizeGen = sizeGen;
             return this;
         }
 
+        @SuppressWarnings("unused")
         public TypeGenBuilder withTupleSizeGen(Gen<Integer> sizeGen)
         {
             this.tupleSizeGen = sizeGen;
             return this;
         }
 
+        @SuppressWarnings("unused")
         public TypeGenBuilder withUDTSizeGen(Gen<Integer> sizeGen)
         {
             this.udtSizeGen = sizeGen;
             return this;
         }
 
+        @SuppressWarnings("unused")
         public TypeGenBuilder withCompositeSizeGen(Gen<Integer> sizeGen)
         {
             this.compositeSizeGen = sizeGen;
@@ -341,12 +348,13 @@ public final class AbstractTypeGenerators
 
         public TypeGenBuilder withoutPrimitive(AbstractType<?> instance)
         {
-            if (!PRIMITIVE_TYPE_DATA_GENS.keySet().contains(instance))
+            if (!PRIMITIVE_TYPE_DATA_GENS.containsKey(instance))
                 throw new IllegalArgumentException("Type " + instance + " is not a primitive type, or PRIMITIVE_TYPE_DATA_GENS needs to add support");
             primitiveGen = filter(primitiveGen, t -> t != instance);
             return this;
         }
 
+        @SuppressWarnings("unused")
         public TypeGenBuilder withPrimitives(AbstractType<?> first, AbstractType<?>... remaining)
         {
             // any previous filters will be ignored...
@@ -372,8 +380,7 @@ public final class AbstractTypeGenerators
         {
             checkTypeKindValues();
             kinds.clear();
-            for (TypeKind k : values)
-                kinds.add(k);
+            Collections.addAll(kinds, values);
             return this;
         }
 
@@ -429,9 +436,8 @@ public final class AbstractTypeGenerators
             assert level >= 0 : "max depth must be positive or zero; given " + level;
             boolean atBottom = level == 0;
             boolean atTop = maxDepth == level;
-            Gen<Boolean> multiCell = multiCellGen;
             Gen<AbstractType<?>> gen = rnd -> {
-                Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, multiCell);
+                Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, multiCellGen);
 
                 // figure out type to get
                 TypeKind kind = typeKindGen.generate(rnd);
@@ -444,18 +450,18 @@ public final class AbstractTypeGenerators
                         return primitiveGen.generate(rnd);
                     case SET:
                         if (defaultSetKeyFunc != null)
-                            return setTypeGen(defaultSetKeyFunc.apply(level - 1), multiCell).generate(rnd);
-                        return setTypeGen(next.get(), multiCell).generate(rnd);
+                            return setTypeGen(defaultSetKeyFunc.apply(level - 1), multiCellGen).generate(rnd);
+                        return setTypeGen(next.get(), multiCellGen).generate(rnd);
                     case LIST:
-                        return listTypeGen(next.get(), multiCell).generate(rnd);
+                        return listTypeGen(next.get(), multiCellGen).generate(rnd);
                     case MAP:
                         if (defaultSetKeyFunc != null)
-                            return mapTypeGen(defaultSetKeyFunc.apply(level - 1), next.get(), multiCell).generate(rnd);
-                        return mapTypeGen(next.get(), next.get(), multiCell).generate(rnd);
+                            return mapTypeGen(defaultSetKeyFunc.apply(level - 1), next.get(), multiCellGen).generate(rnd);
+                        return mapTypeGen(next.get(), next.get(), multiCellGen).generate(rnd);
                     case TUPLE:
                         return tupleTypeGen(atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, SourceDSL.arbitrary().constant(false)), tupleSizeGen != null ? tupleSizeGen : defaultSizeGen).generate(rnd);
                     case UDT:
-                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCell).generate(rnd);
+                        return userTypeGen(next.get(), udtSizeGen != null ? udtSizeGen : defaultSizeGen, userTypeKeyspaceGen, udtName, multiCellGen).generate(rnd);
                     case VECTOR:
                     {
                         Gen<Integer> sizeGen = vectorSizeGen != null ? vectorSizeGen : defaultSizeGen;
@@ -496,6 +502,8 @@ public final class AbstractTypeGenerators
     {
         return builder().withMaxDepth(maxDepth).withTypeKinds(typeKindGen).withDefaultSizeGen(sizeGen).build();
     }
+
+    @SuppressWarnings("unused")
     public static Gen<VectorType<?>> vectorTypeGen()
     {
         return vectorTypeGen(typeGen(2)); // lower the default depth since this is already a nested type
@@ -518,6 +526,7 @@ public final class AbstractTypeGenerators
         };
     }
 
+    @SuppressWarnings("unused")
     public static Gen<CompositeType> compositeTypeGen()
     {
         return compositeTypeGen(typeGen(2));
@@ -753,9 +762,9 @@ public final class AbstractTypeGenerators
             Comparator<List<Object>> setComparator = listComparator(elComparator);
             Comparator<Set<Object>> comparator = (Set<Object> a, Set<Object> b) -> {
                 List<Object> as = new ArrayList<>(a);
-                Collections.sort(as, elComparator);
+                as.sort(elComparator);
                 List<Object> bs = new ArrayList<>(b);
-                Collections.sort(bs, elComparator);
+                bs.sort(elComparator);
                 return setComparator.compare(as, bs);
             };
             support = (TypeSupport<T>) TypeSupport.of(setType, rnd -> {
@@ -802,9 +811,9 @@ public final class AbstractTypeGenerators
             Comparator<Object> valueType = valueSupport.valueComparator;
             Comparator<Map<Object, Object>> comparator = (Map<Object, Object> a, Map<Object, Object> b) -> {
                 List<Object> ak = new ArrayList<>(a.keySet());
-                Collections.sort(ak, keyType);
+                ak.sort(keyType);
                 List<Object> bk = new ArrayList<>(b.keySet());
-                Collections.sort(bk, keyType);
+                bk.sort(keyType);
                 for (int i = 0, size = Math.min(ak.size(), bk.size()); i < size; i++)
                 {
                     int rc = keyType.compare(ak.get(i), bk.get(i));
