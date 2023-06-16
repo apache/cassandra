@@ -254,11 +254,13 @@ public class AbstractTypeTest
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void comparableBytes()
     {
-        Gen<AbstractType<?>> gen = genBuilder()
-                                   // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
-                                   // see CASSANDRA-18530
-                                   .withoutPrimitive(DecimalType.instance)
-                                   .withoutTypeKinds(COUNTER)
+        // decimal "normalizes" the data to compare, so primary columns "may" mutate the data, causing missmatches
+        // see CASSANDRA-18530
+        TypeGenBuilder baseline = genBuilder().withoutPrimitive(DecimalType.instance)
+                                              .withoutTypeKinds(COUNTER);
+        // composite requires all elements fit into Short.MAX_VALUE bytes
+        // so try to limit the possible expansion of types
+        Gen<AbstractType<?>> gen = baseline.withCompositeElementGen(new TypeGenBuilder(baseline).withDefaultSizeGen(1).withMaxDepth(1).build())
                                    .build();
         qt().withShrinkCycles(0).forAll(examples(1, gen)).checkAssert(example -> {
             AbstractType type = example.type;
