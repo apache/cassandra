@@ -19,7 +19,9 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
+import java.util.Arrays;
 
+import org.apache.lucene.util.hnsw.ConcurrentNeighborSet;
 import org.apache.lucene.util.hnsw.ConcurrentOnHeapHnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
@@ -40,7 +42,10 @@ public class ExtendedConcurrentHnswGraph extends ExtendedHnswGraph
     @Override
     public int getNeighborCount(int level, int node)
     {
-        return graph.getNeighbors(level, node).size();
+        var neighbors = graph.getNeighbors(level, node);
+        assert neighbors != null : String.format("Node %d not found on on level %d among %s",
+                                                 node, level, Arrays.toString(getSortedNodes(view, level)));
+        return neighbors.size();
     }
 
     @Override

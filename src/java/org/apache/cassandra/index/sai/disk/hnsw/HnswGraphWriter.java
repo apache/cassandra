@@ -19,17 +19,11 @@
 package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
-import org.apache.cassandra.io.util.File;
-import org.apache.lucene.util.hnsw.HnswGraph;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -86,7 +80,7 @@ public class HnswGraphWriter
         var levelOffsets = new HashMap<Integer, Long>(); // VSTODO remove this once the code is debugged
         for (var level = 0; level < hnsw.numLevels(); level++)
         {
-            logger.debug("Level {} -> {}", level, nextLevelOffset);
+            logger.debug("Level {} offsets at {}", level, nextLevelOffset);
             out.writeLong(nextLevelOffset);
             levelOffsets.put(level, nextLevelOffset);
             nextLevelOffset += levelSize(level);
@@ -99,7 +93,7 @@ public class HnswGraphWriter
             var levelOffset = out.position();
             assert levelOffset == levelOffsets.get(level) : String.format("level %s offset mismatch: %s actual vs %s expected", level, levelOffset, levelOffsets.get(level));
             // write the number of nodes on the level
-            var sortedNodes = getSortedNodes(hnsw.getNodesOnLevel(level));
+            var sortedNodes = ExtendedHnswGraph.getSortedNodes(hnsw, level);
             out.writeInt(sortedNodes.length);
             logger.debug("L{}: {} nodes", level, sortedNodes.length);
 
@@ -141,16 +135,5 @@ public class HnswGraphWriter
     private void assertOrdinalValid(int node)
     {
         assert 0 <= node && node < maxOrdinal : String.format("node %s is out of bounds: %s", node, maxOrdinal);
-    }
-
-    private static int[] getSortedNodes(HnswGraph.NodesIterator nodesOnLevel) {
-        var sortedNodes = new int[nodesOnLevel.size()];
-
-        for(var n = 0; nodesOnLevel.hasNext(); n++) {
-            sortedNodes[n] = nodesOnLevel.nextInt();
-        }
-
-        Arrays.sort(sortedNodes);
-        return sortedNodes;
     }
 }

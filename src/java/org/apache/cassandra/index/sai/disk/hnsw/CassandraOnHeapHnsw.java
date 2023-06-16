@@ -32,6 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -52,6 +55,8 @@ import org.apache.lucene.util.hnsw.NeighborQueue;
 
 public class CassandraOnHeapHnsw<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapHnsw.class);
+
     private final RamAwareVectorValues vectorValues;
     private final CassandraHnswGraphBuilder<float[]> builder;
     private final VectorType.VectorSerializer serializer;
@@ -243,6 +248,10 @@ public class CassandraOnHeapHnsw<T>
 
     public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<T, Integer> postingTransformer) throws IOException
     {
+        int nInProgress = builder.insertsInProgress();
+        if (nInProgress > 0)
+            logger.warn("Attempting to write graph while " + n + " inserts are in progress");
+
         try (var vectorsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext), true);
              var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
              var indexOutputWriter = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
