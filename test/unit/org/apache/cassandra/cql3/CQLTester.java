@@ -46,6 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1527,12 +1528,16 @@ public abstract class CQLTester
 
             for (int j = 0; j < meta.size(); j++)
             {
+                String name = meta.getName(j);
                 DataType type = meta.getType(j);
                 com.datastax.driver.core.TypeCodec<Object> codec = getCluster(protocolVersion).getConfiguration()
                                                                                               .getCodecRegistry()
                                                                                               .codecFor(type);
                 ByteBuffer expectedByteValue = expected[j] instanceof ByteBuffer ? (ByteBuffer) expected[j] : codec.serialize(expected[j], version);
-                ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
+                // Do not use the by-name lookup as the client calls toLowerCase, so may have cases where "J" and "j" are the same!
+                // See <TODO : file ticket and put here>
+//                ByteBuffer actualValue = actual.getBytesUnsafe(name);
+                ByteBuffer actualValue = actual.getBytesUnsafe(j);
                 if (!Objects.equal(expectedByteValue, actualValue))
                 {
                     if (isEmptyContainerNull(type, codec, version, expectedByteValue, actualValue))
@@ -1542,10 +1547,10 @@ public abstract class CQLTester
                     Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), " +
                                               "expected <%s> (%d bytes) but got <%s> (%d bytes) " +
                                               "(using protocol version %s)",
-                                              i, j, meta.getName(j), type,
+                                              i, j, name, type,
                                               codec.format(expected[j] instanceof ByteBuffer ? codec.deserialize((ByteBuffer) expected[j], version) : expected[j]),
                                               expectedBytes,
-                                              codec.format(codec.deserialize(actualValue, version)),
+                                              safeToString(() -> codec.format(codec.deserialize(actualValue, version))),
                                               actualBytes,
                                               protocolVersion));
                 }
@@ -1566,6 +1571,18 @@ public abstract class CQLTester
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %s)",
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
+    }
+
+    private static String safeToString(Supplier<String> fn)
+    {
+        try
+        {
+            return fn.get();
+        }
+        catch (Throwable t)
+        {
+            return "Unexpected error: " + t.getMessage();
+        }
     }
 
     private static boolean isEmptyContainerNull(AbstractType<?> type,
