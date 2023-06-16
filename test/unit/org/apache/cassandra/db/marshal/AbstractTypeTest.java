@@ -61,10 +61,12 @@ import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.Releaser;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
@@ -73,6 +75,7 @@ import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport.of;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.typeTree;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -453,12 +456,67 @@ public class AbstractTypeTest
     }
 
     @Test
+    public void serdeFromString()
+    {
+        // avoid empty bytes as fromString can't figure out what to do in cases such as tuple(bytes); the tuple getString = "" so was the column not defined or was it empty?
+        try (Releaser i1 = overridePrimitiveTypeSupport(BytesType.instance, of(BytesType.instance, Generators.bytes(1, 1024), FastByteOperations::compareUnsigned));
+             Releaser i2 = overridePrimitiveTypeSupport(AsciiType.instance, of(AsciiType.instance, SourceDSL.strings().ascii().ofLengthBetween(1, 1024), stringComparator(AsciiType.instance)));
+             Releaser i3 = overridePrimitiveTypeSupport(UTF8Type.instance, of(UTF8Type.instance, Generators.utf8(1, 1024), stringComparator(UTF8Type.instance))))
+        {
+            Gen<AbstractType<?>> typeGen = genBuilder()
+                                           // a type maybe safe, but for some container types, specific element types are unsafe
+                                           .withTypeFilter(type -> !containsUnsafeGetString(type))
+                                           // fromString(getString(bb)) does not work
+                                           .withoutPrimitive(DurationType.instance)
+                                           .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality().withTypeFilter(type -> !containsUnsafeGetString(type)))
+                                           // composite requires all elements fit into Short.MAX_VALUE bytes
+                                           // so try to limit the possible expansion of types
+                                           .withCompositeElementGen(genBuilder().withoutPrimitive(DurationType.instance).withDefaultSizeGen(1).withMaxDepth(1).withTypeFilter(type -> !containsUnsafeGetString(type)).build())
+                                           .build();
+            qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
+                AbstractType type = example.type;
+
+                for (Object expected : example.samples)
+                {
+                    ByteBuffer bb = type.decompose(expected);
+                    type.validate(bb);
+                    String str = type.getString(bb);
+                    assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
+                }
+            });
+        }
+    }
+
+    @Test
+    public void serdeFromCQLLiteral()
+    {
+        Gen<AbstractType<?>> typeGen = genBuilder()
+                                       // parseLiteralType(toCQLLiteral(bb)) does not work
+                                       .withoutPrimitive(DurationType.instance)
+                                       .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
+                                       // composite requires all elements fit into Short.MAX_VALUE bytes
+                                       // so try to limit the possible expansion of types
+                                       .withCompositeElementGen(genBuilder().withoutPrimitive(DurationType.instance).withDefaultSizeGen(1).withMaxDepth(1).build())
+                                       .build();
+        qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
+            AbstractType type = example.type;
+
+            for (Object expected : example.samples)
+            {
+                ByteBuffer bb = type.decompose(expected);
+                type.validate(bb);
+
+                String literal = type.asCQL3Type().toCQLLiteral(bb);
+                ByteBuffer cqlBB = parseLiteralType(type, literal);
+                assertBytesEquals(cqlBB, bb, "Deserializing literal %s did not match expected bytes", literal);
+            }});
+    }
+
+    @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void serde()
     {
         Gen<AbstractType<?>> typeGen = genBuilder()
-                                       // fromCQL(toCQL()) does not work
-                                       .withoutPrimitive(DurationType.instance)
                                        .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
                                        // composite requires all elements fit into Short.MAX_VALUE bytes
                                        // so try to limit the possible expansion of types
@@ -466,9 +524,6 @@ public class AbstractTypeTest
                                        .build();
         qt().withShrinkCycles(0).forAll(examples(1, typeGen)).checkAssert(example -> {
             AbstractType type = example.type;
-
-            boolean getStringIsSafe = !containsUnsafeGetString(type);
-            boolean toLiteralIsSafe = !containsUnsafeToLiteral(type);
 
             for (Object expected : example.samples)
             {
@@ -478,19 +533,6 @@ public class AbstractTypeTest
                 Object read = type.compose(bb);
                 assertThat(bb.position()).describedAs("ByteBuffer was mutated by %s", type).isEqualTo(position);
                 assertThat(read).isEqualTo(expected);
-
-                if (getStringIsSafe)
-                {
-                    String str = type.getString(bb);
-                    assertBytesEquals(type.fromString(str), bb, "fromString(getString(bb)) != bb; %s", str);
-                }
-
-                if (toLiteralIsSafe)
-                {
-                    String literal = type.asCQL3Type().toCQLLiteral(bb);
-                    ByteBuffer cqlBB = parseLiteralType(type, literal);
-                    assertBytesEquals(cqlBB, bb, "Deserializing literal %s did not match expected bytes", literal);
-                }
 
                 try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                 {

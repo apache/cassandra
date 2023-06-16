@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -93,6 +94,7 @@ import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
+import static org.apache.cassandra.utils.Generators.filter;
 
 public final class AbstractTypeGenerators
 {
@@ -117,7 +119,7 @@ public final class AbstractTypeGenerators
      *
      * @see <a href="https://the-asf.slack.com/archives/CK23JSY2K/p1684257304714649">Slack</a>
      */
-    private static Comparator<String> stringComparator(StringType st)
+    public static Comparator<String> stringComparator(StringType st)
     {
         return (String a, String b) -> FastByteOperations.compareUnsigned(st.decompose(a), st.decompose(b));
     }
@@ -244,6 +246,7 @@ public final class AbstractTypeGenerators
         private Gen<AbstractType<?>> primitiveGen = PRIMITIVE_TYPE_GEN, compositeElementGen;
         private Gen<String> userTypeKeyspaceGen = IDENTIFIER_GEN;
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
+        private Predicate<AbstractType<?>> typeFilter = null;
 
         public TypeGenBuilder()
         {
@@ -261,6 +264,14 @@ public final class AbstractTypeGenerators
             primitiveGen = other.primitiveGen;
             userTypeKeyspaceGen = other.userTypeKeyspaceGen;
             defaultSetKeyFunc = other.defaultSetKeyFunc;
+            compositeElementGen = other.compositeElementGen;
+            typeFilter = other.typeFilter;
+        }
+
+        public TypeGenBuilder withTypeFilter(Predicate<AbstractType<?>> fn)
+        {
+            typeFilter = fn;
+            return this;
         }
 
         public TypeGenBuilder withCompositeElementGen(Gen<AbstractType<?>> gen)
@@ -331,7 +342,7 @@ public final class AbstractTypeGenerators
         {
             if (!PRIMITIVE_TYPE_DATA_GENS.keySet().contains(instance))
                 throw new IllegalArgumentException("Type " + instance + " is not a primitive type, or PRIMITIVE_TYPE_DATA_GENS needs to add support");
-            primitiveGen = Generators.filter(primitiveGen, t -> t != instance);
+            primitiveGen = filter(primitiveGen, t -> t != instance);
             return this;
         }
 
@@ -418,7 +429,7 @@ public final class AbstractTypeGenerators
             boolean atBottom = level == 0;
             boolean atTop = maxDepth == level;
             Gen<Boolean> multiCell = multiCellGen;
-            return rnd -> {
+            Gen<AbstractType<?>> gen = rnd -> {
                 Supplier<Gen<AbstractType<?>>> next = () -> atBottom ? primitiveGen : buildRecursive(maxDepth, level - 1, typeKindGen, multiCell);
 
                 // figure out type to get
@@ -461,6 +472,7 @@ public final class AbstractTypeGenerators
                         throw new IllegalArgumentException("Unknown kind: " + kind);
                 }
             };
+            return typeFilter == null ? gen : filter(gen, typeFilter);
         }
     }
 
@@ -671,7 +683,7 @@ public final class AbstractTypeGenerators
             String name = nameGen.generate(rnd);
             ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
-            Gen<FieldIdentifier> distinctNameGen = Generators.filter(fieldNameGen, 30, e -> !fieldNames.contains(e));
+            Gen<FieldIdentifier> distinctNameGen = filter(fieldNameGen, 30, e -> !fieldNames.contains(e));
             // UDTs don't allow duplicate names, so make sure all names are unique
             for (int i = 0; i < numElements; i++)
             {
@@ -1256,7 +1268,7 @@ public final class AbstractTypeGenerators
         {
             if (!type.allowsEmpty())
                 return this;
-            return new TypeSupport<>(type, valueGen, Generators.filter(bytesGen, b -> !ByteBufferAccessor.instance.isEmpty(b)), valueComparator);
+            return new TypeSupport<>(type, valueGen, filter(bytesGen, b -> !ByteBufferAccessor.instance.isEmpty(b)), valueComparator);
         }
 
         public TypeSupport<T> withValueDomain(@Nullable Gen<ValueDomain> valueDomainGen)
