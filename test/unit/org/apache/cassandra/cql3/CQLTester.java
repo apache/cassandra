@@ -1535,7 +1535,7 @@ public abstract class CQLTester
                                                                                               .codecFor(type);
                 ByteBuffer expectedByteValue = expected[j] instanceof ByteBuffer ? (ByteBuffer) expected[j] : codec.serialize(expected[j], version);
                 // Do not use the by-name lookup as the client calls toLowerCase, so may have cases where "J" and "j" are the same!
-                // See <TODO : file ticket and put here>
+                // See https://datastax-oss.atlassian.net/browse/JAVA-3067
 //                ByteBuffer actualValue = actual.getBytesUnsafe(name);
                 ByteBuffer actualValue = actual.getBytesUnsafe(j);
                 if (!Objects.equal(expectedByteValue, actualValue))
