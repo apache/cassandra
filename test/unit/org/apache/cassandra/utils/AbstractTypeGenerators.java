@@ -96,6 +96,7 @@ import org.quicktheories.impl.JavaRandom;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.filter;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 public final class AbstractTypeGenerators
 {
     private static final Gen<Integer> VERY_SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 3);
