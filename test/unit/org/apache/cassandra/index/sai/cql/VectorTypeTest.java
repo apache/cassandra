@@ -526,6 +526,27 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void selectSimilarityWithAnn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', [3.0, 4.0, 5.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', [4.0, 5.0, 6.0])");
+
+        Vector<Float> q = vector(1.5f, 2.5f, 3.5f);
+        var result = execute("SELECT str_val, similarity_cosine(val, ?) FROM %s ORDER BY val ANN OF ? LIMIT 2",
+                q, q);
+
+        assertRowsIgnoringOrder(result,
+                row("A", 0.9987074f),
+                row("B", 0.9993764f));
+    }
+
+    @Test
     public void castedTerminalFloatVectorFunctions() throws Throwable
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
