@@ -249,8 +249,13 @@ public class CassandraOnHeapHnsw<T>
     public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexContext indexContext, Function<T, Integer> postingTransformer) throws IOException
     {
         int nInProgress = builder.insertsInProgress();
-        if (nInProgress > 0)
-            logger.warn("Attempting to write graph while " + n + " inserts are in progress");
+        assert nInProgress == 0 : String.format("Attempting to write graph while %d inserts are in progress", nInProgress);
+        assert nextOrdinal.get() == builder.getGraph().size() : String.format("nextOrdinal %d != graph size %d -- something went wrong during construction",
+                                                                              nextOrdinal.get(), builder.getGraph().size());
+        assert vectorValues.size() == builder.getGraph().size() : String.format("vector count %d != graph size %d",
+                                                                                vectorValues.size(), builder.getGraph().size());
+        assert postingsMap.keySet().size() == vectorValues.size() : String.format("postings map entry count %d != vector count %d",
+                                                                                  postingsMap.keySet().size(), vectorValues.size());
 
         try (var vectorsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTOR, indexContext), true);
              var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);

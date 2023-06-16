@@ -35,6 +35,8 @@ public abstract class CassandraHnswGraphBuilder<T>
 
     public abstract boolean isConcurrent();
 
+    public abstract int insertsInProgress();
+
     public static class ConcurrentBuilder<T> extends CassandraHnswGraphBuilder<T>
     {
         private final ConcurrentHnswGraphBuilder<T> builder;
@@ -65,6 +67,12 @@ public abstract class CassandraHnswGraphBuilder<T>
         public ExtendedHnswGraph getGraph()
         {
             return new ExtendedConcurrentHnswGraph(builder.getGraph());
+        }
+
+        @Override
+        public int insertsInProgress()
+        {
+            return builder.insertsInProgress();
         }
 
         @Override
@@ -110,6 +118,12 @@ public abstract class CassandraHnswGraphBuilder<T>
         public ExtendedHnswGraph getGraph()
         {
             return new ExtendedSerialHnswGraph(builder.getGraph());
+        }
+
+        @Override
+        public int insertsInProgress()
+        {
+            return 0;
         }
 
         @Override
