@@ -3278,7 +3278,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (getSkipPaxosRepairOnTopologyChange() || !Paxos.useV2())
         {
-            logger.info("skipping paxos repair for {}. skip_paxos_repair_on_topology_change is set, or v2 paxos variant is not being used", reason);
+            logger.info("skipping paxos repair for {}. skip_paxos_repair_on_topology_change is set", reason);
             return;
         }
 

@@ -318,7 +318,7 @@ public class StorageProxy implements StorageProxyMBean
                                                             key.toString(), keyspaceName, cfName));
         }
 
-        return (keyspaceName.equals(DistributedMetadataLogKeyspace.metadata().name) || Paxos.useV2())
+        return (Paxos.useV2() || keyspaceName.equals(DistributedMetadataLogKeyspace.metadata().name))
                 ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState)
                 : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, queryStartNanoTime);
     }
@@ -1839,7 +1839,7 @@ public class StorageProxy implements StorageProxyMBean
     private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
-        return Paxos.useV2()
+        return (Paxos.useV2() || group.metadata().keyspace.equals(DistributedMetadataLogKeyspace.metadata().name))
                 ? Paxos.read(group, consistencyLevel)
                 : legacyReadWithPaxos(group, consistencyLevel, queryStartNanoTime);
     }

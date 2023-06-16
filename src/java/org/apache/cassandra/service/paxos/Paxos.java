@@ -50,6 +50,7 @@ import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -882,7 +883,9 @@ public class Paxos
 
                 switch (PAXOS_VARIANT)
                 {
-                    default: throw new AssertionError();
+                    default:
+                        if (!read.metadata().keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+                            throw new AssertionError();
 
                     case v2_without_linearizable_reads_or_rejected_writes:
                     case v2_without_linearizable_reads:
