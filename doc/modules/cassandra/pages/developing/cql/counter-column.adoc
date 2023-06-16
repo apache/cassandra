@@ -1,0 +1,54 @@
+= Using a counter
+:description: A counter is a special column for storing a number that is updated by increments or decrements.
+
+{description}
+
+To load data into a counter column, or to increase or decrease the value of the counter, use the UPDATE command.
+{product} rejects USING TIMESTAMP or USING TTL in the command to update a counter column.
+
+== Procedure
+
+. Create a table for the counter column.
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/popular_count-table.cql[tag=create]
+----
+
+. Loading data into a counter column is different than other tables.
+The data is updated rather than inserted.
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/popular_count-table.cql[tag=batch]
+----
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/popular_count-table.cql[tag=count]
+----
+
+. The `popularity` column has a value of 64.
++
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/popular_count-table.cql[tag=select]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/select_all_from_popular_count.result[]
+----
+--
+====
+
+Additional increments or decrements changes the value of the counter column.

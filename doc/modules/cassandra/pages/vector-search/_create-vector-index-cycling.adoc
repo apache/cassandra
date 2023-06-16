@@ -1,0 +1,22 @@
+= Create vector index
+
+Create the custom index with Storage Attached Indexing (SAI):
+
+[source,cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-index]
+----
+
+For more about SAI, see the xref:../developing/cql/indexing/sai/sai-overview.adoc[Storage Attached Indexing] documentation.
+
+[IMPORTANT]
+====
+The index can be created with options that define the similarity function:
+
+[source]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-index-with-option]
+----
+
+Valid values for the `similarity_function` are `DOT_PRODUCT`, `COSINE`, or `EUCLIDEAN`.
+====
