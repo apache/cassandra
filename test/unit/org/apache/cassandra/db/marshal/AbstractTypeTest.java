@@ -78,6 +78,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.doubles;
+import static org.quicktheories.generators.SourceDSL.floats;
 
 public class AbstractTypeTest
 {
@@ -304,8 +305,10 @@ public class AbstractTypeTest
     {
         // Double type is special as NaN and Infinite are treated differently than other code paths as they are convered to null!
         // This is fine in most cases, but when found in a collection, this is not allowed and can cause flakeyness
-        try (Releaser ignore = overridePrimitiveTypeSupport(DoubleType.instance,
-                                                            of(DoubleType.instance, doubles().between(Double.MIN_VALUE, Double.MAX_VALUE))))
+        try (Releaser i1 = overridePrimitiveTypeSupport(DoubleType.instance,
+                                                        of(DoubleType.instance, doubles().between(Double.MIN_VALUE, Double.MAX_VALUE)));
+             Releaser i2 = overridePrimitiveTypeSupport(FloatType.instance,
+                                                        of(FloatType.instance, floats().between(Float.MIN_VALUE, Float.MAX_VALUE))))
         {
             Gen<AbstractType<?>> typeGen = genBuilder()
                                            .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality().withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE, COUNTER))
