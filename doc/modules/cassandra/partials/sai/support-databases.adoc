@@ -1,4 +1,2 @@
-Supported databases:
-
-* {cassandra} 5.0
+{cass-50} is the only supported database currently.
 

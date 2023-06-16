@@ -248,7 +248,6 @@ counters |       26214400 |           0 |         0 |       NaN |               
 (4 rows)
 ----
 
-=======
 === CIDR filtering metrics Virtual Tables
 The `cidr_filtering_metrics_counts` virtual table lists counts metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_counts` virtual table lists metrics similar to below.
 
