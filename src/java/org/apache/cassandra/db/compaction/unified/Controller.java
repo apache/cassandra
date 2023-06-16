@@ -67,8 +67,8 @@ public class Controller
     public static final int DEFAULT_BASE_SHARD_COUNT = CassandraRelevantProperties.UCS_BASE_SHARD_COUNT.getInt();
 
     static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
-    public static final double DEFAULT_TARGET_SSTABLE_SIZE = CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
-    static final double MIN_TARGET_SSTABLE_SIZE = 1L << 20;
+    public static final long DEFAULT_TARGET_SSTABLE_SIZE = CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
+    static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
      * This parameter is intended to modify the shape of the LSM by taking into account the survival ratio of data, for now it is fixed to one.
@@ -269,7 +269,7 @@ public class Controller
     }
 
     /**
-     * The strategy will call this method each time {@link CompactionStrategy#getNextBackgroundTask} is called.
+     * The strategy will call this method each time {@link UnifiedCompactionStrategy#getNextBackgroundTask} is called.
      */
     public void onStrategyBackgroundTaskRequest()
     {
@@ -289,7 +289,7 @@ public class Controller
     {
         int[] Ws = parseScalingParameters(options.getOrDefault(SCALING_PARAMETERS_OPTION, DEFAULT_SCALING_PARAMETERS));
 
-        long flushSizeOverride = (long) FBUtilities.parseHumanReadable(options.getOrDefault(FLUSH_SIZE_OVERRIDE_OPTION, "0MiB"), null, "B");
+        long flushSizeOverride = FBUtilities.parseHumanReadableBytes(options.getOrDefault(FLUSH_SIZE_OVERRIDE_OPTION, "0MiB"));
         int maxSSTablesToCompact = Integer.parseInt(options.getOrDefault(MAX_SSTABLES_TO_COMPACT_OPTION, "0"));
         long expiredSSTableCheckFrequency = options.containsKey(EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION)
                 ? Long.parseLong(options.get(EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION))
@@ -311,9 +311,9 @@ public class Controller
                 baseShardCount = DEFAULT_BASE_SHARD_COUNT;
         }
 
-        double targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
-                                   ? FBUtilities.parseHumanReadable(options.get(TARGET_SSTABLE_SIZE_OPTION), null, "B")
-                                   : DEFAULT_TARGET_SSTABLE_SIZE;
+        long targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
+                                 ? FBUtilities.parseHumanReadableBytes(options.get(TARGET_SSTABLE_SIZE_OPTION))
+                                 : DEFAULT_TARGET_SSTABLE_SIZE;
 
         Overlaps.InclusionMethod inclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
                                                    ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
@@ -369,7 +369,7 @@ public class Controller
         {
             try
             {
-                long targetSSTableSize = (long) FBUtilities.parseHumanReadable(s, null, "B");
+                long targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
                 if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
                 {
                     throw new ConfigurationException(String.format(sizeUnacceptableErr,
@@ -393,7 +393,7 @@ public class Controller
         {
             try
             {
-                long flushSize = (long) FBUtilities.parseHumanReadable(s, null, "B");
+                long flushSize = FBUtilities.parseHumanReadableBytes(s);
                 if (flushSize < MIN_TARGET_SSTABLE_SIZE)
                     throw new ConfigurationException(String.format(sizeUnacceptableErr,
                                                                    FLUSH_SIZE_OVERRIDE_OPTION,

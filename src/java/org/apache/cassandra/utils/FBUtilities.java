@@ -924,13 +924,7 @@ public class FBUtilities
 
     public static String prettyPrintMemoryPerSecond(long bytes, long timeInNano)
     {
-        // We can't sanely calculate a rate over 0 nanoseconds
-        if (timeInNano == 0)
-            return "NaN  KiB/s";
-
-        long rate = (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000);
-
-        return prettyPrintMemoryPerSecond(rate);
+        return prettyPrintBinary(bytes * 1.0e9 / timeInNano, "B/s", "");
     }
 
     /**
@@ -939,7 +933,8 @@ public class FBUtilities
      *
      * @param datum     The human-readable number.
      * @param separator Expected separator, null to accept any amount of whitespace.
-     * @param unit      Expected unit.
+     * @param unit      Expected unit. If null, the method will accept any string as unit, i.e. it will parse the number
+     *                  at the start of the supplied string and ignore any remainder.
      * @return The parsed value.
      */
     public static double parseHumanReadable(String datum, String separator, String unit)

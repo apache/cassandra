@@ -71,7 +71,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     private static final Pattern SCALING_PARAMETER_PATTERN = Pattern.compile("(N)|L(\\d+)|T(\\d+)|([+-]?\\d+)");
     private static final String SCALING_PARAMETER_PATTERN_SIMPLIFIED = SCALING_PARAMETER_PATTERN.pattern()
                                                                                                 .replaceAll("[()]", "")
-
                                                                                                 .replace("\\d", "[0-9]");
 
     private final Controller controller;
@@ -271,7 +270,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        Collection<Index> indexes,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        // FIXME: needs the metadata collector fix
         ShardManager shardManager = getShardManager();
         double flushDensity = cfs.metric.flushSizeOnDisk.get() / shardManager.localSpaceCoverage();
         ShardTracker boundaries = shardManager.boundaries(controller.getNumShards(flushDensity));
@@ -608,7 +606,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             {
                 // We can have just one pick in each level. Pick one bucket randomly out of the ones with
                 // the highest overlap.
-                // The random() part below implements reservoir sampling with size 1, giving us a uniform selection.
+                // The random() part below implements reservoir sampling with size 1, giving us a uniformly random selection.
                 if (bucket.maxOverlap == maxOverlap && controller.random().nextInt(++overlapMatchingCount) == 0)
                     selectedBucket = bucket;
                 // The estimated remaining tasks is a measure of the remaining amount of work, thus we prefer to
