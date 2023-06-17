@@ -1,4 +1,5 @@
 5.0
+ * Enhance nodetool compactionstats with additional metrics (CASSANDRA-18305)
  * Added support for type VECTOR<type, dimension> (CASSANDRA-18504)
  * Expose bootstrap and decommission state to nodetool info (CASSANDRA-18555)
  * Fix SSTabledump errors when dumping data from index (CASSANDRA-17698)

@@ -1918,7 +1918,9 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Retrieve Proxy metrics
-     * @param metricName CompletedTasks, PendingTasks, BytesCompacted or TotalCompactionsCompleted.
+     * @param metricName BytesCompacted, CompactionsAborted, CompactionsReduced,
+     *                   SSTablesDroppedFromCompaction, CompletedTasks, PendingTasks, PendingTasksByTableName
+     *                   or TotalCompactionsCompleted.
      */
     public Object getCompactionMetric(String metricName)
     {
@@ -1927,6 +1929,9 @@ public class NodeProbe implements AutoCloseable
             switch(metricName)
             {
                 case "BytesCompacted":
+                case "CompactionsAborted":
+                case "CompactionsReduced":
+                case "SSTablesDroppedFromCompaction":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
                             CassandraMetricsRegistry.JmxCounterMBean.class);
@@ -1941,7 +1946,7 @@ public class NodeProbe implements AutoCloseable
                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
                             CassandraMetricsRegistry.JmxMeterMBean.class);
                 default:
-                    throw new RuntimeException("Unknown compaction metric.");
+                    throw new RuntimeException("Unknown compaction metric " + metricName);
             }
         }
         catch (MalformedObjectNameException e)

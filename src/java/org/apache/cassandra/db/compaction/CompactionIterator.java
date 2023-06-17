@@ -101,7 +101,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private long totalSourceCQLRows;
 
     // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
-    private String targetDirectory;
+    private volatile String targetDirectory;
 
     /*
      * counters for merged rows.
