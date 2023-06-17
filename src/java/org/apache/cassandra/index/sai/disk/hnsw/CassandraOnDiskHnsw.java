@@ -88,6 +88,8 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     // VSTODO make this return something with a size
     public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit, QueryContext context)
     {
+        CassandraOnHeapHnsw.validateIndexable(queryVector, similarityFunction);
+
         NeighborQueue queue;
         try (var vectors = vectorsSupplier.apply(context); var view = hnsw.getView(context))
         {

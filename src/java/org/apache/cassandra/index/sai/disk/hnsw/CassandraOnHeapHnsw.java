@@ -126,16 +126,22 @@ public class CassandraOnHeapHnsw<T>
         assert term != null && term.remaining() != 0;
 
         var vector = serializer.deserializeFloatArray(term);
-        var invalidMessage = validateIndexable(vector);
-        if (invalidMessage != null)
+        if (behavior == InvalidVectorBehavior.IGNORE)
         {
-            switch (behavior)
+            try
             {
-                case IGNORE:
-                    return 0;
-                case FAIL:
-                    throw new InvalidRequestException(invalidMessage);
+                validateIndexable(vector, similarityFunction);
             }
+            catch (InvalidRequestException e)
+            {
+                logger.trace("Ignoring invalid vector during index build against existing data: {}", e);
+                return 0;
+            }
+        }
+        else
+        {
+            assert behavior == InvalidVectorBehavior.FAIL;
+            validateIndexable(vector, similarityFunction);
         }
 
         var bytesUsed = new AtomicLong();
@@ -176,15 +182,41 @@ public class CassandraOnHeapHnsw<T>
         return bytesUsed.get();
     }
 
-    private String validateIndexable(float[] vector)
+    // copied out of a Lucene PR -- hopefully committed soon
+    public static final float MAX_FLOAT32_COMPONENT = 1E17f;
+    public static float[] checkInBounds(float[] v) {
+        for (int i = 0; i < v.length; i++) {
+            if (!Float.isFinite(v[i])) {
+                throw new IllegalArgumentException("non-finite value at vector[" + i + "]=" + v[i]);
+            }
+
+            if (Math.abs(v[i]) > MAX_FLOAT32_COMPONENT) {
+                throw new IllegalArgumentException("Out-of-bounds value at vector[" + i + "]=" + v[i]);
+            }
+        }
+        return v;
+    }
+
+    static void validateIndexable(float[] vector, VectorSimilarityFunction similarityFunction)
     {
-        for (int i = 0; i < vector.length; i++)
+        try
         {
-            if (vector[i] != 0)
-                return null;
+            checkInBounds(vector);
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
         }
 
-        return "Zero vectors cannot be indexed";
+        if (similarityFunction == VectorSimilarityFunction.COSINE)
+        {
+            for (int i = 0; i < vector.length; i++)
+            {
+                if (vector[i] != 0)
+                    return;
+            }
+            throw new InvalidRequestException("Zero vectors cannot be indexed or queried with cosine similarity");
+        }
     }
 
     public Collection<T> keysFromOrdinal(int node)
@@ -217,6 +249,7 @@ public class CassandraOnHeapHnsw<T>
     public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept, int visitedLimit)
     {
         assert builder.isConcurrent();
+        validateIndexable(queryVector, similarityFunction);
 
         // search() errors out when an empty graph is passed to it
         if (vectorValues.size() == 0)
