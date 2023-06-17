@@ -61,7 +61,7 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
     private final PrimaryKey.Factory keyFactory;
     private final PrimaryKeyMap primaryKeyMap;
     private final VectorType<float[]> type;
-    private final int maxBruteForceRows; // not final so test can inject its own setting
+    private int maxBruteForceRows; // not final so test can inject its own setting
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
 
     VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
