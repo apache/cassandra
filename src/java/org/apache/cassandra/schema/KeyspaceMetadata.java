@@ -160,6 +160,12 @@ public final class KeyspaceMetadata implements SchemaElement
              : view.metadata;
     }
 
+    @Nullable
+    public TableMetadata getTableNullable(String tableName)
+    {
+        return tables.getNullable(tableName);
+    }
+
     public boolean hasTable(String tableName)
     {
         return tables.get(tableName).isPresent();
