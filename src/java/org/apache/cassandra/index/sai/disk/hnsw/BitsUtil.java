@@ -38,15 +38,23 @@ public class BitsUtil
         return toAccept == null ? new NoDeletedPostings(postings) : new NoDeletedIntersectingPostings(toAccept, postings);
     }
 
-    private static class NoDeletedBits implements Bits
+    private static abstract class BitsWithoutLength implements Bits
     {
-        private final int length;
+        @Override
+        public int length()
+        {
+            // length() is not called on search path
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class NoDeletedBits extends BitsWithoutLength
+    {
         private final Set<Integer> deletedOrdinals;
 
         private NoDeletedBits(Set<Integer> deletedOrdinals)
         {
             this.deletedOrdinals = deletedOrdinals;
-            this.length = deletedOrdinals.stream().mapToInt(i -> i).max().orElse(0);
         }
 
         @Override
@@ -54,26 +62,17 @@ public class BitsUtil
         {
             return !deletedOrdinals.contains(i);
         }
-
-        @Override
-        public int length()
-        {
-            return length;
-        }
     }
 
-    private static class NoDeletedIntersectingBits implements Bits
+    private static class NoDeletedIntersectingBits extends BitsWithoutLength
     {
         private final Bits toAccept;
         private final Set<Integer> deletedOrdinals;
-        private final int length;
 
         private NoDeletedIntersectingBits(Bits toAccept, Set<Integer> deletedOrdinals)
         {
             this.toAccept = toAccept;
             this.deletedOrdinals = deletedOrdinals;
-            this.length = Math.max(toAccept.length(),
-                                   deletedOrdinals.stream().mapToInt(i -> i).max().orElse(0));
         }
 
         @Override
@@ -81,15 +80,9 @@ public class BitsUtil
         {
             return !deletedOrdinals.contains(i) && toAccept.get(i);
         }
-
-        @Override
-        public int length()
-        {
-            return length;
-        }
     }
 
-    private static class NoDeletedPostings<T> implements Bits
+    private static class NoDeletedPostings<T> extends BitsWithoutLength
     {
         private final NonBlockingHashMapLong<VectorPostings<T>> postings;
 
@@ -105,15 +98,9 @@ public class BitsUtil
             assert p != null : "No postings for ordinal " + i;
             return !p.isEmpty();
         }
-
-        @Override
-        public int length()
-        {
-            return postings.size();
-        }
     }
 
-    private static class NoDeletedIntersectingPostings<T> implements Bits
+    private static class NoDeletedIntersectingPostings<T> extends BitsWithoutLength
     {
         private final Bits toAccept;
         private final NonBlockingHashMapLong<VectorPostings<T>> postings;
@@ -130,12 +117,6 @@ public class BitsUtil
             var p = postings.get(i);
             assert p != null : "No postings for ordinal " + i;
             return !p.isEmpty() && toAccept.get(i);
-        }
-
-        @Override
-        public int length()
-        {
-            return postings.size();
         }
     }
 }
