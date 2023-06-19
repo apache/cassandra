@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -78,7 +79,7 @@ public class LongVectorTest extends SAITester
                 var elapsed = System.currentTimeMillis() - start;
                 logger.info("{} ops in {}ms = {} ops/s", counter.get(), elapsed, counter.get() * 1000.0 / elapsed);
             }
-            if (ThreadLocalRandom.current().nextDouble() < 0.0001)
+            if (ThreadLocalRandom.current().nextDouble() < 0.001)
                 flush();
         }));
         fjp.shutdown();
@@ -102,8 +103,32 @@ public class LongVectorTest extends SAITester
     {
         testConcurrentOps(i -> {
             var R = ThreadLocalRandom.current();
-            var v = normalizedVector(dimension);
+            var v = randomVector(dimension);
             if (R.nextDouble() < 0.2 || keysInserted.isEmpty())
+            {
+                execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
+                keysInserted.add(i);
+            } else if (R.nextDouble() < 0.1) {
+                var key = keysInserted.getRandom();
+                execute("DELETE FROM %s WHERE key = ?", key);
+            } else if (R.nextDouble() < 0.5) {
+                var key = keysInserted.getRandom();
+                execute("SELECT * FROM %s WHERE key = ? ORDER BY value ANN OF ? LIMIT ?", key, v, R.nextInt(1, 100));
+            } else {
+                execute("SELECT * FROM %s ORDER BY value ANN OF ? LIMIT ?", v, R.nextInt(1, 100));
+            }
+        });
+    }
+
+    // like testConcurrentReadsWritesDeletes, but generates multiple rows w/ the same vector, and
+    // the sub-op weights are biased more towards doing additional inserts
+    @Test
+    public void testMultiplePostings() throws ExecutionException, InterruptedException
+    {
+        testConcurrentOps(i -> {
+            var R = ThreadLocalRandom.current();
+            var v = sequentiallyDuplicateVector(i, dimension);
+            if (R.nextDouble() < 0.8 || keysInserted.isEmpty())
             {
                 execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
                 keysInserted.add(i);
@@ -124,7 +149,7 @@ public class LongVectorTest extends SAITester
     {
         testConcurrentOps(i -> {
             var R = ThreadLocalRandom.current();
-            var v = normalizedVector(dimension);
+            var v = randomVector(dimension);
             if (R.nextDouble() < 0.1 || keysInserted.isEmpty())
             {
                 execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
@@ -144,27 +169,61 @@ public class LongVectorTest extends SAITester
     public void testConcurrentWrites() throws ExecutionException, InterruptedException
     {
         testConcurrentOps(i -> {
-            var v = normalizedVector(dimension);
+            var v = randomVector(dimension);
             execute("INSERT INTO %s (key, value) VALUES (?, ?)", i, v);
         });
     }
 
-    private static Vector<Float> normalizedVector(int dimension)
+    /**
+     * @return a normalized vector with the given dimension, where each vector from 0 .. N-1 is the same,
+     * N .. 2N-1 is the same, etc., where N is the number of cores.
+     */
+    private static Vector<Float> sequentiallyDuplicateVector(int i, int dimension)
+    {
+        int j = 1 + i / Runtime.getRuntime().availableProcessors();
+        var vector = new Float[dimension];
+        Arrays.fill(vector, 0.0f);
+        outer:
+        while (true)
+        {
+            for (int k = 0; k < dimension; k++)
+            {
+                vector[k] += 1.0f;
+                if (j-- <= 0)
+                    break outer;
+            }
+        }
+        normalize(vector);
+        return new Vector<>(vector);
+    }
+
+    /** @return a normalized vector with the given dimension */
+    private static Vector<Float> randomVector(int dimension)
     {
         var R = ThreadLocalRandom.current();
+
         var vector = new Float[dimension];
-        var sum = 0.0f;
         for (int i = 0; i < dimension; i++)
         {
             vector[i] = R.nextFloat();
-            sum += vector[i] * vector[i];
+        }
+        normalize(vector);
+
+        return new Vector<>(vector);
+    }
+
+    /** Normalize the given vector in-place */
+    private static void normalize(Float[] v)
+    {
+        var sum = 0.0f;
+        for (int i = 0; i < v.length; i++)
+        {
+            sum += v[i] * v[i];
         }
 
         sum = (float) Math.sqrt(sum);
-        for (int i = 0; i < dimension; i++)
-            vector[i] /= sum;
-
-        return new Vector<>(vector);
+        for (int i = 0; i < v.length; i++)
+            v[i] /= sum;
     }
 
     private static class KeySet
