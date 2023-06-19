@@ -108,9 +108,6 @@
 # transparent hugepage allocation more effective.
 -XX:+AlwaysPreTouch
 
-# Disable biased locking as it does not benefit Cassandra.
--XX:-UseBiasedLocking
-
 # Enable thread-local allocation blocks and allow the JVM to automatically
 # resize them at runtime.
 -XX:+UseTLAB
@@ -186,3 +183,9 @@
 # * CAP_NOWARN: same as previous, except that the client warning will not be emitted.
 #
 #-Dcassandra.expiration_date_overflow_policy=REJECT
+
+###################################
+# Compatibility hacks             #
+###################################
+--add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED
+-Djava.security.manager=allow
