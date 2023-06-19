@@ -1,5 +1,6 @@
 4.1.3
 Merged from 4.0:
+ * Fix assertion error when describing mv as table (CASSANDRA-18596)
  * Track the amount of read data per row (CASSANDRA-18513)
  * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
