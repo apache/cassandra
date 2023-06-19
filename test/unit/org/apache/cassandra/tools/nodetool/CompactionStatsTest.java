@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool.stats;
+package org.apache.cassandra.tools.nodetool;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,8 +35,11 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.tools.ToolRunner;
-import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
+
+import static java.lang.String.format;
+import static java.util.UUID.randomUUID;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 public class CompactionStatsTest extends CQLTester
 {
@@ -55,7 +58,7 @@ public class CompactionStatsTest extends CQLTester
 
         long bytesCompacted = 123;
         long bytesTotal = 123456;
-        UUID compactionId = UUID.randomUUID();
+        UUID compactionId = randomUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
                                                 .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
                                                 .collect(Collectors.toList());
@@ -74,24 +77,25 @@ public class CompactionStatsTest extends CQLTester
 
         CompactionManager.instance.active.beginCompaction(compactionHolder);
         String stdout = waitForNumberOfPendingTasks(1, "compactionstats");
-        Assertions.assertThat(stdout).containsPattern("id\\s+compaction type\\s+keyspace\\s+table\\s+completed\\s+total\\s+unit\\s+progress");
-        String expectedStatsPattern = String.format("%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%.2f%%",
-                                                    compactionId, OperationType.COMPACTION, CQLTester.KEYSPACE, currentTable(), bytesCompacted, bytesTotal,
-                                                    CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
-        Assertions.assertThat(stdout).containsPattern(expectedStatsPattern);
-        Assertions.assertThat(stdout).containsPattern("concurrent compactors\\s+[0-9]*");
-        Assertions.assertThat(stdout).containsPattern("pending compaction tasks\\s+[0-9]*");
-        Assertions.assertThat(stdout).containsPattern("compactions completed\\s+[0-9]*");
-        Assertions.assertThat(stdout).containsPattern("minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("5 minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("15 minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("mean rate\\s+[0-9]*.[0-9]*[0-9]*/second");
-        Assertions.assertThat(stdout).containsPattern("compaction throughput \\(MBps\\)         throttling disabled \\(0\\)");
-        Assertions.assertThat(stdout).containsPattern("compactions completed\\s+[0-9]*");
-        Assertions.assertThat(stdout).containsPattern("data compacted\\s+[0-9]* bytes");
-        Assertions.assertThat(stdout).containsPattern("compactions aborted\\s+[0-9]*");
-        Assertions.assertThat(stdout).containsPattern("compactions reduced\\s+[0-9]*");
-        Assertions.assertThat(stdout).containsPattern("sstables dropped from compaction\\s+[0-9]*");
+        assertThat(stdout).containsPattern("id\\s+compaction type\\s+keyspace\\s+table\\s+completed\\s+total\\s+unit\\s+progress");
+        String expectedStatsPattern = format("%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%s\\s+%.2f%%",
+                                             compactionId, OperationType.COMPACTION, CQLTester.KEYSPACE, currentTable(), bytesCompacted, bytesTotal,
+                                             CompactionInfo.Unit.BYTES, (double) bytesCompacted / bytesTotal * 100);
+
+        assertThat(stdout).containsPattern(expectedStatsPattern);
+        assertThat(stdout).containsPattern("concurrent compactors\\s+[0-9]*");
+        assertThat(stdout).containsPattern("pending tasks\\s+[0-9]*");
+        assertThat(stdout).containsPattern("compactions completed\\s+[0-9]*");
+        assertThat(stdout).containsPattern("minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("5 minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("15 minute rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("mean rate\\s+[0-9]*.[0-9]*[0-9]*/second");
+        assertThat(stdout).containsPattern("compaction throughput \\(MBps\\)\\s+throttling disabled \\(0\\)");
+        assertThat(stdout).containsPattern("compactions completed\\s+[0-9]*");
+        assertThat(stdout).containsPattern("data compacted\\s+[0-9]*");
+        assertThat(stdout).containsPattern("compactions aborted\\s+[0-9]*");
+        assertThat(stdout).containsPattern("compactions reduced\\s+[0-9]*");
+        assertThat(stdout).containsPattern("sstables dropped from compaction\\s+[0-9]*");
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
         waitForNumberOfPendingTasks(0, "compactionstats");
@@ -100,12 +104,21 @@ public class CompactionStatsTest extends CQLTester
     private String waitForNumberOfPendingTasks(int pendingTasksToWaitFor, String... args)
     {
         AtomicReference<String> stdout = new AtomicReference<>();
-        Awaitility.await().until(() -> {
+        await().until(() -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
             tool.assertOnCleanExit();
             String output = tool.getStdout();
             stdout.set(output);
-            return output.contains("pending compaction tasks         " + pendingTasksToWaitFor);
+
+            try
+            {
+                assertThat(output).containsPattern("pending tasks\\s+" + pendingTasksToWaitFor);
+                return true;
+            }
+            catch (AssertionError e)
+            {
+                return false;
+            }
         });
 
         return stdout.get();
