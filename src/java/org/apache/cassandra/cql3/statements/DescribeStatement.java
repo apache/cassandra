@@ -472,7 +472,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     {
         return new Element(keyspace, name, (ks, t) -> {
 
-            TableMetadata table = checkNotNull(ks.getTableOrViewNullable(t),
+            TableMetadata table = checkNotNull(ks.getTableNullable(t),
                                                "Table '%s' not found in keyspace '%s'", t, ks.name);
 
             return Stream.concat(Stream.of(table), table.indexes.stream()
