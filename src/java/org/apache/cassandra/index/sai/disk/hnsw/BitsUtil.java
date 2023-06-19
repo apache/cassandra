@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.util.Set;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+
 import org.apache.lucene.util.Bits;
 
 public class BitsUtil
@@ -29,6 +31,11 @@ public class BitsUtil
         return deletedOrdinals.isEmpty()
                ? toAccept
                : toAccept == null ? new NoDeletedBits(deletedOrdinals) : new NoDeletedIntersectingBits(toAccept, deletedOrdinals);
+    }
+
+    public static <T> Bits bitsIgnoringDeleted(Bits toAccept, NonBlockingHashMapLong<VectorPostings<T>> postings)
+    {
+        return toAccept == null ? new NoDeletedPostings(postings) : new NoDeletedIntersectingPostings(toAccept, postings);
     }
 
     private static class NoDeletedBits implements Bits
@@ -79,6 +86,56 @@ public class BitsUtil
         public int length()
         {
             return length;
+        }
+    }
+
+    private static class NoDeletedPostings<T> implements Bits
+    {
+        private final NonBlockingHashMapLong<VectorPostings<T>> postings;
+
+        public NoDeletedPostings(NonBlockingHashMapLong<VectorPostings<T>> postings)
+        {
+            this.postings = postings;
+        }
+
+        @Override
+        public boolean get(int i)
+        {
+            var p = postings.get(i);
+            assert p != null : "No postings for ordinal " + i;
+            return !p.isEmpty();
+        }
+
+        @Override
+        public int length()
+        {
+            return postings.size();
+        }
+    }
+
+    private static class NoDeletedIntersectingPostings<T> implements Bits
+    {
+        private final Bits toAccept;
+        private final NonBlockingHashMapLong<VectorPostings<T>> postings;
+
+        public NoDeletedIntersectingPostings(Bits toAccept, NonBlockingHashMapLong<VectorPostings<T>> postings)
+        {
+            this.toAccept = toAccept;
+            this.postings = postings;
+        }
+
+        @Override
+        public boolean get(int i)
+        {
+            var p = postings.get(i);
+            assert p != null : "No postings for ordinal " + i;
+            return !p.isEmpty() && toAccept.get(i);
+        }
+
+        @Override
+        public int length()
+        {
+            return postings.size();
         }
     }
 }
