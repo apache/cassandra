@@ -320,7 +320,8 @@ public abstract class SAITester extends CQLTester
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponentsChecksum() || !indexDescriptor.validatePerIndexComponentsChecksum(indexContext))
+            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM)
+                || !indexDescriptor.validatePerIndexComponents(indexContext, IndexValidation.CHECKSUM))
                 return false;
         }
         return true;
@@ -333,7 +334,8 @@ public abstract class SAITester extends CQLTester
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponents() || !indexDescriptor.validatePerIndexComponents(indexContext))
+            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.BASIC)
+                || !indexDescriptor.validatePerIndexComponents(indexContext, IndexValidation.BASIC))
                 return false;
         }
         return true;

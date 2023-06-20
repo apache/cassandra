@@ -47,7 +47,6 @@ import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.utils.Clock;
 import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -164,8 +163,6 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public boolean validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum)
     {
-        logger.info("Validating checksum of per sstable index components of " + indexDescriptor.sstableDescriptor);
-        long startTime = Clock.Global.currentTimeMillis();
         for (IndexComponent indexComponent : perSSTableIndexComponents())
         {
             if (isNotBuildCompletionMarker(indexComponent))
@@ -188,8 +185,6 @@ public class V1OnDiskFormat implements OnDiskFormat
                 }
             }
         }
-        long endTime = Clock.Global.currentTimeMillis();
-        logger.info("Finished validating checksum of per sstable index components of " + indexDescriptor.sstableDescriptor + " in " + (endTime - startTime) + " ms");
         return true;
     }
 

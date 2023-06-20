@@ -36,7 +36,7 @@ import static org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryRea
 
 public class TrieValidationTest extends SAIRandomizedTester
 {
-    IndexDescriptor indexDescriptor;
+    private IndexDescriptor indexDescriptor;
 
     @Before
     public void createIndexDescriptor() throws Throwable
@@ -64,7 +64,7 @@ public class TrieValidationTest extends SAIRandomizedTester
         }
     }
 
-    private void createSimpleTrie(IndexDescriptor indexDescriptor) throws Throwable
+    private static void createSimpleTrie(IndexDescriptor indexDescriptor) throws Throwable
     {
         try (IndexOutputWriter trieOutput = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
              IncrementalDeepTrieWriterPageAware<Long> trieWriter = new IncrementalDeepTrieWriterPageAware<>(trieSerializer, trieOutput.asSequentialWriter()))
@@ -82,7 +82,7 @@ public class TrieValidationTest extends SAIRandomizedTester
         }
     }
 
-    private ByteSource createMultiPart(ByteComparable.Version version, String... parts)
+    private static ByteSource createMultiPart(ByteComparable.Version version, String... parts)
     {
         ByteSource [] byteSources = new ByteSource[parts.length];
         for (int index = 0; index < parts.length; index++)

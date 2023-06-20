@@ -89,6 +89,7 @@ public class IndexFileUtils
             super(file, writerOption);
         }
 
+        @Override
         public long getChecksum() throws IOException
         {
             flush();
