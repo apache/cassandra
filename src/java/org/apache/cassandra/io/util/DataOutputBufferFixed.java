@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+
 
 /**
  * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
@@ -31,17 +33,17 @@ import java.nio.ByteBuffer;
  */
 public class DataOutputBufferFixed extends DataOutputBuffer
 {
-    public DataOutputBufferFixed()
+    public @MustCallAlias DataOutputBufferFixed()
     {
         this(128);
     }
 
-    public DataOutputBufferFixed(int size)
+    public @MustCallAlias DataOutputBufferFixed(int size)
     {
         super(size);
     }
 
-    public DataOutputBufferFixed(ByteBuffer buffer)
+    public @MustCallAlias DataOutputBufferFixed(ByteBuffer buffer)
     {
         super(buffer);
     }

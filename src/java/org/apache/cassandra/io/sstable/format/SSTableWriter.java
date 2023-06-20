@@ -52,6 +52,7 @@ import org.apache.cassandra.io.util.MmappedRegionsCache;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -483,7 +484,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return flushObservers;
         }
 
-        public abstract MmappedRegionsCache getMmappedRegionsCache();
+        public abstract @MustCallAlias MmappedRegionsCache getMmappedRegionsCache();
 
         public Builder(Descriptor descriptor)
         {

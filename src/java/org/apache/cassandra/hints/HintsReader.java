@@ -21,20 +21,21 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-
 import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
-
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -49,6 +50,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  * The latter is required for dispatch of hints to nodes that have a different messaging version, and in general is just an
  * easy way to enable backward and future compatibilty.
  */
+@InheritableMustCall("close")
 class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsReader.class);
@@ -58,13 +60,13 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     private final HintsDescriptor descriptor;
     private final File file;
-    private final ChecksummedDataInput input;
+    private final @Owning ChecksummedDataInput input;
 
     // we pass the RateLimiter into HintsReader itself because it's cheaper to calculate the size before the hint is deserialized
     @Nullable
     private final RateLimiter rateLimiter;
 
-    protected HintsReader(HintsDescriptor descriptor, File file, ChecksummedDataInput reader, RateLimiter rateLimiter)
+    protected HintsReader(HintsDescriptor descriptor, File file, @Owning ChecksummedDataInput reader, RateLimiter rateLimiter)
     {
         this.descriptor = descriptor;
         this.file = file;
@@ -101,6 +103,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         return open(file, null);
     }
 
+    @EnsuresCalledMethods(value = "this.input", methods = "close")
     public void close()
     {
         input.close();

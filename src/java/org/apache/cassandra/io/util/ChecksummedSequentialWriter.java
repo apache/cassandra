@@ -20,6 +20,10 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
+import org.checkerframework.checker.mustcall.qual.Owning;
+
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
+
 public class ChecksummedSequentialWriter extends SequentialWriter
 {
     private static final SequentialWriterOption CRC_WRITER_OPTION = SequentialWriterOption.newBuilder()
@@ -30,7 +34,8 @@ public class ChecksummedSequentialWriter extends SequentialWriter
     private final ChecksumWriter crcMetadata;
     private final Optional<File> digestFile;
 
-    public ChecksummedSequentialWriter(File file, File crcPath, File digestFile, SequentialWriterOption option)
+    @SuppressWarnings(RESOURCE) // don't know how to annotate that crcWriter is closed in the txn proxy
+    public ChecksummedSequentialWriter(File file, File crcPath, File digestFile, @Owning SequentialWriterOption option)
     {
         super(file, option);
         crcWriter = new SequentialWriter(crcPath, CRC_WRITER_OPTION);

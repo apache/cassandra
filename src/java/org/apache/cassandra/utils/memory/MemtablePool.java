@@ -29,8 +29,9 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
@@ -249,7 +250,7 @@ public abstract class MemtablePool
             return hasRoom;
         }
 
-        public Timer.Context blockedTimerContext()
+        public @MustCallAlias Timer.Context blockedTimerContext()
         {
             return blockedOnAllocating.time();
         }

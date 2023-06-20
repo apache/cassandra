@@ -24,20 +24,26 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.util.File;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
-import static org.apache.cassandra.db.Directories.*;
+import static org.apache.cassandra.db.Directories.FileType;
+import static org.apache.cassandra.db.Directories.OnTxnErr;
 
 /**
  * A class for listing files in a folder.
@@ -101,7 +107,7 @@ final class LogAwareFileLister
                     .collect(Collectors.toList());
     }
 
-    static List<File> list(DirectoryStream<Path> stream) throws IOException
+    static List<File> list(@Owning DirectoryStream<Path> stream) throws IOException
     {
         try
         {

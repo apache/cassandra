@@ -27,6 +27,8 @@ import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
+
 /**
  * A {@code NativeLibraryWrapper} implementation for Darwin/Mac.
  * <p>
@@ -43,6 +45,7 @@ import com.sun.jna.Pointer;
  * @see NativeLibrary
  */
 @Shared
+@SuppressWarnings(RESOURCE)
 public class NativeLibraryDarwin implements NativeLibraryWrapper
 {
     private static final Logger logger = LoggerFactory.getLogger(NativeLibraryDarwin.class);

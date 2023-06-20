@@ -52,6 +52,9 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class UncommittedDataFile
 {
@@ -190,6 +193,7 @@ public class UncommittedDataFile
         };
     }
 
+    @InheritableMustCall({"finish"})
     static class Writer
     {
         final File directory;
@@ -200,7 +204,7 @@ public class UncommittedDataFile
 
         private final File file;
         private final File crcFile;
-        final SequentialWriter writer;
+        final @Owning SequentialWriter writer;
         DecoratedKey lastKey = null;
 
         private String fileName(long generation)
@@ -239,11 +243,13 @@ public class UncommittedDataFile
             writer.writeBoolean(state.committed);
         }
 
+        @EnsuresCalledMethods(value = "this", methods = "finish") // we assume the finish method is releasing the resources - AFAIK this is the only way to tell the source analysis tool that we need to run one OR the other method
         Throwable abort(Throwable accumulate)
         {
             return writer.abort(accumulate);
         }
 
+        @EnsuresCalledMethods(value = "this.writer", methods = "close")
         UncommittedDataFile finish()
         {
             writer.finish();
@@ -278,10 +284,11 @@ public class UncommittedDataFile
         }
     }
 
+    @InheritableMustCall("close")
     class KeyCommitStateIterator extends AbstractIterator<PaxosKeyState> implements PeekingKeyCommitIterator
     {
         private final Iterator<Range<Token>> rangeIterator;
-        private final RandomAccessReader reader;
+        private final @Owning RandomAccessReader reader;
 
         private Range<PartitionPosition> currentRange;
 
@@ -371,6 +378,7 @@ public class UncommittedDataFile
             }
         }
 
+        @EnsuresCalledMethods(value = "this.reader", methods = "close")
         public void close()
         {
             synchronized (this)

@@ -44,7 +44,9 @@ import org.apache.cassandra.schema.TableId;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
+@SuppressWarnings(RESOURCE)
 public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableZeroCopyWriter.class);

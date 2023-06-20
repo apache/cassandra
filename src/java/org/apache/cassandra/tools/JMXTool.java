@@ -71,6 +71,7 @@ import io.airlift.airline.Option;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.utils.JsonUtils;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
@@ -171,7 +172,7 @@ public class JMXTool
                 }
             };
 
-            private static PrintStream toPrintStream(OutputStream output)
+            private static @MustCallAlias PrintStream toPrintStream(OutputStream output)
             {
                 try
                 {

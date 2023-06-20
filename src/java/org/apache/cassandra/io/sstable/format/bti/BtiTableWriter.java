@@ -53,8 +53,12 @@ import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.io.util.FileHandle.Builder.NO_LENGTH_OVERRIDE;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Writes SSTables in BTI format (see {@link BtiFormat}), which can be read by {@link BtiTableReader}.
@@ -200,9 +204,9 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
      */
     static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
     {
-        final SequentialWriter rowIndexWriter;
+        final @Owning SequentialWriter rowIndexWriter;
         private final FileHandle.Builder rowIndexFHBuilder;
-        private final SequentialWriter partitionIndexWriter;
+        private final @Owning SequentialWriter partitionIndexWriter;
         private final FileHandle.Builder partitionIndexFHBuilder;
         private final PartitionIndexBuilder partitionIndex;
         boolean partitionIndexCompleted = false;
@@ -317,11 +321,13 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
             }
         }
 
+        @EnsuresCalledMethods(value = {"this.rowIndexWriter", "this.partitionIndexWriter"}, methods = "close")
         protected Throwable doCommit(Throwable accumulate)
         {
             return rowIndexWriter.commit(accumulate);
         }
 
+        @EnsuresCalledMethods(value = {"this.rowIndexWriter", "this.partitionIndexWriter"}, methods = "close")
         protected Throwable doAbort(Throwable accumulate)
         {
             return rowIndexWriter.abort(accumulate);
@@ -350,24 +356,24 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
         // that method - that is, during the construction of the sstable.
 
         @Override
-        public MmappedRegionsCache getMmappedRegionsCache()
+        public @MustCallAlias MmappedRegionsCache getMmappedRegionsCache()
         {
             return ensuringInBuildInternalContext(mmappedRegionsCache);
         }
 
         @Override
-        public SequentialWriter getDataWriter()
+        public @MustCallAlias SequentialWriter getDataWriter()
         {
             return ensuringInBuildInternalContext(dataWriter);
         }
 
         @Override
-        public BtiFormatPartitionWriter getPartitionWriter()
+        public @MustCallAlias BtiFormatPartitionWriter getPartitionWriter()
         {
             return ensuringInBuildInternalContext(partitionWriter);
         }
 
-        public IndexWriter getIndexWriter()
+        public @MustCallAlias IndexWriter getIndexWriter()
         {
             return ensuringInBuildInternalContext(indexWriter);
         }
@@ -389,6 +395,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
         }
 
         @Override
+        @SuppressWarnings(RESOURCE)
         protected BtiTableWriter buildInternal(LifecycleNewTracker lifecycleNewTracker, Owner owner)
         {
             try

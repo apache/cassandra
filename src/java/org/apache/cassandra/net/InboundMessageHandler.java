@@ -33,9 +33,9 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message.Header;
-import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
+import org.apache.cassandra.net.FrameDecoder.IntactFrame;
+import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Implementation of {@link AbstractMessageHandler} for processing internode messages from peers.
@@ -388,6 +389,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
     /**
      * Submit a {@link ProcessMessage} task to the appropriate {@link Stage} for the {@link Verb}.
      */
+    @SuppressWarnings(RESOURCE) // TODO ExecutorLocals are Closeable but they are not closed here
     private void dispatch(ProcessMessage task)
     {
         Header header = task.header();

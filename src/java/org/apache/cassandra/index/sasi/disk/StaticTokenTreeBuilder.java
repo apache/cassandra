@@ -22,14 +22,16 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.SortedMap;
 
+import com.google.common.collect.Iterators;
+
+import com.carrotsearch.hppc.LongSet;
 import org.apache.cassandra.index.sasi.utils.CombinedTerm;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
 
-import com.carrotsearch.hppc.LongSet;
-import com.google.common.collect.Iterators;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Intended usage of this class is to be used in place of {@link DynamicTokenTreeBuilder}
@@ -83,10 +85,11 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
         return tokenCount == 0;
     }
 
-    public Iterator<Pair<Long, LongSet>> iterator()
+    public AbstractIterator<Pair<Long, LongSet>> iterator()
     {
+        @SuppressWarnings(RESOURCE)
         Iterator<Token> iterator = combinedTerm.getTokenIterator();
-        return new AbstractIterator<Pair<Long, LongSet>>()
+        return new AbstractIterator<>()
         {
             protected Pair<Long, LongSet> computeNext()
             {
@@ -114,6 +117,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
         if (root.isLeaf())
             return;
 
+        @SuppressWarnings(RESOURCE)
         RangeIterator<Long, Token> tokens = combinedTerm.getTokenIterator();
         ByteBuffer blockBuffer = ByteBuffer.allocate(BLOCK_BYTES);
         Iterator<Node> leafIterator = leftmostLeaf.levelIterator();
@@ -129,6 +133,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     protected void constructTree()
     {
+        @SuppressWarnings(RESOURCE)
         RangeIterator<Long, Token> tokens = combinedTerm.getTokenIterator();
 
         tokenCount = 0;
@@ -174,7 +179,9 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
         if (root.tokenCount() == 0)
         {
             numBlocks = 1;
-            root = new StaticLeaf(combinedTerm.getTokenIterator(), treeMinToken, treeMaxToken, tokenCount, true);
+            @SuppressWarnings(RESOURCE)
+            RangeIterator<Long, Token> tokenIterator = combinedTerm.getTokenIterator();
+            root = new StaticLeaf(tokenIterator, treeMinToken, treeMaxToken, tokenCount, true);
         }
     }
 

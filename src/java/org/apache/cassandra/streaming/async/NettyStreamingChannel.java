@@ -27,7 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntFunction;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,10 +46,14 @@ import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamingDataOutputPlusFixed;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static io.netty.util.AttributeKey.valueOf;
 import static java.lang.Boolean.FALSE;
 
+@InheritableMustCall("close")
 public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implements StreamingChannel
 {
     private static final Logger logger = LoggerFactory.getLogger(NettyStreamingChannel.class);
@@ -71,7 +74,7 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
      * but the producing side calls {@link AsyncStreamingInputPlus#requestClosure()} to notify the input that it should close.
      */
     @VisibleForTesting
-    final AsyncStreamingInputPlus in;
+    final @Owning AsyncStreamingInputPlus in;
 
     private volatile boolean closed;
 
@@ -191,6 +194,7 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
     }
 
     @Override
+    @EnsuresCalledMethods(value = "this.in", methods = "close")
     public synchronized io.netty.util.concurrent.Future<?> close()
     {
         if (closed)

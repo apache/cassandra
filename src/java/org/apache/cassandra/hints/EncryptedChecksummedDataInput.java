@@ -24,11 +24,13 @@ import javax.crypto.Cipher;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class EncryptedChecksummedDataInput extends ChecksummedDataInput
 {
@@ -43,10 +45,10 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     private final Cipher cipher;
     private final ICompressor compressor;
 
-    private final EncryptionUtils.ChannelProxyReadChannel readChannel;
+    private final @Owning EncryptionUtils.ChannelProxyReadChannel readChannel;
     private long sourcePosition;
 
-    protected EncryptedChecksummedDataInput(ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
+    protected EncryptedChecksummedDataInput(@Owning ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
     {
         super(channel);
         this.cipher = cipher;
@@ -132,8 +134,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         }
     }
 
-    @SuppressWarnings("resource")
-    public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, Cipher cipher, ICompressor compressor)
+    public static ChecksummedDataInput upgradeInput(@Owning ChecksummedDataInput input, Cipher cipher, ICompressor compressor)
     {
         long position = input.getPosition();
         input.close();
@@ -159,5 +160,13 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     ICompressor getCompressor()
     {
         return compressor;
+    }
+
+    @Override
+    @EnsuresCalledMethods(value = {"this.channel", "this.readChannel"}, methods = "close")
+    public void close()
+    {
+        super.close();
+        readChannel.close();
     }
 }

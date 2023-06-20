@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import org.apache.cassandra.utils.memory.BufferPools;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  * Buffer manager used for reading from a ChunkReader when cache is not in use. Instances of this class are
@@ -33,13 +35,13 @@ import org.apache.cassandra.utils.memory.BufferPools;
  */
 public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer.BufferHolder
 {
-    protected final ChunkReader source;
+    protected final @Owning ChunkReader source;
     protected final ByteBuffer buffer;
     protected long offset = 0;
 
     abstract long alignedPosition(long position);
 
-    protected BufferManagingRebufferer(ChunkReader wrapped)
+    protected BufferManagingRebufferer(@Owning ChunkReader wrapped)
     {
         this.source = wrapped;
         buffer = BufferPools.forChunkCache().get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
@@ -53,6 +55,7 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
         offset = -1;
     }
 
+    @EnsuresCalledMethods(value = "this.source", methods = "close")
     @Override
     public void close()
     {

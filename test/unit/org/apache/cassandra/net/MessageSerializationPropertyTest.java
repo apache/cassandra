@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -65,7 +66,7 @@ public class MessageSerializationPropertyTest implements Serializable
      * Validates that {@link Message#serializedSize(int)} == {@link Message.Serializer#serialize(Message, DataOutputPlus, int)} size.
      */
     @Test
-    public void serializeSizeProperty()
+    public void serializeSizeProperty() throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {

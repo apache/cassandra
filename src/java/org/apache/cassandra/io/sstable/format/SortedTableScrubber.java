@@ -76,6 +76,8 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.memory.HeapCloner;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -93,7 +95,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
     protected final boolean isCommutative;
     protected final long expectedBloomFilterSize;
     protected final ReadWriteLock fileAccessLock = new ReentrantReadWriteLock();
-    protected final RandomAccessReader dataFile;
+    protected final @Owning RandomAccessReader dataFile;
     protected final ScrubInfo scrubInfo;
 
     protected final NegativeLocalDeletionInfoMetrics negativeLocalDeletionInfoMetrics = new NegativeLocalDeletionInfoMetrics();
@@ -357,6 +359,9 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         }
     }
 
+    @Override
+    @EnsuresCalledMethods(value = "this.dataFile", methods = "close")
+    public abstract void close();
 
     public static class ScrubInfo extends CompactionInfo.Holder
     {

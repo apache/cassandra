@@ -31,6 +31,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  *  A Cell Iterator over SSTable
@@ -54,7 +56,7 @@ public class SSTableIterator extends AbstractSSTableIterator<RowIndexEntry>
     }
 
     @SuppressWarnings("resource") // caller to close
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
+    protected Reader createReaderInternal(RowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile, Version version)
     {
         return indexEntry.isIndexed()
              ? new ForwardIndexedReader(indexEntry, file, shouldCloseFile)
@@ -84,7 +86,7 @@ public class SSTableIterator extends AbstractSSTableIterator<RowIndexEntry>
 
         private int lastBlockIdx; // the last index block that has data for the current query
 
-        private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        private ForwardIndexedReader(RowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
             this.indexState = new IndexState(this, metadata.comparator, indexEntry, false, ifile);
@@ -92,6 +94,7 @@ public class SSTableIterator extends AbstractSSTableIterator<RowIndexEntry>
         }
 
         @Override
+        @EnsuresCalledMethods(value = {"file", "this.indexState"}, methods = "close")
         public void close() throws IOException
         {
             super.close();

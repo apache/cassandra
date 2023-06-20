@@ -22,7 +22,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.base.Splitter;
 
@@ -33,7 +38,13 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.transport.messages.AuthResponse;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.RegisterMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
@@ -260,7 +271,10 @@ public class Client extends SimpleClient
         EncryptionOptions encryptionOptions = new EncryptionOptions().applyConfig();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
-        new Client(host, port, version, encryptionOptions).run();
+        try (Client client = new Client(host, port, version, encryptionOptions))
+        {
+            client.run();
+        }
         System.exit(0);
     }
 }

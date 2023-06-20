@@ -24,9 +24,13 @@ import java.nio.channels.FileChannel;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.Owning;
+
 public class FileInputStreamPlus extends RebufferingInputStream
 {
-    final FileChannel channel;
+    final @Owning FileChannel channel;
     public final File file;
 
     public FileInputStreamPlus(String file) throws NoSuchFileException
@@ -60,11 +64,12 @@ public class FileInputStreamPlus extends RebufferingInputStream
         buffer.flip();
     }
 
-    public FileChannel getChannel()
+    public @MustCallAlias FileChannel getChannel()
     {
         return channel;
     }
 
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
     @Override
     public void close() throws IOException
     {

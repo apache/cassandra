@@ -25,9 +25,10 @@ import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.security.EncryptionUtils;
-import org.apache.cassandra.io.compress.ICompressor;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 
@@ -37,7 +38,7 @@ public class EncryptedHintsWriter extends HintsWriter
     private final ICompressor compressor;
     private volatile ByteBuffer byteBuffer;
 
-    protected EncryptedHintsWriter(File directory, HintsDescriptor descriptor, File file, FileChannel channel, int fd, CRC32 globalCRC)
+    protected EncryptedHintsWriter(File directory, HintsDescriptor descriptor, File file, @Owning FileChannel channel, int fd, CRC32 globalCRC)
     {
         super(directory, descriptor, file, channel, fd, globalCRC);
         cipher = descriptor.getCipher();

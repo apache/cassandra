@@ -45,6 +45,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.utils.OverlapIterator;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES;
 import static org.apache.cassandra.db.lifecycle.SSTableIntervalTree.buildIntervals;
@@ -66,7 +67,7 @@ public class CompactionController extends AbstractCompactionController
     private final Iterable<SSTableReader> compacting;
     private final RateLimiter limiter;
     private final long minTimestamp;
-    final Map<SSTableReader, FileDataInput> openDataFiles = new HashMap<>();
+    private final Map<SSTableReader, FileDataInput> openDataFiles = new HashMap<>();
 
     protected CompactionController(ColumnFamilyStore cfs, long maxValue)
     {
@@ -327,8 +328,13 @@ public class CompactionController extends AbstractCompactionController
         long position = reader.getPosition(key, SSTableReader.Operator.EQ);
         if (position < 0)
             return null;
-        FileDataInput dfile = openDataFiles.computeIfAbsent(reader, this::openDataFile);
+        FileDataInput dfile = getDataFile(reader);
         return reader.simpleIterator(dfile, key, position, tombstoneOnly);
+    }
+
+    private @MustCallAlias FileDataInput getDataFile(SSTableReader reader)
+    {
+        return openDataFiles.computeIfAbsent(reader, this::openDataFile);
     }
 
     /**

@@ -27,6 +27,9 @@ import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NIO_DATA_OUTPUT_STREAM_PLUS_BUFFER_SIZE;
 
@@ -42,12 +45,12 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
 
     protected ByteBuffer buffer;
 
-    public BufferedDataOutputStreamPlus(WritableByteChannel wbc)
+    public BufferedDataOutputStreamPlus(@Owning WritableByteChannel wbc)
     {
         this(wbc, DEFAULT_BUFFER_SIZE);
     }
 
-    public BufferedDataOutputStreamPlus(WritableByteChannel wbc, int bufferSize)
+    public BufferedDataOutputStreamPlus(@Owning WritableByteChannel wbc, int bufferSize)
     {
         this(wbc, ByteBuffer.allocateDirect(bufferSize));
         Preconditions.checkNotNull(wbc);
@@ -55,7 +58,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     }
 
     @VisibleForTesting
-    public BufferedDataOutputStreamPlus(WritableByteChannel channel, ByteBuffer buffer)
+    public BufferedDataOutputStreamPlus(@Owning WritableByteChannel channel, ByteBuffer buffer)
     {
         super(channel);
         this.buffer = buffer;
@@ -279,19 +282,25 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         doFlush(0);
     }
 
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
     @Override
     public void close() throws IOException
     {
-        if (buffer == null)
-            return;
-
-        doFlush(0);
-        channel.close();
-        FileUtils.clean(buffer);
-        buffer = null;
+        try
+        {
+            if (buffer == null)
+                return;
+            doFlush(0);
+            FileUtils.clean(buffer);
+            buffer = null;
+        }
+        finally
+        {
+            channel.close();
+        }
     }
 
-    public BufferedDataOutputStreamPlus order(ByteOrder order)
+    public @MustCallAlias BufferedDataOutputStreamPlus order(ByteOrder order)
     {
         assert buffer != null : "Attempt to use a closed data output";
         this.buffer.order(order);

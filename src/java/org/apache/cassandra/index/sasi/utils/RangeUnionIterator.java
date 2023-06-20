@@ -18,10 +18,15 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.PriorityQueue;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.FileUtils;
+
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Range Union Iterator is used to return sorted stream of elements from multiple RangeIterator instances.
@@ -47,6 +52,7 @@ public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue
         this.ranges = ranges;
     }
 
+    @SuppressWarnings(RESOURCE)
     public D computeNext()
     {
         RangeIterator<K, D> head = null;
@@ -105,6 +111,7 @@ public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue
         return candidate;
     }
 
+    @SuppressWarnings(RESOURCE)
     protected void performSkipTo(K nextToken)
     {
         List<RangeIterator<K, D>> changedRanges = new ArrayList<>();

@@ -41,6 +41,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.utils.ByteBufferUtil.*;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
 

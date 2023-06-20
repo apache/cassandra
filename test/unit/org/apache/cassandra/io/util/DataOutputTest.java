@@ -218,7 +218,7 @@ public class DataOutputTest
 
     //Can't test it for real without tons of heap so test as much validation as possible
     @Test
-    public void testDataOutputBufferBigReallocation()
+    public void testDataOutputBufferBigReallocation() throws IOException
     {
         //Check saturating cast behavior
         Assert.assertEquals(DataOutputBuffer.MAX_ARRAY_SIZE, DataOutputBuffer.saturatedArraySizeCast(DataOutputBuffer.MAX_ARRAY_SIZE + 1L));

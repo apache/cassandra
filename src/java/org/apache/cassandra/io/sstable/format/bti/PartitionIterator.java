@@ -29,8 +29,12 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.FBUtilities.immutableListWithFilteredNulls;
+import static org.apache.cassandra.utils.SuppressionConstants.MISSING_CREATES_MUSTCALL_FOR;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Partition iterator for the BTI format.
@@ -42,16 +46,16 @@ import static org.apache.cassandra.utils.FBUtilities.immutableListWithFilteredNu
  */
 class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyReader
 {
-    private final PartitionIndex partitionIndex;
+    private final @Owning PartitionIndex partitionIndex;
     private final IPartitioner partitioner;
     private final PartitionPosition limit;
     private final int exclusiveLimit;
-    private final FileHandle dataFile;
-    private final FileHandle rowIndexFile;
+    private final @Owning FileHandle dataFile;
+    private final @Owning FileHandle rowIndexFile;
     private final Version version;
 
-    private FileDataInput dataInput;
-    private FileDataInput indexInput;
+    private @Owning FileDataInput dataInput;
+    private @Owning FileDataInput indexInput;
 
     private DecoratedKey currentKey;
     private TrieIndexEntry currentEntry;
@@ -108,7 +112,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
         return new PartitionIterator(partitionIndex.sharedCopy(), null);
     }
 
-    private PartitionIterator(PartitionIndex partitionIndex, IPartitioner partitioner, FileHandle rowIndexFile, FileHandle dataFile,
+    private PartitionIterator(@Owning PartitionIndex partitionIndex, IPartitioner partitioner, @Owning FileHandle rowIndexFile, @Owning FileHandle dataFile,
                               PartitionPosition left, PartitionPosition right, int exclusiveRight, Version version)
     {
         super(partitionIndex, left, right);
@@ -121,7 +125,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
         this.version = version;
     }
 
-    private PartitionIterator(PartitionIndex partitionIndex, Version version)
+    private PartitionIterator(@Owning PartitionIndex partitionIndex, Version version)
     {
         super(partitionIndex, partitionIndex.firstKey(), partitionIndex.firstKey());
         this.partitionIndex = partitionIndex;
@@ -139,6 +143,8 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
     }
 
     @Override
+    @EnsuresCalledMethods(value = {"partitionIndex", "dataFile", "rowIndexFile", "dataInput", "indexInput"}, methods = "close")
+    @SuppressWarnings("methodref.receiver.bound")
     public void close()
     {
         Throwable accum = null;
@@ -222,6 +228,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
         }
     }
 
+    @SuppressWarnings({ RESOURCE, MISSING_CREATES_MUSTCALL_FOR })
     private void seekIndexInput(long pos) throws IOException
     {
         if (indexInput == null)
@@ -230,6 +237,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
             indexInput.seek(pos);
     }
 
+    @SuppressWarnings({ RESOURCE, MISSING_CREATES_MUSTCALL_FOR })
     private void seekDataInput(long pos) throws IOException
     {
         if (dataInput == null)

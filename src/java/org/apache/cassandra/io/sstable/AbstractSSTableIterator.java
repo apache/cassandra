@@ -48,7 +48,12 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
+import static org.apache.cassandra.utils.SuppressionConstants.MISSING_CREATES_MUSTCALL_FOR;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.vint.VIntCoding.VIntOutOfRangeException;
 
 
@@ -72,10 +77,10 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
 
     protected final Slices slices;
 
-    @SuppressWarnings("resource") // We need this because the analysis is not able to determine that we do close
-                                  // file on every path where we created it.
+    @SuppressWarnings({"resource", RESOURCE}) // We need this because the analysis is not able to determine that we do close
+    // file on every path where we created it.
     protected AbstractSSTableIterator(SSTableReader sstable,
-                                      FileDataInput file,
+                                      @Owning FileDataInput file,
                                       DecoratedKey key,
                                       RIE indexEntry,
                                       Slices slices,
@@ -90,10 +95,10 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
         this.slices = slices;
         this.helper = new DeserializationHelper(metadata, sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL, columnFilter);
 
+        Reader reader = null;
         if (indexEntry == null)
         {
             this.partitionLevelDeletion = DeletionTime.LIVE;
-            this.reader = null;
             this.staticRow = Rows.EMPTY_STATIC_ROW;
         }
         else
@@ -120,14 +125,14 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
 
                     // Note that this needs to be called after file != null and after the partitionDeletion has been set, but before readStaticRow
                     // (since it uses it) so we can't move that up (but we'll be able to simplify as soon as we drop support for the old file format).
-                    this.reader = createReader(indexEntry, file, shouldCloseFile);
+                    reader = createReader(indexEntry, file, shouldCloseFile);
                     this.staticRow = readStaticRow(sstable, file, helper, columns.fetchedColumns().statics);
                 }
                 else
                 {
                     this.partitionLevelDeletion = indexEntry.deletionTime();
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
-                    this.reader = createReader(indexEntry, file, shouldCloseFile);
+                    reader = createReader(indexEntry, file, shouldCloseFile);
                 }
                 if (!partitionLevelDeletion.validate())
                     UnfilteredValidation.handleInvalid(metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
@@ -138,24 +143,18 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
                 if (reader == null && file != null && shouldCloseFile)
                     file.close();
             }
-            catch (IOException e)
+            catch (IOException | CorruptSSTableException e)
             {
                 sstable.markSuspect();
-                String filePath = file.getPath();
-                if (shouldCloseFile)
-                {
-                    try
-                    {
-                        file.close();
-                    }
-                    catch (IOException suppressed)
-                    {
-                        e.addSuppressed(suppressed);
-                    }
-                }
-                throw new CorruptSSTableException(e, filePath);
+                if (reader != null)
+                    Throwables.closeAndAddSuppressed(e, reader);
+                else if (shouldCloseFile)
+                    Throwables.closeAndAddSuppressed(e, file);
+                throw new CorruptSSTableException(e, file != null ? file.getPath() : null);
             }
         }
+
+        this.reader = reader;
     }
 
     private Slice nextSlice()
@@ -194,9 +193,9 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
         }
     }
 
-    protected abstract Reader createReaderInternal(RIE indexEntry, FileDataInput file, boolean shouldCloseFile, Version version);
+    protected abstract Reader createReaderInternal(RIE indexEntry, @Owning FileDataInput file, boolean shouldCloseFile, Version version);
 
-    private Reader createReader(RIE indexEntry, FileDataInput file, boolean shouldCloseFile)
+    private Reader createReader(RIE indexEntry, @Owning FileDataInput file, boolean shouldCloseFile)
     {
         return slices.isEmpty() ? new NoRowsReader(file, shouldCloseFile)
                                 : createReaderInternal(indexEntry, file, shouldCloseFile, sstable.descriptor.version);
@@ -318,14 +317,14 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
     public abstract class AbstractReader implements Reader
     {
         private final boolean shouldCloseFile;
-        public FileDataInput file;
+        public @Owning FileDataInput file;
 
         public UnfilteredDeserializer deserializer;
 
         // Records the currently open range tombstone (if any)
         public DeletionTime openMarker;
 
-        protected AbstractReader(FileDataInput file, boolean shouldCloseFile)
+        protected AbstractReader(@Owning FileDataInput file, boolean shouldCloseFile)
         {
             this.file = file;
             this.shouldCloseFile = shouldCloseFile;
@@ -340,6 +339,7 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
             deserializer = UnfilteredDeserializer.create(metadata, file, sstable.header, helper);
         }
 
+        @SuppressWarnings({ MISSING_CREATES_MUSTCALL_FOR, RESOURCE })
         public void seekToPosition(long position) throws IOException
         {
             // This may be the first time we're actually looking into the file
@@ -410,6 +410,7 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
         protected abstract Unfiltered nextInternal() throws IOException;
 
         @Override
+        @EnsuresCalledMethods(value = "file", methods = "close")
         public void close() throws IOException
         {
             if (shouldCloseFile && file != null)
@@ -435,7 +436,7 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
         protected boolean sliceDone; // set to true once we know we have no more result for the slice. This is in particular
         // used by the indexed reader when we know we can't have results based on the index.
 
-        public ForwardReader(FileDataInput file, boolean shouldCloseFile)
+        public ForwardReader(@Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
         }
@@ -560,7 +561,7 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
     // Reader for when we have Slices.NONE but need to read static row or partition level deletion
     private class NoRowsReader extends AbstractReader
     {
-        private NoRowsReader(FileDataInput file, boolean shouldCloseFile)
+        private NoRowsReader(@Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
         }

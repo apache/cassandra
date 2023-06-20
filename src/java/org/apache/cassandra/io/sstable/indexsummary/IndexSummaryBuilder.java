@@ -31,10 +31,16 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemoryWriter;
+import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.INDEX_SUMMARY_EXPECTED_KEY_SIZE;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 
+@InheritableMustCall("close")
 public class IndexSummaryBuilder implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
@@ -42,8 +48,8 @@ public class IndexSummaryBuilder implements AutoCloseable
     static long defaultExpectedKeySize = INDEX_SUMMARY_EXPECTED_KEY_SIZE.getLong();
 
     // the offset in the keys memory region to look for a given summary boundary
-    private final SafeMemoryWriter offsets;
-    private final SafeMemoryWriter entries;
+    private final @Owning SafeMemoryWriter offsets;
+    private final @Owning SafeMemoryWriter entries;
 
     private final int minIndexInterval;
     private final int samplingLevel;
@@ -184,7 +190,7 @@ public class IndexSummaryBuilder implements AutoCloseable
         return lastReadableBoundary;
     }
 
-    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart) throws IOException
+    public @MustCallAlias IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart) throws IOException
     {
         return maybeAddEntry(decoratedKey, indexStart, 0, 0);
     }
@@ -197,7 +203,7 @@ public class IndexSummaryBuilder implements AutoCloseable
      * @param dataEnd the position in the data file we need to be able to read to (exclusive) to read this record
      *                a value of 0 indicates we are not tracking readable boundaries
      */
-    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart, long indexEnd, long dataEnd) throws IOException
+    public @MustCallAlias IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart, long indexEnd, long dataEnd) throws IOException
     {
         if (keysWritten == nextSamplePosition)
         {
@@ -278,10 +284,10 @@ public class IndexSummaryBuilder implements AutoCloseable
     }
 
     // close the builder and release any associated memory
+    @EnsuresCalledMethods(value = {"this.entries", "this.offsets"}, methods = "close")
     public void close()
     {
-        entries.close();
-        offsets.close();
+        Throwables.maybeFail(Throwables.close(null, entries, offsets));
     }
 
     public Throwable close(Throwable accumulate)

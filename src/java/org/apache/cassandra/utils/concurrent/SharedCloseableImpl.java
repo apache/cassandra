@@ -18,6 +18,8 @@
 */
 package org.apache.cassandra.utils.concurrent;
 
+import org.checkerframework.checker.mustcall.qual.Owning;
+
 /**
  * A simple abstract implementation of SharedCloseable
  */
@@ -25,7 +27,7 @@ public abstract class SharedCloseableImpl implements SharedCloseable
 {
     final Ref<?> ref;
 
-    public SharedCloseableImpl(RefCounted.Tidy tidy)
+    public SharedCloseableImpl(@Owning RefCounted.Tidy tidy)
     {
         ref = new Ref<Object>(null, tidy);
     }

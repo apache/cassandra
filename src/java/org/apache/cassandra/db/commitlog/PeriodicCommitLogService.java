@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 class PeriodicCommitLogService extends AbstractCommitLogService
 {
@@ -33,6 +34,7 @@ class PeriodicCommitLogService extends AbstractCommitLogService
               !(commitLog.configuration.useCompression() || commitLog.configuration.useEncryption()));
     }
 
+    @SuppressWarnings(RESOURCE) // just because of the time context which does not neet to be closed
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
     {
         long expectedSyncTime = nanoTime() - blockWhenSyncLagsNanos;

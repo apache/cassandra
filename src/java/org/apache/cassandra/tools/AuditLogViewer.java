@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -32,15 +31,18 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
 import net.openhft.chronicle.core.io.IORuntimeException;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.binlog.BinLog;
+
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Tool to view the contenst of AuditLog files in human readable format. Default implementation for AuditLog files
@@ -70,6 +72,7 @@ public class AuditLogViewer
         }
     }
 
+    @SuppressWarnings(RESOURCE) // TODO chronicle queue is not closed
     static void dump(List<String> pathList, String rollCycle, boolean follow, boolean ignoreUnsupported, Consumer<String> displayFun)
     {
         //Backoff strategy for spinning on the queue, not aggressive at all as this doesn't need to be low latency

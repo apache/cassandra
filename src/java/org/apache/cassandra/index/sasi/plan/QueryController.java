@@ -17,7 +17,15 @@
  */
 package org.apache.cassandra.index.sasi.plan;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
@@ -48,6 +56,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -184,10 +193,11 @@ public class QueryController
         resources.values().forEach(this::releaseIndexes);
     }
 
+    @SuppressWarnings("annotations.on.use")
     private Map<Expression, Set<SSTableIndex>> getView(OperationType op, Collection<Expression> expressions)
     {
         // first let's determine the primary expression if op is AND
-        Pair<Expression, Set<SSTableIndex>> primary = (op == OperationType.AND) ? calculatePrimary(expressions) : null;
+        Pair<Expression, Set<@MustCallAlias SSTableIndex>> primary = (op == OperationType.AND) ? calculatePrimary(expressions) : null;
 
         Map<Expression, Set<SSTableIndex>> indexes = new HashMap<>();
         for (Expression e : expressions)

@@ -51,6 +51,7 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.NON_DA
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
@@ -301,6 +302,7 @@ public abstract class AbstractCommitLogSegmentManager
     {
         do
         {
+            @SuppressWarnings(RESOURCE) // only for the timer context - it does not register any resources
             WaitQueue.Signal prepared = segmentPrepared.register(commitLog.metrics.waitingOnSegmentAllocation.time(), Context::stop);
             if (availableSegment == null && allocatingFrom == currentAllocatingFrom)
                 prepared.awaitUninterruptibly();

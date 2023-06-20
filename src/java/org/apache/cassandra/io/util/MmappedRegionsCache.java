@@ -26,12 +26,14 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
 
 /**
  * It is a utility class for caching {@link MmappedRegions} primarily used by a {@link FileHandle.Builder} when a handle
  * to the same file is created multiple times (as when an sstable is opened early).
  */
 @NotThreadSafe
+@InheritableMustCall("close")
 public class MmappedRegionsCache implements AutoCloseable
 {
     private final Map<File, MmappedRegions> cache = new HashMap<>();

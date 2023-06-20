@@ -21,7 +21,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,27 +35,29 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileWriter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.FileWriter;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.IntegerInterval;
+import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /*
@@ -123,7 +131,8 @@ public abstract class CommitLogSegment
     public final long id;
 
     final File logFile;
-    final FileChannel channel;
+    @SuppressWarnings(RESOURCE)
+    final @Owning FileChannel channel;
     final int fd;
 
     protected final AbstractCommitLogSegmentManager manager;

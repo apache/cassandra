@@ -39,6 +39,15 @@
 
     <!-- Project-wide suppressed warnings -->
     <resources id="_cf_suppressed_warnings">
+        <string>argument</string>
+        <string>assignment</string>
+        <string>cast.unsafe</string>
+        <string>contracts.postcondition</string>
+        <string>destructor.exceptional.postcondition</string>
+        <string>methodref.receiver.bound</string>
+        <string>methodref.receiver</string>
+        <string>return</string>
+        <string>type.argument</string>
     </resources>
     <pathconvert property="_cf_suppressed_warnings_line" refid="_cf_suppressed_warnings" pathsep=","/>
 

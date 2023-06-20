@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,10 +60,14 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.io.util.FileHandle.Builder.NO_LENGTH_OVERRIDE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
 {
@@ -262,9 +265,9 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
     {
         private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-        final SequentialWriter writer;
+        final @Owning SequentialWriter writer;
         final FileHandle.Builder builder;
-        final IndexSummaryBuilder summary;
+        final @Owning IndexSummaryBuilder summary;
         private DataPosition mark;
         private DecoratedKey first;
         private DecoratedKey last;
@@ -279,7 +282,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
             // register listeners to be alerted when the data files are flushed
             writer.setPostFlushListener(() -> summary.markIndexSynced(writer.getLastFlushOffset()));
             @SuppressWarnings("resource")
-            SequentialWriter dataWriter = b.getDataWriter();
+            @MustCallAlias SequentialWriter dataWriter = b.getDataWriter();
             dataWriter.setPostFlushListener(() -> summary.markDataSynced(dataWriter.getLastFlushOffset()));
         }
 
@@ -351,11 +354,13 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
             }
         }
 
+        @EnsuresCalledMethods(value = "this.writer", methods = "close")
         protected Throwable doCommit(Throwable accumulate)
         {
             return writer.commit(accumulate);
         }
 
+        @EnsuresCalledMethods(value = {"this.writer", "this.summary"}, methods = "close")
         protected Throwable doAbort(Throwable accumulate)
         {
             return summary.close(writer.abort(accumulate));
@@ -397,40 +402,41 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         // that method - that is, during the construction of the sstable.
 
         @Override
-        public MmappedRegionsCache getMmappedRegionsCache()
+        public @MustCallAlias MmappedRegionsCache getMmappedRegionsCache()
         {
             return ensuringInBuildInternalContext(mmappedRegionsCache);
         }
 
         @Override
-        public SequentialWriter getDataWriter()
+        public @MustCallAlias SequentialWriter getDataWriter()
         {
             return ensuringInBuildInternalContext(dataWriter);
         }
 
         @Override
-        public BigFormatPartitionWriter getPartitionWriter()
+        public @MustCallAlias BigFormatPartitionWriter getPartitionWriter()
         {
             return ensuringInBuildInternalContext(partitionWriter);
         }
 
-        public RowIndexEntry.IndexSerializer getRowIndexEntrySerializer()
+        public @MustCallAlias RowIndexEntry.IndexSerializer getRowIndexEntrySerializer()
         {
             return ensuringInBuildInternalContext(rowIndexEntrySerializer);
         }
 
-        public IndexWriter getIndexWriter()
+        public @MustCallAlias IndexWriter getIndexWriter()
         {
             return ensuringInBuildInternalContext(indexWriter);
         }
 
-        private <T> T ensuringInBuildInternalContext(T value)
+        private <@MustCallAlias T> T ensuringInBuildInternalContext(T value)
         {
             Preconditions.checkState(value != null, "This getter can be used only during the lifetime of the sstable constructor. Do not use it directly.");
             return value;
         }
 
         @Override
+        @SuppressWarnings(RESOURCE)
         protected BigTableWriter buildInternal(LifecycleNewTracker lifecycleNewTracker, Owner owner)
         {
             try

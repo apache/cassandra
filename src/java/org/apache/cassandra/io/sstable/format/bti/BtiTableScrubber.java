@@ -38,12 +38,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class BtiTableScrubber extends SortedTableScrubber<BtiTableReader> implements IScrubber
 {
     private final boolean isIndex;
     private final AbstractType<?> partitionKeyType;
-    private ScrubPartitionIterator indexIterator;
+    private @Owning ScrubPartitionIterator indexIterator;
 
     public BtiTableScrubber(ColumnFamilyStore cfs,
                             LifecycleTransaction transaction,
@@ -299,6 +301,7 @@ public class BtiTableScrubber extends SortedTableScrubber<BtiTableReader> implem
     }
 
     @Override
+    @EnsuresCalledMethods(value = { "indexIterator", "dataFile"}, methods = "close")
     public void close()
     {
         fileAccessLock.writeLock().lock();

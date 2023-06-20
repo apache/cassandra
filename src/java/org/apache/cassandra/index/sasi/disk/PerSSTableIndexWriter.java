@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class PerSSTableIndexWriter implements SSTableFlushObserver
@@ -251,6 +252,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         }
 
         @VisibleForTesting
+        @SuppressWarnings(RESOURCE)
         protected Callable<OnDiskIndex> scheduleSegmentFlush(final boolean isFinal)
         {
             final OnDiskIndexBuilder builder = currentBuilder;
@@ -292,14 +294,15 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     // no parts present, build entire index from memory
                     if (segments.isEmpty())
                     {
-                        scheduleSegmentFlush(true).call();
+                        OnDiskIndex idx = scheduleSegmentFlush(true).call();
+                        FileUtils.closeQuietly(idx);  // not sure if is correct
                         return;
                     }
 
                     // parts are present but there is something still in memory, let's flush that inline
                     if (!currentBuilder.isEmpty())
                     {
-                        @SuppressWarnings("resource")
+                        @SuppressWarnings({ "resource", RESOURCE })
                         OnDiskIndex last = scheduleSegmentFlush(false).call();
                         segments.add(ImmediateFuture.success(last));
                     }
@@ -309,7 +312,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     for (Future<OnDiskIndex> f : segments)
                     {
-                        @SuppressWarnings("resource")
+                        @SuppressWarnings({ "resource", RESOURCE })
                         OnDiskIndex part = f.get();
                         if (part == null)
                             continue;

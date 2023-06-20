@@ -23,6 +23,9 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /*
  * This class only knows about Tracing and ClientWarn, so if any different executor locals are added, it must be
@@ -30,10 +33,11 @@ import org.apache.cassandra.utils.WithResources;
  *
  * We don't enumerate the ExecutorLocal.all array each time because it would be much slower.
  */
-public class ExecutorLocals implements WithResources, Closeable
+public class ExecutorLocals implements WithResources, Closeable // TODO if ExecutorLocals do not need to be closed, they should not implement Closeable (they can implement AutoCloseable instead)
 {
+    @SuppressWarnings(RESOURCE)
     private static final ExecutorLocals none = new ExecutorLocals(null, null);
-    private static final FastThreadLocal<ExecutorLocals> locals = new FastThreadLocal<ExecutorLocals>()
+    private static final FastThreadLocal<ExecutorLocals> locals = new FastThreadLocal<>()
     {
         @Override
         protected ExecutorLocals initialValue()
@@ -44,7 +48,7 @@ public class ExecutorLocals implements WithResources, Closeable
 
     public static class Impl
     {
-        @SuppressWarnings("resource")
+        @SuppressWarnings({"resource", RESOURCE})
         protected static void set(TraceState traceState, ClientWarn.State clientWarnState)
         {
             if (traceState == null && clientWarnState == null) locals.set(none);
@@ -64,7 +68,7 @@ public class ExecutorLocals implements WithResources, Closeable
     /**
      * @return an ExecutorLocals object which has the current trace state and client warn state.
      */
-    public static ExecutorLocals current()
+    public static @MustCallAlias ExecutorLocals current()
     {
         return locals.get();
     }
@@ -82,7 +86,7 @@ public class ExecutorLocals implements WithResources, Closeable
     @SuppressWarnings("resource")
     public static ExecutorLocals create(TraceState traceState)
     {
-        ExecutorLocals current = locals.get();
+        ExecutorLocals current = current();
         return current.traceState == traceState ? current : new ExecutorLocals(traceState, current.clientWarnState);
     }
 

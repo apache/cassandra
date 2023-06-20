@@ -26,6 +26,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
 
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -427,6 +428,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return txnProxy.abort(accumulate);
     }
 
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
     @Override
     public final void close()
     {

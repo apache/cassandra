@@ -41,6 +41,7 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_TRACING_CLASS;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -106,7 +107,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
 
     protected final ConcurrentMap<TimeUUID, TraceState> sessions = new ConcurrentHashMap<>();
 
-    public static final Tracing instance;
+    public static final @Owning Tracing instance;
 
     static
     {
@@ -126,7 +127,9 @@ public abstract class Tracing extends ExecutorLocals.Impl
                 logger.error(String.format("Cannot use class %s for tracing, ignoring by defaulting to normal tracing", customTracingClass), e);
             }
         }
-        instance = null != tracing ? tracing : new TracingImpl();
+        if (tracing == null)
+            tracing = new TracingImpl();
+        instance = tracing;
     }
 
     public TimeUUID getSessionId()

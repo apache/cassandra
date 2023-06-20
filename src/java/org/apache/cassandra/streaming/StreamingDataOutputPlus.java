@@ -26,6 +26,7 @@ import java.nio.channels.FileChannel;
 import io.netty.channel.FileRegion;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.Shared;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -81,7 +82,7 @@ public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
      * WARNING: this method blocks only for permission to write to the netty channel; it exits before
      * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
      */
-    long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException;
+    long writeFileToChannel(@Owning FileChannel file, RateLimiter limiter) throws IOException;
 
     default void flush() throws IOException {}
 }

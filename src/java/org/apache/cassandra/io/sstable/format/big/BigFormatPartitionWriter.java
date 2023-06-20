@@ -37,6 +37,7 @@ import org.apache.cassandra.io.sstable.format.SortedTablePartitionWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 /**
  * Column index builder used by {@link org.apache.cassandra.io.sstable.format.big.BigTableWriter}.
@@ -190,7 +191,7 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
         firstClustering = null;
     }
 
-    private DataOutputBuffer reuseOrAllocateBuffer()
+    private @MustCallAlias DataOutputBuffer reuseOrAllocateBuffer()
     {
         // Check whether a reusable DataOutputBuffer already exists for this
         // ColumnIndex instance and return it.

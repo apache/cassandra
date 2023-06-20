@@ -68,6 +68,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JavaDriverUtils;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -122,12 +124,12 @@ public class CQLSSTableWriter implements Closeable
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
-    private final AbstractSSTableSimpleWriter writer;
+    private final @Owning AbstractSSTableSimpleWriter writer;
     private final ModificationStatement modificationStatement;
     private final List<ColumnSpecification> boundNames;
     private final List<TypeCodec> typeCodecs;
 
-    private CQLSSTableWriter(AbstractSSTableSimpleWriter writer, ModificationStatement modificationStatement, List<ColumnSpecification> boundNames)
+    private CQLSSTableWriter(@Owning AbstractSSTableSimpleWriter writer, ModificationStatement modificationStatement, List<ColumnSpecification> boundNames)
     {
         this.writer = writer;
         this.modificationStatement = modificationStatement;
@@ -348,6 +350,8 @@ public class CQLSSTableWriter implements Closeable
      * This method should be called, otherwise the produced sstables are not
      * guaranteed to be complete (and won't be in practice).
      */
+    @Override
+    @EnsuresCalledMethods(value = "writer", methods = "close")
     public void close() throws IOException
     {
         writer.close();

@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
@@ -42,7 +43,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
     public final IBitSet bitset;
     public final int hashCount;
 
-    BloomFilter(int hashCount, IBitSet bitset)
+    BloomFilter(int hashCount, @Owning IBitSet bitset)
     {
         super(bitset);
         this.hashCount = hashCount;

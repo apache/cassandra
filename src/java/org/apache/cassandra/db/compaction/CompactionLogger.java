@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOG_DIR;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public class CompactionLogger
 {
@@ -327,6 +328,7 @@ public class CompactionLogger
             return new OutputStreamWriter(Files.newOutputStream(compactionLog, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
         }
 
+        @SuppressWarnings(RESOURCE) // TODO this seems to be an actual bug that we never close the 'stream'
         private void writeLocal(String toWrite)
         {
             try

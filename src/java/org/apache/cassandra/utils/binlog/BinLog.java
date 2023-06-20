@@ -31,26 +31,30 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.core.io.BackgroundResourceReleaser;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
 import net.openhft.posix.PosixAPI;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANNOUNCER_DISABLE;
@@ -67,6 +71,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_
  * to handle writing the log, making it available for readers, as well as log rolling.
  *
  */
+@InheritableMustCall("stop")
 public class BinLog implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(BinLog.class);
@@ -85,8 +90,8 @@ public class BinLog implements Runnable
         CHRONICLE_ANNOUNCER_DISABLE.setBoolean(true);
     }
 
-    private ChronicleQueue queue;
-    private ExcerptAppender appender;
+    private @Owning ChronicleQueue queue;
+    private @Owning ExcerptAppender appender;
     @VisibleForTesting
     Thread binLogThread = new NamedThreadFactory("Binary Log thread").newThread(this);
     final WeightedQueue<ReleaseableWriteMarshallable> sampleQueue;
@@ -171,23 +176,29 @@ public class BinLog implements Runnable
      * Stop the consumer thread that writes log records. Can be called multiple times.
      * @throws InterruptedException
      */
+    @EnsuresCalledMethods(value = {"appender", "queue"}, methods = "close")
     public synchronized void stop() throws InterruptedException
     {
         if (!shouldContinue)
-        {
             return;
-        }
 
         shouldContinue = false;
-        sampleQueue.put(NO_OP);
-        BackgroundResourceReleaser.stop();
-        binLogThread.join();
-        appender.close();
-        appender = null;
-        queue.close();
-        queue = null;
-        archiver.stop();
-        currentPaths.remove(path);
+
+        try
+        {
+            sampleQueue.put(NO_OP);
+            BackgroundResourceReleaser.stop();
+            binLogThread.join();
+        }
+        finally
+        {
+            FileUtils.closeQuietly(appender);
+            appender = null;
+            FileUtils.closeQuietly(queue);
+            queue = null;
+            archiver.stop();
+            currentPaths.remove(path);
+        }
     }
 
     /**

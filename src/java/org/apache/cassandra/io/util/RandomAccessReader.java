@@ -19,13 +19,13 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 @NotThreadSafe
 public class RandomAccessReader extends RebufferingInputStream implements FileDataInput
@@ -44,7 +44,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
      *
      * @param rebufferer Rebufferer to use
      */
-    RandomAccessReader(Rebufferer rebufferer)
+    RandomAccessReader(@Owning Rebufferer rebufferer)
     {
         super(Rebufferer.EMPTY.buffer());
         this.rebufferer = rebufferer;
@@ -293,7 +293,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     // not have a shared channel.
     static class RandomAccessReaderWithOwnChannel extends RandomAccessReader
     {
-        RandomAccessReaderWithOwnChannel(Rebufferer rebufferer)
+        RandomAccessReaderWithOwnChannel(@Owning Rebufferer rebufferer)
         {
             super(rebufferer);
         }

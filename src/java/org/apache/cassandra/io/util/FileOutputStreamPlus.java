@@ -23,6 +23,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 
 public class FileOutputStreamPlus extends BufferedDataOutputStreamPlus
@@ -62,7 +64,7 @@ public class FileOutputStreamPlus extends BufferedDataOutputStreamPlus
         ((FileChannel)channel).force(true);
     }
 
-    public FileChannel getChannel()
+    public @MustCallAlias FileChannel getChannel()
     {
         return (FileChannel) channel;
     }

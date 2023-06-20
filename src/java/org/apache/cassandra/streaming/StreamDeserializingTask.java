@@ -26,8 +26,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.streaming.StreamSession.createLogTag;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * The task that performs the actual deserialization.
@@ -36,12 +38,13 @@ public class StreamDeserializingTask implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamDeserializingTask.class);
 
-    private final StreamingChannel channel;
+    @SuppressWarnings(RESOURCE) // channel is closed in run method
+    private final @Owning StreamingChannel channel;
     private final int messagingVersion;
     @VisibleForTesting
     protected StreamSession session;
 
-    public StreamDeserializingTask(StreamSession session, StreamingChannel channel, int messagingVersion)
+    public StreamDeserializingTask(StreamSession session, @Owning StreamingChannel channel, int messagingVersion)
     {
         this.session = session;
         this.channel = channel;

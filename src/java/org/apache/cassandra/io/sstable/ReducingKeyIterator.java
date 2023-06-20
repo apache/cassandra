@@ -30,6 +30,8 @@ import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
+
 /**
  * Caller must acquire and release references to the sstables used here.
  */
@@ -38,6 +40,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
     private final ArrayList<KeyIterator> iters;
     private volatile IMergeIterator<DecoratedKey, DecoratedKey> mi;
 
+    @SuppressWarnings(RESOURCE)
     public ReducingKeyIterator(Collection<SSTableReader> sstables)
     {
         iters = new ArrayList<>(sstables.size());

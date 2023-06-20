@@ -19,29 +19,50 @@ package org.apache.cassandra.index.sasi.disk;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.plan.Expression.Op;
-import org.apache.cassandra.index.sasi.sa.IndexedTerm;
-import org.apache.cassandra.index.sasi.sa.IntegralSA;
-import org.apache.cassandra.index.sasi.sa.SA;
-import org.apache.cassandra.index.sasi.sa.TermIterator;
-import org.apache.cassandra.index.sasi.sa.SuffixSA;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.ShortArrayList;
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.DateType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.index.sasi.plan.Expression.Op;
+import org.apache.cassandra.index.sasi.sa.IndexedTerm;
+import org.apache.cassandra.index.sasi.sa.IntegralSA;
+import org.apache.cassandra.index.sasi.sa.SA;
+import org.apache.cassandra.index.sasi.sa.SuffixSA;
+import org.apache.cassandra.index.sasi.sa.TermIterator;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public class OnDiskIndexBuilder
 {
@@ -526,7 +547,9 @@ public class OnDiskIndexBuilder
 
         public MutableBlock()
         {
-            buffer = new DataOutputBufferFixed(BLOCK_SIZE);
+            @SuppressWarnings(RESOURCE) // TODO refactor everything so that DOBs which do not have to be closed are not closeable or are closeable and are closed
+            DataOutputBufferFixed buf = new DataOutputBufferFixed(BLOCK_SIZE);
+            this.buffer = buf;
             offsets = new ShortArrayList();
         }
 

@@ -24,9 +24,15 @@ import java.util.zip.CRC32;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  * A {@link RandomAccessReader} wrapper that calculates the CRC in place.
@@ -49,9 +55,9 @@ public class ChecksummedDataInput extends RebufferingInputStream
     private long limitMark;
 
     protected long bufferOffset;
-    protected final ChannelProxy channel;
+    protected final @Owning ChannelProxy channel;
 
-    ChecksummedDataInput(ChannelProxy channel, BufferType bufferType)
+    ChecksummedDataInput(@Owning ChannelProxy channel, BufferType bufferType)
     {
         super(bufferType.allocate(RandomAccessReader.DEFAULT_BUFFER_SIZE));
 
@@ -240,6 +246,7 @@ public class ChecksummedDataInput extends RebufferingInputStream
     }
 
     @Override
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
     public void close()
     {
         FileUtils.clean(buffer);

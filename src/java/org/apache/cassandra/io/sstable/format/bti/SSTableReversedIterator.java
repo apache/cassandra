@@ -37,6 +37,8 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  * Unfiltered row iterator over a BTI SSTable that returns rows in reverse order.
@@ -59,7 +61,7 @@ class SSTableReversedIterator extends AbstractSSTableIterator<TrieIndexEntry>
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReaderInternal(TrieIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
+    protected Reader createReaderInternal(TrieIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile, Version version)
     {
         if (indexEntry.isIndexed())
             return new ReverseIndexedReader(indexEntry, file, shouldCloseFile);
@@ -103,7 +105,7 @@ class SSTableReversedIterator extends AbstractSSTableIterator<TrieIndexEntry>
         private boolean foundLessThan;
         private long startPos = -1;
 
-        private ReverseReader(FileDataInput file, boolean shouldCloseFile)
+        private ReverseReader(@Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
         }
@@ -244,7 +246,7 @@ class SSTableReversedIterator extends AbstractSSTableIterator<TrieIndexEntry>
         private Slice currentSlice;
         private long currentBlockStart;
 
-        public ReverseIndexedReader(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        public ReverseIndexedReader(AbstractRowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
             basePosition = indexEntry.position;
@@ -252,6 +254,7 @@ class SSTableReversedIterator extends AbstractSSTableIterator<TrieIndexEntry>
         }
 
         @Override
+        @EnsuresCalledMethods(value = {"file", "indexReader"}, methods = "close")
         public void close() throws IOException
         {
             if (indexReader != null)

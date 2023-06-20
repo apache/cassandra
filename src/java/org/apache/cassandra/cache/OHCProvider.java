@@ -31,6 +31,9 @@ import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.schema.TableId;
 import org.caffinitas.ohc.OHCache;
 import org.caffinitas.ohc.OHCacheBuilder;
+import org.checkerframework.checker.mustcall.qual.Owning;
+
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 {
@@ -47,9 +50,10 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
     private static class OHCacheAdapter implements ICache<RowCacheKey, IRowCacheEntry>
     {
-        private final OHCache<RowCacheKey, IRowCacheEntry> ohCache;
+        @SuppressWarnings(RESOURCE) // this is bad, this class does not even have a close method
+        private final @Owning OHCache<RowCacheKey, IRowCacheEntry> ohCache;
 
-        public OHCacheAdapter(OHCache<RowCacheKey, IRowCacheEntry> ohCache)
+        public OHCacheAdapter(@Owning OHCache<RowCacheKey, IRowCacheEntry> ohCache)
         {
             this.ohCache = ohCache;
         }

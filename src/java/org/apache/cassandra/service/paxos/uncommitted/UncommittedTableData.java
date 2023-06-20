@@ -63,6 +63,9 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static com.google.common.collect.Iterables.elementsEqual;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -87,6 +90,7 @@ public class UncommittedTableData
     private static final SchemaElement UNKNOWN_TABLE = TableMetadata.minimal("UNKNOWN", "UNKNOWN");
     private static final ExecutorPlus executor = executorFactory().sequential("PaxosUncommittedMerge");
 
+    @InheritableMustCall({ "finish", "abort" })
     public interface FlushWriter
     {
         void append(PaxosKeyState commitState) throws IOException;
@@ -278,12 +282,13 @@ public class UncommittedTableData
 
         public void run()
         {
+            UncommittedDataFile.Writer writer = null;
             try
             {
                 Preconditions.checkState(!dependsOnActiveFlushes());
                 Data current = data;
                 SchemaElement name = tableName(tableId);
-                UncommittedDataFile.Writer writer = writer(directory, name.elementKeyspace(), name.elementName(), tableId, generation);
+                writer = writer(directory, name.elementKeyspace(), name.elementName(), tableId, generation);
                 Set<UncommittedDataFile> files = Sets.newHashSet(Iterables.filter(current.files, u -> u.generation() < generation));
                 logger.info("merging {} paxos uncommitted files into a new generation {} file for {}.{}", files.size(), generation, keyspace(), table());
                 try (CloseableIterator<PaxosKeyState> iterator = filterFactory.filter(merge(files, FULL_RANGE)))
@@ -302,7 +307,10 @@ public class UncommittedTableData
             }
             catch (IOException e)
             {
-                throw new IOError(e);
+                Throwable t = e;
+                if (writer != null)
+                    t = writer.abort(t);
+                throw new IOError(t);
             }
         }
 
@@ -492,22 +500,28 @@ public class UncommittedTableData
     synchronized FlushWriter flushWriter() throws IOException
     {
         int generation = nextGeneration++;
-        UncommittedDataFile.Writer writer = writer(directory, keyspace(), table(), tableId, generation);
-        activeFlushes.add(generation);
         logger.info("flushing generation {} uncommitted paxos file for {}.{}", generation, keyspace(), table());
 
         return new FlushWriter()
         {
+            final @Owning UncommittedDataFile.Writer writer = writer(directory, keyspace(), table(), tableId, generation);
+
+            {
+                activeFlushes.add(generation);
+            }
+
             public void append(PaxosKeyState commitState) throws IOException
             {
                 writer.append(commitState);
             }
 
+            @EnsuresCalledMethods(value = "this.writer", methods = "finish")
             public void finish()
             {
                 flushSuccess(generation, writer.finish());
             }
 
+            @EnsuresCalledMethods(value = "this", methods = "finish")
             public Throwable abort(Throwable accumulate)
             {
                 accumulate = writer.abort(accumulate);
@@ -516,6 +530,7 @@ public class UncommittedTableData
             }
         };
     }
+
 
     private synchronized void rebuildComplete(UncommittedDataFile file)
     {
@@ -535,10 +550,11 @@ public class UncommittedTableData
         Preconditions.checkState(!hasInProgressIO());
         rebuilding = true;
         int generation = nextGeneration++;
-        UncommittedDataFile.Writer writer = writer(directory, keyspace(), table(), tableId, generation);
 
         return new FlushWriter()
         {
+            final @Owning UncommittedDataFile.Writer writer = writer(directory, keyspace(), table(), tableId, generation);
+
             public void append(PaxosKeyState commitState) throws IOException
             {
                 if (commitState.committed)
@@ -547,11 +563,13 @@ public class UncommittedTableData
                 writer.append(commitState);
             }
 
+            @EnsuresCalledMethods(value = "this.writer", methods = "finish")
             public void finish()
             {
                 rebuildComplete(writer.finish());
             }
 
+            @EnsuresCalledMethods(value = "this", methods = "finish")
             public Throwable abort(Throwable accumulate)
             {
                 accumulate = writer.abort(accumulate);

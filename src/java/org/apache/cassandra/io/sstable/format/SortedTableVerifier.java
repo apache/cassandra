@@ -63,6 +63,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> implements IVerifier
 {
@@ -72,7 +74,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
     protected final R sstable;
 
     protected final ReadWriteLock fileAccessLock;
-    protected final RandomAccessReader dataFile;
+    protected final @Owning RandomAccessReader dataFile;
     protected final VerifyInfo verifyInfo;
     protected final Options options;
     protected final boolean isOffline;
@@ -394,6 +396,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
     }
 
     @Override
+    @EnsuresCalledMethods(value = "this.dataFile", methods = "close")
     public void close()
     {
         fileAccessLock.writeLock().lock();

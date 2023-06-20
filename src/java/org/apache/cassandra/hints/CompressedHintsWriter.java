@@ -26,8 +26,8 @@ import java.util.zip.CRC32;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.compress.ICompressor;
-
 import org.apache.cassandra.io.util.File;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class CompressedHintsWriter extends HintsWriter
 {
@@ -38,7 +38,7 @@ public class CompressedHintsWriter extends HintsWriter
 
     private volatile ByteBuffer compressionBuffer = null;
 
-    public CompressedHintsWriter(File directory, HintsDescriptor descriptor, File file, FileChannel channel, int fd, CRC32 globalCRC)
+    public CompressedHintsWriter(File directory, HintsDescriptor descriptor, File file, @Owning FileChannel channel, int fd, CRC32 globalCRC)
     {
         super(directory, descriptor, file, channel, fd, globalCRC);
         compressor = descriptor.createCompressor();

@@ -28,6 +28,9 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.MustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  * A proxy of a FileChannel that:
@@ -66,7 +69,7 @@ public final class ChannelProxy extends SharedCloseableImpl
         this(file, openChannel(file));
     }
 
-    public ChannelProxy(File file, FileChannel channel)
+    public ChannelProxy(File file, @Owning FileChannel channel)
     {
         super(new Cleanup(file.path(), channel));
 
@@ -84,12 +87,13 @@ public final class ChannelProxy extends SharedCloseableImpl
         this.channel = copy.channel;
     }
 
+    @MustCall("tidy")
     private final static class Cleanup implements RefCounted.Tidy
     {
         final String filePath;
-        final FileChannel channel;
+        final @Owning FileChannel channel;
 
-        Cleanup(String filePath, FileChannel channel)
+        Cleanup(String filePath, @Owning FileChannel channel)
         {
             this.filePath = filePath;
             this.channel = channel;
@@ -100,6 +104,7 @@ public final class ChannelProxy extends SharedCloseableImpl
             return filePath;
         }
 
+        @EnsuresCalledMethods(value = "this.channel", methods = "close")
         public void tidy()
         {
             try

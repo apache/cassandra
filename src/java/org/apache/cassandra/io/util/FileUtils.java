@@ -62,6 +62,8 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethodsVarArgs;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -276,6 +278,7 @@ public final class FileUtils
         }
     }
 
+    @EnsuresCalledMethods(value = "#1", methods = "close")
     public static void closeQuietly(Closeable c)
     {
         try
@@ -289,6 +292,7 @@ public final class FileUtils
         }
     }
 
+    @EnsuresCalledMethods(value = "#1", methods = "close")
     public static void closeQuietly(AutoCloseable c)
     {
         try
@@ -302,6 +306,8 @@ public final class FileUtils
         }
     }
 
+    @EnsuresCalledMethodsVarArgs("close")
+    @SuppressWarnings("ensuresvarargs.unverified")
     public static void close(Closeable... cs) throws IOException
     {
         close(Arrays.asList(cs));

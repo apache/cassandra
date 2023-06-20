@@ -24,13 +24,15 @@ import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.utils.ChecksumType;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class DataIntegrityMetadata
 {
     public static class ChecksumValidator implements Closeable
     {
         private final ChecksumType checksumType;
-        private final RandomAccessReader reader;
+        private final @Owning RandomAccessReader reader;
         public final int chunkSize;
 
         public ChecksumValidator(File dataFile, File crcFile) throws IOException
@@ -40,7 +42,7 @@ public class DataIntegrityMetadata
                  dataFile.absolutePath());
         }
 
-        public ChecksumValidator(ChecksumType checksumType, RandomAccessReader reader, String dataFilename) throws IOException
+        public ChecksumValidator(ChecksumType checksumType, @Owning RandomAccessReader reader, String dataFilename) throws IOException
         {
             this.checksumType = checksumType;
             this.reader = reader;
@@ -81,6 +83,8 @@ public class DataIntegrityMetadata
                 throw new IOException(String.format("Corrupted file: integrity check (%s) failed for %s: %d != %d", checksumType.name(), reader.getPath(), storedValue, calculatedValue));
         }
 
+        @EnsuresCalledMethods(value = "this.reader", methods = "close")
+        @Override
         public void close()
         {
             reader.close();

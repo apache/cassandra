@@ -41,7 +41,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-import javax.management.remote.*;
+import javax.management.remote.JMXAuthenticator;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
+import javax.management.remote.MBeanServerForwarder;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
@@ -55,6 +58,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.jmx.AuthenticationProxy;
+import org.apache.cassandra.io.util.FileUtils;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
@@ -133,21 +139,36 @@ public class JMXServerUtils
         // have a truststore configured which contains the registry's certificate. Manually binding removes
         // this problem.
         // See CASSANDRA-12109.
-        RMIJRMPServerImpl server = new RMIJRMPServerImpl(rmiPort,
-                                                         (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
-                                                         (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
-                                                         env);
         JMXServiceURL serviceURL = new JMXServiceURL("rmi", hostname, rmiPort);
-        RMIConnectorServer jmxServer = new RMIConnectorServer(serviceURL, env, server, ManagementFactory.getPlatformMBeanServer());
+        RMIJRMPServerImpl server = null;
+        try
+        {
+            server = new RMIJRMPServerImpl(rmiPort,
+                                           (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
+                                           (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE),
+                                           env);
+            RMIConnectorServer jmxServer = createRMIConnectorServer(serviceURL, env, server);
 
-        // If a custom authz proxy was created, attach it to the server now.
-        if (authzProxy != null)
-            jmxServer.setMBeanServerForwarder(authzProxy);
-        jmxServer.start();
+            // If a custom authz proxy was created, attach it to the server now.
+            if (authzProxy != null)
+                jmxServer.setMBeanServerForwarder(authzProxy);
+            jmxServer.start();
 
-        ((JmxRegistry)registry).setRemoteServerStub(server.toStub());
-        logJmxServiceUrl(serverAddress, port);
-        return jmxServer;
+            ((JmxRegistry) registry).setRemoteServerStub(server.toStub());
+            logJmxServiceUrl(serverAddress, port);
+            return jmxServer;
+        }
+        catch (IOException e)
+        {
+            FileUtils.closeQuietly(server);
+            throw e;
+        }
+    }
+
+    @EnsuresCalledMethods(value= "#3", methods = "close")
+    private static @Owning RMIConnectorServer createRMIConnectorServer(JMXServiceURL serviceURL, Map<String, Object> env, RMIJRMPServerImpl server) throws IOException
+    {
+        return new RMIConnectorServer(serviceURL, env, server, ManagementFactory.getPlatformMBeanServer());
     }
 
     @SuppressWarnings("resource")

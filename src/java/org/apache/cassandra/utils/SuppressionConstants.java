@@ -15,37 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io.util;
 
-import java.io.IOException;
-import java.io.OutputStream;
+package org.apache.cassandra.utils;
 
-import org.checkerframework.checker.mustcall.qual.MustCallAlias;
-import org.checkerframework.checker.mustcall.qual.NotOwning;
-
-/**
- * This class provides a way to stream the writes into the {@link Memory}
- */
-public class MemoryOutputStream extends OutputStream
+public class SuppressionConstants
 {
-
-    private final Memory mem;
-    private long position = 0;
-
-    public @MustCallAlias MemoryOutputStream(@NotOwning Memory mem)
-    {
-        this.mem = mem;
-    }
-
-    public void write(int b)
-    {
-        mem.setByte(position++, (byte) b);
-    }
-
-    @Override
-    public void write(byte[] b, int off, int len) throws IOException
-    {
-        mem.setBytes(position, b, off, len);
-        position += len;
-    }
+    public static final String RESOURCE = "required.method.not.called";
+    public static final String CONTRACTS_CONDITIONAL_POSTCONDITION = "contracts.conditional.postcondition";
+    public static final String ENSUREVARARGS_UNVERIFIED = "ensuresvarargs.unverified";
+    public static final String MISSING_CREATES_MUSTCALL_FOR = "missing.creates.mustcall.for";
 }
