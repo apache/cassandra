@@ -100,4 +100,12 @@
 # inferior performance and risks exceeding MaxDirectMemory
 -Dio.netty.tryReflectionSetAccessible=true
 
+### Enable vector incubator feature (simd support)
+
+--add-modules jdk.incubator.vector
+
+### Compatibility Options
+--add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED
+-Djava.security.manager=allow
+
 # The newline in the end of file is intentional
