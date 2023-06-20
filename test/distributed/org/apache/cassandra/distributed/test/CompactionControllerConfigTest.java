@@ -46,12 +46,10 @@ public class CompactionControllerConfigTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};"));
             cluster.schemaChange(withKeyspace("CREATE TABLE ks.tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH compaction = " +
                                               "{'class': 'UnifiedCompactionStrategy', " +
-                                              "'adaptive': 'true', " +
-                                              "'adaptive_starting_scaling_parameter': '0'};"));
+                                              "'adaptive': 'true'};"));
             cluster.schemaChange(withKeyspace("CREATE TABLE ks.tbl2 (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH compaction = " +
                                               "{'class': 'UnifiedCompactionStrategy', " +
-                                              "'adaptive': 'true', " +
-                                              "'adaptive_starting_scaling_parameter': '0'};"));
+                                              "'adaptive': 'true'};"));
             cluster.get(1).runOnInstance(() ->
                                              {
                                                  ColumnFamilyStore cfs = Keyspace.open("ks").getColumnFamilyStore("tbl");

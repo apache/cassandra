@@ -61,7 +61,7 @@ public class StaticControllerTest extends ControllerTest
         String wStr = Arrays.stream(Ws)
                             .mapToObj(useIntegers ? Integer::toString : UnifiedCompactionStrategy::printScalingParameter)
                             .collect(Collectors.joining(","));
-        options.put(StaticController.STATIC_SCALING_PARAMETERS_OPTION, wStr);
+        options.put(StaticController.SCALING_PARAMETERS_OPTION, wStr);
     }
 
     @Test
@@ -86,7 +86,7 @@ public class StaticControllerTest extends ControllerTest
         Map<String, String> options = new HashMap<>();
         addOptions(true, options);
         options.put(StaticController.STATIC_SCALING_FACTORS_OPTION,
-                    options.remove(StaticController.STATIC_SCALING_PARAMETERS_OPTION));
+                    options.remove(StaticController.SCALING_PARAMETERS_OPTION));
 
         Controller controller = testFromOptions(false, options);
         assertTrue(controller instanceof StaticController);
@@ -122,7 +122,7 @@ public class StaticControllerTest extends ControllerTest
         Map<String, String> options = new HashMap<>();
         addOptions(true, options);
         options.put(StaticController.STATIC_SCALING_FACTORS_OPTION,
-                    options.remove(StaticController.STATIC_SCALING_PARAMETERS_OPTION));
+                    options.remove(StaticController.SCALING_PARAMETERS_OPTION));
 
         super.testValidateOptions(options, false);
     }
@@ -142,7 +142,7 @@ public class StaticControllerTest extends ControllerTest
             final int rf = 3;
             when(replicationStrategy.getReplicationFactor()).thenReturn(ReplicationFactor.fullOnly(rf));
 
-            Controller controller = Controller.fromOptions(cfs,  new HashMap<>(), keyspaceName, tableName);
+            Controller controller = Controller.fromOptions(cfs,  new HashMap<>());
             assertNotNull(controller);
             assertNotNull(controller.toString());
 
@@ -340,14 +340,14 @@ public class StaticControllerTest extends ControllerTest
     public void testBaseShardCountDefault()
     {
         Map<String, String> options = new HashMap<>();
-        Controller controller = Controller.fromOptions(cfs, options, keyspaceName, tableName);
+        Controller controller = Controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
 
         String prevKS = keyspaceName;
         try
         {
             keyspaceName = SchemaConstants.SYSTEM_KEYSPACE_NAME;
-            controller = controller.fromOptions(cfs, options, keyspaceName, tableName);
+            controller = controller.fromOptions(cfs, options);
             assertEquals(1, controller.baseShardCount);
         }
         finally
@@ -356,11 +356,11 @@ public class StaticControllerTest extends ControllerTest
         }
 
         numDirectories = 3;
-        controller = controller.fromOptions(cfs, options, keyspaceName, tableName);
+        controller = controller.fromOptions(cfs, options);
         assertEquals(1, controller.baseShardCount);
 
         numDirectories = 1;
-        controller = controller.fromOptions(cfs, options, keyspaceName, tableName);
+        controller = controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
     }
 }

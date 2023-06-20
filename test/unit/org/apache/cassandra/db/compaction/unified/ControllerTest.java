@@ -119,6 +119,7 @@ public abstract class ControllerTest
         when(cfs.getKeyspaceReplicationStrategy()).thenReturn(replicationStrategy);
         when(cfs.getKeyspaceName()).thenAnswer(invocation -> keyspaceName);
         when(cfs.getDiskBoundaries()).thenReturn(boundaries);
+        when(cfs.getTableName()).thenReturn(tableName);
         when(boundaries.getNumBoundaries()).thenAnswer(invocation -> numDirectories);
 
         when(executorService.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class))).thenReturn(fut);
@@ -131,7 +132,7 @@ public abstract class ControllerTest
         addOptions(adaptive, options);
         Controller.validateOptions(options);
 
-        Controller controller = Controller.fromOptions(cfs, options, keyspaceName, tableName);
+        Controller controller = Controller.fromOptions(cfs, options);
         assertNotNull(controller);
         assertNotNull(controller.toString());
 
@@ -276,7 +277,7 @@ public abstract class ControllerTest
         Map<String, String> options = new HashMap<>();
         options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
-        Controller controller = Controller.fromOptions(cfs, options, keyspaceName, tableName);
+        Controller controller = Controller.fromOptions(cfs, options);
 
         // Easy ones
         // x00 MiB = x * 100
