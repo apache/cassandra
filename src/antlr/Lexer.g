@@ -126,6 +126,7 @@ K_ALLOW:       A L L O W;
 K_FILTERING:   F I L T E R I N G;
 K_IF:          I F;
 K_THEN:        T H E N;
+K_ELSE:        E L S E;
 K_END:         E N D;
 K_IS:          I S;
 K_CONTAINS:    C O N T A I N S;

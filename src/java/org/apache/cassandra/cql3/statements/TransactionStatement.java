@@ -31,10 +31,12 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
@@ -50,6 +52,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.StatementSource;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selection;
@@ -75,6 +78,7 @@ import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.Collectors3;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -94,6 +98,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord_transactions_enabled in cassandra.yaml)";
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
+    public static final String SELECT_ALREADY_DEFINED_MESSAGE = "Unconditional SELECT statement has been already defined for the transaction; %s";
+    public static final String MISSING_SELECT_IN_BRANCH_MESSAGE = "SELECT statement is missing in branch; %s";
+    public static final String MISSING_DEFAULT_BRANCH_MESSAGE = "SELECT statement is missing in ELSE branch; %s. If there is no ELSE branch, it has to be added and SELECT statement has to be defined there";
+    public static final String CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE = "Conditional blocks %s and %s have inconsistent result sets: %s != %s";
+    public static final String CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE = "Conditional blocks %s and %s have inconsistent returning clauses";
+    public static final String CANNOT_SPECIFY_BOTH_SELECT_AND_LET_REFS_MESSAGE = "Cannot specify both a full SELECT and a SELECT w/ LET references";
 
     static class NamedSelect
     {
@@ -107,11 +117,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
     }
 
-    private final List<NamedSelect> assignments;
+    private final @Nonnull List<NamedSelect> assignments;
     private final NamedSelect returningSelect;
-    private final List<RowDataReference> returningReferences;
-    private final List<ModificationStatement> updates;
-    private final List<ConditionStatement> conditions;
+    private final @Nonnull List<RowDataReference> returningReferences;
+    private final @Nonnull List<ModificationStatement> updates;
+    private final @Nonnull List<ConditionStatement> conditions;
 
     private final VariableSpecifications bindVariables;
     private final ResultSet.ResultMetadata resultMetadata;
@@ -391,7 +401,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 return new ResultMessage.Rows(result.build());
             }
 
-            if (returningReferences != null)
+            if (!returningReferences.isEmpty())
             {
                 List<AbstractType<?>> resultType = new ArrayList<>(returningReferences.size());
                 List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
@@ -443,44 +453,46 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     public static class Parsed extends QualifiedStatement.Composite
     {
-        private final List<SelectStatement.RawStatement> assignments;
-        private final SelectStatement.RawStatement select;
-        private final List<RowDataReference.Raw> returning;
-        private final List<ModificationStatement.Parsed> updates;
-        private final List<ConditionStatement.Raw> conditions;
-        private final List<RowDataReference.Raw> dataReferences;
+        private final @Nonnull List<SelectStatement.RawStatement> assignments;
+        private final @Nullable SelectStatement.RawStatement select;
+        private final @Nonnull List<RowDataReference.Raw> returning;
+        private final @Nonnull List<ModificationStatement.Parsed> unconditionalUpdates;
+        private final @Nonnull List<ConditionalBlock.Raw> blocks;
+        private final @Nonnull List<RowDataReference.Raw> dataReferences;
 
         public Parsed(List<SelectStatement.RawStatement> assignments,
                       SelectStatement.RawStatement select,
                       List<RowDataReference.Raw> returning,
-                      List<ModificationStatement.Parsed> updates,
-                      List<ConditionStatement.Raw> conditions,
+                      List<ModificationStatement.Parsed> unconditionalUpdates,
+                      List<ConditionalBlock.Raw> blocks,
                       List<RowDataReference.Raw> dataReferences)
         {
-            this.assignments = assignments;
+            this.assignments = assignments != null ? assignments : ImmutableList.of();
             this.select = select;
-            this.returning = returning;
-            this.updates = updates;
-            this.conditions = conditions != null ? conditions : Collections.emptyList();
-            this.dataReferences = dataReferences;
+            this.returning = returning != null ? returning : ImmutableList.of();
+            this.unconditionalUpdates = unconditionalUpdates != null ? unconditionalUpdates : ImmutableList.of();
+            this.blocks = blocks != null ? blocks : ImmutableList.of();
+            this.dataReferences = dataReferences != null ? dataReferences : ImmutableList.of();
         }
 
         @Override
         protected Iterable<? extends QualifiedStatement> getStatements()
         {
-            Iterable<QualifiedStatement> group = Iterables.concat(assignments, updates);
+            Iterable<? extends QualifiedStatement> group = Iterables.concat(assignments, unconditionalUpdates);
             if (select != null)
                 group = Iterables.concat(group, Collections.singleton(select));
+            for (ConditionalBlock.Raw block : blocks)
+                group = Iterables.concat(group, block.getStatements());
             return group;
         }
 
         @Override
         public CQLStatement prepare(ClientState state)
         {
-            checkFalse(updates.isEmpty() && returning == null && select == null, EMPTY_TRANSACTION_MESSAGE);
+            checkFalse(unconditionalUpdates.isEmpty() && returning.isEmpty() && select == null && blocks.isEmpty(), EMPTY_TRANSACTION_MESSAGE);
+            checkFalse(select != null && !returning.isEmpty(), CANNOT_SPECIFY_BOTH_SELECT_AND_LET_REFS_MESSAGE, select != null ? select.source : null);
 
-            if (select != null || returning != null)
-                checkTrue(select != null ^ returning != null, "Cannot specify both a full SELECT and a SELECT w/ LET references.");
+            List<ConditionalBlock.Raw> conditionalBlocks = getConditionalBlocks();
 
             List<NamedSelect> preparedAssignments = new ArrayList<>(assignments.size());
             Map<TxnDataName, RowDataReference.ReferenceSource> refSources = new HashMap<>();
@@ -499,9 +511,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 refSources.put(name, new SelectReferenceSource(prepared));
             }
 
-            if (dataReferences != null)
-                for (RowDataReference.Raw reference : dataReferences)
-                    reference.resolveReference(refSources);
+            for (RowDataReference.Raw reference : dataReferences)
+                reference.resolveReference(refSources);
 
             NamedSelect returningSelect = null;
             if (select != null)
@@ -510,46 +521,158 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 checkAtMostOneRowSpecified(returningSelect.select, "returning select");
             }
 
-            List<RowDataReference> returningReferences = null;
+            ImmutableList<ConditionalBlock> preparedBlocks = conditionalBlocks.stream()
+                                                                              .map(b -> b.prepare(state, bindVariables))
+                                                                              .collect(Collectors3.toImmutableList());
 
-            if (returning != null)
-            {
-                // TODO: Eliminate/modify this check if we allow full tuple selections.
-                returningReferences = returning.stream().peek(raw -> checkTrue(raw.column() != null, SELECT_REFS_NEED_COLUMN_MESSAGE))
-                                                        .map(RowDataReference.Raw::prepareAsReceiver)
-                                                        .collect(Collectors.toList());
-            }
+            preparedBlocks.forEach(b -> b.validateSelection(preparedBlocks.get(0)));
 
-            List<ModificationStatement> preparedUpdates = new ArrayList<>(updates.size());
-            
-            // check for any read-before-write updates
-            for (int i = 0; i < updates.size(); i++)
-            {
-                ModificationStatement.Parsed parsed = updates.get(i);
-
-                ModificationStatement prepared = parsed.prepare(state, bindVariables);
-                checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
-                checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
-
-                preparedUpdates.add(prepared);
-            }
-
-            List<ConditionStatement> preparedConditions = new ArrayList<>(conditions.size());
-            for (ConditionStatement.Raw condition : conditions)
-                // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
-                preparedConditions.add(condition.prepare("[txn]", bindVariables));
-
-            return new TransactionStatement(preparedAssignments, returningSelect, returningReferences, preparedUpdates, preparedConditions, bindVariables);
+            return new TransactionStatement(preparedAssignments, returningSelect, preparedBlocks.get(0).returningReferences, preparedBlocks.get(0).updates, preparedBlocks.get(0).conditions , bindVariables);
         }
 
-        /**
-         * Do not use this method in execution!!! It is only allowed during prepare because it outputs a query raw text.
-         * We don't want it print it for a user who provided an identifier of someone's else prepared statement.
-         */
-        private static void checkAtMostOneRowSpecified(SelectStatement select, String name)
+        private List<ConditionalBlock.Raw> getConditionalBlocks()
         {
-            checkFalse(select.isPartitionRangeQuery(), ILLEGAL_RANGE_QUERY_MESSAGE, name, select.source);
-            checkFalse(isSelectingMultipleClusterings(select, null), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, name, select.source);
+            if (blocks.isEmpty())
+            {
+                StatementSource source = unconditionalUpdates.isEmpty() ? null : unconditionalUpdates.get(0).source;
+                return ImmutableList.of(new ConditionalBlock.Raw(returning, unconditionalUpdates, null, source));
+            }
+            else
+            {
+                assert unconditionalUpdates.isEmpty(); // should be enforced by parser
+
+                ImmutableList.Builder<ConditionalBlock.Raw> rebuiltBlocks = ImmutableList.builder();
+                boolean blockMustHaveReturning = blocks.stream().anyMatch(ConditionalBlock.Raw::hasReturning);
+                boolean blockMayHaveReturning = select == null && returning.isEmpty();
+
+                for (ConditionalBlock.Raw b : blocks)
+                {
+                    checkFalse(!blockMayHaveReturning && b.hasReturning(), SELECT_ALREADY_DEFINED_MESSAGE, b.source);
+                    checkFalse(blockMustHaveReturning && !b.hasReturning(), b.conditions.isEmpty() ? MISSING_DEFAULT_BRANCH_MESSAGE : MISSING_SELECT_IN_BRANCH_MESSAGE, b.source);
+                    rebuiltBlocks.add(!returning.isEmpty() && !b.hasReturning() ? b.withReturning(returning) : b);
+                }
+
+                return rebuiltBlocks.build();
+            }
         }
+    }
+
+    public static class ConditionalBlock
+    {
+        private final @Nonnull List<ConditionStatement> conditions;
+        private final @Nonnull List<RowDataReference> returningReferences;
+        private final @Nonnull List<ModificationStatement> updates;
+        private final StatementSource source;
+
+        public ConditionalBlock(List<ConditionStatement> conditions,
+                                List<RowDataReference> returningReferences,
+                                List<ModificationStatement> updates,
+                                StatementSource source)
+        {
+            this.conditions = conditions != null ? conditions : ImmutableList.of();
+            this.returningReferences = returningReferences != null ? returningReferences : ImmutableList.of();
+            this.updates = updates != null ? updates : ImmutableList.of();
+            this.source = source;
+        }
+
+        public boolean isDefault()
+        {
+            return conditions.isEmpty();
+        }
+
+        public void validateSelection(ConditionalBlock referenceBlock)
+        {
+            checkTrue((returningReferences.isEmpty()) == (referenceBlock.returningReferences.isEmpty()), CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE, source, referenceBlock.source);
+
+            if (!returningReferences.isEmpty())
+            {
+                List<AbstractType<?>> thisTypes = returningReferences.stream().map(r -> r.toResultMetadata().type).collect(Collectors.toList());
+                List<AbstractType<?>> refTypes = referenceBlock.returningReferences.stream().map(r -> r.toResultMetadata().type).collect(Collectors.toList());
+                checkTrue(thisTypes.equals(refTypes), String.format(CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE, source, referenceBlock.source, thisTypes, refTypes));
+            }
+        }
+
+        public static class Raw
+        {
+            public final @Nonnull List<RowDataReference.Raw> returning;
+            public final @Nonnull List<ModificationStatement.Parsed> updates;
+            public final @Nonnull List<ConditionStatement.Raw> conditions;
+            public final @Nullable StatementSource source;
+
+            public Raw(List<RowDataReference.Raw> returning,
+                       List<ModificationStatement.Parsed> updates,
+                       List<ConditionStatement.Raw> conditions,
+                       StatementSource source)
+            {
+                this.returning = returning == null ? Collections.emptyList() : returning;
+                this.updates = updates == null ? Collections.emptyList() : updates;
+                this.conditions = conditions == null ? Collections.emptyList() : conditions;
+                this.source = source;
+            }
+
+            public ConditionalBlock prepare(ClientState state, VariableSpecifications bindVariables)
+            {
+                List<RowDataReference> returningReferences = null;
+                if (!returning.isEmpty())
+                {
+                    // TODO: Eliminate/modify this check if we allow full tuple selections.
+                    returningReferences = returning.stream().peek(raw -> checkTrue(raw.column() != null, SELECT_REFS_NEED_COLUMN_MESSAGE))
+                                                   .map(RowDataReference.Raw::prepareAsReceiver)
+                                                   .collect(Collectors.toList());
+                }
+
+                List<ModificationStatement> preparedUpdates = new ArrayList<>(updates.size());
+
+                // check for any read-before-write updates
+                for (int i = 0; i < updates.size(); i++)
+                {
+                    ModificationStatement.Parsed parsed = updates.get(i);
+
+                    ModificationStatement prepared = parsed.prepare(state, bindVariables);
+                    checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+                    checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+
+                    preparedUpdates.add(prepared);
+                }
+
+                List<ConditionStatement> preparedConditions = new ArrayList<>(conditions.size());
+                for (ConditionStatement.Raw condition : conditions)
+                    // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
+                    preparedConditions.add(condition.prepare("[txn]", bindVariables));
+
+                return new ConditionalBlock(preparedConditions, returningReferences, preparedUpdates, source);
+            }
+
+            public Iterable<? extends QualifiedStatement> getStatements()
+            {
+                return updates;
+            }
+
+            public boolean hasReturning()
+            {
+                return !returning.isEmpty();
+            }
+
+            public Raw withReturning(List<RowDataReference.Raw> returning)
+            {
+                return new Raw(returning, updates, conditions, source);
+            }
+
+            public boolean isEmpty()
+            {
+                return !hasReturning() && updates.isEmpty();
+            }
+        }
+
+    }
+
+    /**
+     * Do not use this method in execution!!! It is only allowed during prepare because it outputs a query raw text.
+     * We don't want it print it for a user who provided an identifier of someone's else prepared statement.
+     */
+    private static void checkAtMostOneRowSpecified(SelectStatement select, String name)
+    {
+        checkFalse(select.isPartitionRangeQuery(), ILLEGAL_RANGE_QUERY_MESSAGE, name, select.source);
+        checkFalse(isSelectingMultipleClusterings(select, null), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, name, select.source);
     }
 }

@@ -1137,7 +1137,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         public final Term.Raw limit;
         public final Term.Raw perPartitionLimit;
         private ClientState state;
-        private final StatementSource source;
+        public final StatementSource source;
 
         public RawStatement(QualifiedName cfName,
                             Parameters parameters,
@@ -1263,14 +1263,21 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                   : Selection.wildcard(table, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows());
             }
 
-            return Selection.fromSelectors(table,
-                                           selectables,
-                                           boundNames,
-                                           resultSetOrderingColumns,
-                                           restrictions.nonPKRestrictedColumns(false),
-                                           hasGroupBy,
-                                           parameters.isJson,
-                                           restrictions.returnStaticContentOnPartitionWithNoRows());
+            try
+            {
+                return Selection.fromSelectors(table,
+                                               selectables,
+                                               boundNames,
+                                               resultSetOrderingColumns,
+                                               restrictions.nonPKRestrictedColumns(false),
+                                               hasGroupBy,
+                                               parameters.isJson,
+                                               restrictions.returnStaticContentOnPartitionWithNoRows());
+            }
+            catch (InvalidRequestException ex)
+            {
+                throw new InvalidRequestException(String.format("%s %s", ex.getMessage(), source), ex.getCause());
+            }
         }
 
         /**

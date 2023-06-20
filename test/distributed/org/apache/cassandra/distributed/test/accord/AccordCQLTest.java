@@ -2486,4 +2486,46 @@ public class AccordCQLTest extends AccordTestBase
                 assertEquals( 11, getAccordCoordinateCount() - startingAccordCoordinateCount);
         });
     }
+
+    @Test
+    public void testMultiBranchCondition() throws Exception
+    {
+        test(cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);", ConsistencyLevel.ALL);
+
+                 String query = "BEGIN TRANSACTION\n" +
+                                "  LET r1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 0);\n" +
+                                "  IF r1.v = 1 THEN\n" +
+                                "    SELECT r1.v;\n" +
+                                "    UPDATE " + currentTable + " SET v = 2 WHERE k = 1 AND c = 0;\n" +
+                                "  ELSE\n" +
+                                "    SELECT r1.v;\n" +
+                                "    UPDATE " + currentTable + " SET v = 1 WHERE k = 1 AND c = 0;\n" +
+                                "  END IF\n" +
+                                "COMMIT TRANSACTION";
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT * FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
+                                "COMMIT TRANSACTION";
+
+                 SimpleQueryResult result;
+
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(1);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 2}, check);
+
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(2);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 1}, check);
+
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(1);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 2}, check);
+
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(2);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 1}, check);
+             });
+    }
 }
