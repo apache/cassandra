@@ -47,12 +47,12 @@ public class SSTableContextManager
      *
      * @param removed SSTables being removed
      * @param added SSTables being added
-     * @param validate if true, header and footer will be validated.
+     * @param validation Controls how indexes should be validated
      *
      * @return a set of contexts for SSTables with valid per-SSTable components, and a set of
      * SSTables with invalid or missing components
      */
-    public Pair<Set<SSTableContext>, Set<SSTableReader>> update(Collection<SSTableReader> removed, Iterable<SSTableReader> added, boolean validate)
+    public Pair<Set<SSTableContext>, Set<SSTableReader>> update(Collection<SSTableReader> removed, Iterable<SSTableReader> added, IndexValidation validation)
     {
         release(removed);
 
@@ -77,7 +77,7 @@ public class SSTableContextManager
             try
             {
                 // Only validate on restart or newly refreshed SSTable. Newly built files are unlikely to be corrupted.
-                if (validate && !sstableContexts.containsKey(sstable) && !indexDescriptor.validatePerSSTableComponents())
+                if (!sstableContexts.containsKey(sstable) && !indexDescriptor.validatePerSSTableComponents(validation))
                 {
                     logger.warn(indexDescriptor.logMessage("Invalid per-SSTable component for SSTable {}"), sstable.descriptor);
                     invalid.add(sstable);

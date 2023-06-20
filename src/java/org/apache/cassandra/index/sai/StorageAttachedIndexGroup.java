@@ -250,7 +250,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             SSTableAddedNotification notice = (SSTableAddedNotification) notification;
 
             // Avoid validation for index files just written following Memtable flush.
-            boolean validate = !notice.memtable().isPresent();
+            IndexValidation validate = notice.memtable().isPresent() ? IndexValidation.NONE : IndexValidation.CHECKSUM;
             onSSTableChanged(Collections.emptySet(), notice.added, indexes, validate);
         }
         else if (notification instanceof SSTableListChangedNotification)
@@ -258,7 +258,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
 
             // Avoid validation for index files just written during compaction.
-            onSSTableChanged(notice.removed, notice.added, indexes, false);
+            onSSTableChanged(notice.removed, notice.added, indexes, IndexValidation.NONE);
         }
         else if (notification instanceof MemtableRenewedNotification)
         {
@@ -298,9 +298,9 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
      * files being corrupt or being unable to successfully update their views
      */
     synchronized Set<StorageAttachedIndex> onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added,
-                                                            Set<StorageAttachedIndex> indexes, boolean validate)
+                                                            Set<StorageAttachedIndex> indexes, IndexValidation validation)
     {
-        Pair<Set<SSTableContext>, Set<SSTableReader>> results = contextManager.update(removed, added, validate);
+        Pair<Set<SSTableContext>, Set<SSTableReader>> results = contextManager.update(removed, added, validation);
 
         if (!results.right.isEmpty())
         {
@@ -321,7 +321,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
         for (StorageAttachedIndex index : indexes)
         {
-            Collection<SSTableContext> invalid = index.getIndexContext().onSSTableChanged(removed, results.left, validate);
+            Collection<SSTableContext> invalid = index.getIndexContext().onSSTableChanged(removed, results.left, validation);
 
             if (!invalid.isEmpty())
             {
@@ -410,8 +410,8 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     public void unsafeReload()
     {
         contextManager.clear();
-        onSSTableChanged(baseCfs.getLiveSSTables(), Collections.emptySet(), indexes, false);
-        onSSTableChanged(Collections.emptySet(), baseCfs.getLiveSSTables(), indexes, true);
+        onSSTableChanged(baseCfs.getLiveSSTables(), Collections.emptySet(), indexes, IndexValidation.NONE);
+        onSSTableChanged(Collections.emptySet(), baseCfs.getLiveSSTables(), indexes, IndexValidation.HEADER_FOOTER);
     }
 
     /**
@@ -422,6 +422,6 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     {
         contextManager.clear();
         indexes.forEach(StorageAttachedIndex::makeIndexNonQueryable);
-        onSSTableChanged(baseCfs.getLiveSSTables(), Collections.emptySet(), indexes, false);
+        onSSTableChanged(baseCfs.getLiveSSTables(), Collections.emptySet(), indexes, IndexValidation.NONE);
     }
 }

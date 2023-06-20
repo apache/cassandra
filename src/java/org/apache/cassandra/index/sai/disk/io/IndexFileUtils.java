@@ -19,7 +19,7 @@
 package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
+import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -58,7 +58,7 @@ public class IndexFileUtils
     {
         assert writerOption.finishOnClose() : "IndexOutputWriter relies on close() to sync with disk.";
 
-        return new IndexOutputWriter(new IncrementalChecksumSequentialWriter(file, writerOption));
+        return new IndexOutputWriter(new ChecksummingWriter(file, writerOption));
     }
 
     public IndexInput openInput(FileHandle handle)
@@ -75,74 +75,27 @@ public class IndexFileUtils
         return IndexInputReader.create(randomReader, fileHandle::close);
     }
 
-    public interface ChecksumWriter
-    {
-        long getChecksum();
-    }
-
-    static class IncrementalChecksumSequentialWriter extends SequentialWriter implements ChecksumWriter
+    static class ChecksummingWriter extends SequentialWriter
     {
         private final CRC32 checksum = new CRC32();
 
-        IncrementalChecksumSequentialWriter(File file, SequentialWriterOption writerOption)
+        ChecksummingWriter(File file, SequentialWriterOption writerOption)
         {
             super(file, writerOption);
         }
 
-        @Override
-        public void writeByte(int b) throws IOException
+        public long getChecksum() throws IOException
         {
-            super.writeByte(b);
-            checksum.update(b);
-        }
-
-        @Override
-        public void write(byte[] b) throws IOException
-        {
-            super.write(b);
-            checksum.update(b);
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException
-        {
-            super.write(b, off, len);
-            checksum.update(b, off, len);
-        }
-
-        @Override
-        public void writeChar(int v) throws IOException
-        {
-            super.writeChar(v);
-            addTochecksum(v, 2);
-        }
-
-        @Override
-        public void writeInt(int v) throws IOException
-        {
-            super.writeInt(v);
-            addTochecksum(v, 4);
-        }
-
-        @Override
-        public void writeLong(long v) throws IOException
-        {
-            super.writeLong(v);
-            addTochecksum(v, 8);
-        }
-
-        public long getChecksum()
-        {
+            flush();
             return checksum.getValue();
         }
 
-        private void addTochecksum(long bytes, int count)
+        @Override
+        protected void flushData()
         {
-            int origCount = count;
-            if (ByteOrder.BIG_ENDIAN == buffer.order())
-                while (count > 0) checksum.update((int) (bytes >>> (8 * --count)));
-            else
-                while (count > 0) checksum.update((int) (bytes >>> (8 * (origCount - count--))));
+            ByteBuffer toAppend = buffer.duplicate().flip();
+            super.flushData();
+            checksum.update(toAppend);
         }
     }
 }
