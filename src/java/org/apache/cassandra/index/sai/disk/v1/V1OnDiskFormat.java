@@ -176,14 +176,11 @@ public class V1OnDiskFormat implements OnDiskFormat
                 }
                 catch (Throwable e)
                 {
-                    if (logger.isDebugEnabled())
-                    {
-                        logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}. Error: {}"),
-                                     checksum ? "Checksum validation" : "Validation",
-                                     indexComponent,
-                                     indexDescriptor.sstableDescriptor,
-                                     e);
-                    }
+                    logger.error(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}. Error: {}"),
+                                 checksum ? "Checksum validation" : "Validation",
+                                 indexComponent,
+                                 indexDescriptor.sstableDescriptor,
+                                 e);
                     return false;
                 }
             }
