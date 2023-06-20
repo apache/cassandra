@@ -19,7 +19,6 @@
 import os
 import platform
 import sys
-import asyncore
 from glob import glob
 
 if sys.version_info < (3, 6):
