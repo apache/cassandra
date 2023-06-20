@@ -301,6 +301,7 @@ delete_repeated_jobs()
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
     delete_job "$1" "j11_simulator_dtests_repeat"
+    delete_job "$1" "j17_simulator_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
     delete_job "$1" "j11_jvm_dtests_repeat"

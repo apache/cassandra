@@ -1234,6 +1234,18 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_jvm_dtests_vnode_repeat
           - j17_build
+    - start_j17_simulator_dtests:
+        type: approval
+    - j17_simulator_dtests:
+        requires:
+          - start_j17_simulator_dtests
+          - j17_build
+    - start_j17_simulator_dtests_repeat:
+        type: approval
+    - j17_simulator_dtests_repeat:
+        requires:
+          - start_j17_simulator_dtests_repeat
+          - j17_build
     - start_j17_cqlshlib_tests:
         type: approval
     - j17_cqlshlib_tests:
@@ -1470,6 +1482,12 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
         requires:
           - j17_build
     - j17_unit_tests_repeat:
+        requires:
+          - j17_build
+    - j17_simulator_dtests:
+        requires:
+          - j17_build
+    - j17_simulator_dtests_repeat:
         requires:
           - j17_build
     - j17_jvm_dtests:
@@ -1730,6 +1748,15 @@ jobs:
 
   j11_simulator_dtests:
     <<: *j11_small_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_simulator_tests
+
+  j17_simulator_dtests:
+    <<: *j17_small_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -2612,6 +2639,14 @@ jobs:
 
   j11_simulator_dtests_repeat:
     <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_simulator_dtests_repeat
+
+  j17_simulator_dtests_repeat:
+    <<: *j17_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
