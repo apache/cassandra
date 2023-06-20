@@ -1639,7 +1639,7 @@
     </sequential>
   </macrodef>
 
-  <target name="test" depends="eclipse-warnings,maybe-build-test" description="Test Runner">
+  <target name="test" depends="maybe-build-test" description="Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
@@ -1982,36 +1982,9 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
-  <!-- ECJ 4.6.1 in standalone mode does not work with JPMS, so we skip this target for Java 11 -->
+  <!-- Empty fake task until we remove it from Jenkins. eclipse-warnings removed in favor of using CheckerFramework
+   For more information - CASSANDRA-18190 and CASSANDDRA-18239-->
   <target name="eclipse-warnings" depends="build, _assert_rat_output" description="Run eclipse compiler code analysis" if="java.version.8">
-        <property name="ecj.log.dir" value="${build.dir}/ecj" />
-        <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
-        <mkdir  dir="${ecj.log.dir}" />
-
-        <property name="ecj.properties" value="${basedir}/eclipse_compiler.properties" />
-
-        <echo message="Running Eclipse Code Analysis.  Output logged to ${ecj.warnings.file}" />
-
-	<java
-	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"
-            fork="true"
-	    failonerror="true"
-            maxmemory="512m">
-            <arg value="-source"/>
-	    <arg value="${java.default}" />
-	    <arg value="-target"/>
-	    <arg value="${ant.java.version}" />
-	    <arg value="-d" />
-            <arg value="none" />
-	    <arg value="-proc:none" />
-            <arg value="-log" />
-            <arg value="${ecj.warnings.file}" />
-            <arg value="-properties" />
-            <arg value="${ecj.properties}" />
-            <arg value="-cp" />
-            <arg value="${toString:cassandra.classpath}" />
-            <arg value="${build.src.java}" />
-        </java>
   </target>
 
   <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
