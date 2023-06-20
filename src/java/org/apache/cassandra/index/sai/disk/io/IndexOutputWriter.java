@@ -62,9 +62,9 @@ public class IndexOutputWriter extends IndexOutput
     }
 
     @Override
-    public long getChecksum()
+    public long getChecksum() throws IOException
     {
-        return ((IndexFileUtils.ChecksumWriter)out).getChecksum();
+        return ((IndexFileUtils.ChecksummingWriter)out).getChecksum();
     }
 
     @Override
@@ -106,10 +106,16 @@ public class IndexOutputWriter extends IndexOutput
     @Override
     public String toString()
     {
+        String checksum;
+        try {
+            checksum = String.valueOf(getChecksum());
+        } catch (IOException e) {
+            checksum = "unknown due to I/O error: " + e;
+        }
         return MoreObjects.toStringHelper(this)
                           .add("path", out.getPath())
                           .add("bytesWritten", getFilePointer())
-                          .add("crc", getChecksum())
+                          .add("crc", checksum)
                           .toString();
     }
 

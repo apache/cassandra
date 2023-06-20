@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.IndexValidation;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -327,28 +328,25 @@ public class IndexDescriptor
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean validatePerIndexComponents(IndexContext indexContext)
+    public boolean validatePerIndexComponents(IndexContext indexContext, IndexValidation validation)
     {
-        logger.info(indexContext.logMessage("Validating per-column index components"));
-        return version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, false);
-    }
+        if (validation == IndexValidation.NONE)
+            return true;
 
-    @VisibleForTesting
-    public boolean validatePerIndexComponentsChecksum(IndexContext indexContext)
-    {
-        return version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, true);
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean validatePerSSTableComponents()
-    {
-        return version.onDiskFormat().validatePerSSTableIndexComponents(this, false);
+        logger.info(indexContext.logMessage("Validating per-column index components using mode " + validation));
+        boolean checksum = validation == IndexValidation.CHECKSUM;
+        return version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, checksum);
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    public boolean validatePerSSTableComponentsChecksum()
+    public boolean validatePerSSTableComponents(IndexValidation validation)
     {
-        return version.onDiskFormat().validatePerSSTableIndexComponents(this, true);
+        if (validation == IndexValidation.NONE)
+            return true;
+
+        logger.info(logMessage("Validating per-sstable index components using mode " + validation));
+        boolean checksum = validation == IndexValidation.CHECKSUM;
+        return version.onDiskFormat().validatePerSSTableIndexComponents(this, checksum);
     }
 
     public void deletePerSSTableIndexComponents()
