@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -57,31 +56,35 @@ public class FunctionCall extends Term.NonTerminal
             t.collectMarkerSpecification(boundNames);
     }
 
+    @Override
     public Term.Terminal bind(QueryOptions options) throws InvalidRequestException
     {
-        return makeTerminal(fun, bindAndGet(options), options.getProtocolVersion());
+        return makeTerminal(fun, bindAndGet(options));
     }
 
+    @Override
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
     {
-        List<ByteBuffer> buffers = new ArrayList<>(terms.size());
-        for (Term t : terms)
+        Arguments arguments = fun.newArguments(options.getProtocolVersion());
+        for (int i = 0, m = terms.size(); i < m; i++)
         {
-            ByteBuffer functionArg = t.bindAndGet(options);
-            RequestValidations.checkBindValueSet(functionArg, "Invalid unset value for argument in call to function %s", fun.name().name);
-            buffers.add(functionArg);
+            Term t = terms.get(i);
+            ByteBuffer argument = t.bindAndGet(options);
+            RequestValidations.checkBindValueSet(argument, "Invalid unset value for argument in call to function %s", fun.name().name);
+            arguments.set(i, argument);
         }
-        return executeInternal(options.getProtocolVersion(), fun, buffers);
+        return executeInternal(fun, arguments);
     }
 
-    private static ByteBuffer executeInternal(ProtocolVersion protocolVersion, ScalarFunction fun, List<ByteBuffer> params) throws InvalidRequestException
+    private static ByteBuffer executeInternal(ScalarFunction fun, Arguments arguments) throws InvalidRequestException
     {
-        ByteBuffer result = fun.execute(protocolVersion, params);
+        ByteBuffer result = fun.execute(arguments);
         try
         {
-            // Check the method didn't lied on it's declared return type
+            // Check the method didn't lie on it's declared return type
             if (result != null)
                 fun.returnType().validate(result);
+
             return result;
         }
         catch (MarshalException e)
@@ -101,7 +104,7 @@ public class FunctionCall extends Term.NonTerminal
         return false;
     }
 
-    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, ProtocolVersion version) throws InvalidRequestException
+    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result) throws InvalidRequestException
     {
         if (result == null)
             return null;

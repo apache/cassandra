@@ -20,9 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 import java.util.Date;
-import java.util.List;
 
 import org.junit.Test;
 
@@ -185,7 +183,8 @@ public class TimeFctsTest
 
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
-        List<ByteBuffer> params = Collections.singletonList(input);
-        return ((ScalarFunction) function).execute(ProtocolVersion.CURRENT, params);
+        Arguments arguments = function.newArguments(ProtocolVersion.CURRENT);
+        arguments.set(0, input);
+        return ((ScalarFunction) function).execute(arguments);
     }
 }

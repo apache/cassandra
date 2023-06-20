@@ -179,4 +179,9 @@ public class LengthPartitioner implements IPartitioner
     {
         return new PartitionerDefinedOrder(this);
     }
+
+    public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
+    {
+        return new PartitionerDefinedOrder(this, partitionKeyType);
+    }
 }

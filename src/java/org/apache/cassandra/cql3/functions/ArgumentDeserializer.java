@@ -16,17 +16,28 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.upgrade;
+package org.apache.cassandra.cql3.functions;
 
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
- * {@link MixedModeAvailabilityTestBase} for upgrades from v3X with ONE-ALL write-read consistency.
+ * Utility used to deserialize function arguments.
  */
-public class MixedModeAvailabilityV3XOneAllTest extends MixedModeAvailabilityTestBase
+public interface ArgumentDeserializer
 {
-    public MixedModeAvailabilityV3XOneAllTest()
-    {
-        super(v3X, ConsistencyLevel.ONE, ConsistencyLevel.ALL);
-    }
+    /**
+     * An {@link ArgumentDeserializer} that do not deserialize data.
+     */
+    ArgumentDeserializer NOOP_DESERIALIZER = (protocolVersion, buffer) -> buffer;
+
+    /**
+     * Deserializes the specified function argument.
+     *
+     * @param protocolVersion the protocol version
+     * @param buffer the serialized argument
+     * @return the deserialized argument
+     */
+    Object deserialize(ProtocolVersion protocolVersion, ByteBuffer buffer);
 }

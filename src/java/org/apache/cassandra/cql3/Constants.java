@@ -522,7 +522,7 @@ public abstract class Constants
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
-                ByteBuffer newValue = type.add(type, current, type, increment);
+                ByteBuffer newValue = type.add(type.compose(current), type.compose(increment));
                 params.addCell(column, newValue);
             }
             else if (column.type instanceof StringType)

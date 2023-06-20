@@ -30,7 +30,7 @@ die ()
 
 print_help()
 {
-  echo "Usage: $0 [-f|-p|-a|-e|-i|-b]"
+  echo "Usage: $0 [-f|-p|-a|-e|-i|-b|-s]"
   echo "   -a Generate the config_11_and_17.yml, config_11_and_17.yml.FREE and config_11_and_17.yml.PAID expanded configuration"
   echo "      files from the main config_template.yml reusable configuration file."
   echo "      Use this for permanent changes in config_11_and_17.yml that will be committed to the main repo."
@@ -39,6 +39,8 @@ print_help()
   echo "   -b Specify the base git branch for comparison when determining changed tests to"
   echo "      repeat. Defaults to ${BASE_BRANCH}. Note that this option is not used when"
   echo "      the '-a' option is specified."
+  echo "   -s Skip automatic detection of changed tests. Useful when you need to repeat a few ones,"
+  echo "      or when there are too many changed tests for CircleCI."
   echo "   -e <key=value> Environment variables to be used in the generated config_11_and_17.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git"
@@ -55,10 +57,14 @@ print_help()
   echo "                   -e REPEATED_SIMULATOR_DTESTS_COUNT=500"
   echo "                   -e REPEATED_JVM_DTESTS=org.apache.cassandra.distributed.test.PagingTest"
   echo "                   -e REPEATED_JVM_DTESTS_COUNT=500"
+  echo "                   -e REPEATED_JVM_UPGRADE_DTESTS=org.apache.cassandra.distributed.upgrade.GroupByTest"
+  echo "                   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500"
   echo "                   -e REPEATED_DTESTS=cdc_test.py cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
   echo "                   -e REPEATED_DTESTS_COUNT=500"
   echo "                   -e REPEATED_LARGE_DTESTS=replace_address_test.py::TestReplaceAddress::test_replace_stopped_node"
   echo "                   -e REPEATED_LARGE_DTESTS=100"
+  echo "                   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py upgrade_tests/paging_test.py"
+  echo "                   -e REPEATED_UPGRADE_DTESTS_COUNT=25"
   echo "                   -e REPEATED_ANT_TEST_TARGET=testsome"
   echo "                   -e REPEATED_ANT_TEST_CLASS=org.apache.cassandra.cql3.ViewTest"
   echo "                   -e REPEATED_ANT_TEST_METHODS=testCompoundPartitionKey,testStaticTable"
@@ -77,9 +83,11 @@ paid=false
 env_vars=""
 has_env_vars=false
 check_env_vars=true
-while getopts "e:afpib:" opt; do
+detect_changed_tests=true
+while getopts "e:afpib:s" opt; do
   case $opt in
       a ) all=true
+          detect_changed_tests=false
           ;;
       f ) free=true
           ;;
@@ -95,6 +103,8 @@ while getopts "e:afpib:" opt; do
       b ) BASE_BRANCH="$OPTARG"
           ;;
       i ) check_env_vars=false
+          ;;
+      s ) detect_changed_tests=false
           ;;
       \?) die "Invalid option: -$OPTARG"
           ;;
@@ -124,10 +134,14 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_SIMULATOR_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_JVM_DTESTS" ] &&
        [ "$key" != "REPEATED_JVM_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS" ]  &&
+       [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS_COUNT" ]  &&
        [ "$key" != "REPEATED_DTESTS" ] &&
        [ "$key" != "REPEATED_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_LARGE_DTESTS" ] &&
        [ "$key" != "REPEATED_LARGE_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_UPGRADE_DTESTS" ] &&
+       [ "$key" != "REPEATED_UPGRADE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_ANT_TEST_TARGET" ] &&
        [ "$key" != "REPEATED_ANT_TEST_CLASS" ] &&
        [ "$key" != "REPEATED_ANT_TEST_METHODS" ] &&
@@ -181,7 +195,7 @@ elif (! ($has_env_vars)); then
 fi
 
 # add new or modified tests to the sets of tests to be repeated
-if (! ($all)); then
+if $detect_changed_tests; then
   # Sanity check that the referenced branch exists
   if ! git show ${BASE_BRANCH} -- >&/dev/null; then
     echo -e "\n\nUnknown base branch: ${BASE_BRANCH}. Unable to detect changed tests.\n"
@@ -222,6 +236,7 @@ if (! ($all)); then
   add_diff_tests "REPEATED_UTESTS_FQLTOOL" "tools/fqltool/test/unit/" "org.apache.cassandra.fqltool"
   add_diff_tests "REPEATED_SIMULATOR_DTESTS" "test/simulator/test/" "org.apache.cassandra.simulator.test"
   add_diff_tests "REPEATED_JVM_DTESTS" "test/distributed/" "org.apache.cassandra.distributed.test"
+  add_diff_tests "REPEATED_JVM_UPGRADE_DTESTS" "test/distributed/" "org.apache.cassandra.distributed.upgrade"
 fi
 
 # replace environment variables
@@ -293,6 +308,10 @@ delete_repeated_jobs()
     delete_job "$1" "j17_jvm_dtests_repeat"
     delete_job "$1" "j17_jvm_dtests_vnode_repeat"
   fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
+      delete_job "$1" "start_jvm_upgrade_dtests_repeat"
+      delete_job "$1" "j11_jvm_upgrade_dtests_repeat"
+  fi
   if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
     delete_job "$1" "j11_dtests_repeat"
     delete_job "$1" "j11_dtests_vnode_repeat"
@@ -306,6 +325,9 @@ delete_repeated_jobs()
     delete_job "$1" "j11_dtests_large_vnode_repeat"
     delete_job "$1" "j17_dtests_large_repeat"
     delete_job "$1" "j17_dtests_large_vnode_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
+      delete_job "$1" "j11_upgrade_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
     delete_job "$1" "j11_repeated_ant_test"
