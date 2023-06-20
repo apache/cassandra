@@ -162,9 +162,9 @@ public class IndexContext
     /**
      * @return A set of SSTables which have attached to them invalid index components.
      */
-    public Collection<SSTableContext> onSSTableChanged(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTables, boolean validate)
+    public Collection<SSTableContext> onSSTableChanged(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTables, IndexValidation validation)
     {
-        return viewManager.update(oldSSTables, newSSTables, validate);
+        return viewManager.update(oldSSTables, newSSTables, validation);
     }
 
     public ColumnMetadata getDefinition()
@@ -408,7 +408,7 @@ public class IndexContext
      * @return the indexes that are built on the given SSTables on the left and corrupted indexes'
      * corresponding contexts on the right
      */
-    public Pair<Collection<SSTableIndex>, Collection<SSTableContext>> getBuiltIndexes(Collection<SSTableContext> sstableContexts, boolean validate)
+    public Pair<Collection<SSTableIndex>, Collection<SSTableContext>> getBuiltIndexes(Collection<SSTableContext> sstableContexts, IndexValidation validation)
     {
         Set<SSTableIndex> valid = new HashSet<>(sstableContexts.size());
         Set<SSTableContext> invalid = new HashSet<>();
@@ -433,9 +433,9 @@ public class IndexContext
 
             try
             {
-                if (validate)
+                if (validation != IndexValidation.NONE)
                 {
-                    if (!sstableContext.indexDescriptor.validatePerIndexComponents(this))
+                    if (!sstableContext.indexDescriptor.validatePerIndexComponents(this, validation))
                     {
                         logger.warn(logMessage("Invalid per-column component for SSTable {}"), sstableContext.descriptor());
                         invalid.add(sstableContext);

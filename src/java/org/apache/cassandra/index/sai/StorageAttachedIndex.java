@@ -271,10 +271,11 @@ public class StorageAttachedIndex implements Index
         // New storage-attached indexes will be available for queries after on disk index data are built.
         // Memtable data will be indexed via flushing triggered by schema change
         // We only want to validate the index files if we are starting up
-        return () -> startInitialBuild(baseCfs, StorageService.instance.isStarting()).get();
+        IndexValidation validation = StorageService.instance.isStarting() ? IndexValidation.HEADER_FOOTER : IndexValidation.NONE;
+        return () -> startInitialBuild(baseCfs, validation).get();
     }
 
-    private Future<?> startInitialBuild(ColumnFamilyStore baseCfs, boolean validate)
+    private Future<?> startInitialBuild(ColumnFamilyStore baseCfs, IndexValidation validation)
     {
         if (baseCfs.indexManager.isIndexQueryable(this))
         {
@@ -303,7 +304,7 @@ public class StorageAttachedIndex implements Index
 
         assert indexGroup != null : "Index group does not exist for table " + baseCfs.keyspace + '.' + baseCfs.name;
 
-        List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validate);
+        List<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, validation);
 
         if (nonIndexed.isEmpty())
         {
@@ -430,7 +431,7 @@ public class StorageAttachedIndex implements Index
 
             assert indexGroup != null : "Index group does not exist for table";
 
-            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, true);
+            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, IndexValidation.HEADER_FOOTER);
 
             if (nonIndexed.isEmpty())
             {
@@ -522,13 +523,13 @@ public class StorageAttachedIndex implements Index
      *
      * @return a list SSTables without attached indexes
      */
-    private synchronized List<SSTableReader> findNonIndexedSSTables(ColumnFamilyStore baseCfs, StorageAttachedIndexGroup group, boolean validate)
+    private synchronized List<SSTableReader> findNonIndexedSSTables(ColumnFamilyStore baseCfs, StorageAttachedIndexGroup group, IndexValidation validation)
     {
         Set<SSTableReader> sstables = baseCfs.getLiveSSTables();
 
         // Initialize the SSTable indexes w/ valid existing components...
         assert group != null : "Missing index group on " + baseCfs.name;
-        group.onSSTableChanged(Collections.emptyList(), sstables, Collections.singleton(this), validate);
+        group.onSSTableChanged(Collections.emptyList(), sstables, Collections.singleton(this), validation);
 
         // ...then identify and rebuild the SSTable indexes that are missing.
         List<SSTableReader> nonIndexed = new ArrayList<>();

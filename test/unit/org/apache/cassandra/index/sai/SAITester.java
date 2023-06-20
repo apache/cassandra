@@ -75,6 +75,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
@@ -127,13 +128,13 @@ public abstract class SAITester extends CQLTester
                                                                             .build();
 
     protected static final Injections.Counter perSSTableValidationCounter = Injections.newCounter("PerSSTableValidationCounter")
-                                                                                      .add(newInvokePoint().onClass(IndexDescriptor.class)
-                                                                                                           .onMethod("validatePerSSTableComponents"))
+                                                                                      .add(newInvokePoint().onClass(OnDiskFormat.class)
+                                                                                                           .onMethod("validatePerSSTableIndexComponents"))
                                                                                       .build();
 
     protected static final Injections.Counter perColumnValidationCounter = Injections.newCounter("PerColumnValidationCounter")
-                                                                                     .add(newInvokePoint().onClass(IndexDescriptor.class)
-                                                                                                          .onMethod("validatePerIndexComponents"))
+                                                                                     .add(newInvokePoint().onClass(OnDiskFormat.class)
+                                                                                                          .onMethod("validatePerColumnIndexComponents"))
                                                                                      .build();
 
     private static Randomization random;
@@ -320,7 +321,8 @@ public abstract class SAITester extends CQLTester
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponentsChecksum() || !indexDescriptor.validatePerIndexComponentsChecksum(indexContext))
+            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM)
+                || !indexDescriptor.validatePerIndexComponents(indexContext, IndexValidation.CHECKSUM))
                 return false;
         }
         return true;
@@ -333,7 +335,8 @@ public abstract class SAITester extends CQLTester
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponents() || !indexDescriptor.validatePerIndexComponents(indexContext))
+            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.HEADER_FOOTER)
+                || !indexDescriptor.validatePerIndexComponents(indexContext, IndexValidation.HEADER_FOOTER))
                 return false;
         }
         return true;

@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.IndexValidation;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
@@ -64,14 +65,14 @@ public class IndexViewManager
      *
      * @param oldSSTables A set of SSTables to remove.
      * @param newSSTableContexts A set of SSTableContexts to add to tracker.
-     * @param validate if true, per-column index files' header and footer will be validated.
+     * @param validation Controls how indexes should be validated
      *
      * @return A set of SSTables which have attached to them invalid index components.
      */
-    public Collection<SSTableContext> update(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTableContexts, boolean validate)
+    public Collection<SSTableContext> update(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTableContexts, IndexValidation validation)
     {
         // Valid indexes on the left and invalid SSTable contexts on the right...
-        Pair<Collection<SSTableIndex>, Collection<SSTableContext>> indexes = context.getBuiltIndexes(newSSTableContexts, validate);
+        Pair<Collection<SSTableIndex>, Collection<SSTableContext>> indexes = context.getBuiltIndexes(newSSTableContexts, validation);
 
         View currentView, newView;
         Collection<SSTableIndex> newViewIndexes = new HashSet<>();
@@ -129,7 +130,7 @@ public class IndexViewManager
             index.markObsolete();
         }
 
-        update(toRemove, Collections.emptyList(), false);
+        update(toRemove, Collections.emptyList(), IndexValidation.NONE);
     }
 
     /**

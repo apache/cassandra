@@ -259,10 +259,12 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
      */
     private CountDownLatch shouldWritePerSSTableFiles(SSTableReader sstable)
     {
-        // if per-table files are incomplete or checksum failed during full rebuild.
         IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-        if (!indexDescriptor.isPerSSTableIndexBuildComplete() ||
-            (isFullRebuild && !indexDescriptor.validatePerSSTableComponentsChecksum()))
+
+        // if per-table files are incomplete, full rebuild is requested, or checksum fails
+        if (!indexDescriptor.isPerSSTableIndexBuildComplete()
+            || isFullRebuild
+            || !indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM))
         {
             CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
             if (inProgress.putIfAbsent(sstable, latch) == null)
@@ -307,7 +309,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
         // register custom index components into existing sstables
         sstable.registerComponents(StorageAttachedIndexGroup.getLiveComponents(sstable, existing), tracker);
-        Set<StorageAttachedIndex> incomplete = group.onSSTableChanged(Collections.emptyList(), Collections.singleton(sstable), existing, false);
+        Set<StorageAttachedIndex> incomplete = group.onSSTableChanged(Collections.emptyList(), Collections.singleton(sstable), existing, IndexValidation.NONE);
 
         if (!incomplete.isEmpty())
         {
