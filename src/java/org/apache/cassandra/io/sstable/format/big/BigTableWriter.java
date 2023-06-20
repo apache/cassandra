@@ -146,7 +146,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         return entry;
     }
 
-    @SuppressWarnings("resource")
     private BigTableReader openInternal(IndexSummaryBuilder.ReadableBoundary boundary, SSTableReader.OpenReason openReason)
     {
         assert boundary == null || (boundary.indexLength > 0 && boundary.dataLength > 0);
@@ -281,7 +280,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
             summary = new IndexSummaryBuilder(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             // register listeners to be alerted when the data files are flushed
             writer.setPostFlushListener(() -> summary.markIndexSynced(writer.getLastFlushOffset()));
-            @SuppressWarnings("resource")
             @MustCallAlias SequentialWriter dataWriter = b.getDataWriter();
             dataWriter.setPostFlushListener(() -> summary.markDataSynced(dataWriter.getLastFlushOffset()));
         }

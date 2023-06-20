@@ -325,7 +325,6 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
      * @param file File to open for reading
      * @return new RandomAccessReader that owns the channel opened in this method.
      */
-    @SuppressWarnings("resource")
     public static RandomAccessReader open(File file)
     {
         ChannelProxy channel = new ChannelProxy(file);

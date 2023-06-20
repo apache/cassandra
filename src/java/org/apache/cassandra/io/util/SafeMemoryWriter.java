@@ -31,7 +31,6 @@ public class SafeMemoryWriter extends DataOutputBuffer
 {
     private @Owning SafeMemory memory;
 
-    @SuppressWarnings("resource")
     public SafeMemoryWriter(long initialCapacity)
     {
         this(new SafeMemory(initialCapacity));

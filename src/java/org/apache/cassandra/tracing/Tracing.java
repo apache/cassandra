@@ -232,7 +232,6 @@ public abstract class Tracing extends ExecutorLocals.Impl
 
     public void set(TraceState tls)
     {
-        @SuppressWarnings("resource")
         ExecutorLocals current = ExecutorLocals.current();
         ExecutorLocals.Impl.set(tls, current.clientWarnState);
     }

@@ -45,7 +45,6 @@ import org.apache.cassandra.schema.ColumnMetadata.Kind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
-@SuppressWarnings("resource")
 public class Operation extends RangeIterator<Long, Token>
 {
     public enum OperationType

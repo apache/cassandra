@@ -103,7 +103,6 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
         return entry;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     private BtiTableReader openInternal(OpenReason openReason, boolean isFinal, Supplier<PartitionIndex> partitionIndexSupplier)
     {
         IFilter filter = null;
@@ -167,7 +166,6 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     protected SSTableReader openFinal(OpenReason openReason)
     {
 
@@ -224,7 +222,6 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
             // register listeners to be alerted when the data files are flushed
             partitionIndexWriter.setPostFlushListener(() -> partitionIndex.markPartitionIndexSynced(partitionIndexWriter.getLastFlushOffset()));
             rowIndexWriter.setPostFlushListener(() -> partitionIndex.markRowIndexSynced(rowIndexWriter.getLastFlushOffset()));
-            @SuppressWarnings({"resource", "RedundantSuppression"})
             SequentialWriter dataWriter = b.getDataWriter();
             dataWriter.setPostFlushListener(() -> partitionIndex.markDataSynced(dataWriter.getLastFlushOffset()));
         }

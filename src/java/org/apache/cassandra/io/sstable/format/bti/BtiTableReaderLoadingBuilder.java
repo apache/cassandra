@@ -101,7 +101,7 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
 
             if (builder.getComponents().contains(Components.PARTITION_INDEX) && builder.getComponents().contains(Components.ROW_INDEX) && rebuildFilter)
             {
-                @SuppressWarnings({ "resource", "RedundantSuppression" })
+
                 IFilter filter = buildBloomFilter(statsComponent.statsMetadata());
                 builder.setFilter(filter);
                 FilterComponent.save(filter, descriptor, false);

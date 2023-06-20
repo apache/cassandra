@@ -73,7 +73,6 @@ public class ComponentContext implements AutoCloseable
     public FileChannel channel(Descriptor descriptor, Component component, long size) throws IOException
     {
         File toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component) : descriptor.fileFor(component);
-        @SuppressWarnings("resource") // file channel will be closed by Caller
         FileChannel channel = toTransfer.newReadChannel();
 
         try

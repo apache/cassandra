@@ -59,7 +59,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.staticRow = iterator.readStaticRow();
     }
 
-    @SuppressWarnings("resource")
     public static SSTableIdentityIterator create(SSTableReader sstable, RandomAccessReader file, DecoratedKey key)
     {
         try
@@ -78,7 +77,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    @SuppressWarnings("resource")
     public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, long dataPosition, DecoratedKey key, boolean tombstoneOnly)
     {
         try

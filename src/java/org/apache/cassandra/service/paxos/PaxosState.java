@@ -59,7 +59,6 @@ import static org.apache.cassandra.service.paxos.Commit.*;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.*;
 import static org.apache.cassandra.service.paxos.Commit.Accepted.latestAccepted;
 import static org.apache.cassandra.service.paxos.Commit.Committed.latestCommitted;
-import static org.apache.cassandra.service.paxos.Commit.isAfter;
 
 /**
  * We save to memory the result of each operation before persisting to disk, however each operation that performs
@@ -812,7 +811,6 @@ public class PaxosState implements PaxosOperationLock
         ballotTracker().truncate();
     }
 
-    @SuppressWarnings("resource")
     public static Snapshot unsafeGetIfPresent(DecoratedKey partitionKey, TableMetadata metadata)
     {
         Key key = new Key(partitionKey, metadata);

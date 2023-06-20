@@ -68,7 +68,6 @@ public class BigTableKeyReader implements KeyReader
         }
     }
 
-    @SuppressWarnings({ "resource" })
     public static BigTableKeyReader create(FileHandle indexFile, IndexSerializer serializer) throws IOException
     {
         FileHandle iFile = null;

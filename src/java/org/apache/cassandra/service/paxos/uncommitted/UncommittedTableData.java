@@ -249,7 +249,6 @@ public class UncommittedTableData
         }
     }
 
-    @SuppressWarnings("resource")
     private static CloseableIterator<PaxosKeyState> merge(Collection<UncommittedDataFile> files, Collection<Range<Token>> ranges)
     {
         List<CloseableIterator<PaxosKeyState>> iterators = new ArrayList<>(files.size());

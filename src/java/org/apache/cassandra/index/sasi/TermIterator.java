@@ -79,7 +79,7 @@ public class TermIterator extends RangeIterator<Long, Token>
         this.referencedIndexes = referencedIndexes;
     }
 
-    @SuppressWarnings({"resource", RESOURCE})
+    @SuppressWarnings(RESOURCE)
     public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes)
     {
         final List<RangeIterator<Long, Token>> tokens = new CopyOnWriteArrayList<>();

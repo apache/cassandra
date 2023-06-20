@@ -41,7 +41,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.utils.ByteBufferUtil.*;
-import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
 import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
 
@@ -124,7 +123,7 @@ public class PagingState
      * Modern serde (> VERSION_3)
      */
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     private ByteBuffer modernSerialize() throws IOException
     {
         DataOutputBuffer out = new DataOutputBufferFixed(modernSerializedSize());
@@ -197,7 +196,7 @@ public class PagingState
         return (int)value;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     private static PagingState modernDeserialize(ByteBuffer bytes, ProtocolVersion protocolVersion) throws IOException
     {
         if (protocolVersion.isSmallerThan(ProtocolVersion.V4))
@@ -232,7 +231,7 @@ public class PagingState
      */
 
     @VisibleForTesting
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     ByteBuffer legacySerialize(boolean withRemainingInPartition) throws IOException
     {
         DataOutputBuffer out = new DataOutputBufferFixed(legacySerializedSize(withRemainingInPartition));
@@ -283,7 +282,7 @@ public class PagingState
         return false;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     private static PagingState legacyDeserialize(ByteBuffer bytes, ProtocolVersion protocolVersion) throws IOException
     {
         if (protocolVersion.isGreaterThan(ProtocolVersion.V3))

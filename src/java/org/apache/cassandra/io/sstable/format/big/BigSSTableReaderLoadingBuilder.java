@@ -182,7 +182,6 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
      * @param rebuildSummary true if index summary, first and last keys should be rebuilt
      * @return a pair of created filter and index summary component (or nulls if some of them were not created)
      */
-    @SuppressWarnings("resource")
     private Pair<IFilter, IndexSummaryComponent> buildSummaryAndBloomFilter(FileHandle indexFile,
                                                                             SerializationHeader serializationHeader,
                                                                             boolean rebuildFilter,

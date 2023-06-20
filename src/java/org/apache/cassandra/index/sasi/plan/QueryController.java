@@ -152,7 +152,6 @@ public class QueryController
 
         for (Map.Entry<Expression, Set<SSTableIndex>> e : view)
         {
-            @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
             RangeIterator<Long, Token> index = TermIterator.build(e.getKey(), e.getValue());
 
             builder.add(index);

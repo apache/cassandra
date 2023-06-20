@@ -297,7 +297,6 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     /**
      * Add hooks to correctly update the storage load metrics once the transaction is closed/aborted
      */
-    @SuppressWarnings("resource") // Transactions are closed in finally outside of this method
     private void addHooks(ColumnFamilyStore cfs, Map<TableId, LifecycleTransaction> transactions, long oldSize, long newSize, long oldSizeUncompressed, long newSizeUncompressed)
     {
         LifecycleTransaction txn = transactions.get(cfs.metadata.id);

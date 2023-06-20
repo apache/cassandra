@@ -192,7 +192,6 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             }
         }
 
-        @SuppressWarnings("resource")
         public IRowCacheEntry deserialize(ByteBuffer buf)
         {
             try

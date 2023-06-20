@@ -421,7 +421,6 @@ public class IndexSummary extends WrappedSharedCloseable
             out.write(t.entries, 0, t.entriesLength);
         }
 
-        @SuppressWarnings("resource")
         public <T extends InputStream & DataInputPlus> IndexSummary deserialize(T in, IPartitioner partitioner, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
         {
             int minIndexInterval = in.readInt();

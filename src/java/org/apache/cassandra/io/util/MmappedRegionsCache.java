@@ -47,7 +47,6 @@ public class MmappedRegionsCache implements AutoCloseable
      * @param length  length of the file
      * @return a shared copy of the cached mmapped regions
      */
-    @SuppressWarnings("resource")
     public MmappedRegions getOrCreate(ChannelProxy channel, long length)
     {
         Preconditions.checkState(!closed);
@@ -65,7 +64,6 @@ public class MmappedRegionsCache implements AutoCloseable
      * @param metadata compression metadata of the file
      * @return a shared copy of the cached mmapped regions
      */
-    @SuppressWarnings("resource")
     public MmappedRegions getOrCreate(ChannelProxy channel, CompressionMetadata metadata)
     {
         Preconditions.checkState(!closed);
@@ -76,7 +74,6 @@ public class MmappedRegionsCache implements AutoCloseable
     }
 
     @Override
-    @SuppressWarnings("resource")
     public void close()
     {
         closed = true;

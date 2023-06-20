@@ -760,7 +760,6 @@ public class OutboundConnection
          *
          * If there is more work to be done, we submit ourselves for execution once the eventLoop has time.
          */
-        @SuppressWarnings("resource")
         boolean doRun(Established established)
         {
             if (!isWritable)
@@ -974,7 +973,7 @@ public class OutboundConnection
             }
         }
 
-        @SuppressWarnings({ "resource", "RedundantSuppression" }) // make eclipse warnings go away
+
         boolean doRun(Established established)
         {
             Message<?> send = queue.tryPoll(approxTime.now(), this::execute);

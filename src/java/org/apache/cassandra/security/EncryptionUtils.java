@@ -118,7 +118,6 @@ public class EncryptionUtils
         return outputBuffer;
     }
 
-    @SuppressWarnings("resource")
     public static ByteBuffer encrypt(ByteBuffer inputBuffer, ByteBuffer outputBuffer, boolean allowBufferResize, Cipher cipher) throws IOException
     {
         Preconditions.checkNotNull(outputBuffer, "output buffer may not be null");
@@ -173,7 +172,6 @@ public class EncryptionUtils
     }
 
     // path used when decrypting commit log files
-    @SuppressWarnings("resource")
     public static ByteBuffer decrypt(FileDataInput fileDataInput, ByteBuffer outputBuffer, boolean allowBufferResize, Cipher cipher) throws IOException
     {
         try (ReadableByteChannel channel = new DataInputReadChannel(fileDataInput))

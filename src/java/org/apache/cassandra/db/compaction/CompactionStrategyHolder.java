@@ -183,7 +183,6 @@ public class CompactionStrategyHolder extends AbstractStrategyHolder
     }
 
     @Override
-    @SuppressWarnings("resource")
     public List<ISSTableScanner> getScanners(GroupedSSTableContainer sstables, Collection<Range<Token>> ranges)
     {
         List<ISSTableScanner> scanners = new ArrayList<>(strategies.size());

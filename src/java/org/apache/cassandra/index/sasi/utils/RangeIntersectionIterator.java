@@ -30,7 +30,6 @@ import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
-@SuppressWarnings("resource")
 public class RangeIntersectionIterator
 {
     protected enum Strategy

@@ -76,7 +76,6 @@ public class ChecksummedDataInput extends RebufferingInputStream
         this(channel, BufferType.OFF_HEAP);
     }
 
-    @SuppressWarnings("resource")
     public static ChecksummedDataInput open(File file)
     {
         ChannelProxy channel = new ChannelProxy(file);

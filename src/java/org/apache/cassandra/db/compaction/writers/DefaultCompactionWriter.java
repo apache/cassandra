@@ -48,7 +48,6 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
         this(cfs, directories, txn, nonExpiredSSTables, keepOriginals, sstableLevel);
     }
 
-    @SuppressWarnings("resource")
     public DefaultCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, boolean keepOriginals, int sstableLevel)
     {
         super(cfs, directories, txn, nonExpiredSSTables, keepOriginals);

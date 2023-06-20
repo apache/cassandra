@@ -451,7 +451,6 @@ public abstract class UnfilteredRowIterators
             }
         }
 
-        @SuppressWarnings("resource") // We're not really creating any resource here
         private static void checkForInvalidInput(List<UnfilteredRowIterator> iterators)
         {
             if (iterators.isEmpty())
@@ -467,7 +466,6 @@ public abstract class UnfilteredRowIterators
             }
         }
 
-        @SuppressWarnings("resource") // We're not really creating any resource here
         private static DeletionTime collectPartitionLevelDeletion(List<UnfilteredRowIterator> iterators, MergeListener listener)
         {
             DeletionTime[] versions = listener == null ? null : new DeletionTime[iterators.size()];

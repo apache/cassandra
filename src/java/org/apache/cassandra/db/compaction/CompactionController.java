@@ -318,7 +318,6 @@ public class CompactionController extends AbstractCompactionController
                                 Predicates.notNull());
     }
 
-    @SuppressWarnings("resource") // caller to close
     private UnfilteredRowIterator getShadowIterator(SSTableReader reader, DecoratedKey key, boolean tombstoneOnly)
     {
         if (reader.isMarkedSuspect() ||

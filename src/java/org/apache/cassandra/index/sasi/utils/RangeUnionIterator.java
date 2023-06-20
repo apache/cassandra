@@ -41,7 +41,6 @@ import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
  * @param <K> The type used to sort ranges.
  * @param <D> The container type which is going to be returned by {@link Iterator#next()}.
  */
-@SuppressWarnings("resource")
 public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue<K>> extends RangeIterator<K, D>
 {
     private final PriorityQueue<RangeIterator<K, D>> ranges;

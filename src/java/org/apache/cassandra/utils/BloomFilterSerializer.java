@@ -71,7 +71,6 @@ public final class BloomFilterSerializer implements IGenericSerializer<BloomFilt
     }
 
     @Override
-    @SuppressWarnings("resource")
     public @Owning BloomFilter deserialize(DataInputStreamPlus in) throws IOException
     {
         int hashes = in.readInt();

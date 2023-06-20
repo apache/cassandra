@@ -54,7 +54,6 @@ public class StreamDeserializingTask implements Runnable
     @Override
     public void run()
     {
-        @SuppressWarnings("resource") // closed in finally
         StreamingDataInputPlus input = channel.in();
         try
         {

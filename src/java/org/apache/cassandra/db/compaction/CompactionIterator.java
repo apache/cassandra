@@ -118,7 +118,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null);
     }
 
-    @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
     public CompactionIterator(OperationType type,
                               List<ISSTableScanner> scanners,
                               AbstractCompactionController controller,
@@ -210,7 +209,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 int merged = 0;
                 for (int i=0, isize=versions.size(); i<isize; i++)
                 {
-                    @SuppressWarnings("resource")
                     UnfilteredRowIterator iter = versions.get(i);
                     if (iter != null)
                         merged++;
@@ -230,7 +228,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 Columns regulars = Columns.NONE;
                 for (int i=0, isize=versions.size(); i<isize; i++)
                 {
-                    @SuppressWarnings("resource")
                     UnfilteredRowIterator iter = versions.get(i);
                     if (iter != null)
                     {
@@ -660,7 +657,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
 
         @Override
-        @SuppressWarnings("resource")
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
             currentToken = partition.partitionKey().getToken();

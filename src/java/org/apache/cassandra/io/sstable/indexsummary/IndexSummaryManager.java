@@ -200,7 +200,6 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
      *          left: total size of the off heap index summaries for the sstables we were unable to mark compacting (they were involved in other compactions)
      *          right: the transactions, keyed by table id.
      */
-    @SuppressWarnings("resource")
     private Pair<Long, Map<TableId, LifecycleTransaction>> getRestributionTransactions()
     {
         List<SSTableReader> allCompacting = new ArrayList<>();

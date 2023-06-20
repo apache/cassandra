@@ -231,7 +231,6 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             {
                 ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
 
-                @SuppressWarnings("resource") // response will be closed by concatAndBlockOnRepair, or in the catch block below
                 SingleRangeResponse response = query(replicaPlan, i == 0);
                 concurrentQueries.add(response);
                 readRepairs.add(response.getReadRepair());

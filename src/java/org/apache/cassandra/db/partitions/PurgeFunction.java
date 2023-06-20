@@ -74,7 +74,6 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     }
 
     @Override
-    @SuppressWarnings("resource")
     protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
         onNewPartition(partition.partitionKey());

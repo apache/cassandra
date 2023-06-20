@@ -74,7 +74,6 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         this.rateLimiter = rateLimiter;
     }
 
-    @SuppressWarnings("resource") // HintsReader owns input
     static HintsReader open(File file, RateLimiter rateLimiter)
     {
         ChecksummedDataInput reader = ChecksummedDataInput.open(file);
@@ -151,7 +150,6 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     final class PagesIterator extends AbstractIterator<Page>
     {
-        @SuppressWarnings("resource")
         protected Page computeNext()
         {
             input.tryUncacheRead();

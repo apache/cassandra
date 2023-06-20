@@ -180,7 +180,6 @@ public interface Index
      */
     public static class CollatedViewIndexBuildingSupport implements IndexBuildingSupport
     {
-        @SuppressWarnings("resource")
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables)
         {
             return new CollatedViewIndexBuilder(cfs, indexes, new ReducingKeyIterator(sstables), sstables);
