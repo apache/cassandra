@@ -30,7 +30,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -119,33 +118,28 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     private final @Nonnull List<NamedSelect> assignments;
     private final NamedSelect returningSelect;
-    private final @Nonnull List<RowDataReference> returningReferences;
-    private final @Nonnull List<ModificationStatement> updates;
-    private final @Nonnull List<ConditionStatement> conditions;
+    private final @Nonnull List<ConditionalBlock> conditionalBlocks;
 
     private final VariableSpecifications bindVariables;
     private final ResultSet.ResultMetadata resultMetadata;
 
     public TransactionStatement(List<NamedSelect> assignments,
                                 NamedSelect returningSelect,
-                                List<RowDataReference> returningReferences,
-                                List<ModificationStatement> updates,
-                                List<ConditionStatement> conditions,
+                                List<ConditionalBlock> conditionalBlocks,
                                 VariableSpecifications bindVariables)
     {
         this.assignments = assignments;
         this.returningSelect = returningSelect;
-        this.returningReferences = returningReferences;
-        this.updates = updates;
-        this.conditions = conditions;
+        this.conditionalBlocks = conditionalBlocks;
         this.bindVariables = bindVariables;
 
         if (returningSelect != null)
         {
             resultMetadata = returningSelect.select.getResultMetadata();
         }
-        else if (returningReferences != null && !returningReferences.isEmpty())
+        else if (!conditionalBlocks.isEmpty() && !conditionalBlocks.get(0).returningReferences.isEmpty())
         {
+            List<RowDataReference> returningReferences = conditionalBlocks.get(0).returningReferences;
             List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
             for (RowDataReference reference : returningReferences)
                 names.add(reference.toResultMetadata());
@@ -157,9 +151,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
     }
 
+    @Deprecated
     public List<ModificationStatement> getUpdates()
     {
-        return updates;
+        return conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).updates;
     }
 
     @Override
@@ -178,8 +173,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (returningSelect != null)
             returningSelect.select.authorize(state);
 
-        for (ModificationStatement update : updates)
-            update.authorize(state);
+        for (ConditionalBlock block : conditionalBlocks)
+            block.authorize(state);
     }
 
     @Override
@@ -187,22 +182,23 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     {
         for (NamedSelect statement : assignments)
             statement.select.validate(state);
+
         if (returningSelect != null)
             returningSelect.select.validate(state);
-        for (ModificationStatement statement : updates)
-            statement.validate(state);
+
+        for (ConditionalBlock block : conditionalBlocks)
+            block.validate(state);
     }
 
     @Override
     public Iterable<CQLStatement> getStatements()
     {
-        return () -> {
-            Stream<CQLStatement> stream = assignments.stream().map(n -> n.select);
-            if (returningSelect != null)
-                stream = Stream.concat(stream, Stream.of(returningSelect.select));
-            stream = Stream.concat(stream, updates.stream());
-            return stream.iterator();
-        };
+        Iterable<CQLStatement> stream = Iterables.transform(assignments, n -> n.select);
+        if (returningSelect != null)
+            stream = Iterables.concat(stream, Collections.singleton(returningSelect.select));
+        for (ConditionalBlock block : conditionalBlocks)
+            stream = Iterables.concat(stream, block.getStatements());
+        return stream;
     }
 
     @Override
@@ -269,6 +265,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     TxnCondition createCondition(QueryOptions options)
     {
+        // TODO
+        List<ConditionStatement> conditions = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).conditions;
+
         if (conditions.isEmpty())
             return TxnCondition.none();
         if (conditions.size() == 1)
@@ -284,6 +283,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
+        // TODO
+        List<ModificationStatement> updates = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).updates;
+
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
         for (ModificationStatement modification : updates)
@@ -319,6 +321,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public Txn createTxn(ClientState state, QueryOptions options)
     {
         SortedSet<Key> keySet = new TreeSet<>();
+
+        // TODO
+        List<ModificationStatement> updates = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).updates;
+        List<ConditionStatement> conditions = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).conditions;
 
         if (updates.isEmpty())
         {
@@ -400,6 +406,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 }
                 return new ResultMessage.Rows(result.build());
             }
+
+            // TODO
+            List<RowDataReference> returningReferences = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).returningReferences;
 
             if (!returningReferences.isEmpty())
             {
@@ -527,7 +536,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             preparedBlocks.forEach(b -> b.validateSelection(preparedBlocks.get(0)));
 
-            return new TransactionStatement(preparedAssignments, returningSelect, preparedBlocks.get(0).returningReferences, preparedBlocks.get(0).updates, preparedBlocks.get(0).conditions , bindVariables);
+            return new TransactionStatement(preparedAssignments, returningSelect, preparedBlocks, bindVariables);
         }
 
         private List<ConditionalBlock.Raw> getConditionalBlocks()
@@ -590,6 +599,23 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 List<AbstractType<?>> refTypes = referenceBlock.returningReferences.stream().map(r -> r.toResultMetadata().type).collect(Collectors.toList());
                 checkTrue(thisTypes.equals(refTypes), String.format(CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE, source, referenceBlock.source, thisTypes, refTypes));
             }
+        }
+
+        public void authorize(ClientState state)
+        {
+            for (ModificationStatement update : updates)
+                update.authorize(state);
+        }
+
+        public void validate(ClientState state)
+        {
+            for (ModificationStatement statement : updates)
+                statement.validate(state);
+        }
+
+        public Iterable<? extends CQLStatement> getStatements()
+        {
+            return updates;
         }
 
         public static class Raw
