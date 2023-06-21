@@ -853,6 +853,11 @@ The `TRUNCATE` statement permanently removes all data from a table.
 [[createIndexStmt]]
 ==== CREATE INDEX
 
+The `CREATE INDEX` statement is used to create a new
+secondary index for a given (existing) column in a given table. A name
+for the index itself can be specified before the `ON` keyword, if
+desired.
+
 _Syntax:_
 
 bc(syntax).. +
@@ -869,20 +874,26 @@ bc(sample). +
 CREATE INDEX userIndex ON NerdMovies (user); +
 CREATE INDEX ON Mutants (abilityId); +
 CREATE INDEX ON users (keys(favs)); +
+CREATE INDEX ON users (age) USING 'sai'; +
 CREATE CUSTOM INDEX ON users (email) USING `path.to.the.IndexClass'; +
 CREATE CUSTOM INDEX ON users (email) USING `path.to.the.IndexClass' WITH
 OPTIONS = \{’storage’: `/mnt/ssd/indexes/'};
 
-The `CREATE INDEX` statement is used to create a new (automatic)
-secondary index for a given (existing) column in a given table. A name
-for the index itself can be specified before the `ON` keyword, if
-desired. If data already exists for the column, it will be indexed
+If data already exists for the column, it will be indexed
 asynchronously. After the index is created, new data for the column is
-indexed automatically at insertion time.
+indexed automatically at insertion time. Attempting to create an already
+existing index will return an error unless the `IF NOT EXISTS` option is used.
+If it is used, the statement will be a no-op if the index already exists.
 
-Attempting to create an already existing index will return an error
-unless the `IF NOT EXISTS` option is used. If it is used, the statement
-will be a no-op if the index already exists.
+[[indexTypes]]
+===== Index Types
+
+The `USING` keyword optionally specifies an index type. There are two built-in types:
+
+- legacy_local_table - (default) legacy secondary index, implemented as a hidden local table
+- sai - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+
+To create a custom index, a fully qualified class name must be specified.
 
 [[keysIndex]]
 ===== Indexes on Map Keys

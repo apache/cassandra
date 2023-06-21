@@ -35,6 +35,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -77,6 +78,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     public static final String INDEX_DUPLICATE_OF_EXISTING = "Index %s is a duplicate of existing index %s";
     public static final String KEYSPACE_DOES_NOT_MATCH_TABLE = "Keyspace name '%s' doesn't match table name '%s'";
     public static final String KEYSPACE_DOES_NOT_MATCH_INDEX = "Keyspace name '%s' doesn't match index name '%s'";
+    public static final String MUST_SPECIFY_INDEX_IMPLEMENTATION = "Must specify index implementation via USING";
 
     private final String indexName;
     private final String tableName;
@@ -316,6 +318,27 @@ public final class CreateIndexStatement extends AlterSchemaStatement
 
             if (indexName.hasKeyspace() && !keyspaceName.equals(indexName.getKeyspace()))
                 throw ire(KEYSPACE_DOES_NOT_MATCH_INDEX, keyspaceName, tableName);
+            
+            // Set the configured default 2i implementation if one isn't specified with USING:
+            if (attrs.customClass == null)
+            {
+                if (DatabaseDescriptor.getDefaultSecondaryIndexEnabled())
+                    attrs.customClass = DatabaseDescriptor.getDefaultSecondaryIndex();
+                else
+                    // However, operators may require an implementation be specified
+                    throw ire(MUST_SPECIFY_INDEX_IMPLEMENTATION);
+            }
+            
+            // If we explicitly specify the index type "legacy_local_table", we can just clear the custom class, and the
+            // non-custom 2i creation process will begin. Otherwise, if an index type has been specified with 
+            // USING, make sure the appropriate custom index is created.
+            if (attrs.customClass != null)
+            {
+                if (!attrs.isCustom && attrs.customClass.equalsIgnoreCase(CassandraIndex.NAME))
+                    attrs.customClass = null;
+                else
+                    attrs.isCustom = true;
+            }
 
             return new CreateIndexStatement(keyspaceName, tableName.getName(), indexName.getName(), rawIndexTargets, attrs, ifNotExists);
         }
