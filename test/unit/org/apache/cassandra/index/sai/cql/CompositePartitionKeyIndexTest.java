@@ -30,20 +30,20 @@ public class CompositePartitionKeyIndexTest extends SAITester
     public void createTableAndIndex()
     {
         createTable("CREATE TABLE %s (pk1 int, pk2 text, val int, PRIMARY KEY((pk1, pk2)))");
-        createIndex("CREATE CUSTOM INDEX ON %s(pk1) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(pk2) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(pk1) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(pk2) USING 'sai'");
 
         disableCompaction();
     }
 
-    private void insertData1() throws Throwable
+    private void insertData1()
     {
         execute("INSERT INTO %s (pk1, pk2, val) VALUES (1, '1', 1)");
         execute("INSERT INTO %s (pk1, pk2, val) VALUES (2, '2', 2)");
         execute("INSERT INTO %s (pk1, pk2, val) VALUES (3, '3', 3)");
     }
 
-    private void insertData2() throws Throwable
+    private void insertData2()
     {
         execute("INSERT INTO %s (pk1, pk2, val) VALUES (4, '4', 4)");
         execute("INSERT INTO %s (pk1, pk2, val) VALUES (5, '5', 5)");
@@ -51,7 +51,7 @@ public class CompositePartitionKeyIndexTest extends SAITester
     }
 
     @Test
-    public void queryFromMemtable() throws Throwable
+    public void queryFromMemtable()
     {
         insertData1();
         insertData2();
@@ -62,7 +62,7 @@ public class CompositePartitionKeyIndexTest extends SAITester
         return row(index, Integer.toString(index), index);
     }
 
-    private void runQueries() throws Throwable
+    private void runQueries()
     {
         assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk1 = 2"),
                 expectedRow(2));

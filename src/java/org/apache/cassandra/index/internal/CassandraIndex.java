@@ -69,6 +69,8 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
  */
 public abstract class CassandraIndex implements Index
 {
+    public static final String NAME = "legacy_local_table";
+    
     private static final Logger logger = LoggerFactory.getLogger(CassandraIndex.class);
 
     public final ColumnFamilyStore baseCfs;
