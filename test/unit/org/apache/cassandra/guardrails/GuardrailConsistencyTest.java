@@ -149,6 +149,22 @@ public class GuardrailConsistencyTest extends GuardrailTester
         lwtInsert(ConsistencyLevel.LOCAL_QUORUM, null);
     }
 
+    private void select(ConsistencyLevel cl)
+    {
+        executeWithConsistency("SELECT * FROM %s WHERE k=1", cl, null);
+    }
+
+    @Test
+    public void testSelectWithDisallowedWriteConsistency()
+    {
+        // Select should not be affected by any disallowed write consistency levels
+        select(ConsistencyLevel.ONE);
+        select(ConsistencyLevel.LOCAL_ONE);
+        select(ConsistencyLevel.QUORUM);
+        select(ConsistencyLevel.EACH_QUORUM);
+        select(ConsistencyLevel.ALL);
+    }
+
     private void update(ConsistencyLevel cl)
     {
         executeWithConsistency("UPDATE %s SET v = 'val2' WHERE k = 1 and c = 2", cl, null);
