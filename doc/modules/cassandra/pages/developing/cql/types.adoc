@@ -380,6 +380,21 @@ exclusion of conditional write that have their own cost).
 
 Lastly, for xref:cql/types.adoc#lists[lists], TTLs only apply to newly inserted values.
 
+[[vectors]]
+==== Working with vectors
+
+Vectors are fixed-size sequences of non-null values of a certain data type. They use the same literals as lists.
+
+You can define, insert and update a vector with:
+
+[source,cql]
+----
+include::example$CQL/vector.cql[]
+----
+
+Note that it isn't possible to change the individual values of a vector, and it isn't possible to select individual
+elements of a vector.
+
 [[udts]]
 == User-Defined Types (UDTs)
 

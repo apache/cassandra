@@ -25,6 +25,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 /**
  * Utility used to deserialize function arguments.
  */
+@FunctionalInterface
 public interface ArgumentDeserializer
 {
     /**

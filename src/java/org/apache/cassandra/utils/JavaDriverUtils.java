@@ -54,7 +54,19 @@ public final class JavaDriverUtils
 
     public static TypeCodec<Object> codecFor(AbstractType<?> abstractType)
     {
+        if (containsVector(abstractType.unwrap()))
+            throw new IllegalArgumentException("Vectors are not supported on UDFs; given " + abstractType.asCQL3Type());
         return codecFor(driverType(abstractType));
+    }
+
+    private static boolean containsVector(AbstractType<?> type)
+    {
+        if (type.isVector()) return true;
+        for (AbstractType<?> child : type.subTypes())
+        {
+            if (containsVector(child)) return true;
+        }
+        return false;
     }
 
     public static TypeCodec<Object> codecFor(DataType dataType)

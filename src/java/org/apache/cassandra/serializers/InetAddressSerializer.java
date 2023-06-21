@@ -73,4 +73,10 @@ public class InetAddressSerializer extends TypeSerializer<InetAddress>
     {
         return InetAddress.class;
     }
+
+    @Override
+    public boolean shouldQuoteCQLLiterals()
+    {
+        return true;
+    }
 }

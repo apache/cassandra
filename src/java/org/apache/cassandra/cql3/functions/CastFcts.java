@@ -390,7 +390,7 @@ public final class CastFcts
                 if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))
                     return null;
 
-                return argType.getSerializer().toCQLLiteral(buffer);
+                return argType.getSerializer().toCQLLiteralNoQuote(buffer);
             });
         }
 

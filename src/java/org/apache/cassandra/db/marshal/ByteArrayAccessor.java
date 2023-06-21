@@ -207,6 +207,18 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     }
 
     @Override
+    public float getFloat(byte[] value, int offset)
+    {
+        return ByteArrayUtil.getFloat(value, offset);
+    }
+
+    @Override
+    public double getDouble(byte[] value, int offset)
+    {
+        return ByteArrayUtil.getDouble(value, offset);
+    }
+
+    @Override
     public long toLong(byte[] value)
     {
         return getLong(value, 0);
@@ -274,6 +286,13 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     {
         ByteArrayUtil.putLong(dst, offset, value);
         return TypeSizes.LONG_SIZE;
+    }
+
+    @Override
+    public int putFloat(byte[] dst, int offset, float value)
+    {
+        ByteArrayUtil.putFloat(dst, offset, value);
+        return TypeSizes.FLOAT_SIZE;
     }
 
     @Override

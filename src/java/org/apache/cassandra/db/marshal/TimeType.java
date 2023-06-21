@@ -47,6 +47,12 @@ public class TimeType extends TemporalType<Long>
 
     private TimeType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
+
     public ByteBuffer fromString(String source) throws MarshalException
     {
         return decompose(TimeSerializer.timeStringToLong(source));

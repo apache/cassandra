@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.vint.VIntCoding;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 
@@ -130,6 +131,38 @@ public class ValueAccessorTest extends ValueAccessorTester
         Assert.assertEquals(l, accessor.toLong(value));
     }
 
+    private static <V> void testUnsignedVIntConversion(long l, ValueAccessor<V> accessor, int padding)
+    {
+        V value = accessor.allocate(VIntCoding.computeUnsignedVIntSize(l));
+        accessor.putUnsignedVInt(value, 0, l);
+        value = leftPad(value, padding);
+        Assert.assertEquals(l, accessor.getUnsignedVInt(value, 0));
+    }
+
+    private static <V> void testVIntConversion(long l, ValueAccessor<V> accessor, int padding)
+    {
+        V value = accessor.allocate(VIntCoding.computeVIntSize(l));
+        accessor.putVInt(value, 0, l);
+        value = leftPad(value, padding);
+        Assert.assertEquals(l, accessor.getVInt(value, 0));
+    }
+
+    private static <V> void testUnsignedVInt32Conversion(int l, ValueAccessor<V> accessor, int padding)
+    {
+        V value = accessor.allocate(VIntCoding.computeUnsignedVIntSize(l));
+        accessor.putUnsignedVInt32(value, 0, l);
+        value = leftPad(value, padding);
+        Assert.assertEquals(l, accessor.getUnsignedVInt32(value, 0));
+    }
+
+    private static <V> void testVInt32Conversion(int l, ValueAccessor<V> accessor, int padding)
+    {
+        V value = accessor.allocate(VIntCoding.computeVIntSize(l));
+        accessor.putVInt32(value, 0, l);
+        value = leftPad(value, padding);
+        Assert.assertEquals(l, accessor.getVInt32(value, 0));
+    }
+
     private static <V> void testFloatConversion(float f, ValueAccessor<V> accessor, int padding)
     {
         V value = leftPad(accessor.valueOf(f), padding);
@@ -164,6 +197,22 @@ public class ValueAccessorTest extends ValueAccessorTester
         qt().forAll(longs().all(),
                     accessors(),
                     bbPadding()).checkAssert(ValueAccessorTest::testLongConversion);
+
+        qt().forAll(longs().between(0, Long.MAX_VALUE),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testUnsignedVIntConversion);
+
+        qt().forAll(longs().all(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testVIntConversion);
+
+        qt().forAll(integers().between(0, Integer.MAX_VALUE),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testUnsignedVInt32Conversion);
+
+        qt().forAll(integers().all(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testVInt32Conversion);
 
         qt().forAll(floats().any(),
                     accessors(),

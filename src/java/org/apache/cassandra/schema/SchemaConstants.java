@@ -47,6 +47,8 @@ public final class SchemaConstants
 
     public static final String VIRTUAL_VIEWS = "system_views";
 
+    public static final String DUMMY_KEYSPACE_OR_TABLE_NAME = "--dummy--";
+
     /* system keyspace names (the ones with LocalStrategy replication strategy) */
     public static final Set<String> LOCAL_SYSTEM_KEYSPACE_NAMES =
         ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);

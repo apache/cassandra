@@ -52,4 +52,10 @@ public abstract class AbstractSSTableFormat<R extends SSTableReader, W extends S
     {
         return Objects.hash(name);
     }
+
+    @Override
+    public String toString()
+    {
+        return name + ":" + options;
+    }
 }
