@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -160,6 +161,17 @@ public abstract class SSTable
     public Set<Component> getComponents()
     {
         return ImmutableSet.copyOf(components);
+    }
+
+    /**
+     * Returns all SSTable components that should be streamed.
+     * Those are essentially all components, excluding the TOC.
+     */
+    public Set<Component> getStreamingComponents()
+    {
+        return components.stream()
+                         .filter(c -> descriptor.getFormat().streamingComponents().contains(c) || c.type == Components.Types.CUSTOM)
+                         .collect(Collectors.toSet());
     }
 
     public TableMetadata metadata()

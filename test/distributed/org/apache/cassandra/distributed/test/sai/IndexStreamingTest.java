@@ -23,6 +23,7 @@ import java.util.Collections;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -30,6 +31,7 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
+import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,8 +39,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class IndexStreamingTest extends TestBaseImpl
 {
     private static final ByteBuffer BLOB = ByteBuffer.wrap(new byte[1 << 16]);
-    // zero copy streaming sends all components, so the events will include non-Data files as well
-    private static final int NUM_COMPONENTS = 17;
+    private static final int NUM_COMPONENTS;
+
+    static
+    {
+        DatabaseDescriptor.clientInitialization();
+        NUM_COMPONENTS = DatabaseDescriptor.getSelectedSSTableFormat().streamingComponents().size() - 1  // -1 because no compression component
+                         + V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size()
+                         + V1OnDiskFormat.LITERAL_COMPONENTS.size();
+    }
 
     @Test
     public void zeroCopy() throws IOException

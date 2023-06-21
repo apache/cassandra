@@ -55,14 +55,11 @@ public final class ComponentManifest implements Iterable<Component>
     @VisibleForTesting
     public static ComponentManifest create(SSTable sstable)
     {
-        Set<Component> streamingComponents = sstable.getComponents();
+        Set<Component> streamingComponents = sstable.getStreamingComponents();
         LinkedHashMap<Component, Long> components = new LinkedHashMap<>(streamingComponents.size());
 
         for (Component component : streamingComponents)
         {
-            if (component == SSTableFormat.Components.TOC)
-                continue;
-
             File file = sstable.descriptor.fileFor(component);
             if (!file.exists())
                 continue;
