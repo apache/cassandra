@@ -19,6 +19,9 @@
 package org.apache.cassandra.utils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 
 /**
  * The mode of compatibility with older Cassandra versions.
@@ -33,7 +36,7 @@ public enum StorageCompatibilityMode
     CASSANDRA_4(4),
 
     /**
-     * Use the storage formats of the current version, but dissabling features that are not compatible with any
+     * Use the storage formats of the current version, but disabling features that are not compatible with any
      * not-upgraded nodes in the cluster. Use this during rolling upgrades to a new major Cassandra version. Once all
      * nodes have been upgraded, you can set the compatibility to {@link #NONE}.
      */
@@ -42,7 +45,7 @@ public enum StorageCompatibilityMode
     /**
      * Don't try to be compatible with older versions. Data will be written with the most recent format, which might
      * prevent a rollback to previous Cassandra versions. Features that are not compatible with older nodes will be
-     * enabled, asuming that all nodes in the cluster are in the same major version as this node.
+     * enabled, assuming that all nodes in the cluster are in the same major version as this node.
      */
     NONE(Integer.MAX_VALUE);
 
@@ -66,5 +69,13 @@ public enum StorageCompatibilityMode
     public boolean isBefore(int major)
     {
         return this.major < major;
+    }
+
+    public void validateSstableFormat(SSTableFormat<?, ?> selectedFormat)
+    {
+        if (selectedFormat.name().equals(BtiFormat.NAME) && this == StorageCompatibilityMode.CASSANDRA_4)
+            throw new ConfigurationException(String.format("Selected sstable format '%s' is not available when in storage compatibility mode '%s'.",
+                                                           selectedFormat.name(),
+                                                           this));
     }
 }

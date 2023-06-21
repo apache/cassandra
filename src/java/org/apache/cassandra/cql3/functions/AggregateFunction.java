@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -42,10 +41,10 @@ public interface AggregateFunction extends Function
     {
         /**
          * Adds the specified input to this aggregate.
-         *  @param protocolVersion native protocol version
-         * @param values the values to add to the aggregate.
+         *
+         * @param arguments the values to add to the aggregate.
          */
-        public void addInput(ProtocolVersion protocolVersion, List<ByteBuffer> values) throws InvalidRequestException;
+        public void addInput(Arguments arguments) throws InvalidRequestException;
 
         /**
          * Computes and returns the aggregate current value.

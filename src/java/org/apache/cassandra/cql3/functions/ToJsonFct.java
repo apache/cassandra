@@ -54,14 +54,26 @@ public class ToJsonFct extends NativeScalarFunction
         super(name, UTF8Type.instance, argType);
     }
 
-    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    @Override
+    public Arguments newArguments(ProtocolVersion version)
     {
-        assert parameters.size() == 1 : format("Expected 1 argument for %s(), but got %d", name.name, parameters.size());
-        ByteBuffer parameter = parameters.get(0);
-        if (parameter == null)
+        return new FunctionArguments(version, (protocolVersion, buffer) -> {
+            AbstractType<?> argType = argTypes.get(0);
+
+            if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))
+                return null;
+
+            return argTypes.get(0).toJSONString(buffer, protocolVersion);
+        });
+    }
+
+    @Override
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
+    {
+        if (arguments.containsNulls())
             return ByteBufferUtil.bytes("null");
 
-        return ByteBufferUtil.bytes(argTypes.get(0).toJSONString(parameter, protocolVersion));
+        return ByteBufferUtil.bytes(arguments.<String>get(0));
     }
 
     public static void addFunctionsTo(NativeFunctions functions)

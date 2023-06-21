@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -267,6 +268,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     public abstract TypeSerializer<T> getSerializer();
+
+    /**
+     * @return the deserializer used to deserialize the function arguments of this type.
+     */
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return new DefaultArgumentDeserializer(this);
+    }
 
     /* convenience method */
     public String getString(Collection<ByteBuffer> names)
@@ -722,5 +731,27 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     public ByteBuffer getMaskedValue()
     {
         throw new UnsupportedOperationException("There isn't a defined masked value for type " + asCQL3Type());
+    }
+
+    /**
+     * {@link ArgumentDeserializer} that uses the type deserialization.
+     */
+    protected static class DefaultArgumentDeserializer implements ArgumentDeserializer
+    {
+        private final AbstractType<?> type;
+
+        public DefaultArgumentDeserializer(AbstractType<?> type)
+        {
+            this.type = type;
+        }
+
+        @Override
+        public Object deserialize(ProtocolVersion protocolVersion, ByteBuffer buffer)
+        {
+            if (buffer == null || (!buffer.hasRemaining() && type.isEmptyValueMeaningless()))
+                return null;
+
+            return type.compose(buffer);
+        }
     }
 }

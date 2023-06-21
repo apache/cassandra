@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-
 import com.google.common.collect.ObjectArrays;
 
 import org.apache.cassandra.cql3.functions.FunctionFactory;
@@ -28,7 +25,6 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeScalarFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link NativeScalarFunction} that totally or partially replaces the original value of a column value,
@@ -54,33 +50,6 @@ public abstract class MaskingFunction extends NativeScalarFunction
                               AbstractType<?>... argsType)
     {
         super(name.name, outputType, ObjectArrays.concat(inputType, argsType));
-    }
-
-    @Override
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-    {
-        ByteBuffer[] partialParameters = new ByteBuffer[parameters.size() - 1];
-        for (int i = 0; i < partialParameters.length; i++)
-            partialParameters[i] = parameters.get(i + 1);
-
-        return masker(partialParameters).mask(parameters.get(0));
-    }
-
-    /**
-     * Returns a new {@link Masker} for the specified masking parameters.
-     * This is meant to be used by {@link ColumnMask}, so it doesn't need to evaluate the arguments on every call.
-     *
-     * @param parameters the masking parameters in the function call.
-     * @return a new {@link Masker} using the specified masking arguments
-     */
-    public abstract Masker masker(ByteBuffer... parameters);
-
-    /**
-     * Class that actually makes the masking of the first function parameter according to the masking arguments.
-     */
-    public interface Masker
-    {
-        public ByteBuffer mask(ByteBuffer value);
     }
 
     protected static abstract class Factory extends FunctionFactory

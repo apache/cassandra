@@ -29,6 +29,7 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionFactory;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
@@ -564,15 +565,10 @@ public class ColumnMaskTest extends ColumnMaskTester
             return new MaskingFunction(name, argTypes.get(0), argTypes.get(0))
             {
                 @Override
-                public Masker masker(ByteBuffer... parameters)
+                public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
                 {
-                    return bb -> {
-                        if (bb == null)
-                            return null;
-
-                        Integer value = Int32Type.instance.compose(bb) * -1;
-                        return Int32Type.instance.decompose(value);
-                    };
+                    Integer value = arguments.getAsInt(0) * -1;
+                    return Int32Type.instance.decompose(value);
                 }
             };
         }

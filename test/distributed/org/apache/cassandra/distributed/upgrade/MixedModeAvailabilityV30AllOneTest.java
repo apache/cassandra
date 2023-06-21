@@ -27,6 +27,6 @@ public class MixedModeAvailabilityV30AllOneTest extends MixedModeAvailabilityTes
 {
     public MixedModeAvailabilityV30AllOneTest()
     {
-        super(v30, ConsistencyLevel.ALL, ConsistencyLevel.ONE);
+        super(ConsistencyLevel.ALL, ConsistencyLevel.ONE);
     }
 }
