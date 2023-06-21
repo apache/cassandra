@@ -211,16 +211,8 @@ public class CompactionManager implements CompactionManagerMBean
         for (String keyspace : Schema.instance.getKeyspaces())
         {
             //don't store config files for system tables
-            if (keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME)
-                    || keyspace.equals(SchemaConstants.AUTH_KEYSPACE_NAME)
-                    || keyspace.equals(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
-                    || keyspace.equals(SchemaConstants.SCHEMA_KEYSPACE_NAME)
-                    || keyspace.equals(SchemaConstants.TRACE_KEYSPACE_NAME)
-                    || keyspace.equals(SchemaConstants.SCHEMA_VIRTUAL_KEYSPACE_NAME)
-                    || keyspace.equals(SchemaConstants.SYSTEM_VIEWS_KEYSPACE_NAME))
-            {
+            if (SchemaConstants.isSystemKeyspace(keyspace))
                 continue;
-            }
             for ( ColumnFamilyStore cfs : Schema.instance.getKeyspaceInstance(keyspace).getColumnFamilyStores())
             {
                 CompactionStrategy strat = cfs.getCompactionStrategy();
