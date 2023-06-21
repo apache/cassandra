@@ -86,6 +86,12 @@ public class ShardManagerNoDisks implements ShardManager
     }
 
     @Override
+    public double shardSetCoverage()
+    {
+        return localSpaceCoverage();
+    }
+
+    @Override
     public ShardTracker boundaries(int shardCount)
     {
         return new BoundaryTracker(shardCount);

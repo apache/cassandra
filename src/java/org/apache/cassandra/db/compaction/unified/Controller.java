@@ -195,12 +195,18 @@ public class Controller
      * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
      * is between targetSSTableSizeMin and 2*targetSSTableSizeMin (in other words, sqrt(0.5) * targetSSTableSize and
      * sqrt(2) * targetSSTableSize), with a minimum of baseShardCount shards for smaller sstables.
+     *
+     * Note that to get the sstables resulting from this splitting within the bounds, the density argument must be
+     * normalized to the span that is being split. In other words, if no disks are defined, the density should be
+     * scaled by the token coverage of the locally-owned ranges. If multiple data directories are defined, the density
+     * should be scaled by the token coverage of the respective data directory. That is localDensity = size / span,
+     * where the span is normalized so that span = 1 when the data covers the range that is being split.
      */
-    public int getNumShards(double density)
+    public int getNumShards(double localDensity)
     {
         // How many we would have to aim for the target size. Divided by the base shard count, so that we can ensure
         // the result is a multiple of it by multiplying back below.
-        double count = density / (targetSSTableSizeMin * baseShardCount);
+        double count = localDensity / (targetSSTableSizeMin * baseShardCount);
         if (count > MAX_SHARD_SPLIT)
             count = MAX_SHARD_SPLIT;
         assert !(count < 0);    // Must be positive, 0 or NaN, which should translate to baseShardCount
@@ -212,8 +218,8 @@ public class Controller
         int shards = baseShardCount * Integer.highestOneBit((int) count | 1);
         logger.debug("Shard count {} for density {}, {} times target {}",
                      shards,
-                     FBUtilities.prettyPrintBinary(density, "B", " "),
-                     density / targetSSTableSizeMin,
+                     FBUtilities.prettyPrintBinary(localDensity, "B", " "),
+                     localDensity / targetSSTableSizeMin,
                      FBUtilities.prettyPrintBinary(targetSSTableSizeMin, "B", " "));
         return shards;
     }

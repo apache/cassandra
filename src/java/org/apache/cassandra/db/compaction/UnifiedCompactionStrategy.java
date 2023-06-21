@@ -271,7 +271,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         ShardManager shardManager = getShardManager();
-        double flushDensity = cfs.metric.flushSizeOnDisk.get() / shardManager.localSpaceCoverage();
+        double flushDensity = cfs.metric.flushSizeOnDisk.get() * shardManager.shardSetCoverage() / shardManager.localSpaceCoverage();
         ShardTracker boundaries = shardManager.boundaries(controller.getNumShards(flushDensity));
         return new ShardedMultiWriter(cfs,
                                       descriptor,
