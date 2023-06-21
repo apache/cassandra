@@ -93,7 +93,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * Once the Ref.GlobalState has been completely released, the Tidy method is called and it removes the global reference
  * to itself so it may also be collected.
  */
-public class Ref<T> implements RefCounted<T>
+public final class Ref<T> implements RefCounted<T>
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
     public static final boolean DEBUG_ENABLED = TEST_DEBUG_REF_COUNT.getBoolean();
@@ -745,29 +745,53 @@ public class Ref<T> implements RefCounted<T>
     /**
      * A version of {@link Ref} for objects that implement {@link DirectBuffer}.
      */
-    public static final class DirectBufferRef<T extends DirectBuffer> extends Ref<T> implements DirectBuffer
+    public static final class DirectBufferRef<T extends DirectBuffer> implements RefCounted<T>, DirectBuffer
     {
+        private final Ref<T> wrappedRef;
+        
         public DirectBufferRef(T referent, Tidy tidy)
         {
-            super(referent, tidy);
+            wrappedRef = new Ref<>(referent, tidy);
         }
 
         @Override
         public long address()
         {
-            return referent != null ? referent.address() : 0;
+            return wrappedRef.referent != null ? wrappedRef.referent.address() : 0;
         }
 
         @Override
         public Object attachment()
         {
-            return referent != null ? referent.attachment() : null;
+            return wrappedRef.referent != null ? wrappedRef.referent.attachment() : null;
         }
 
         @Override
         public Cleaner cleaner()
         {
-            return referent != null ? referent.cleaner() : null;
+            return wrappedRef.referent != null ? wrappedRef.referent.cleaner() : null;
+        }
+
+        @Override
+        public Ref<T> tryRef()
+        {
+            return wrappedRef.tryRef();
+        }
+
+        @Override
+        public Ref<T> ref()
+        {
+            return wrappedRef.ref();
+        }
+
+        public void release()
+        {
+            wrappedRef.release();
+        }
+
+        public T get()
+        {
+            return wrappedRef.get();
         }
     }
 }
