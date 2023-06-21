@@ -23,6 +23,8 @@ import java.nio.channels.ClosedChannelException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -34,12 +36,14 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.TableId;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 
 public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
@@ -57,6 +61,13 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
         lifecycleNewTracker.trackNew(this);
         this.componentWriters = new HashMap<>();
+
+        Set<Component> unsupported = components.stream()
+                                               .filter(c -> !descriptor.getFormat().streamingComponents().contains(c))
+                                               .filter(c-> c.type != SSTableFormat.Components.Types.CUSTOM)
+                                               .collect(Collectors.toSet());
+        if (!unsupported.isEmpty())
+            throw new AssertionError(format("Unsupported streaming component detected %s", unsupported));
 
         for (Component c : components)
             componentWriters.put(c.name, makeWriter(descriptor, c));
