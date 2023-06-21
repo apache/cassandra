@@ -193,6 +193,13 @@ public abstract class Controller
         OverlapInclusionMethod.valueOf(System.getProperty(PREFIX + OVERLAP_INCLUSION_METHOD_OPTION,
                                                           OverlapInclusionMethod.TRANSITIVE.toString()).toUpperCase());
 
+    /**
+     * The scaling parameters W, one per bucket index and separated by a comma.
+     * Higher indexes will use the value of the last index with a W specified.
+     */
+    static final String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    static final String STATIC_SCALING_FACTORS_OPTION = "static_scaling_factors";
+
     protected final MonotonicClock clock;
     protected final Environment env;
     protected final double[] survivalFactors;
@@ -661,7 +668,7 @@ public abstract class Controller
         return calculator.getWriteCostForQueries(writeAmplification(length, scalingParameter));
     }
 
-    public static Controller fromOptions(CompactionRealm realm, Map<String, String> options, String keyspaceName, String tableName)
+    public static Controller fromOptions(CompactionRealm realm, Map<String, String> options)
     {
         boolean adaptive = options.containsKey(ADAPTIVE_OPTION) ? Boolean.parseBoolean(options.get(ADAPTIVE_OPTION)) : DEFAULT_ADAPTIVE;
         long dataSetSizeMb = (options.containsKey(DATASET_SIZE_OPTION_GB) ? Long.parseLong(options.get(DATASET_SIZE_OPTION_GB)) : DEFAULT_DATASET_SIZE_GB) << 10;
@@ -732,8 +739,8 @@ public abstract class Controller
                                                 baseShardCount,
                                                 targetSStableSize,
                                                 overlapInclusionMethod,
-                                                keyspaceName,
-                                                tableName,
+                                                realm.getKeyspaceName(),
+                                                realm.getTableName(),
                                                 options)
                : StaticController.fromOptions(env,
                                               survivalFactors,
@@ -749,8 +756,8 @@ public abstract class Controller
                                               baseShardCount,
                                               targetSStableSize,
                                               overlapInclusionMethod,
-                                              keyspaceName,
-                                              tableName,
+                                              realm.getKeyspaceName(),
+                                              realm.getTableName(),
                                               options);
     }
 

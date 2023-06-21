@@ -149,7 +149,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
                     String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB) +
                     String.format("'base_shard_count' : '%d', ", numShards) +
                     String.format("'min_sstable_size_in_mb' : '%d', ", sstableSizeMB) +
-                    String.format("'adaptive_starting_scaling_parameter' : '%s', ", w) +
+                    String.format("'scaling_parameters' : '%s', ", w) +
                     String.format("'adaptive_min_scaling_parameter' : '%s', ", -6) +
                     String.format("'adaptive_max_scaling_parameter' : '%s', ", 16) +
                     String.format("'adaptive_interval_sec': '%d', ", 300) +
