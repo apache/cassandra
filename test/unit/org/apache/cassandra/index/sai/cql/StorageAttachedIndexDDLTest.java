@@ -37,6 +37,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.InvalidConfigurationInQueryException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.exceptions.ReadFailureException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
@@ -50,6 +51,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -145,7 +147,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
             try
             {
-                executeNet(String.format("CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'", cql3Type));
+                executeNet(String.format("CREATE INDEX ON %%s(%s) USING 'sai'", cql3Type));
                 assertTrue("Index creation on unsupported type " + cql3Type + " should have failed.", supported);
             }
             catch (RuntimeException e)
@@ -161,7 +163,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     public void shouldFailCreationOnPartitionKey()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(id) USING 'StorageAttachedIndex'"))
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(id) USING 'sai'"))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessageContaining(String.format(CreateIndexStatement.ONLY_PARTITION_KEY, "id"));
     }
@@ -171,8 +173,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) USING " +
-                                            "'StorageAttachedIndex' WITH OPTIONS = { 'mode' : 'CONTAINS' }")).isInstanceOf(InvalidConfigurationInQueryException.class);
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' " +
+                                            "WITH OPTIONS = { 'mode' : 'CONTAINS' }")).isInstanceOf(InvalidConfigurationInQueryException.class);
     }
 
     @Test
@@ -180,8 +182,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
-                                            "USING 'StorageAttachedIndex' " +
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) " +
+                                            "USING 'sai' " +
                                             "WITH OPTIONS = { 'analyzer_class' : 'org.apache.cassandra.index.sai.analyzer.NonTokenizingAnalyzer' }"))
         .isInstanceOf(InvalidConfigurationInQueryException.class);
     }
@@ -191,8 +193,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
-                                            "USING 'StorageAttachedIndex' " +
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) " +
+                                            "USING 'sai' " +
                                             "WITH OPTIONS = { 'case-sensitive' : true }")).isInstanceOf(InvalidConfigurationInQueryException.class);
     }
 
@@ -201,8 +203,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val int)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
-                                            "USING 'StorageAttachedIndex' " +
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) " +
+                                            "USING 'sai' " +
                                             "WITH OPTIONS = { 'case_sensitive' : true }")).isInstanceOf(InvalidQueryException.class);
     }
 
@@ -211,8 +213,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val int)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
-                                            "USING 'StorageAttachedIndex' " +
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) " +
+                                            "USING 'sai' " +
                                             "WITH OPTIONS = { 'normalize' : true }")).isInstanceOf(InvalidQueryException.class);
     }
 
@@ -222,8 +224,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
         String typeName = createType("CREATE TYPE %s (a text, b int, c double)");
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val " + typeName + ')');
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
-                                            "USING 'StorageAttachedIndex'")).isInstanceOf(InvalidQueryException.class);
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) " +
+                                            "USING 'sai'")).isInstanceOf(InvalidQueryException.class);
     }
 
     @Test
@@ -231,7 +233,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val tuple<text, int, double>)");
 
-        executeNet("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        executeNet("CREATE INDEX ON %s(val) USING 'sai'");
 
         TableMetadata metadata = currentTableMetadata();
         AbstractType<?> tuple = metadata.getColumn(ColumnIdentifier.getInterned("val", false)).type;
@@ -246,8 +248,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
         String invalidColumn = "/invalid";
         createTable(String.format("CREATE TABLE %%s (id text PRIMARY KEY, \"%s\" text)", invalidColumn));
 
-        assertThatThrownBy(() -> executeNet(String.format("CREATE CUSTOM INDEX ON %%s(\"%s\")" +
-                                                          " USING 'StorageAttachedIndex'", invalidColumn)))
+        assertThatThrownBy(() -> executeNet(String.format("CREATE INDEX ON %%s(\"%s\")" +
+                                                          " USING 'sai'", invalidColumn)))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessage(String.format(CreateIndexStatement.INVALID_CUSTOM_INDEX_TARGET, invalidColumn, SchemaConstants.NAME_LENGTH));
     }
@@ -256,12 +258,57 @@ public class StorageAttachedIndexDDLTest extends SAITester
     public void shouldCreateIndexIfExists()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
-
-        createIndex("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(val) USING 'StorageAttachedIndex' ");
-
-        createIndexAsync("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(val) USING 'StorageAttachedIndex' ");
+        createIndex("CREATE INDEX IF NOT EXISTS ON %s(val) USING 'sai' ");
+        createIndexAsync("CREATE INDEX IF NOT EXISTS ON %s(val) USING 'sai' ");
 
         assertEquals(1, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldCreateIndexCaseInsensitive()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text)");
+        createIndex("CREATE INDEX mixed_case_val ON %s(val1) USING 'Sai' ");
+        createIndex("CREATE INDEX upper_case_val ON %s(val2) USING 'SAI' ");
+
+        assertEquals(2, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldCreateIndexWithClassName()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+        createIndex("CREATE INDEX ON %s(val) USING 'StorageAttachedIndex' ");
+        assertEquals(1, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldCreateIndexWithDefault()
+    {
+        DatabaseDescriptor.setDefaultSecondaryIndex(StorageAttachedIndex.NAME);
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+        createIndex("CREATE INDEX ON %s(val)");
+        assertEquals(1, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldFailWithDefaultIndexDisabled()
+    {
+        DatabaseDescriptor.setDefaultSecondaryIndex(StorageAttachedIndex.NAME);
+        boolean original = DatabaseDescriptor.getDefaultSecondaryIndexEnabled();
+
+        try
+        {
+            DatabaseDescriptor.setDefaultSecondaryIndexEnabled(false);
+            createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+            assertThatThrownBy(() -> createIndex("CREATE INDEX ON %s(val)")).hasRootCauseInstanceOf(InvalidRequestException.class)
+                                                                            .hasRootCauseMessage(CreateIndexStatement.MUST_SPECIFY_INDEX_IMPLEMENTATION);
+            assertEquals(0, saiCreationCounter.get());
+        }
+        finally
+        {
+            DatabaseDescriptor.setDefaultSecondaryIndexEnabled(original);
+        }
     }
 
     @Test
@@ -269,7 +316,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai'");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
@@ -283,7 +330,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : true }");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'case_sensitive' : true }");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
@@ -297,7 +344,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : false }");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'case_sensitive' : false }");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
@@ -309,7 +356,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai'");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -324,7 +371,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : false }");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'normalize' : false }");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -339,7 +386,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : true }");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'normalize' : true }");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -351,7 +398,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : true, 'case_sensitive' : false}");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'normalize' : true, 'case_sensitive' : false}");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -363,7 +410,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'ascii' : true, 'case_sensitive' : false}");
+        createIndex("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'ascii' : true, 'case_sensitive' : false}");
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Éppinger')");
 
@@ -371,11 +418,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldCreateIndexOnReversedType() throws Throwable
+    public void shouldCreateIndexOnReversedType()
     {
         createTable("CREATE TABLE %s (id text, ck1 text, val text, PRIMARY KEY (id,ck1)) WITH CLUSTERING ORDER BY (ck1 desc)");
 
-        String indexNameCk1 = createIndex("CREATE CUSTOM INDEX ON %s(ck1) USING 'StorageAttachedIndex'");
+        String indexNameCk1 = createIndex("CREATE INDEX ON %s(ck1) USING 'sai'");
 
         execute("insert into %s(id, ck1, val) values('1', '2', '3')");
         execute("insert into %s(id, ck1, val) values('1', '3', '4')");
@@ -392,11 +439,10 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldCreateIndexWithAlias()
+    public void shouldCreateIndexWithFullClassName()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
-
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'");
 
         assertEquals(1, saiCreationCounter.get());
     }
@@ -406,7 +452,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
      * Not putting in {@link MixedIndexImplementationsTest} because it uses CQLTester which doesn't load SAI dependency.
      */
     @Test
-    public void shouldCreateSASI() throws Throwable
+    public void shouldCreateSASI()
     {
         createTable(CREATE_TABLE_TEMPLATE);
 
@@ -433,7 +479,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val1, val2) USING 'StorageAttachedIndex'"))
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val1, val2) USING 'sai'"))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessageContaining("storage-attached index cannot be created over multiple columns");
     }
@@ -445,21 +491,21 @@ public class StorageAttachedIndexDDLTest extends SAITester
         execute("INSERT INTO %s (id, v1) VALUES(1, '1')");
         flush();
 
-        executeNet("CREATE CUSTOM INDEX index_1 ON %s(v1) USING 'StorageAttachedIndex'");
+        executeNet("CREATE INDEX index_1 ON %s(v1) USING 'sai'");
         waitForTableIndexesQueryable();
 
         // same name
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX index_1 ON %s(v1) USING 'StorageAttachedIndex'"))
+        assertThatThrownBy(() -> executeNet("CREATE INDEX index_1 ON %s(v1) USING 'sai'"))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessageContaining(String.format(CreateIndexStatement.INDEX_ALREADY_EXISTS, "index_1"));
 
         // different name, same option
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX index_2 ON %s(v1) USING 'StorageAttachedIndex'"))
+        assertThatThrownBy(() -> executeNet("CREATE INDEX index_2 ON %s(v1) USING 'sai'"))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessageContaining(String.format(CreateIndexStatement.INDEX_DUPLICATE_OF_EXISTING, "index_2", "index_1"));
 
         // different name, different option, same target.
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : true }"))
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(v1) USING 'sai' WITH OPTIONS = { 'case_sensitive' : true }"))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessageContaining("Cannot create more than one storage-attached index on the same column: v1" );
 
@@ -496,7 +542,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // Create the index, but do not allow the initial index build to begin:
         Injections.inject(delayInitializationTask);
-        createIndexAsync("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndexAsync("CREATE INDEX ON %s(val) USING 'sai'");
 
         // Flush the Memtable's contents, which will feed data to the index as the SSTable is written:
         flush();

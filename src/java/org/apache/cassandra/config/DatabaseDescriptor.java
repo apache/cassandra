@@ -3765,6 +3765,26 @@ public class DatabaseDescriptor
         conf.sasi_indexes_enabled = enableSASIIndexes;
     }
 
+    public static String getDefaultSecondaryIndex()
+    {
+        return conf.default_secondary_index;
+    }
+
+    public static void setDefaultSecondaryIndex(String name)
+    {
+        conf.default_secondary_index = name;
+    }
+
+    public static boolean getDefaultSecondaryIndexEnabled()
+    {
+        return conf.default_secondary_index_enabled;
+    }
+
+    public static void setDefaultSecondaryIndexEnabled(boolean enabled)
+    {
+        conf.default_secondary_index_enabled = enabled;
+    }
+
     public static boolean isTransientReplicationEnabled()
     {
         return conf.transient_replication_enabled;

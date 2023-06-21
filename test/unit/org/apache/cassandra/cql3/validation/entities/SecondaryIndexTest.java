@@ -25,9 +25,12 @@ import java.util.concurrent.CountDownLatch;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -70,6 +73,12 @@ import static org.junit.Assert.fail;
 public class SecondaryIndexTest extends CQLTester
 {
     public static final int TOO_BIG = 1024 * 65;
+    
+    @BeforeClass
+    public static void setDefaultSecondaryIndex()
+    {
+        DatabaseDescriptor.setDefaultSecondaryIndex(CassandraIndex.NAME);
+    }
 
     @Test
     public void testCreateAndDropIndex() throws Throwable
@@ -159,6 +168,43 @@ public class SecondaryIndexTest extends CQLTester
     private static String removeQuotes(String indexName)
     {
         return StringUtils.remove(indexName, '\"');
+    }
+
+    @Test
+    public void shouldCreateCassandraIndexExplicitly() throws Throwable
+    {
+        createTable("CREATE TABLE %s (userid uuid PRIMARY KEY, firstname text, lastname text, age int)");
+        createIndex("CREATE INDEX byAge ON %s(age) USING 'legacy_local_table'");
+
+        SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
+        assertTrue(indexManager.getIndexByName("byage") instanceof CassandraIndex);
+
+        UUID id1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        execute("INSERT INTO %s (userid, firstname, lastname, age) VALUES (?, 'Frodo', 'Baggins', 32)", id1);
+        assertEmpty(execute("SELECT firstname FROM %s WHERE userid = ? AND age = 33", id1));
+    }
+
+    @Test
+    public void shouldCreateCassandraIndexWhenNotDefault() throws Throwable
+    {
+        DatabaseDescriptor.setDefaultSecondaryIndex(StorageAttachedIndex.NAME);
+        
+        try
+        {
+            createTable("CREATE TABLE %s (userid uuid PRIMARY KEY, firstname text, lastname text, age int)");
+            createIndex("CREATE INDEX byAge ON %s(age) USING 'legacy_local_table'");
+
+            SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
+            assertTrue(indexManager.getIndexByName("byage") instanceof CassandraIndex);
+
+            UUID id1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+            execute("INSERT INTO %s (userid, firstname, lastname, age) VALUES (?, 'Frodo', 'Baggins', 32)", id1);
+            assertEmpty(execute("SELECT firstname FROM %s WHERE userid = ? AND age = 33", id1));
+        }
+        finally
+        {
+            DatabaseDescriptor.setDefaultSecondaryIndex(CassandraIndex.NAME);
+        }
     }
 
     /**

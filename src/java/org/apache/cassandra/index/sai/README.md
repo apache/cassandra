@@ -61,9 +61,9 @@ Follow the instructions to build and start Cassandra in README.asc in root folde
 
 `CREATE TABLE person (id int, name text, age int, PRIMARY KEY (id));`
 
-`CREATE CUSTOM INDEX ON person (name) USING 'StorageAttachedIndex' WITH OPTIONS = {'case_sensitive': false};`
+`CREATE INDEX ON person (name) USING 'sai' WITH OPTIONS = {'case_sensitive': false};`
 
-`CREATE CUSTOM INDEX ON person (age) USING 'StorageAttachedIndex';`
+`CREATE INDEX ON person (age) USING 'sai';`
 
 2.) Add some data.
 

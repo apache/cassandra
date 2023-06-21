@@ -25,26 +25,26 @@ import static org.junit.Assert.assertEquals;
 
 public class MultipleColumnIndexTest extends SAITester
 {
-    // Note: Full testing of multiple map index types is done in the
-    // types/collections/maps/MultiMap*Test tests
-    // This is just testing that the indexes can be created
     @Test
     public void canCreateMultipleMapIndexesOnSameColumn()
     {
+        // Note: Full testing of multiple map index types is done in the
+        // types/collections/maps/MultiMap*Test tests
+        // This is just testing that the indexes can be created
         createTable("CREATE TABLE %s (pk int, ck int, value map<int,int>, PRIMARY KEY(pk, ck))");
-        createIndex("CREATE CUSTOM INDEX ON %s(KEYS(value)) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(VALUES(value)) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(ENTRIES(value)) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(KEYS(value)) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(VALUES(value)) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(ENTRIES(value)) USING 'sai'");
     }
 
     @Test
-    public void indexNamedAsColumnWillCoExistWithGeneratedIndexNames() throws Throwable
+    public void indexNamedAsColumnWillCoExistWithGeneratedIndexNames()
     {
         createTable("CREATE TABLE %s(id int PRIMARY KEY, text_map map<text, text>)");
 
-        createIndex("CREATE CUSTOM INDEX text_map ON %s(keys(text_map)) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(values(text_map)) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(entries(text_map)) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX text_map ON %s(keys(text_map)) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(values(text_map)) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(entries(text_map)) USING 'sai'");
 
         execute("INSERT INTO %s(id, text_map) values (1, {'k1':'v1', 'k2':'v2'})");
         execute("INSERT INTO %s(id, text_map) values (2, {'k1':'v1', 'k3':'v3'})");

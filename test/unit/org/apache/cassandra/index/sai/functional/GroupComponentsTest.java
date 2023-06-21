@@ -45,7 +45,7 @@ public class GroupComponentsTest extends SAITester
     public void testInvalidateWithoutObsolete()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
-        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(value) USING 'sai'");
         execute("INSERT INTO %s (pk) VALUES (1)");
         flush();
 
@@ -70,7 +70,7 @@ public class GroupComponentsTest extends SAITester
     public void getLiveComponentsForEmptyIndex()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
-        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(value) USING 'sai'");
         execute("INSERT INTO %s (pk) VALUES (1)");
         flush();
 
@@ -91,7 +91,7 @@ public class GroupComponentsTest extends SAITester
     public void getLiveComponentsForPopulatedIndex()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
-        IndexContext indexContext = createIndexContext(createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'"), UTF8Type.instance);
+        IndexContext indexContext = createIndexContext(createIndex("CREATE INDEX ON %s(value) USING 'sai'"), UTF8Type.instance);
         execute("INSERT INTO %s (pk, value) VALUES (1, '1')");
         flush();
 

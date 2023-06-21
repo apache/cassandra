@@ -1975,6 +1975,15 @@ drop_compact_storage_enabled: false
 # if zero_ttl_on_twcs_enabled is set to false, this property is irrelevant as such statements will fail.
 #zero_ttl_on_twcs_warned: true
 
+# The default secondary index implementation when CREATE INDEX does not specify one via USING.
+# ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table
+# ex. "sai" - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+#default_secondary_index: legacy_local_table
+
+# Whether a default secondary index implementation is allowed. If this is "false", CREATE INDEX must
+# specify an index implementation via USING.
+#default_secondary_index_enabled: true
+
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
 # Uncomment the startup checks and configure them appropriately to cover your needs.
