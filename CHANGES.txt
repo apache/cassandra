@@ -8,6 +8,7 @@ Merged from 3.11:
  * Fix error message handling when trying to use CLUSTERING ORDER with non-clustering column (CASSANDRA-17818
  * Add keyspace and table name to exception message during ColumnSubselection deserialization (CASSANDRA-18346)
 Merged from 3.0:
+ * Backport CASSANDRA-10508: Remove hard-coded SSL cipher suites (CASSANDRA-18575)
  * Suppress CVE-2023-2976 (CASSANDRA-18562)
  * Remove dh_python use in Debian packaging (CASSANDRA-18558)
 
