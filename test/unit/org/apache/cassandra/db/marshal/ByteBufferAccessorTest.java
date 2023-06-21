@@ -27,7 +27,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.quicktheories.QuickTheory.qt;
 
-public class ByteBufferAccessorTest2 extends ValueAccessorTester
+public class ByteBufferAccessorTest extends ValueAccessorTester
 {
     private static byte[] array(int start, int size)
     {
