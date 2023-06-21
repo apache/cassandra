@@ -47,10 +47,13 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeGenBuilder;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.FailingConsumer;
+import org.apache.cassandra.utils.Generators;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
+
+import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 
 public class RandomSchemaTest extends CQLTester.InMemory
 {
@@ -79,7 +82,11 @@ public class RandomSchemaTest extends CQLTester.InMemory
             SSTableFormat<?, ?> sstableFormat = ssTableFormatGen.generate(random);
             DatabaseDescriptor.setSelectedSSTableFormat(sstableFormat);
 
-            TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality().withUserTypeKeyspace(KEYSPACE);
+            Gen<String> udtName = Generators.unique(IDENTIFIER_GEN);
+
+            TypeGenBuilder withoutUnsafeEquality = AbstractTypeGenerators.withoutUnsafeEquality()
+                                                                         .withUserTypeKeyspace(KEYSPACE)
+                                                                         .withUDTNames(udtName);
             TableMetadata metadata = new TableMetadataBuilder()
                                      .withKeyspaceName(KEYSPACE)
                                      .withTableKinds(TableMetadata.Kind.REGULAR)
@@ -90,6 +97,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                                                                                .withMaxDepth(2)
                                                                                .withDefaultSetKey(withoutUnsafeEquality)
                                                                                .withoutTypeKinds(AbstractTypeGenerators.TypeKind.COUNTER)
+                                                                               .withUDTNames(udtName)
                                                                                .build())
                                      .withPartitionColumnsCount(1)
                                      .withPrimaryColumnTypeGen(new TypeGenBuilder(withoutUnsafeEquality)

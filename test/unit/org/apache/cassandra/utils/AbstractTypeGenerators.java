@@ -249,6 +249,7 @@ public final class AbstractTypeGenerators
         private Gen<String> userTypeKeyspaceGen = IDENTIFIER_GEN;
         private Function<Integer, Gen<AbstractType<?>>> defaultSetKeyFunc;
         private Predicate<AbstractType<?>> typeFilter = null;
+        private Gen<String> udtName = null;
 
         public TypeGenBuilder()
         {
@@ -401,12 +402,16 @@ public final class AbstractTypeGenerators
             return this;
         }
 
-        // used during iteration, not something pluggable for users
-        private Gen<String> udtName = null;
+        public TypeGenBuilder withUDTNames(Gen<String> udtName)
+        {
+            this.udtName = udtName;
+            return this;
+        }
 
         public Gen<AbstractType<?>> build()
         {
-            udtName = Generators.unique(IDENTIFIER_GEN);
+            if (udtName == null)
+                udtName = Generators.unique(IDENTIFIER_GEN);
             // strip out the package to make it easier to read
             // type parser assumes this package when one isn't provided, so this does not corrupt the type conversion
             return buildRecursive(maxDepth).describedAs(t -> t.asCQL3Type().toString().replaceAll("org.apache.cassandra.db.marshal.", ""));
