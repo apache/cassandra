@@ -1981,7 +1981,7 @@ public class AggregationTest extends CQLTester
 
             AbstractType<?> compositeType = TypeParser.parse(type);
             ByteBuffer compositeTypeValue = compositeType.fromString("s@foo:i@32");
-            String compositeTypeString = compositeType.asCQL3Type().toCQLLiteral(compositeTypeValue, ProtocolVersion.CURRENT);
+            String compositeTypeString = compositeType.asCQL3Type().toCQLLiteral(compositeTypeValue);
             // ensure that the composite type is serialized using the 'blob syntax'
             assertTrue(compositeTypeString.startsWith("0x"));
 

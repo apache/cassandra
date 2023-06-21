@@ -721,6 +721,89 @@ public interface Selectable extends AssignmentTestable
     /**
      * <code>Selectable</code> for literal Lists.
      */
+    public static class WithArrayLiteral implements Selectable
+    {
+        /**
+         * The list elements
+         */
+        private final List<Selectable> selectables;
+
+        public WithArrayLiteral(List<Selectable> selectables)
+        {
+            this.selectables = selectables;
+        }
+
+        private Selectable target(AbstractType<?> target)
+        {
+            // when the target isn't known, fallback to list; cases like "SELECT [1, 2]" can't be known, but used to be list type!
+            // If a vector is actually desired, then can use type cast/hints: "SELECT (vector<int, 2>) [k, v1]"
+            if (target == null || target instanceof ListType)
+                return new WithList(selectables);
+            else if (target.isVector())
+                return new WithVector(selectables);
+            throw new IllegalArgumentException("Unsupported target type: " + target.asCQL3Type());
+        }
+
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            return target(receiver == null ? null : receiver.type).testAssignment(keyspace, receiver);
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            return target(expectedType).newSelectorFactory(cfm, expectedType, defs, boundNames);
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            // TODO try to pass in a target to this API
+            // default to list when type is being infered
+            return new WithList(selectables).getExactTypeIfKnown(keyspace);
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            // TODO try to pass in a target to this API
+            // default to list when type is being infered
+            return new WithList(selectables).getCompatibleTypeIfKnown(keyspace);
+        }
+
+        @Override
+        public boolean selectColumns(Predicate<ColumnMetadata> predicate)
+        {
+            return Selectable.selectColumns(selectables, predicate);
+        }
+
+        @Override
+        public String toString()
+        {
+            return Lists.listToString(selectables);
+        }
+
+        public static class Raw implements Selectable.Raw
+        {
+            private final List<Selectable.Raw> raws;
+
+            public Raw(List<Selectable.Raw> raws)
+            {
+                this.raws = raws;
+            }
+
+            @Override
+            public Selectable prepare(TableMetadata cfm)
+            {
+                return new WithArrayLiteral(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
+            }
+        }
+    }
+
     public static class WithList implements Selectable
     {
         /**
@@ -791,21 +874,78 @@ public interface Selectable extends AssignmentTestable
         {
             return Lists.listToString(selectables);
         }
+    }
 
-        public static class Raw implements Selectable.Raw
+    public static class WithVector implements Selectable
+    {
+        /**
+         * The vector elements
+         */
+        private final List<Selectable> selectables;
+
+        public WithVector(List<Selectable> selectables)
         {
-            private final List<Selectable.Raw> raws;
+            this.selectables = selectables;
+        }
 
-            public Raw(List<Selectable.Raw> raws)
+        @Override
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            return Vectors.testVectorAssignment(receiver, selectables);
+        }
+
+        @Override
+        public Factory newSelectorFactory(TableMetadata cfm,
+                                          AbstractType<?> expectedType,
+                                          List<ColumnMetadata> defs,
+                                          VariableSpecifications boundNames)
+        {
+            AbstractType<?> type = getExactTypeIfKnown(cfm.keyspace);
+            if (type == null)
             {
-                this.raws = raws;
+                type = expectedType;
+                if (type == null)
+                    throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
+                                         this);
             }
 
-            @Override
-            public Selectable prepare(TableMetadata cfm)
-            {
-                return new WithList(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
-            }
+            VectorType<?> vectorType = (VectorType<?>) type;
+            assert vectorType.dimension == selectables.size() : String.format("Unable to create a vector selector of type %s from %d elements", vectorType.asCQL3Type(), selectables.size());
+
+            List<AbstractType<?>> expectedTypes = new ArrayList<>(selectables.size());
+            for (int i = 0, m = selectables.size(); i < m; i++)
+                expectedTypes.add(vectorType.getElementsType());
+
+            SelectorFactories factories = createFactoriesAndCollectColumnDefinitions(selectables,
+                                                                                     expectedTypes,
+                                                                                     cfm,
+                                                                                     defs,
+                                                                                     boundNames);
+            return VectorSelector.newFactory(type, factories);
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return Vectors.getExactVectorTypeIfKnown(selectables, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Vectors.getPreferredCompatibleType(selectables, p -> p.getCompatibleTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public boolean selectColumns(Predicate<ColumnMetadata> predicate)
+        {
+            return Selectable.selectColumns(selectables, predicate);
+        }
+
+        @Override
+        public String toString()
+        {
+            return Lists.listToString(selectables);
         }
     }
 

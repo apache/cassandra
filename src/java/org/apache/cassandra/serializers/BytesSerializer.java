@@ -55,10 +55,15 @@ public class BytesSerializer extends TypeSerializer<ByteBuffer>
     }
 
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
     {
-        return buffer == null
-               ? "null"
-               : "0x" + toString(deserialize(buffer));
+        // !buffer.hasRemaining() is not "null" for bytes types, it is byte[0]
+        return buffer == null;
+    }
+
+    @Override
+    protected String toCQLLiteralNonNull(ByteBuffer buffer)
+    {
+        return "0x" + toString(deserialize(buffer));
     }
 }

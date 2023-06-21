@@ -66,7 +66,6 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -294,8 +293,6 @@ public class CassandraDaemon
         }
 
         setupVirtualKeyspaces();
-
-        SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
 
         try
         {

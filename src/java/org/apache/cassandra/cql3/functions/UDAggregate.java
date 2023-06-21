@@ -370,7 +370,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
         if (initialCondition() != null)
             builder.newLine()
                    .append("INITCOND ")
-                   .append(stateType().asCQL3Type().toCQLLiteral(initialCondition(), ProtocolVersion.CURRENT));
+                   .append(stateType().asCQL3Type().toCQLLiteral(initialCondition()));
 
         return builder.append(";")
                       .toString();

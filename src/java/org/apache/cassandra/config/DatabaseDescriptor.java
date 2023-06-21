@@ -217,7 +217,7 @@ public class DatabaseDescriptor
     private static StartupChecksOptions startupChecksOptions;
 
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
-    private static SSTableFormat<?, ?> selectedSSTableFormat;
+    private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
@@ -4756,6 +4756,12 @@ public class DatabaseDescriptor
     public static SSTableFormat<?, ?> getSelectedSSTableFormat()
     {
         return Objects.requireNonNull(selectedSSTableFormat, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    @VisibleForTesting
+    public static void setSelectedSSTableFormat(SSTableFormat<?, ?> format)
+    {
+        selectedSSTableFormat = Objects.requireNonNull(format);
     }
 
     public static boolean getDynamicDataMaskingEnabled()

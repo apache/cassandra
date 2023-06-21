@@ -224,7 +224,7 @@ public class ExecuteMessage extends Message.Request
         {
             ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
             String boundName = cs.name.toString();
-            String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
+            String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i));
             if (boundValue.length() > 1000)
                 boundValue = boundValue.substring(0, 1000) + "...'";
 

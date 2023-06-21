@@ -19,12 +19,20 @@
 package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public abstract class TypeSerializer<T>
 {
+    private static final Pattern PATTERN_SINGLE_QUOTE = Pattern.compile("'", Pattern.LITERAL);
+    private static final String ESCAPED_SINGLE_QUOTE = Matcher.quoteReplacement("\'");
+
     public abstract ByteBuffer serialize(T value);
 
     public abstract <V> T deserialize(V value, ValueAccessor<V> accessor);
@@ -55,11 +63,45 @@ public abstract class TypeSerializer<T>
 
     public abstract Class<T> getType();
 
-    public String toCQLLiteral(ByteBuffer buffer)
+    public final boolean isNull(@Nullable ByteBuffer buffer)
     {
-        return buffer == null || !buffer.hasRemaining()
+        return isNull(buffer, ByteBufferAccessor.instance);
+    }
+
+    public <V> boolean isNull(@Nullable V buffer, ValueAccessor<V> accessor)
+    {
+        return buffer == null || accessor.isEmpty(buffer);
+    }
+
+    protected String toCQLLiteralNonNull(@Nonnull ByteBuffer buffer)
+    {
+        return toString(deserialize(buffer));
+    }
+
+    public final @Nonnull String toCQLLiteral(@Nullable ByteBuffer buffer)
+    {
+        return isNull(buffer)
                ? "null"
-               : toString(deserialize(buffer));
+               :  maybeQuote(toCQLLiteralNonNull(buffer));
+    }
+
+    public final @Nonnull String toCQLLiteralNoQuote(@Nullable ByteBuffer buffer)
+    {
+        return isNull(buffer)
+               ? "null"
+               :  toCQLLiteralNonNull(buffer);
+    }
+
+    public boolean shouldQuoteCQLLiterals()
+    {
+        return false;
+    }
+
+    private String maybeQuote(String value)
+    {
+        if (shouldQuoteCQLLiterals())
+            return "'" + PATTERN_SINGLE_QUOTE.matcher(value).replaceAll(ESCAPED_SINGLE_QUOTE) + "'";
+        return value;
     }
 }
 
