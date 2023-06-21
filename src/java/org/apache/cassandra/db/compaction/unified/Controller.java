@@ -294,6 +294,8 @@ public abstract class Controller
 
     public static void storeOptions(String keyspaceName, String tableName, int[] scalingParameters, long flushSizeBytes)
     {
+        if (SchemaConstants.isSystemKeyspace(keyspaceName))
+            return;
         File f = getControllerConfigPath(keyspaceName, tableName);
         try(FileWriter fileWriter = new FileWriter(f, File.WriteMode.OVERWRITE);)
         {

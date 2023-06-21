@@ -121,9 +121,13 @@ public class StaticController extends Controller
                 logger.debug("Successfully read stored current_flush_size from disk");
             }
         }
-        catch (IOException | ParseException e)
+        catch (IOException e)
         {
-            logger.warn("Unable to read saved flush size. Using starting value instead: ", e);
+            logger.debug("No controller config file found. Using starting value instead.");
+        }
+        catch (ParseException e)
+        {
+            logger.warn("Unable to parse saved flush size. Using starting value instead:", e);
         }
         return new StaticController(env,
                                     scalingParameters,
