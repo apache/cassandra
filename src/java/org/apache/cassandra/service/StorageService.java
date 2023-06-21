@@ -472,8 +472,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     // true when keeping strict consistency while bootstrapping
     public static final boolean useStrictConsistency = CONSISTENT_RANGE_MOVEMENT.getBoolean();
-    private static final boolean allowSimultaneousMoves = CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.getBoolean();
-    private static final boolean joinRing = JOIN_RING.getBoolean();
+    private boolean joinRing = JOIN_RING.getBoolean();
 
     final StreamStateStore streamStateStore = new StreamStateStore();
 
@@ -550,12 +549,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!isStarting() || joinRing)
                 assert validTokens : "Cannot start gossiping for a node intended to join without valid tokens";
 
-            List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
-            states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
-            states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens)));
-            states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
-            logger.info("Node {} jump to NORMAL", getBroadcastAddressAndPort());
-            Gossiper.instance.addLocalApplicationStates(states);
+            if (validTokens)
+            {
+                List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
+                states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+                states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens)));
+                states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
+                logger.info("Node {} jump to NORMAL", getBroadcastAddressAndPort());
+                Gossiper.instance.addLocalApplicationStates(states);
+            }
+
             Gossiper.instance.forceNewerGeneration();
             Gossiper.instance.start((int) (currentTimeMillis() / 1000), true);
         }
@@ -791,12 +794,31 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         try
         {
-            joinRing();
+            if (joinRing)
+                joinRing();
+            else
+            {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                if (metadata.myNodeState() == JOINED)
+                {
+                    // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
+                    List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
+                    states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(metadata.tokenMap.tokens(metadata.myNodeId()))));
+                    states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true)));
+                    states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
+                    Gossiper.instance.addLocalApplicationStates(states);
+                }
+                logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
+            }
         }
         catch (IOException e)
         {
             throw new RuntimeException("Could not perform startup sequence and join cluster", e);
         }
+
+        doAuthSetup();
+        maybeInitializeServices();
+        completeInitialization();
     }
 
     // todo: move somewhere to sequences?
@@ -994,6 +1016,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
     }
 
+    public boolean shouldJoinRing()
+    {
+        return joinRing;
+    }
+
     private boolean shouldBootstrap()
     {
         return DatabaseDescriptor.isAutoBootstrap() && !SystemKeyspace.bootstrapComplete() && !isSeed();
@@ -1020,8 +1047,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (isStarting())
         {
+            // Node was started with -Dcassandra.join_ring=false before joining, so it has never
+            // begun the join process.
             if (!joinRing)
+            {
                 logger.info("Joining ring by operator request");
+                joinRing = true;
+            }
             try
             {
                 boolean finishJoiningRing = !isSurveyMode;
@@ -1032,10 +1064,33 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new IOException(e.getMessage());
             }
         }
+        else if (!joinRing)
+        {
+            // Previously joined node was restarted with -Dcassandra.join_ring=false and so started
+            // with `hibernate` status. Bring it out of that state now, but don't do anything else
+            // as the join/replace process has already completed.
+            if (readyToFinishJoiningRing())
+            {
+                logger.info("Joining ring by operator request");
+                joinRing = true;
+                ClusterMetadata metadata = ClusterMetadata.current();
+                Gossiper.instance.mergeNodeToGossip(metadata.myNodeId(), metadata);
+            }
+        }
         else if (isSurveyMode)
         {
-            // if isSurveyMode is on then verify the node is in the right state to join the ring
-            if (readyToFinishJoiningRing())
+            // if isSurveyMode then verify the node is in the right state to join the ring
+            // or that it has already done so
+            if (ClusterMetadata.current().myNodeState() == JOINED)
+            {
+                // note: this has always been a no-op, starting a previously joined node in
+                // survey mode is meaningless as bootstrapping and joining the ring is already
+                // complete and being in survey mode does not prevent the node participating in
+                // reads.
+                logger.info("Leaving write survey mode and joining ring at operator request");
+                isSurveyMode = false;
+            }
+            else if (readyToFinishJoiningRing())
             {
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing();
@@ -1051,12 +1106,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // bootstrap is not complete hence node cannot join the ring
             logger.warn("Can't join the ring because bootstrap hasn't completed.");
-            return;
         }
-
-//        doAuthSetup();
-        maybeInitializeServices();
-        completeInitialization();
     }
 
     public boolean readyToFinishJoiningRing()
@@ -2064,6 +2114,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
     {
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+
+        // Special case to handle moving to hibernate state, which we now need to trigger
+        // marking the node dead. Previously a node coming up in hibernate state would never
+        // be marked alive as it doesn't gossip a normal STATUS after a generation bump. Post
+        // CEP-21 however, peers already know about this hibernating node and as it gets
+        // marked up by virtue of actually being alive and responsive despite not gossiping a
+        // normal STATUS.
+        if (state == ApplicationState.STATUS_WITH_PORT)
+        {
+            String[] pieces = splitValue(value);
+            if (pieces[0].equals(VersionedValue.HIBERNATE))
+            {
+                logger.info("Node {} state jump to hibernate", endpoint);
+                Gossiper.runInGossipStageBlocking(() -> {
+                    Gossiper.instance.markDead(endpoint, epState);
+                });
+            }
+        }
+
         if (epState == null || Gossiper.instance.isDeadState(epState))
         {
             logger.debug("Ignoring state change for dead or unknown endpoint: {}", endpoint);
@@ -3968,6 +4037,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         switch (nodeState)
         {
             case REGISTERED:
+                return Mode.STARTING;
             case BOOT_REPLACING:
             case BOOTSTRAPPING:
                 return Mode.JOINING;

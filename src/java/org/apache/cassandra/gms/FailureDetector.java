@@ -260,7 +260,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort());
         List<Token> tokens = metadata.tokenMap.tokens(nodeId);
-        if (tokens != null)
+        if (tokens != null && !tokens.isEmpty())
             sb.append("  TOKENS:").append(metadata.epoch.getEpoch()).append(":<hidden>\n");
         else
             sb.append("  TOKENS: not present\n");
