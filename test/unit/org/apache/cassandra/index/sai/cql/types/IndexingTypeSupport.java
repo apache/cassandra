@@ -87,7 +87,7 @@ public abstract class IndexingTypeSupport extends SAITester
         if (scenario != Scenario.POST_BUILD_QUERY)
         {
             for (String index : dataset.decorateIndexColumn("value"))
-                createIndex(String.format("CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'", index));
+                createIndex(String.format("CREATE INDEX ON %%s(%s) USING 'sai'", index));
         }
 
         insertData(this, allRows, scenario);
@@ -104,14 +104,14 @@ public abstract class IndexingTypeSupport extends SAITester
             case POST_BUILD_QUERY:
                 flush();
                 for (String index : dataset.decorateIndexColumn("value"))
-                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'", index));
+                    createIndex(String.format("CREATE INDEX ON %%s(%s) USING 'sai'", index));
                 break;
         }
 
         dataset.querySet().runQueries(this, allRows);
     }
 
-    public static void insertData(SAITester tester, Object[][] allRows, Scenario scenario) throws Throwable
+    public static void insertData(SAITester tester, Object[][] allRows, Scenario scenario)
     {
         int sstableCounter = 0;
         int sstableIncrement = NUMBER_OF_VALUES / 8;
