@@ -29,7 +29,6 @@ import java.util.function.Function;
 
 import accord.api.Data;
 import accord.api.Key;
-import accord.api.Update;
 import accord.api.Write;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
@@ -57,7 +56,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 
-public class TxnUpdate implements Update
+public class TxnUpdate
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnUpdate(null, new ByteBuffer[0], null));
 
@@ -116,15 +115,15 @@ public class TxnUpdate implements Update
         return result;
     }
 
-    @Override
+//    @Override
     public Keys keys()
     {
         // TODO: It doesn't seem to affect correctness, but should we return the union of the fragment + condition keys?
         return keys;
     }
 
-    @Override
-    public Update slice(Ranges ranges)
+//    @Override
+    public TxnUpdate slice(Ranges ranges)
     {
         Keys keys = this.keys.slice(ranges);
         // TODO: Slice the condition.
@@ -143,8 +142,8 @@ public class TxnUpdate implements Update
         return result;
     }
 
-    @Override
-    public Update merge(Update update)
+//    @Override
+    public TxnUpdate merge(TxnUpdate update)
     {
         // TODO: special method for linear merging keyed and non-keyed lists simultaneously
         TxnUpdate that = (TxnUpdate) update;
@@ -170,7 +169,7 @@ public class TxnUpdate implements Update
         return out;
     }
 
-    @Override
+//    @Override
     public Write apply(Timestamp executeAt, Data data)
     {
         if (!checkCondition(data))
@@ -187,7 +186,7 @@ public class TxnUpdate implements Update
         return new TxnWrite(updates);
     }
 
-    public static final IVersionedSerializer<TxnUpdate> serializer = new IVersionedSerializer<TxnUpdate>()
+    static final IVersionedSerializer<TxnUpdate> serializer = new IVersionedSerializer<TxnUpdate>()
     {
         @Override
         public void serialize(TxnUpdate update, DataOutputPlus out, int version) throws IOException

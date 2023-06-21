@@ -70,6 +70,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnMultiUpdate;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -263,10 +264,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return reads;
     }
 
-    TxnCondition createCondition(QueryOptions options)
+    TxnCondition createCondition(QueryOptions options, ConditionalBlock conditionalBlock)
     {
-        // TODO
-        List<ConditionStatement> conditions = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).conditions;
+        List<ConditionStatement> conditions = conditionalBlock.conditions;
 
         if (conditions.isEmpty())
             return TxnCondition.none();
@@ -281,10 +281,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, result);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer, ConditionalBlock conditionalBlock)
     {
-        // TODO
-        List<ModificationStatement> updates = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).updates;
+        List<ModificationStatement> updates = conditionalBlock.updates;
 
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
@@ -307,9 +306,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return fragments;
     }
 
-    TxnUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    TxnUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer, ConditionalBlock conditionalBlock)
     {
-        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options));
+        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer, conditionalBlock), createCondition(options, conditionalBlock));
     }
 
     Keys toKeys(SortedSet<Key> keySet)
@@ -322,13 +321,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     {
         SortedSet<Key> keySet = new TreeSet<>();
 
-        // TODO
-        List<ModificationStatement> updates = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).updates;
-        List<ConditionStatement> conditions = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).conditions;
-
-        if (updates.isEmpty())
+        if (conditionalBlocks.stream().allMatch(b -> b.updates.isEmpty()))
         {
             // TODO: Test case around this...
+            List<ConditionStatement> conditions = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).conditions;
+
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
@@ -338,11 +335,14 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         else
         {
             Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
-            TxnUpdate update = createUpdate(state, options, autoReads, keySet::add);
+            TxnUpdate[] updates = new TxnUpdate[conditionalBlocks.size()];
+            for (int i = 0; i < updates.length; i++)
+                updates[i] = createUpdate(state, options, autoReads, keySet::add, conditionalBlocks.get(i));
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = new TxnRead(reads, txnKeys);
-            return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
+            TxnMultiUpdate multiUpdate = new TxnMultiUpdate(updates);
+            return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, multiUpdate);
         }
     }
 

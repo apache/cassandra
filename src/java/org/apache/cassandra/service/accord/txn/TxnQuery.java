@@ -84,7 +84,8 @@ public abstract class TxnQuery implements Query
             checkNotNull(txnId, "txnId should not be null");
             checkNotNull(data, "data should not be null");
             checkNotNull(update, "update should not be null");
-            TxnUpdate txnUpdate = (TxnUpdate)update;
+            TxnMultiUpdate txnUpdates = (TxnMultiUpdate)update; // TODO
+            TxnUpdate txnUpdate = txnUpdates.updates[0];
             boolean conditionCheck = txnUpdate.checkCondition(data);
             // If the condition applied an empty result indicates success
             if (conditionCheck)

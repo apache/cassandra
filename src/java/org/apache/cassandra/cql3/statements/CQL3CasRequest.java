@@ -62,6 +62,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnMultiUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
@@ -476,7 +477,7 @@ public class CQL3CasRequest implements CASRequest
 
     private Update createUpdate(ClientState clientState)
     {
-        return new TxnUpdate(createWriteFragments(clientState), createCondition());
+        return new TxnMultiUpdate(new TxnUpdate[] {new TxnUpdate(createWriteFragments(clientState), createCondition())});
     }
 
     private TxnCondition createCondition()
