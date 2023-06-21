@@ -95,6 +95,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class StorageAttachedIndex implements Index
 {
+    public static final String NAME = "sai";
+    
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
 
     private static class StorageAttachedIndexBuildingSupport implements IndexBuildingSupport
