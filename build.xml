@@ -1060,7 +1060,7 @@
   </target>
 
   <target name="_check-test-names">
-    <java taskname="check-test-names" fork="true" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+    <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
       <classpath>
         <path refid="cassandra.classpath" />
         <pathelement location="${test.classes}"/>
