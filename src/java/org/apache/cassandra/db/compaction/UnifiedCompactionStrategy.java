@@ -44,6 +44,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.unified.Controller;
+import org.apache.cassandra.db.compaction.unified.Reservations;
 import org.apache.cassandra.db.compaction.unified.ShardedMultiWriter;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -492,23 +493,31 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                                       List<CompactionAggregate.UnifiedAggregate> pending)
     {
         long totalCompactionLimit = controller.maxCompactionSpaceBytes();
+        int levelCount = limits.levelCount;
         for (CompactionAggregate.UnifiedAggregate aggregate : pending)
         {
             warnIfSizeAbove(aggregate, totalCompactionLimit);
 
+            // Make sure the level count includes all levels for which we have sstables (to be ready to compact
+            // as soon as the threshold is crossed)...
+            levelCount = Math.max(levelCount, aggregate.bucketIndex() + 1);
             CompactionPick selected = aggregate.getSelected();
             if (selected != null)
-                limits.levelCount = Math.max(limits.levelCount, levelOf(selected));
+            {
+                // ... and also the levels that a layout-preserving selection would create.
+                levelCount = Math.max(levelCount, levelOf(selected) + 1);
+            }
         }
+        int[] perLevel = limits.perLevel;
+        if (levelCount != perLevel.length)
+            perLevel = Arrays.copyOf(perLevel, levelCount);
 
-        final List<CompactionAggregate> selection = getSelection(pending,
-                                                                 controller,
-                                                                 limits.maxCompactions,
-                                                                 limits.levelCount,
-                                                                 limits.perLevel,
-                                                                 limits.spaceAvailable,
-                                                                 limits.remainingAdaptiveCompactions);
-        return selection;
+        return getSelection(pending,
+                            controller,
+                            limits.maxCompactions,
+                            perLevel,
+                            limits.spaceAvailable,
+                            limits.remainingAdaptiveCompactions);
     }
 
     /**
@@ -523,19 +532,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
         List<CompactionAggregate.UnifiedAggregate> pending = getPendingCompactionAggregates(limits.spaceAvailable, gcBefore);
         setPendingCompactionAggregates(pending);
-
-        for (CompactionAggregate.UnifiedAggregate aggregate : pending)
-        {
-            // Make sure the level count includes all levels for which we have sstables (to be ready to compact
-            // as soon as the threshold is crossed)...
-            limits.levelCount = Math.max(limits.levelCount, aggregate.bucketIndex() + 1);
-            CompactionPick selected = aggregate.getSelected();
-            if (selected != null)
-            {
-                // ... and also the levels that a layout-preserving selection would create.
-                limits.levelCount = Math.max(limits.levelCount, levelOf(selected) + 1);
-            }
-        }
 
         return updateLevelCountWithParentAndGetSelection(limits, pending);
     }
@@ -649,7 +645,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                         FBUtilities.prettyPrintMemory(spaceOverheadLimit),
                         controller.getMaxSpaceOverhead() * 100,
                         FBUtilities.prettyPrintMemory(controller.getDataSetSizeBytes()),
-                        Controller.DATASET_SIZE_OPTION_GB,
+                        Controller.DATASET_SIZE_OPTION,
                         Controller.MAX_SPACE_OVERHEAD_OPTION);
     }
 
@@ -667,7 +663,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      *
      * @param pending list of all current aggregates with possible selection for each bucket
      * @param totalCount maximum number of compactions permitted to run
-     * @param levelCount number of levels in use
      * @param perLevel int array with the number of in-progress compactions per level
      * @param spaceAvailable amount of space in bytes available for the new compactions
      * @param remainingAdaptiveCompactions number of adaptive compactions (i.e. ones triggered by scaling parameter
@@ -677,32 +672,23 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     static List<CompactionAggregate> getSelection(List<CompactionAggregate.UnifiedAggregate> pending,
                                                   Controller controller,
                                                   int totalCount,
-                                                  int levelCount,
                                                   int[] perLevel,
                                                   long spaceAvailable,
                                                   int remainingAdaptiveCompactions)
     {
-        // Prepare parameters for the selection.
-        int reservedThreadsTarget = controller.getReservedThreadsPerLevel();
-        // Each level has this number of tasks reserved for it.
-        int perLevelCount = Math.min(totalCount / levelCount, reservedThreadsTarget);
-        // The remainder is distributed according to the prioritization.
-        int remainder = totalCount - perLevelCount * levelCount;
-        // If the user requested more than we can give, do not allow more than one extra per level.
-        boolean oneRemainderPerLevel = perLevelCount < reservedThreadsTarget;
+        Reservations reservations = Reservations.create(totalCount,
+                                                        perLevel,
+                                                        controller.getReservedThreads(),
+                                                        controller.getReservationsType());
         // If the inclusion method is not transitive, we may have multiple buckets/selections for the same sstable.
         boolean shouldCheckSSTableSelected = controller.overlapInclusionMethod() != Overlaps.InclusionMethod.TRANSITIVE;
         // If so, make sure we only select one such compaction.
         Set<CompactionSSTable> selectedSSTables = shouldCheckSSTableSelected ? new HashSet<>() : null;
 
-        // Calculate how many new ones we can add in each level, and how many we can assign randomly.
         int remaining = totalCount;
-        for (int i = 0; i < levelCount; ++i)
-        {
-            remaining -= perLevel[i];
-            if (perLevel[i] > perLevelCount)
-                remainder -= perLevel[i] - perLevelCount;
-        }
+        for (int countInLevel : perLevel)
+            remaining -= countInLevel;
+
         // Note: if we are in the middle of changes in the parameters or level count, remainder might become negative.
         // This is okay, some buckets will temporarily not get their rightful share until these tasks complete.
 
@@ -735,22 +721,15 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 continue; // do not allow more than remainingAdaptiveCompactions to limit latency spikes upon changing W
 
             if (shouldCheckSSTableSelected && !Collections.disjoint(selectedSSTables, pick.sstables()))
-                continue; // do not allow multiple selections on the same sstable
+                continue; // do not allow multiple selections of the same sstable
 
-            if (perLevel[currentLevel] >= perLevelCount)
-            {
-                if (remainder <= 0)
-                    continue;  // share used up and no remainder to distribute
-                if (oneRemainderPerLevel && perLevel[currentLevel] > perLevelCount)
-                    continue;  // this level is already using up all its share + one, we can ignore candidate altogether
-                --remainder;
-            }
-            // Note: if any additional checks are added, make sure remainder is not decreased if they fail.
+            if (!reservations.accept(currentLevel))
+                continue; // honor the reserved thread counts
+            // Note: the reservations tracker assumes it is the last check and a pick is accepted if it returns true.
 
             if (isAdaptive)
                 remainingAdaptiveCompactions--;
             --remaining;
-            ++perLevel[currentLevel];
             spaceAvailable -= overheadSizeInBytes;
             selected.add(aggregate);
             if (shouldCheckSSTableSelected)
@@ -760,9 +739,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 break;
         }
 
-        logger.debug("Selected {} compactions (out of {} pending). Compactions per level {} (reservations {}{}) remaining reserved {} non-reserved {}.",
-                     selected.size(), proposed, perLevel, perLevelCount, oneRemainderPerLevel ? "+1" : "", remaining - remainder, remainder);
-
+        reservations.debugOutput(selected.size(), proposed, remaining);
         return selected;
     }
 

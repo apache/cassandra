@@ -69,6 +69,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.unified.AdaptiveController;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.CostsCalculator;
+import org.apache.cassandra.db.compaction.unified.Reservations;
 import org.apache.cassandra.db.compaction.unified.StaticController;
 import org.apache.cassandra.db.compaction.unified.Environment;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -404,6 +405,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                          targetSSTableSizeMB << 20,
                                                          0,
                                                          0,
+                                                         Reservations.Type.PER_LEVEL,
                                                          overlapInclusionMethod,
                                                          updateTimeSec,
                                                          minW,
@@ -428,6 +430,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                                                        targetSSTableSizeMB << 20,
                                                        0,
                                                        0,
+                                                       Reservations.Type.PER_LEVEL,
                                                        overlapInclusionMethod,
                                                        "ks",
                                                        "tbl");

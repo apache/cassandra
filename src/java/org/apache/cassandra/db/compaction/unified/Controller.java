@@ -68,7 +68,6 @@ public abstract class Controller
     protected static final Logger logger = LoggerFactory.getLogger(Controller.class);
     private static final ConcurrentMap<TableMetadata, Controller.Metrics> allMetrics = new ConcurrentHashMap<>();
 
-    //TODO: Remove some options, add deprecation messages
     static final String PREFIX = "unified_compaction.";
 
     /**
@@ -190,10 +189,22 @@ public abstract class Controller
      * If the number is greater than the number of compaction threads divided by the number of levels rounded down, the
      * latter will apply. Specifying "max" reserves as many threads as possible for each level.
      * <p>
-     * The default value is 0, no reserved threads.
+     * The default value is max, all compaction threads are distributed among the levels.
      */
-    static final String RESERVED_THREADS_OPTION = "reserved_threads_per_level";
-    public static final int DEFAULT_RESERVED_THREADS = FBUtilities.parseIntAllowingMax(System.getProperty(PREFIX + RESERVED_THREADS_OPTION, "0"));
+    static final String RESERVED_THREADS_OPTION = "reserved_threads";
+    public static final int DEFAULT_RESERVED_THREADS = FBUtilities.parseIntAllowingMax(System.getProperty(PREFIX + RESERVED_THREADS_OPTION, "max"));
+
+    /**
+     * Reservation type, defining whether reservations can be used by lower levels. If set to `per_level`, the
+     * reservations are only used by the specific level. If set to `level_or_below`, the reservations can be used by
+     * the specific level as well as any one below it.
+     * <p>
+     * The default value is `level_or_below`.
+     */
+    static final String RESERVATIONS_TYPE_OPTION = "reservations_type";
+    public static final Reservations.Type DEFAULT_RESERVED_THREADS_TYPE =
+        Reservations.Type.valueOf(System.getProperty(PREFIX + RESERVATIONS_TYPE_OPTION,
+                                                     Reservations.Type.LEVEL_OR_BELOW.name()).toUpperCase());
 
     /**
      * This parameter is intended to modify the shape of the LSM by taking into account the survival ratio of data, for now it is fixed to one.
@@ -276,7 +287,8 @@ public abstract class Controller
     protected final long targetSSTableSize;
     protected final double sstableGrowthModifier;
 
-    protected final int reservedThreadsPerLevel;
+    protected final int reservedThreads;
+    protected final Reservations.Type reservationsType;
 
     @Nullable protected volatile CostsCalculator calculator;
     @Nullable private volatile Metrics metrics;
@@ -297,7 +309,8 @@ public abstract class Controller
                int baseShardCount,
                long targetSStableSize,
                double sstableGrowthModifier,
-               int reservedThreadsPerLevel,
+               int reservedThreads,
+               Reservations.Type reservationsType,
                Overlaps.InclusionMethod overlapInclusionMethod)
     {
         this.clock = clock;
@@ -312,7 +325,8 @@ public abstract class Controller
         this.targetSSTableSize = targetSStableSize;
         this.overlapInclusionMethod = overlapInclusionMethod;
         this.sstableGrowthModifier = sstableGrowthModifier;
-        this.reservedThreadsPerLevel = reservedThreadsPerLevel;
+        this.reservedThreads = reservedThreads;
+        this.reservationsType = reservationsType;
         this.maxSpaceOverhead = maxSpaceOverhead;
 
         if (maxSSTablesToCompact <= 0)  // use half the maximum permitted compaction size as upper bound by default
@@ -611,9 +625,14 @@ public abstract class Controller
      * SSTables can grow large, threads must be reserved to ensure that compactions, esp. on level 0, do not have to
      * wait for long operations to complete.
      */
-    public int getReservedThreadsPerLevel()
+    public int getReservedThreads()
     {
-        return reservedThreadsPerLevel;
+        return reservedThreads;
+    }
+
+    public Reservations.Type getReservationsType()
+    {
+        return reservationsType;
     }
 
     /**
@@ -832,13 +851,14 @@ public abstract class Controller
         int reservedThreadsPerLevel = options.containsKey(RESERVED_THREADS_OPTION)
                                       ? FBUtilities.parseIntAllowingMax(options.get(RESERVED_THREADS_OPTION))
                                       : DEFAULT_RESERVED_THREADS;
+        Reservations.Type reservationsType = options.containsKey(RESERVATIONS_TYPE_OPTION)
+                                                  ? Reservations.Type.valueOf(options.get(RESERVATIONS_TYPE_OPTION).toUpperCase())
+                                                  : DEFAULT_RESERVED_THREADS_TYPE;
 
         if (options.containsKey(NUM_SHARDS_OPTION))
         {
             // Legacy V1 mode.
             int numShards = Integer.parseInt(options.get(NUM_SHARDS_OPTION));
-            if (!options.containsKey(RESERVED_THREADS_OPTION))
-                reservedThreadsPerLevel = Integer.MAX_VALUE;
             if (!options.containsKey(MIN_SSTABLE_SIZE_OPTION))
                 minSSTableSize = MIN_SSTABLE_SIZE_AUTO;
             baseShardCount = numShards;
@@ -886,6 +906,7 @@ public abstract class Controller
                                                 targetSStableSize,
                                                 sstableGrowthModifier,
                                                 reservedThreadsPerLevel,
+                                                reservationsType,
                                                 overlapInclusionMethod,
                                                 realm.getKeyspaceName(),
                                                 realm.getTableName(),
@@ -903,6 +924,7 @@ public abstract class Controller
                                               targetSStableSize,
                                               sstableGrowthModifier,
                                               reservedThreadsPerLevel,
+                                              reservationsType,
                                               overlapInclusionMethod,
                                               realm.getKeyspaceName(),
                                               realm.getTableName(),
@@ -1093,6 +1115,21 @@ public abstract class Controller
                                                                RESERVED_THREADS_OPTION,
                                                                e.getMessage()),
                                                  e);
+            }
+        }
+
+        s = options.remove(RESERVATIONS_TYPE_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                Reservations.Type.valueOf(s.toUpperCase());
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new ConfigurationException(String.format("Invalid reserved threads type %s. The valid options are %s.",
+                                                               s,
+                                                               Arrays.toString(Reservations.Type.values())));
             }
         }
 
