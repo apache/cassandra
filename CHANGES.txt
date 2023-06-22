@@ -1,4 +1,5 @@
 3.0.30
+ * Suppress CVE-2023-34455, CVE-2023-34454, CVE-2023-34453 (CASSANDRA-18608)
  * Backport CASSANDRA-10508: Remove hard-coded SSL cipher suites (CASSANDRA-18575)
  * Suppress CVE-2023-2976 (CASSANDRA-18562)
  * Remove dh_python use in Debian packaging (CASSANDRA-18558)
