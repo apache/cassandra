@@ -342,25 +342,34 @@ prioritization mechanism above can improve the situation relatively quickly.
 
 However, with higher lambdas (especially in fixed shards mode), higher-level compactions can take a very long time and 
 will often hog all available threads, causing very large accummulations of sstables on the lowest levels that can remain
-present for a long time and cause significant problems. To prevent this, UCS offers a mechanism of reserving threads
-for each level of the hierarchy.
+present for a long time and cause significant problems. To prevent this, UCS will by default limit the number of threads
+that can perform higher-level compactions to only a fair share of the total number of threads. This is fully
+configurable through parameters for a number of thread reservations, as well as a reservation mode (`per_level` or 
+`level_or_below`). 
 
-By default the number of reservations is 0. This assigns all compaction threads according to the prioritization
-explained in the previous paragraph, provides the best utilization of compaction threads in the system and works well 
-with small sstable sizes. Even in these cases, it will result in small spikes of sstable overlap on lower levels of the
-hierarchy when compactions on top levels are initiated.
+When the number of reservations is 0, the mode does not matter and all compaction threads are assigned according to the 
+prioritization explained in the previous paragraph. This provides the best utilization of compaction threads in the 
+system and works well with small sstable sizes. Even in these cases, it will result in small spikes of sstable overlap 
+on lower levels of the hierarchy when compactions on top levels are initiated.
 
-When the number of reservations is set to an integer, UCS will reserve that many threads for each level of the hierarchy
-and assign work to the rest of the threads according to the prioritization above. Some threads will be idle if no work
-is needed on the associated level. UCS will also reserve the given number of threads for the top level before it needs 
-any compaction, to be able to respond to a new need quickly.
+In `per-level` mode, when the number of reservations is set to an integer, UCS will reserve that many threads for each
+level of the hierarchy and assign work to the rest of the threads according to the prioritization above. Some threads 
+will be idle if no work is needed on the associated level. UCS will also reserve the given number of threads for the top
+level before it needs any compaction, to be able to respond to a new need quickly.
 
-When the number of reservations is set to 'max', or exceeds the number of available threads divided by the number of 
+When the number of reservations is set to `max`, or exceeds the number of available threads divided by the number of 
 levels, UCS will reserve the integer part of that ratio for each level, and will assign the remainder according
 to the prioritization, but only up to one additional compaction per level. This setting provides better smoothness, 
 reducing or fully eliminating the overlap spikes, and is imperative when sstables can grow large (i.e. with higher
-lambda). The downside is that this means fewer sstable threads will be actively used. This is thus best combined 
-with higher compaction thread counts.
+lambda). The downside of this setting is that this means fewer compaction threads will be actively used. This is thus 
+best combined with higher compaction thread counts.
+
+Using the `level_and_below` mode splits the threads as above, but makes threads for higher levels available for 
+lower-level work. In other words, it only limits the resources that higher levels may use: up to the given number plus
+any remainder for the top level, up to two times that number plus the remainder for the top two levels and so on. This 
+still solves the original problem (higher-level compactions starving low levels of resources) while making better use of
+the compaction threads. This is the mode (with `max` reservations) used by default.
+
 
 ## Major compaction
 
@@ -428,7 +437,7 @@ the span of the lower-density ones.
 
 UCS accepts these compaction strategy parameters:
 
-* **scaling_parameters**. A list of per-level scaling parameters, specified as L*f*, T*f*, N, or an integer value
+* `scaling_parameters` A list of per-level scaling parameters, specified as L*f*, T*f*, N, or an integer value
   specifying $w$ directly. If more levels are present than the length of this list, the last value is used for all
   higher levels. Often this will be a single parameter, specifying the behaviour for all levels of the
   hierarchy.  
@@ -442,19 +451,19 @@ UCS accepts these compaction strategy parameters:
   compaction to be promoted to the next level) and a fan factor of 2. This can also be specified as T2 or L2.  
   The default value is T4, matching the default STCS behaviour with threshold 4. To select an equivalent of LCS
   with its default fan factor 10, use L10.
-* **target_sstable_size**. The target sstable size $t$, specified as a human-friendly size in bytes (e.g. 100 MiB =
+* `target_sstable_size` The target sstable size $t$, specified as a human-friendly size in bytes (e.g. 100 MiB =
   $100\cdot 2^{20}$ B or (10 MB = 10,000,000 B)). The strategy will split data in shards that aim to produce sstables
   of size between $t / \sqrt 2$ and $t \cdot \sqrt 2$.  
   Smaller sstables improve streaming and repair, and make compactions shorter. On the other hand, each sstable
   on disk has a non-trivial in-memory footprint that also affects garbage collection times.  
   Increase this if the memory pressure from the number of sstables in the system becomes too high. Also see
-  **sstable_growth** below.  
+  `sstable_growth` below.  
   The default value is 1 GiB.
-* **base_shard_count**. The minimum number of shards $b$, used for levels with the smallest density. This gives the
+* `base_shard_count` The minimum number of shards $b$, used for levels with the smallest density. This gives the
   minimum compaction concurrency for the lowest levels. A low number would result in larger L0 sstables but may limit
   the overall maximum write throughput (as every piece of data has to go through L0).  
   The default value is 4 (1 for system tables, or when multiple data locations are defined).
-* **sstable_growth**. The sstable growth component $\lambda$, applied as a factor in the shard exponent calculation.
+* `sstable_growth` The sstable growth component $\lambda$, applied as a factor in the shard exponent calculation.
   This is a number between 0 and 1 that controls what part of the density growth should apply to individual sstable
   size and what part should increase the number of shards. Using a value of 1 has the effect of fixing the shard
   count to the base value. Using 0.5 makes the shard count and sstable size grow with the square root of the density
@@ -468,31 +477,33 @@ UCS accepts these compaction strategy parameters:
   two can be further tweaked by increasing $\lambda$ to get fewer but bigger sstables on the top level, and decreasing
   it to favour a higher count of smaller sstables.  
   The default value is 0, corresponding to a fixed sstable target size.
-* **sstable_size_min**. The minimum sstable size $m$, applicable when the base shard count will result is sstables
+* `sstable_size_min` The minimum sstable size $m$, applicable when the base shard count will result is sstables
   that are considered too small. If set, the strategy will split the space into fewer than the base count shards, to
   make the estimated sstables size at least as large as this value.  
   The default value is 0, which disables this feature. A value of `auto` sets the minimum sstable size to the size
   of sstables resulting from flushes.
-* **reserved_threads**. Specifies the number of threads to reserve per level. Any remaining threads will take
+* `reserved_threads` Specifies the number of threads to reserve per level. Any remaining threads will take
   work according to the prioritization mechanism (i.e. higher overlap first). Higher reservations mean better
   responsiveness of the compaction strategy to new work, or smoother performance, at the expense of reducing the
-  overall utilization of compaction threads. Higher values work best with high **concurrent_compactors** values.  
-  The default value `max`, which spreads all threads as close to evenly between levels as possible.
-* **reserved_threads_type**. Specifies whether reservations can be used by lower levels. If set to `per_level`, the
+  overall utilization of compaction threads. Higher values work best with high `concurrent_compactors` values.  
+  The default value is `max`, which spreads all threads as close to evenly between levels as possible. It is recommended
+  to keep this option and the next at their defaults, which should offer a good balance between responsiveness and
+  thread utilization.
+* `reservations_type` Specifies whether reservations can be used by lower levels. If set to `per_level`, the
   reservations are only used by the specific level. If set to `level_or_below`, the reservations can be used by this
   level as well as any one below it.  
   The default value is `level_or_below`.
-* **expired_sstable_check_frequency_seconds**. Determines how often to check for expired SSTables.  
+* `expired_sstable_check_frequency_seconds` Determines how often to check for expired SSTables.  
   The default value is 10 minutes.
-* **num_shards**. Specifying this switches the strategy to UCS V1 mode, where the number of shards is fixed, but a
+* `num_shards` Specifying this switches the strategy to UCS V1 mode, where the number of shards is fixed, but a
   minimum sstable size applies for the lowest levels. Provided for compatibility with DSE 6.8's UCS implementation.
   Sets $b$ to the specified value, $\lambda$ to 1, and the default minimum sstable size to 'auto'.  
-  Disabled by default and cannot be used in combination with **base_shard_count**, **target_sstable_size** or
-  **sstable_growth**.
+  Disabled by default and cannot be used in combination with `base_shard_count`, `target_sstable_size` or
+  `sstable_growth`.
 
-In **cassandra.yaml**:
+In `cassandra.yaml`:
 
-* **concurrent_compactors**. The number of compaction threads available. Higher values increase compaction performance
+* `concurrent_compactors` The number of compaction threads available. Higher values increase compaction performance
   but may increase read and write latencies. Combine a high compactor count with thread reservations for more consistent
   performance with sustained loads.
 
