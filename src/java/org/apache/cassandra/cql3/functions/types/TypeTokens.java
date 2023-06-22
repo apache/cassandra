@@ -154,4 +154,23 @@ public final class TypeTokens
          }, valueType);
         // @formatter:on
     }
+
+    /**
+     * Create a {@link TypeToken} that represents a {@link TypeToken} whose elements are of the given type.
+     *
+     * @param eltType The vector element type.
+     * @param <T>     The vector element type.
+     * @return A {@link TypeToken} that represents a {@link TypeToken} whose elements are of the given
+     * type.
+     */
+    public static <T> TypeToken<List<T>> vectorOf(TypeToken<T> eltType)
+    {
+        // @formatter:off
+        return new TypeToken<List<T>>()
+        {
+        }.where(new TypeParameter<T>()
+        {
+        }, eltType);
+        // @formatter:on
+    }
 }

@@ -122,6 +122,7 @@ import static org.apache.cassandra.cql3.functions.types.DataType.*;
  */
 public abstract class TypeCodec<T>
 {
+    private final static int VARIABLE_LENGTH = -1;
 
     /**
      * Return the default codec for the CQL type {@code boolean}. The returned codec maps the CQL type
@@ -376,6 +377,19 @@ public abstract class TypeCodec<T>
     }
 
     /**
+     * Return a newly-created codec for the given CQL vector type. The returned codec maps the vector
+     * type into the Java type {@link List}. This method does not cache returned instances and
+     * returns a newly-allocated object at each invocation.
+     *
+     * @param type the vector type this codec should handle.
+     * @return A newly-created codec for the given CQL tuple type.
+     */
+    public static <E> TypeCodec<List<E>> vector(VectorType type, TypeCodec<E> valueCodec)
+    {
+        return VectorCodec.of(type, valueCodec);
+    }
+
+    /**
      * Return a newly-created codec for the given user-defined CQL type. The returned codec maps the
      * user-defined type into the Java type {@link UDTValue}. This method does not cache returned
      * instances and returns a newly-allocated object at each invocation.
@@ -486,6 +500,24 @@ public abstract class TypeCodec<T>
     public DataType getCqlType()
     {
         return cqlType;
+    }
+
+    /**
+     * @return the length of values for this type if all values are of fixed length, {@link #VARIABLE_LENGTH} otherwise
+     */
+    public int serializedSize()
+    {
+        return VARIABLE_LENGTH;
+    }
+
+    /**
+     * Checks if all values are of fixed length.
+     *
+     * @return {@code true} if all values are of fixed length, {@code false} otherwise.
+     */
+    public final boolean isSerializedSizeFixed()
+    {
+        return serializedSize() != VARIABLE_LENGTH;
     }
 
     /**
@@ -1021,6 +1053,12 @@ public abstract class TypeCodec<T>
         }
 
         @Override
+        public int serializedSize()
+        {
+            return 8;
+        }
+
+        @Override
         public Long parse(String value)
         {
             try
@@ -1191,6 +1229,12 @@ public abstract class TypeCodec<T>
         }
 
         @Override
+        public int serializedSize()
+        {
+            return 1;
+        }
+
+        @Override
         public Boolean parse(String value)
         {
             if (value == null || value.isEmpty() || value.equalsIgnoreCase("NULL")) return null;
@@ -1309,6 +1353,12 @@ public abstract class TypeCodec<T>
         }
 
         @Override
+        public int serializedSize()
+        {
+            return 8;
+        }
+
+        @Override
         public Double parse(String value)
         {
             try
@@ -1362,6 +1412,12 @@ public abstract class TypeCodec<T>
         private FloatCodec()
         {
             super(DataType.cfloat());
+        }
+
+        @Override
+        public int serializedSize()
+        {
+            return 4;
         }
 
         @Override
@@ -1594,6 +1650,12 @@ public abstract class TypeCodec<T>
         }
 
         @Override
+        public int serializedSize()
+        {
+            return 4;
+        }
+
+        @Override
         public Integer parse(String value)
         {
             try
@@ -1647,6 +1709,12 @@ public abstract class TypeCodec<T>
         private TimestampCodec()
         {
             super(DataType.timestamp(), Date.class);
+        }
+
+        @Override
+        public int serializedSize()
+        {
+            return 8;
         }
 
         @Override
@@ -1717,6 +1785,12 @@ public abstract class TypeCodec<T>
         private DateCodec()
         {
             super(DataType.date(), LocalDate.class);
+        }
+
+        @Override
+        public int serializedSize()
+        {
+            return 8;
         }
 
         @Override
@@ -1854,6 +1928,12 @@ public abstract class TypeCodec<T>
         private AbstractUUIDCodec(DataType cqlType)
         {
             super(cqlType, UUID.class);
+        }
+
+        @Override
+        public int serializedSize()
+        {
+            return 16;
         }
 
         @Override

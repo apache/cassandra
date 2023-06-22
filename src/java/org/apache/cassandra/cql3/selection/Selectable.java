@@ -910,7 +910,8 @@ public interface Selectable extends AssignmentTestable
             }
 
             VectorType<?> vectorType = (VectorType<?>) type;
-            assert vectorType.dimension == selectables.size() : String.format("Unable to create a vector selector of type %s from %d elements", vectorType.asCQL3Type(), selectables.size());
+            if (vectorType.dimension != selectables.size())
+                throw invalidRequest("Unable to create a vector selector of type %s from %d elements", vectorType.asCQL3Type(), selectables.size());
 
             List<AbstractType<?>> expectedTypes = new ArrayList<>(selectables.size());
             for (int i = 0, m = selectables.size(); i < m; i++)

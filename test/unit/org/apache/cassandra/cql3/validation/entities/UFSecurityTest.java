@@ -118,7 +118,13 @@ public class UFSecurityTest extends CQLTester
                                     "     java.lang.Runtime.getRuntime().exec(\"/tmp/foo\"); return 0d;" +
                                     "} catch (Exception t) {" +
                                     "     throw new RuntimeException(t);" +
-                                    '}'}
+                                    '}'},
+        {"org.apache.cassandra.utils.vint.VIntCoding",
+         "try {" +
+         "     org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize(0L); return 0d;" +
+         "} catch (Exception t) {" +
+         "     throw new RuntimeException(t);" +
+         '}'}
         };
 
         for (String[] typeAndSource : typesAndSources)
