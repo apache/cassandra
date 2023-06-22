@@ -1887,7 +1887,10 @@
         <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="JavacSettings">
-    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+                                                    --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED
+                                                    --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
+                                                    --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
   </component>
 </project>]]></echo>
         <echo>"IDE configuration updated for use with JDK17"</echo>
