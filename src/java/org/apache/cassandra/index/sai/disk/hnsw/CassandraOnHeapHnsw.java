@@ -117,7 +117,7 @@ public class CassandraOnHeapHnsw<T>
 
     public boolean isEmpty()
     {
-        return size() == 0;
+        return postingsMap.values().stream().allMatch(VectorPostings::isEmpty);
     }
 
     /**
