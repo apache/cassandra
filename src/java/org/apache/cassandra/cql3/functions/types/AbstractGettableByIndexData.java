@@ -370,6 +370,28 @@ abstract class AbstractGettableByIndexData implements GettableByIndexData
      */
     @Override
     @SuppressWarnings("unchecked")
+    public <T> List<T> getVector(int i, Class<T> elementsClass)
+    {
+        return getList(i, TypeToken.of(elementsClass));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> List<T> getVector(int i, TypeToken<T> elementsType)
+    {
+        ByteBuffer value = getValue(i);
+        TypeToken<List<T>> javaType = TypeTokens.listOf(elementsType);
+        return codecFor(i, javaType).deserialize(value, protocolVersion);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @SuppressWarnings("unchecked")
     public UDTValue getUDTValue(int i)
     {
         ByteBuffer value = getValue(i);
