@@ -541,6 +541,22 @@ implements SettableData<T>
     }
 
     @Override
+    public <E> T setVector(int i, List<E> v)
+    {
+        return setValue(i, codecFor(i).serialize(v, protocolVersion));
+    }
+
+    @Override
+    public <E> T setVector(String name, List<E> v)
+    {
+        for (int i : getAllIndexesOf(name))
+        {
+            setVector(i, v);
+        }
+        return wrapped;
+    }
+
+    @Override
     public T setUDTValue(int i, UDTValue v)
     {
         return setValue(i, codecFor(i, UDTValue.class).serialize(v, protocolVersion));

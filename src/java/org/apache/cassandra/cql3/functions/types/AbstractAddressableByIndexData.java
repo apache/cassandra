@@ -254,6 +254,12 @@ extends AbstractGettableByIndexData implements SettableByIndexData<T>
     }
 
     @Override
+    public <E> T setVector(int i, List<E> v)
+    {
+        return setValue(i, codecFor(i).serialize(v, protocolVersion));
+    }
+
+    @Override
     public T setUDTValue(int i, UDTValue v)
     {
         return setValue(i, codecFor(i, UDTValue.class).serialize(v, protocolVersion));
