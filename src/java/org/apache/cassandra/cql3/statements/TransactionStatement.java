@@ -34,7 +34,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -323,10 +322,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         if (conditionalBlocks.stream().allMatch(b -> b.updates.isEmpty()))
         {
-            // TODO: Test case around this...
-            List<ConditionStatement> conditions = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).conditions;
-
-            Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = new TxnRead(reads, txnKeys);
@@ -407,8 +402,23 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 return new ResultMessage.Rows(result.build());
             }
 
-            // TODO
-            List<RowDataReference> returningReferences = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(0).returningReferences;
+            int selectedBranch = 0;
+            if (data.getSelectedBranch().isPresent())
+            {
+                selectedBranch = data.getSelectedBranch().getAsInt();
+            }
+            else if (conditionalBlocks.size() > 1)
+            {
+                // read-only transaction and we need to evaluate conditinal blocks
+                for (; selectedBranch < conditionalBlocks.size(); selectedBranch++)
+                {
+                    TxnCondition condition = createCondition(options, conditionalBlocks.get(selectedBranch));
+                    if (condition.applies(data))
+                        break;
+                }
+            }
+
+            List<RowDataReference> returningReferences = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(selectedBranch).returningReferences;
 
             if (!returningReferences.isEmpty())
             {

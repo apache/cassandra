@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 
 import accord.api.Data;
@@ -49,14 +50,22 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
 
     private final Map<TxnDataName, FilteredPartition> data;
 
-    public TxnData(Map<TxnDataName, FilteredPartition> data)
-    {
-        this.data = data;
-    }
+    private int selectedBranch = -1;
 
     public TxnData()
     {
-        this(new HashMap<>());
+        this(new HashMap<>(), -1);
+    }
+
+    public TxnData(Map<TxnDataName, FilteredPartition> data)
+    {
+        this(data, -1);
+    }
+
+    public TxnData(Map<TxnDataName, FilteredPartition> data, int selectedBranch)
+    {
+        this.data = data;
+        this.selectedBranch = selectedBranch;
     }
 
     public void put(TxnDataName name, FilteredPartition partition)
@@ -74,6 +83,17 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         return data.entrySet();
     }
 
+    public void setSelectedBranch(int selectedBranch)
+    {
+        assert selectedBranch >= 0;
+        this.selectedBranch = selectedBranch;
+    }
+
+    public OptionalInt getSelectedBranch()
+    {
+        return selectedBranch >= 0 ? OptionalInt.of(selectedBranch) : OptionalInt.empty();
+    }
+
     @Override
     public Data merge(Data data)
     {
@@ -81,6 +101,19 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         TxnData merged = new TxnData();
         this.data.forEach(merged::put);
         that.data.forEach(merged::put);
+        if (this.getSelectedBranch().isPresent() && !that.getSelectedBranch().isPresent())
+        {
+            merged.setSelectedBranch(this.selectedBranch);
+        }
+        else if (!this.getSelectedBranch().isPresent() && that.getSelectedBranch().isPresent())
+        {
+            merged.setSelectedBranch(that.selectedBranch);
+        }
+        else if (this.getSelectedBranch().isPresent() && that.getSelectedBranch().isPresent())
+        {
+            assert this.selectedBranch == that.selectedBranch;
+            merged.setSelectedBranch(this.selectedBranch);
+        }
         return merged;
     }
 
@@ -121,7 +154,15 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TxnData that = (TxnData) o;
-        return data.equals(that.data);
+        return data.equals(that.data) && selectedBranch == that.selectedBranch;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        int result = data.hashCode();
+        result = 31 * result + selectedBranch;
+        return result;
     }
 
     private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<FilteredPartition>()
@@ -169,6 +210,7 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
                 TxnDataName.serializer.serialize(entry.getKey(), out, version);
                 partitionSerializer.serialize(entry.getValue(), out, version);
             }
+            out.writeInt(data.selectedBranch);
         }
 
         @Override
@@ -182,7 +224,8 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
                 FilteredPartition partition = partitionSerializer.deserialize(in, version);
                 data.put(name, partition);
             }
-            return new TxnData(data);
+            int selectedBranch = in.readInt();
+            return new TxnData(data, selectedBranch);
         }
 
         @Override
@@ -194,6 +237,7 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
                 size += TxnDataName.serializer.serializedSize(entry.getKey(), version);
                 size += partitionSerializer.serializedSize(entry.getValue(), version);
             }
+            size += TypeSizes.sizeof(data.selectedBranch);
             return size;
         }
     };

@@ -62,7 +62,11 @@ public class TxnMultiUpdate implements Update, IMeasurableMemory
         {
             TxnUpdate update = updates[i];
             if (update.checkCondition(data))
-                return update.apply(executeAt, data); // apply the first matching branch and stop
+            {
+                TxnData txnData = data != null ? ((TxnData) data) : new TxnData();
+                txnData.setSelectedBranch(i);
+                return update.apply(executeAt, txnData); // apply the first matching branch and stop
+            }
         }
 
         return TxnWrite.EMPTY;

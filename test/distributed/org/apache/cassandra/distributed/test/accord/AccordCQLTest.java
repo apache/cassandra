@@ -2488,7 +2488,138 @@ public class AccordCQLTest extends AccordTestBase
     }
 
     @Test
-    public void testMultiBranchCondition() throws Exception
+    public void testMultiBranchConditionReadWrite() throws Exception
+    {
+        test(cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 1, 10);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 2, 20);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 3, 30);", ConsistencyLevel.ALL);
+
+                 String query = "BEGIN TRANSACTION\n" +
+                                "  LET r1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 0);\n" +
+                                "  LET a1 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 1);\n" +
+                                "  LET a2 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 2);\n" +
+                                "  LET a3 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 3);\n" +
+                                "  IF r1.v = 1 THEN\n" +
+                                "    SELECT a1.v;\n" +
+                                "    UPDATE " + currentTable + " SET v = 2 WHERE k = 1 AND c = 0;\n" +
+                                "  ELSE IF r1.v = 2 THEN \n" +
+                                "    SELECT a2.v;\n" +
+                                "    UPDATE " + currentTable + " SET v = 3 WHERE k = 1 AND c = 0;\n" +
+                                "  ELSE\n" +
+                                "    SELECT a3.v;\n" +
+                                "    UPDATE " + currentTable + " SET v = 1 WHERE k = 1 AND c = 0;\n" +
+                                "  END IF\n" +
+                                "COMMIT TRANSACTION";
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT v FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
+                                "COMMIT TRANSACTION";
+
+                 SimpleQueryResult result;
+
+                 for (int i = 1; i <= 3; i++) // we should be able to loop over those 3 branches forever
+                 {
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).hasSize(1).contains(10); // first branch selected
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 2 }, check); // value updated to 2 in the first branch
+
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).hasSize(1).contains(20); // second branch selected
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 3 }, check); // value updated to 3 in the second branch
+
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).hasSize(1).contains(30); // third branch selected
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 1 }, check); // value updated to 1 in the third branch
+                 }
+             });
+    }
+
+    @Test
+    public void testMultiBranchConditionReadWriteWithSingleRead() throws Exception
+    {
+        test(cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);", ConsistencyLevel.ALL);
+
+                 String query = "BEGIN TRANSACTION\n" +
+                                "  LET r1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 0);\n" +
+                                "  SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 0;\n" +
+                                "  IF r1.v = 1 THEN\n" +
+                                "    UPDATE " + currentTable + " SET v = 2 WHERE k = 1 AND c = 0;\n" +
+                                "  ELSE IF r1.v = 2 THEN \n" +
+                                "    UPDATE " + currentTable + " SET v = 3 WHERE k = 1 AND c = 0;\n" +
+                                "  ELSE\n" +
+                                "    UPDATE " + currentTable + " SET v = 1 WHERE k = 1 AND c = 0;\n" +
+                                "  END IF\n" +
+                                "COMMIT TRANSACTION";
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT v FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
+                                "COMMIT TRANSACTION";
+
+                 SimpleQueryResult result;
+
+                 for (int i = 1; i <= 3; i++) // we should be able to loop over those 3 branches forever
+                 {
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).hasSize(1).contains(1, 0, 1); // first branch selected
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 2 }, check); // value updated to 2 in the first branch
+
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).hasSize(1).contains(1, 0, 2); // second branch selected
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 3 }, check); // value updated to 3 in the second branch
+
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).hasSize(1).contains(1, 0, 3); // third branch selected
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 1 }, check); // value updated to 1 in the third branch
+                 }
+             });
+    }
+
+    @Test
+    public void testMultiBranchConditionReadOnly() throws Exception
+    {
+        test(cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 1, 10);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 2, 20);", ConsistencyLevel.ALL);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 3, 30);", ConsistencyLevel.ALL);
+
+                 String query = "BEGIN TRANSACTION\n" +
+                                "  LET r1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 0);\n" +
+                                "  LET a1 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 1);\n" +
+                                "  LET a2 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 2);\n" +
+                                "  LET a3 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 3);\n" +
+                                "  IF r1.v = 1 THEN\n" +
+                                "    SELECT a1.v;\n" +
+                                "  ELSE IF r1.v = 2 THEN \n" +
+                                "    SELECT a2.v;\n" +
+                                "  ELSE\n" +
+                                "    SELECT a3.v;\n" +
+                                "  END IF\n" +
+                                "COMMIT TRANSACTION";
+
+                 SimpleQueryResult result;
+
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);", ConsistencyLevel.ALL);
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(10); // first branch selected
+
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 2);", ConsistencyLevel.ALL);
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(20); // second branch selected
+
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
+                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                 assertThat(result).hasSize(1).contains(30); // third branch selected
+             });
+    }
+
+    @Test
+    public void testMultiBranchConditionWriteOnly() throws Exception
     {
         test(cluster ->
              {
@@ -2497,35 +2628,36 @@ public class AccordCQLTest extends AccordTestBase
                  String query = "BEGIN TRANSACTION\n" +
                                 "  LET r1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 0);\n" +
                                 "  IF r1.v = 1 THEN\n" +
-                                "    SELECT r1.v;\n" +
                                 "    UPDATE " + currentTable + " SET v = 2 WHERE k = 1 AND c = 0;\n" +
+                                "  ELSE IF r1.v = 2 THEN \n" +
+                                "    UPDATE " + currentTable + " SET v = 3 WHERE k = 1 AND c = 0;\n" +
                                 "  ELSE\n" +
-                                "    SELECT r1.v;\n" +
                                 "    UPDATE " + currentTable + " SET v = 1 WHERE k = 1 AND c = 0;\n" +
                                 "  END IF\n" +
                                 "COMMIT TRANSACTION";
 
                  String check = "BEGIN TRANSACTION\n" +
-                                "  SELECT * FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
+                                "  SELECT v FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
                                 "COMMIT TRANSACTION";
 
                  SimpleQueryResult result;
 
-                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(1);
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 2}, check);
+                 for (int i = 1; i <= 3; i++) // we should be able to loop over those 3 branches forever
+                 {
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).isEmpty();
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 2 }, check); // value updated to 2 in the first branch
 
-                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(2);
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 1}, check);
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).isEmpty();
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 3 }, check); // value updated to 3 in the second branch
 
-                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(1);
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 2}, check);
-
-                 result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(2);
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 1}, check);
+                     result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
+                     assertThat(result).isEmpty();
+                     assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ 1 }, check); // value updated to 1 in the third branch
+                 }
              });
     }
+
+
 }
