@@ -182,14 +182,18 @@ public class AdaptiveController extends Controller
                 logger.debug("Successfully read stored current_flush_size from disk");
             }
         }
-        catch (IOException | ParseException e)
+        catch (IOException e)
         {
-            logger.warn("Unable to read saved options. Using starting value instead: ", e);
+            logger.debug("No controller config file found. Using starting value instead.");
+        }
+        catch (ParseException e)
+        {
+            logger.warn("Unable to parse saved options. Using starting value instead:", e);
         }
 
         if (scalingParameters == null)
         {
-            logger.warn("Unable to read scaling_parameters. Using starting value instead.");
+            logger.info("Unable to read scaling_parameters. Using starting value instead.");
             scalingParameters = new int[UnifiedCompactionStrategy.MAX_LEVELS];
             String staticScalingParameters = options.remove(SCALING_PARAMETERS_OPTION);
             String staticScalingFactors = options.remove(STATIC_SCALING_FACTORS_OPTION);
