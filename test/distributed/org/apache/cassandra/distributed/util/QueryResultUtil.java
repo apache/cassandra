@@ -30,6 +30,7 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 
 public class QueryResultUtil
@@ -103,9 +104,9 @@ public class QueryResultUtil
         return true;
     }
 
-    public static SimpleQueryResultAssertHelper assertThat(SimpleQueryResult qr)
+    public static SimpleQueryResultAssert assertThat(SimpleQueryResult qr)
     {
-        return new SimpleQueryResultAssertHelper(qr);
+        return new SimpleQueryResultAssert(qr);
     }
 
     public static RowAssertHelper assertThat(Row row)
@@ -134,122 +135,122 @@ public class QueryResultUtil
         return sb.toString();
     }
 
-    public static class RowAssertHelper
+    public static class RowAssertHelper extends AbstractAssert<RowAssertHelper, Row>
     {
-        private final Row row;
-
         public RowAssertHelper(Row row)
         {
-            this.row = row;
+            super(row, RowAssertHelper.class);
         }
 
         public RowAssertHelper isEqualTo(String column, Object expected)
         {
-            Object actual = row.get(column);
+            Object actual = this.actual.get(column);
             Assertions.assertThat(actual).describedAs("Column %s had unexpected value", column).isEqualTo(expected);
             return this;
         }
 
         public RowAssertHelper columnsEqualTo(String first, String... others)
         {
-            Object expected = row.get(first);
+            Object expected = actual.get(first);
             for (String other : others)
-                Assertions.assertThat(row.<Object>get(other)).describedAs("Columns %s and %s are not equal", first, other).isEqualTo(expected);
+                Assertions.assertThat(actual.<Object>get(other)).describedAs("Columns %s and %s are not equal", first, other).isEqualTo(expected);
             return this;
         }
     }
 
-    public static class SimpleQueryResultAssertHelper
+    public static class SimpleQueryResultAssert extends AbstractAssert<SimpleQueryResultAssert, SimpleQueryResult>
     {
-        private final SimpleQueryResult qr;
-
-        private SimpleQueryResultAssertHelper(SimpleQueryResult qr)
+        private SimpleQueryResultAssert(SimpleQueryResult qr)
         {
-            this.qr = qr;
+            super(qr, SimpleQueryResultAssert.class);
         }
 
-        public SimpleQueryResultAssertHelper contains(Object... values)
+        public SimpleQueryResultAssert contains(Object... values)
         {
-            qr.reset();
-            if (!QueryResultUtil.contains(qr, a -> QueryResultUtil.equals(a, values)))
-                throw new AssertionError("Row " + Arrays.asList(values) + " is not present");
+            isNotNull();
+            actual.reset();
+            if (!QueryResultUtil.contains(actual, a -> QueryResultUtil.equals(a, values)))
+                failWithMessage(String.format("Row %s is not present", Arrays.asList(values)));
             return this;
         }
 
-        public SimpleQueryResultAssertHelper contains(Row row)
+        public SimpleQueryResultAssert contains(Row row)
         {
-            qr.reset();
-            if (!QueryResultUtil.contains(qr, a -> QueryResultUtil.equals(a, row)))
-                throw new AssertionError("Row " + row + " is not present");
+            isNotNull();
+            actual.reset();
+            if (!QueryResultUtil.contains(actual, a -> QueryResultUtil.equals(a, row)))
+                failWithMessage("Row %s is not present", row);
             return this;
         }
 
-        public SimpleQueryResultAssertHelper contains(Predicate<Row> fn)
+        public SimpleQueryResultAssert contains(Predicate<Row> fn)
         {
-            qr.reset();
-            if (!QueryResultUtil.contains(qr, fn))
-                throw new AssertionError("Row  is not present");
+            isNotNull();
+            actual.reset();
+            if (!QueryResultUtil.contains(actual, fn))
+                failWithMessage("Row  is not present");
             return this;
         }
 
-        public SimpleQueryResultAssertHelper isEqualTo(SimpleQueryResult expectedResult)
+        public SimpleQueryResultAssert isEqualTo(SimpleQueryResult expectedResult)
         {
-            qr.mark();
+            isNotNull();
+            actual.mark();
             expectedResult.mark();
             try
             {
                 // org.apache.cassandra.distributed.shared.AssertUtils.assertRows has some issues with the error msg
                 // so rewrite to make sure to have a nicer msg
-                List<String> otherNames = qr.names().isEmpty() ? expectedResult.names() : qr.names();
-                Assertions.assertThat(otherNames).describedAs("Column names do not match").isEqualTo(qr.names());
+                List<String> otherNames = actual.names().isEmpty() ? expectedResult.names() : actual.names();
+                Assertions.assertThat(otherNames).describedAs("Column names do not match").isEqualTo(actual.names());
                 int rowId = 0;
-                while (qr.hasNext())
+                while (actual.hasNext())
                 {
                     if (!expectedResult.hasNext())
-                        throw new AssertionError("Unexpected row at index " + rowId + "; found " + Arrays.toString(qr.next().toObjectArray()));
-                    Row next = qr.next();
+                        failWithMessage("Unexpected row at index %d; found %s", rowId, Arrays.toString(actual.next().toObjectArray()));
+                    Row next = actual.next();
                     Row expected = expectedResult.next();
                     if (!Arrays.equals(next.toObjectArray(), expected.toObjectArray()))
-                        throw new AssertionError("Expected row " + rowId + " to be " + Arrays.toString(expected.toObjectArray()) + " but was " + Arrays.toString(next.toObjectArray()));
+                        failWithMessage("Expected row %d to be %s but was %s", rowId, Arrays.toString(expected.toObjectArray()), Arrays.toString(next.toObjectArray()));
 
                     rowId++;
                 }
                 if (expectedResult.hasNext())
-                    throw new AssertionError("Expected row " + rowId + " to be " + Arrays.toString(expectedResult.next().toObjectArray()) + " but was missing");
+                    failWithMessage("Expected row %d to be %s but was missing", rowId, Arrays.toString(expectedResult.next().toObjectArray()));
 
-                AssertUtils.assertRows(qr, expectedResult);
+                AssertUtils.assertRows(actual, expectedResult);
             }
             finally
             {
-                qr.reset();
+                actual.reset();
                 expectedResult.reset();
             }
             return this;
         }
 
-        public SimpleQueryResultAssertHelper isEqualTo(Object... values)
+        public SimpleQueryResultAssert isEqualTo(Object... values)
         {
-            Assertions.assertThat(qr.toObjectArrays())
+            Assertions.assertThat(actual.toObjectArrays())
                       .hasSize(1)
                       .contains(values);
             return this;
         }
 
-        public SimpleQueryResultAssertHelper hasSize(int size)
+        public SimpleQueryResultAssert hasSize(int size)
         {
-            Assertions.assertThat(qr.toObjectArrays()).hasSize(size);
+            Assertions.assertThat(actual.toObjectArrays()).hasSize(size);
             return this;
         }
 
-        public SimpleQueryResultAssertHelper hasSizeGreaterThan(int size)
+        public SimpleQueryResultAssert hasSizeGreaterThan(int size)
         {
-            Assertions.assertThat(qr.toObjectArrays()).hasSizeGreaterThan(size);
+            Assertions.assertThat(actual.toObjectArrays()).hasSizeGreaterThan(size);
             return this;
         }
 
         public void isEmpty()
         {
-            int size = Iterators.size(qr);
+            int size = Iterators.size(actual);
             Assertions.assertThat(size).describedAs("QueryResult is not empty").isEqualTo(0);
         }
     }
