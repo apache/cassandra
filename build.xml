@@ -28,6 +28,7 @@
 
     <property environment="env"/>
     <property file="build.properties" />
+    <property file="sonar-project.properties" />
     <property file="build.properties.default" />
     <property name="debuglevel" value="source,lines,vars"/>
 
@@ -499,6 +500,7 @@
     <target name="build" depends="resolver-retrieve-build,build-project,checkstyle" description="Compile Cassandra classes"/>
     <target name="_build_unsafe" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes without checks"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
+    <target name="sonar" depends="sonar-run" description="Sonar for Cassandra"/>
 
     <target name="_build_java">
         <!-- Note: we cannot use javac's 'release' option, as that does not allow accessing sun.misc.Unsafe nor
@@ -2105,4 +2107,5 @@
   <import file="${basedir}/.build/build-rat.xml"/>
   <import file="${basedir}/.build/build-owasp.xml"/>
   <import file="${basedir}/.build/build-git.xml"/>
+  <import file="${basedir}/.build/build-sonar.xml"/>
 </project>

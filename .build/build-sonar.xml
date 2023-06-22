@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir="." name="apache-cassandra--sonar-tasks" xmlns:sonar="antlib:org.sonar.ant">
+    <property name="sonar.projectVersion" value="${base.version}" />
+    <property name="sonar.sources" value="${build.src.java}" />
+    <property name="sonar.tests"
+              value="${test.dir}/burn,${test.dir}/distributed,${test.dir}/long,${test.dir}/memory,${test.dir}/microbench,${test.dir}/simulator,${test.dir}/unit" />
+    <property name="sonar.java.binaries" value="${build.classes}"/>
+    <property name="sonar.java.test.binaries" value="${test.classes}"/>
+
+    <condition property="no-sonar">
+        <or>
+            <isset property="no-sonar"/>
+        </or>
+    </condition>
+
+    <target name="sonar-run" depends="build,build-test" unless="no-sonar">
+        <taskdef uri="antlib:org.sonar.ant" resource="org/sonar/ant/antlib.xml" classpathref="sonar.classpath" />
+
+        <!-- Execute SonarQube Scanner for Ant Analysis -->
+        <sonar:sonar />
+    </target>
+</project>
