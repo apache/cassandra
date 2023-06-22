@@ -2594,11 +2594,11 @@ public class AccordCQLTest extends AccordTestBase
                                 "  LET a2 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 2);\n" +
                                 "  LET a3 = (SELECT * FROM " + currentTable + " WHERE k = 2 AND c = 3);\n" +
                                 "  IF r1.v = 1 THEN\n" +
-                                "    SELECT a1.v;\n" +
+                                "    SELECT a1.v, 11, 'a';\n" +
                                 "  ELSE IF r1.v = 2 THEN \n" +
-                                "    SELECT a2.v;\n" +
+                                "    SELECT a2.v, 22, 'b';\n" +
                                 "  ELSE\n" +
-                                "    SELECT a3.v;\n" +
+                                "    SELECT a3.v, 33, 'c';\n" +
                                 "  END IF\n" +
                                 "COMMIT TRANSACTION";
 
@@ -2606,15 +2606,15 @@ public class AccordCQLTest extends AccordTestBase
 
                  cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);", ConsistencyLevel.ALL);
                  result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(10); // first branch selected
+                 assertThat(result).hasSize(1).contains(10, 11, "a"); // first branch selected
 
                  cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 2);", ConsistencyLevel.ALL);
                  result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(20); // second branch selected
+                 assertThat(result).hasSize(1).contains(20, 22, "b"); // second branch selected
 
                  cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
                  result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY);
-                 assertThat(result).hasSize(1).contains(30); // third branch selected
+                 assertThat(result).hasSize(1).contains(30, 33, "c"); // third branch selected
              });
     }
 

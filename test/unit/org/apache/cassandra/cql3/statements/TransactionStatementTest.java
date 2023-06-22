@@ -527,7 +527,7 @@ public class TransactionStatementTest
         String query = "BEGIN TRANSACTION\n" +
                        "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
                        "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
-                       "  SELECT a.v, b.v;\n" +
+                       "  SELECT a.v, b.v, 1, 'abc';\n" +
                        "  UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
                        "  UPDATE ks.tbl1 SET v = b.v WHERE k=2 AND c=1;\n" +
                        "COMMIT TRANSACTION";
@@ -542,7 +542,7 @@ public class TransactionStatementTest
         String query = "BEGIN TRANSACTION\n" +
                        "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
                        "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
-                       "  SELECT a.v, b.v;\n" +
+                       "  SELECT a.v, b.v, 1, 'abc';\n" +
                        "COMMIT TRANSACTION";
 
         TransactionStatement txn = (TransactionStatement) prepare(query);

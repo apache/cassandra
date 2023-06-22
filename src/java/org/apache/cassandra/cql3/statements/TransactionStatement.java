@@ -47,10 +47,13 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.StatementSource;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selection;
@@ -79,6 +82,7 @@ import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Collectors3;
 import org.apache.cassandra.utils.FBUtilities;
+import org.hsqldb.Column;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -137,13 +141,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         {
             resultMetadata = returningSelect.select.getResultMetadata();
         }
-        else if (!conditionalBlocks.isEmpty() && !conditionalBlocks.get(0).returningReferences.isEmpty())
+        else if (!conditionalBlocks.isEmpty() && !conditionalBlocks.get(0).returningTerms.isEmpty())
         {
-            List<RowDataReference> returningReferences = conditionalBlocks.get(0).returningReferences;
-            List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
-            for (RowDataReference reference : returningReferences)
-                names.add(reference.toResultMetadata());
-            resultMetadata = new ResultSet.ResultMetadata(names);
+            resultMetadata = new ResultSet.ResultMetadata(conditionalBlocks.get(0).resultSetMetadata.stream().map(ColumnSpecification.class::cast).collect(Collectors.toList()));
         }
         else
         {
@@ -418,29 +418,30 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 }
             }
 
-            List<RowDataReference> returningReferences = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(selectedBranch).returningReferences;
+            List<Term> returningTerms = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(selectedBranch).returningTerms;
 
-            if (!returningReferences.isEmpty())
+            if (!returningTerms.isEmpty())
             {
-                List<AbstractType<?>> resultType = new ArrayList<>(returningReferences.size());
-                List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
-
-                for (RowDataReference reference : returningReferences)
-                {
-                    ColumnMetadata forMetadata = reference.toResultMetadata();
-                    resultType.add(forMetadata.type);
-                    columns.add(reference.column());
-                }
+                List<AbstractType<?>> resultType = conditionalBlocks.get(selectedBranch).resultSetMetadata.stream().map(c -> c.type).collect(Collectors.toList());
+                List<ColumnMetadata> columns = conditionalBlocks.get(selectedBranch).resultSetMetadata;
 
                 ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), null);
                 result.newRow(options.getProtocolVersion(), null, null, columns);
 
-                for (int i = 0; i < returningReferences.size(); i++)
+                for (int i = 0; i < returningTerms.size(); i++)
                 {
-                    RowDataReference reference = returningReferences.get(i);
-                    TxnReference txnReference = reference.toTxnReference(options);
-                    ByteBuffer buffer = txnReference.toByteBuffer(data, resultType.get(i));
-                    result.add(buffer);
+                    if (returningTerms.get(i) instanceof RowDataReference)
+                    {
+                        RowDataReference reference = (RowDataReference) returningTerms.get(i);
+                        TxnReference txnReference = reference.toTxnReference(options);
+                        ByteBuffer buffer = txnReference.toByteBuffer(data, resultType.get(i));
+                        result.add(buffer);
+                    }
+                    else
+                    {
+                        assert returningTerms.get(i) instanceof Constants.Value;
+                        result.add(((Constants.Value) returningTerms.get(i)).get(options.getProtocolVersion()));
+                    }
                 }
 
                 return new ResultMessage.Rows(result.build());
@@ -474,14 +475,14 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     {
         private final @Nonnull List<SelectStatement.RawStatement> assignments;
         private final @Nullable SelectStatement.RawStatement select;
-        private final @Nonnull List<RowDataReference.Raw> returning;
+        private final @Nonnull List<Term.Raw> returning;
         private final @Nonnull List<ModificationStatement.Parsed> unconditionalUpdates;
         private final @Nonnull List<ConditionalBlock.Raw> blocks;
         private final @Nonnull List<RowDataReference.Raw> dataReferences;
 
         public Parsed(List<SelectStatement.RawStatement> assignments,
                       SelectStatement.RawStatement select,
-                      List<RowDataReference.Raw> returning,
+                      List<Term.Raw> returning,
                       List<ModificationStatement.Parsed> unconditionalUpdates,
                       List<ConditionalBlock.Raw> blocks,
                       List<RowDataReference.Raw> dataReferences)
@@ -579,18 +580,21 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static class ConditionalBlock
     {
         private final @Nonnull List<ConditionStatement> conditions;
-        private final @Nonnull List<RowDataReference> returningReferences;
+        private final @Nonnull List<Term> returningTerms;
         private final @Nonnull List<ModificationStatement> updates;
+        private final @Nonnull List<ColumnMetadata> resultSetMetadata;
         private final StatementSource source;
 
         public ConditionalBlock(List<ConditionStatement> conditions,
-                                List<RowDataReference> returningReferences,
+                                List<Term> returningTerms,
                                 List<ModificationStatement> updates,
+                                List<ColumnMetadata> resultSetMetadata,
                                 StatementSource source)
         {
             this.conditions = conditions != null ? conditions : ImmutableList.of();
-            this.returningReferences = returningReferences != null ? returningReferences : ImmutableList.of();
+            this.returningTerms = returningTerms != null ? returningTerms : ImmutableList.of();
             this.updates = updates != null ? updates : ImmutableList.of();
+            this.resultSetMetadata = resultSetMetadata != null ? resultSetMetadata : ImmutableList.of();
             this.source = source;
         }
 
@@ -601,12 +605,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         public void validateSelection(ConditionalBlock referenceBlock)
         {
-            checkTrue((returningReferences.isEmpty()) == (referenceBlock.returningReferences.isEmpty()), CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE, source, referenceBlock.source);
+            checkTrue((resultSetMetadata.isEmpty()) == (referenceBlock.resultSetMetadata.isEmpty()), CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE, source, referenceBlock.source);
 
-            if (!returningReferences.isEmpty())
+            if (!resultSetMetadata.isEmpty())
             {
-                List<AbstractType<?>> thisTypes = returningReferences.stream().map(r -> r.toResultMetadata().type).collect(Collectors.toList());
-                List<AbstractType<?>> refTypes = referenceBlock.returningReferences.stream().map(r -> r.toResultMetadata().type).collect(Collectors.toList());
+                List<AbstractType<?>> thisTypes = resultSetMetadata.stream().map(r -> r.type).collect(Collectors.toList());
+                List<AbstractType<?>> refTypes = referenceBlock.resultSetMetadata.stream().map(r -> r.type).collect(Collectors.toList());
                 checkTrue(thisTypes.equals(refTypes), String.format(CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE, source, referenceBlock.source, thisTypes, refTypes));
             }
         }
@@ -630,12 +634,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         public static class Raw
         {
-            public final @Nonnull List<RowDataReference.Raw> returning;
+            public final @Nonnull List<Term.Raw> returning;
             public final @Nonnull List<ModificationStatement.Parsed> updates;
             public final @Nonnull List<ConditionStatement.Raw> conditions;
             public final @Nullable StatementSource source;
 
-            public Raw(List<RowDataReference.Raw> returning,
+            public Raw(List<Term.Raw> returning,
                        List<ModificationStatement.Parsed> updates,
                        List<ConditionStatement.Raw> conditions,
                        StatementSource source)
@@ -648,13 +652,29 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             public ConditionalBlock prepare(ClientState state, VariableSpecifications bindVariables)
             {
-                List<RowDataReference> returningReferences = null;
-                if (!returning.isEmpty())
+                List<ColumnMetadata> resultSetMetadata = new ArrayList<>(returning.size());
+                List<Term> returningReferences = new ArrayList<>(returning.size());
+                for (int i = 0; i < returning.size(); i++)
                 {
-                    // TODO: Eliminate/modify this check if we allow full tuple selections.
-                    returningReferences = returning.stream().peek(raw -> checkTrue(raw.column() != null, SELECT_REFS_NEED_COLUMN_MESSAGE))
-                                                   .map(RowDataReference.Raw::prepareAsReceiver)
-                                                   .collect(Collectors.toList());
+                    Term.Raw raw = returning.get(i);
+                    if (raw instanceof RowDataReference.Raw)
+                    {
+                        RowDataReference.Raw refRaw = (RowDataReference.Raw) raw;
+                        // TODO: Eliminate/modify this check if we allow full tuple selections.
+                        checkTrue(refRaw.column() != null, SELECT_REFS_NEED_COLUMN_MESSAGE);
+                        RowDataReference ref = refRaw.prepareAsReceiver();
+                        returningReferences.add(ref);
+                        resultSetMetadata.add(ref.toResultMetadata());
+                    }
+                    else
+                    {
+                        assert raw instanceof Constants.Literal; // should be ensured by parser
+                        Constants.Literal constant = (Constants.Literal) raw;
+                        String fullName = String.format("[%d]", i + 1);
+                        ColumnMetadata columnMetadata = ColumnMetadata.regularColumn("", "", fullName, constant.getCompatibleTypeIfKnown(null));
+                        returningReferences.add(raw.prepare(null, columnMetadata));
+                        resultSetMetadata.add(columnMetadata);
+                    }
                 }
 
                 List<ModificationStatement> preparedUpdates = new ArrayList<>(updates.size());
@@ -676,7 +696,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
                     preparedConditions.add(condition.prepare("[txn]", bindVariables));
 
-                return new ConditionalBlock(preparedConditions, returningReferences, preparedUpdates, source);
+                return new ConditionalBlock(preparedConditions, returningReferences, preparedUpdates, resultSetMetadata, source);
             }
 
             public Iterable<? extends QualifiedStatement> getStatements()
@@ -689,7 +709,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 return !returning.isEmpty();
             }
 
-            public Raw withReturning(List<RowDataReference.Raw> returning)
+            public Raw withReturning(List<Term.Raw> returning)
             {
                 return new Raw(returning, updates, conditions, source);
             }

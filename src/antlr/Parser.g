@@ -798,7 +798,7 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
         hasTxnDefaultBlock = false;
         List<SelectStatement.RawStatement> assignments = new ArrayList<>();
         SelectStatement.RawStatement select = null;
-        List<RowDataReference.Raw> returning = null;
+        List<Term.Raw> returning = null;
         List<ModificationStatement.Parsed> unconditionalUpdates = new ArrayList<>();
         List<TransactionStatement.ConditionalBlock.Raw> blocks = new ArrayList<>();
     }
@@ -830,7 +830,7 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
 
 conditionalBlock[boolean requiresCondition] returns [TransactionStatement.ConditionalBlock.Raw block]
     @init {
-        List<RowDataReference.Raw> returning = null;
+        List<Term.Raw> returning = null;
         List<ModificationStatement.Parsed> updates = new ArrayList<>();
         StatementSource source = null;
     }
@@ -843,8 +843,13 @@ conditionalBlock[boolean requiresCondition] returns [TransactionStatement.Condit
     }
     ;
 
-rowDataReferences returns [List<RowDataReference.Raw> refs]
-    : r1=rowDataReference { refs = new ArrayList<RowDataReference.Raw>(); refs.add(r1); } (',' rN=rowDataReference { refs.add(rN); })*
+rowDataReferences returns [List<Term.Raw> refs]
+    : r1=selectableRowDataReference { refs = new ArrayList<Term.Raw>(); refs.add(r1); } (',' rN=selectableRowDataReference { refs.add(rN); })*
+    ;
+
+selectableRowDataReference returns [Term.Raw raw]
+    : t=sident ('.' s=referenceSelection)? { $raw = newRowDataReference(t, s); }
+    | c=constant { $raw = c; }
     ;
 
 rowDataReference returns [RowDataReference.Raw rawRef]
