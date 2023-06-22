@@ -148,10 +148,8 @@ public class VectorMemtableIndex implements MemtableIndex
         var buffer = expr.lower.value.raw;
         float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
 
-        // if key range doesn't cover full token ring, it's faster to use post-filtering top-k processor instead of ANN due to
-        // slow ordinal to primary keys mapping.
         Bits bits = null;
-        if (!graph.isEmpty() && !RangeUtil.coversFullRing(keyRange))
+        if (!RangeUtil.coversFullRing(keyRange))
         {
             // if left bound is MIN_BOUND or KEY_BOUND, we need to include all token-only PrimaryKeys with same token
             boolean leftInclusive = keyRange.left.kind() != PartitionPosition.Kind.MAX_BOUND;
