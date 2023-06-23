@@ -79,10 +79,8 @@ public class Controller
     /**
      * The maximum number of sstables to compact in one operation.
      *
-     * This is expected to be large and never be reached, but compaction going very very late may cause the accumulation
-     * of thousands and even tens of thousands of sstables which may cause problems if compacted in one long operation.
-     * The default is chosen to be half of the maximum permitted space overhead when the source sstables are of the
-     * minimum sstable size.
+     * The default is 32, which aims to keep the length of operations under control and prevent accummulation of
+     * sstables while compactions are taking place.
      *
      * If the fanout factor is larger than the maximum number of sstables, the strategy will ignore the latter.
      */
@@ -119,7 +117,9 @@ public class Controller
 
     protected final int baseShardCount;
 
-    protected final double targetSSTableSizeMin;
+    protected final double targetSSTableSize;
+
+    static final double INVERSE_SQRT_2 = Math.sqrt(0.5);
 
     protected final Overlaps.InclusionMethod overlapInclusionMethod;
 
@@ -143,7 +143,7 @@ public class Controller
         this.currentFlushSize = flushSizeOverride;
         this.expiredSSTableCheckFrequency = TimeUnit.MILLISECONDS.convert(expiredSSTableCheckFrequency, TimeUnit.SECONDS);
         this.baseShardCount = baseShardCount;
-        this.targetSSTableSizeMin = targetSStableSize * Math.sqrt(0.5);
+        this.targetSSTableSize = targetSStableSize;
         this.overlapInclusionMethod = overlapInclusionMethod;
 
         if (maxSSTablesToCompact <= 0)
@@ -175,7 +175,7 @@ public class Controller
     public String toString()
     {
         return String.format("Controller, m: %s, o: %s, Ws: %s",
-                             FBUtilities.prettyPrintBinary(targetSSTableSizeMin, "B", ""),
+                             FBUtilities.prettyPrintBinary(targetSSTableSize, "B", ""),
                              Arrays.toString(survivalFactors),
                              printScalingParameters(scalingParameters));
     }
@@ -193,8 +193,8 @@ public class Controller
     /**
      * Calculate the number of shards to split the local token space in for the given sstable density.
      * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
-     * is between targetSSTableSizeMin and 2*targetSSTableSizeMin (in other words, sqrt(0.5) * targetSSTableSize and
-     * sqrt(2) * targetSSTableSize), with a minimum of baseShardCount shards for smaller sstables.
+     * is between sqrt(0.5) * targetSSTableSize and sqrt(2) * targetSSTableSize, with a minimum of baseShardCount shards
+     * for smaller sstables.
      *
      * Note that to get the sstables resulting from this splitting within the bounds, the density argument must be
      * normalized to the span that is being split. In other words, if no disks are defined, the density should be
@@ -206,21 +206,22 @@ public class Controller
     {
         // How many we would have to aim for the target size. Divided by the base shard count, so that we can ensure
         // the result is a multiple of it by multiplying back below.
-        double count = localDensity / (targetSSTableSizeMin * baseShardCount);
+        double count = localDensity / (targetSSTableSize * INVERSE_SQRT_2 * baseShardCount);
         if (count > MAX_SHARD_SPLIT)
             count = MAX_SHARD_SPLIT;
         assert !(count < 0);    // Must be positive, 0 or NaN, which should translate to baseShardCount
 
-        // Make it a power of two multiple of the base count so that split points for lower levels remain split points for higher.
+        // Make it a power of two multiple of the base count so that split points for lower levels remain split points
+        // for higher.
         // The conversion to int and highestOneBit round down, for which we compensate by using the sqrt(0.5) multiplier
-        // already applied in targetSSTableSizeMin.
+        // applied above.
         // Setting the bottom bit to 1 ensures the result is at least baseShardCount.
         int shards = baseShardCount * Integer.highestOneBit((int) count | 1);
         logger.debug("Shard count {} for density {}, {} times target {}",
                      shards,
                      FBUtilities.prettyPrintBinary(localDensity, "B", " "),
-                     localDensity / targetSSTableSizeMin,
-                     FBUtilities.prettyPrintBinary(targetSSTableSizeMin, "B", " "));
+                     localDensity / targetSSTableSize,
+                     FBUtilities.prettyPrintBinary(targetSSTableSize, "B", " "));
         return shards;
     }
 
