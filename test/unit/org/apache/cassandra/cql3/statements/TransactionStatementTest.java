@@ -420,7 +420,7 @@ public class TransactionStatementTest
     }
 
     @Test
-    public void shouldRejectMissingSelectInBranch()
+    public void shouldAcceptMissingSelectInBranch()
     {
         String query = "BEGIN TRANSACTION\n" +
                        "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
@@ -435,14 +435,12 @@ public class TransactionStatementTest
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(MISSING_SELECT_IN_BRANCH_MESSAGE, "at [7:8]"));
-
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
     }
 
     @Test
-    public void shouldRejectMissingSelectInImplicitBranch()
+    public void shouldAcceptMissingSelectInImplicitBranch()
     {
         String query = "BEGIN TRANSACTION\n" +
                        "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
@@ -453,10 +451,8 @@ public class TransactionStatementTest
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> prepare(query))
-                  .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(MISSING_DEFAULT_BRANCH_MESSAGE, "at [8:1]"));
-
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
     }
 
     @Test
@@ -478,7 +474,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining("Conditional blocks at [7:8] and at [4:3] have inconsistent result sets");
+                  .hasMessageContaining("Conditional block at [7:8] have inconsistent result set - column [2]: <missing selection> != org.apache.cassandra.db.marshal.Int32Type");
     }
 
     @Test

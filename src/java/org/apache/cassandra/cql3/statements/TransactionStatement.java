@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,9 +81,8 @@ import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.Collectors3;
 import org.apache.cassandra.utils.FBUtilities;
-import org.hsqldb.Column;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -104,8 +104,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String SELECT_ALREADY_DEFINED_MESSAGE = "Unconditional SELECT statement has been already defined for the transaction; %s";
     public static final String MISSING_SELECT_IN_BRANCH_MESSAGE = "SELECT statement is missing in branch; %s";
     public static final String MISSING_DEFAULT_BRANCH_MESSAGE = "SELECT statement is missing in ELSE branch; %s. If there is no ELSE branch, it has to be added and SELECT statement has to be defined there";
-    public static final String CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE = "Conditional blocks %s and %s have inconsistent result sets: %s != %s";
-    public static final String CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE = "Conditional blocks %s and %s have inconsistent returning clauses";
+    public static final String CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE = "Conditional block %s have inconsistent result set - column %s: %s != %s";
+    public static final String CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE = "Conditional block %s has invalid number of selected columns";
     public static final String CANNOT_SPECIFY_BOTH_SELECT_AND_LET_REFS_MESSAGE = "Cannot specify both a full SELECT and a SELECT w/ LET references";
 
     static class NamedSelect
@@ -121,34 +121,26 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     }
 
     private final @Nonnull List<NamedSelect> assignments;
-    private final NamedSelect returningSelect;
+    private final NamedSelect unconditionalReturningSelect;
+    private final @Nonnull List<Term> unconditionalReturningTerms;
     private final @Nonnull List<ConditionalBlock> conditionalBlocks;
 
     private final VariableSpecifications bindVariables;
     private final ResultSet.ResultMetadata resultMetadata;
 
     public TransactionStatement(List<NamedSelect> assignments,
-                                NamedSelect returningSelect,
+                                NamedSelect unconditionalReturningSelect,
+                                List<Term> unconditionalReturningTerms,
                                 List<ConditionalBlock> conditionalBlocks,
-                                VariableSpecifications bindVariables)
+                                VariableSpecifications bindVariables,
+                                ResultSet.ResultMetadata resultMetadata)
     {
         this.assignments = assignments;
-        this.returningSelect = returningSelect;
+        this.unconditionalReturningSelect = unconditionalReturningSelect;
+        this.unconditionalReturningTerms = unconditionalReturningTerms;
         this.conditionalBlocks = conditionalBlocks;
         this.bindVariables = bindVariables;
-
-        if (returningSelect != null)
-        {
-            resultMetadata = returningSelect.select.getResultMetadata();
-        }
-        else if (!conditionalBlocks.isEmpty() && !conditionalBlocks.get(0).returningTerms.isEmpty())
-        {
-            resultMetadata = new ResultSet.ResultMetadata(conditionalBlocks.get(0).resultSetMetadata.stream().map(ColumnSpecification.class::cast).collect(Collectors.toList()));
-        }
-        else
-        {
-            resultMetadata =  ResultSet.ResultMetadata.EMPTY;
-        }
+        this.resultMetadata = resultMetadata;
     }
 
     @Deprecated
@@ -170,8 +162,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         for (NamedSelect let : assignments)
             let.select.authorize(state);
 
-        if (returningSelect != null)
-            returningSelect.select.authorize(state);
+        if (unconditionalReturningSelect != null)
+            unconditionalReturningSelect.select.authorize(state);
 
         for (ConditionalBlock block : conditionalBlocks)
             block.authorize(state);
@@ -183,8 +175,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         for (NamedSelect statement : assignments)
             statement.select.validate(state);
 
-        if (returningSelect != null)
-            returningSelect.select.validate(state);
+        if (unconditionalReturningSelect != null)
+            unconditionalReturningSelect.select.validate(state);
 
         for (ConditionalBlock block : conditionalBlocks)
             block.validate(state);
@@ -193,12 +185,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     @Override
     public Iterable<CQLStatement> getStatements()
     {
-        Iterable<CQLStatement> stream = Iterables.transform(assignments, n -> n.select);
-        if (returningSelect != null)
-            stream = Iterables.concat(stream, Collections.singleton(returningSelect.select));
+        Iterable<CQLStatement> group = Iterables.transform(assignments, n -> n.select);
+        if (unconditionalReturningSelect != null)
+            group = Iterables.concat(group, Collections.singleton(unconditionalReturningSelect.select));
         for (ConditionalBlock block : conditionalBlocks)
-            stream = Iterables.concat(stream, block.getStatements());
-        return stream;
+            group = Iterables.concat(group, block.getStatements());
+        return group;
     }
 
     @Override
@@ -247,9 +239,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             reads.add(read);
         }
 
-        if (returningSelect != null)
+        if (unconditionalReturningSelect != null)
         {
-            for (TxnNamedRead read : createNamedReads(returningSelect, options, state))
+            for (TxnNamedRead read : createNamedReads(unconditionalReturningSelect, options, state))
             {
                 keyConsumer.accept(read.key());
                 reads.add(read);
@@ -372,22 +364,25 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             for (NamedSelect assignment : assignments)
                 checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
 
-            if (returningSelect != null)
-                checkFalse(isSelectingMultipleClusterings(returningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", returningSelect.select.source);
+            if (unconditionalReturningSelect != null)
+                checkFalse(isSelectingMultipleClusterings(unconditionalReturningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", unconditionalReturningSelect.select.source);
 
             TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options.getConsistency());
 
-            if (returningSelect != null)
+            if (resultMetadata == null || resultMetadata.names.isEmpty())
+                return new ResultMessage.Void();
+
+            if (unconditionalReturningSelect != null)
             {
                 @SuppressWarnings("unchecked")
-                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
-                Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
+                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) unconditionalReturningSelect.select.getQuery(options, 0);
+                Selection.Selectors selectors = unconditionalReturningSelect.select.getSelection().newSelectors(options);
                 ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, null);
                 if (selectQuery.queries.size() == 1)
                 {
                     FilteredPartition partition = data.get(TxnDataName.returning());
                     if (partition != null)
-                        returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                        unconditionalReturningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
                 }
                 else
                 {
@@ -396,36 +391,25 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     {
                         FilteredPartition partition = data.get(TxnDataName.returning(i));
                         if (partition != null)
-                            returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
+                            unconditionalReturningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
                     }
                 }
                 return new ResultMessage.Rows(result.build());
             }
 
-            int selectedBranch = 0;
-            if (data.getSelectedBranch().isPresent())
+            List<Term> returningTerms = unconditionalReturningTerms;
+            if (returningTerms.isEmpty())
             {
-                selectedBranch = data.getSelectedBranch().getAsInt();
-            }
-            else if (conditionalBlocks.size() > 1)
-            {
-                // read-only transaction and we need to evaluate conditinal blocks
-                for (; selectedBranch < conditionalBlocks.size(); selectedBranch++)
-                {
-                    TxnCondition condition = createCondition(options, conditionalBlocks.get(selectedBranch));
-                    if (condition.applies(data))
-                        break;
-                }
+                int selectedBranch = getSelectedBranch(options, data);
+                returningTerms = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(selectedBranch).returningTerms;
             }
 
-            List<Term> returningTerms = conditionalBlocks.isEmpty() ? ImmutableList.of() : conditionalBlocks.get(selectedBranch).returningTerms;
-
+            ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), null);
             if (!returningTerms.isEmpty())
             {
-                List<AbstractType<?>> resultType = conditionalBlocks.get(selectedBranch).resultSetMetadata.stream().map(c -> c.type).collect(Collectors.toList());
-                List<ColumnMetadata> columns = conditionalBlocks.get(selectedBranch).resultSetMetadata;
+                List<AbstractType<?>> resultType = resultMetadata.names.stream().map(c -> c.type).collect(Collectors.toList());
+                List<ColumnMetadata> columns = resultMetadata.names.stream().map(ColumnMetadata.class::cast).collect(Collectors.toList());
 
-                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), null);
                 result.newRow(options.getProtocolVersion(), null, null, columns);
 
                 for (int i = 0; i < returningTerms.size(); i++)
@@ -443,13 +427,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                         result.add(((Constants.Value) returningTerms.get(i)).get(options.getProtocolVersion()));
                     }
                 }
-
-                return new ResultMessage.Rows(result.build());
             }
 
             // In the case of a write-only transaction, just return and empty result.
-            // TODO: This could be modified to return an indication of whether a condition (if present) succeeds.
-            return new ResultMessage.Void();
+            return new ResultMessage.Rows(result.build());
         }
         catch (Throwable t)
         {
@@ -457,6 +438,29 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
            logger.error("Unexpected error with transaction: {}", t.toString());
            throw t;
         }
+    }
+
+    private int getSelectedBranch(QueryOptions options, TxnData data)
+    {
+        int selectedBranch = 0;
+        if (data.getSelectedBranch().isPresent())
+        {
+            selectedBranch = data.getSelectedBranch().getAsInt();
+        }
+        else if (conditionalBlocks.size() > 1)
+        {
+            // read-only transaction and we need to evaluate conditinal blocks
+            for (; selectedBranch < conditionalBlocks.size(); selectedBranch++)
+            {
+                if (conditionalBlocks.get(selectedBranch).conditions.isEmpty())
+                    break; // no conditions, so this is the default branch
+                TxnCondition condition = createCondition(options, conditionalBlocks.get(selectedBranch));
+                if (condition.applies(data))
+                    break;
+            }
+        }
+        assert selectedBranch < conditionalBlocks.size(); // the default branch is always defined
+        return selectedBranch;
     }
 
     @Override
@@ -534,20 +538,44 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             for (RowDataReference.Raw reference : dataReferences)
                 reference.resolveReference(refSources);
 
+            ResultSet.ResultMetadata metadata = null;
             NamedSelect returningSelect = null;
+            List<Term> returningTerms = ImmutableList.of();
             if (select != null)
             {
                 returningSelect = new NamedSelect(TxnDataName.returning(), select.prepare(bindVariables));
                 checkAtMostOneRowSpecified(returningSelect.select, "returning select");
+                metadata = returningSelect.select.getResultMetadata();
+            }
+            else if (!returning.isEmpty())
+            {
+                Pair<List<Term>, List<ColumnSpecification>> retTermsWithMetadata = getReturningTermsWithMetadata(returning, null, null);
+                metadata = new ResultSet.ResultMetadata(retTermsWithMetadata.right);
+                returningTerms = retTermsWithMetadata.left;
             }
 
-            ImmutableList<ConditionalBlock> preparedBlocks = conditionalBlocks.stream()
-                                                                              .map(b -> b.prepare(state, bindVariables))
-                                                                              .collect(Collectors3.toImmutableList());
+            ConditionalBlock[] preparedBlocks = new ConditionalBlock[conditionalBlocks.size()];
+            if (metadata == null)
+            {
+                for (int i = 0; i < conditionalBlocks.size(); i++)
+                {
+                    if (!conditionalBlocks.get(i).returning.isEmpty())
+                    {
+                        ConditionalBlock prepared = conditionalBlocks.get(i).prepare(state, bindVariables, null);
+                        metadata = new ResultSet.ResultMetadata(prepared.resultSetMetadata);
+                        preparedBlocks[i] = prepared;
+                        break;
+                    }
+                }
+            }
 
-            preparedBlocks.forEach(b -> b.validateSelection(preparedBlocks.get(0)));
+            for (int i = 0; i < conditionalBlocks.size(); i++)
+            {
+                if (preparedBlocks[i] == null)
+                    preparedBlocks[i] = conditionalBlocks.get(i).prepare(state, bindVariables, metadata);
+            }
 
-            return new TransactionStatement(preparedAssignments, returningSelect, preparedBlocks, bindVariables);
+            return new TransactionStatement(preparedAssignments, returningSelect, returningTerms, Arrays.asList(preparedBlocks), bindVariables, metadata);
         }
 
         private List<ConditionalBlock.Raw> getConditionalBlocks()
@@ -561,18 +589,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             {
                 assert unconditionalUpdates.isEmpty(); // should be enforced by parser
 
-                ImmutableList.Builder<ConditionalBlock.Raw> rebuiltBlocks = ImmutableList.builder();
-                boolean blockMustHaveReturning = blocks.stream().anyMatch(ConditionalBlock.Raw::hasReturning);
                 boolean blockMayHaveReturning = select == null && returning.isEmpty();
 
                 for (ConditionalBlock.Raw b : blocks)
-                {
                     checkFalse(!blockMayHaveReturning && b.hasReturning(), SELECT_ALREADY_DEFINED_MESSAGE, b.source);
-                    checkFalse(blockMustHaveReturning && !b.hasReturning(), b.conditions.isEmpty() ? MISSING_DEFAULT_BRANCH_MESSAGE : MISSING_SELECT_IN_BRANCH_MESSAGE, b.source);
-                    rebuiltBlocks.add(!returning.isEmpty() && !b.hasReturning() ? b.withReturning(returning) : b);
-                }
 
-                return rebuiltBlocks.build();
+                return blocks;
             }
         }
     }
@@ -582,37 +604,22 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         private final @Nonnull List<ConditionStatement> conditions;
         private final @Nonnull List<Term> returningTerms;
         private final @Nonnull List<ModificationStatement> updates;
-        private final @Nonnull List<ColumnMetadata> resultSetMetadata;
-        private final StatementSource source;
+        private final @Nonnull List<ColumnSpecification> resultSetMetadata;
 
         public ConditionalBlock(List<ConditionStatement> conditions,
                                 List<Term> returningTerms,
                                 List<ModificationStatement> updates,
-                                List<ColumnMetadata> resultSetMetadata,
-                                StatementSource source)
+                                List<ColumnSpecification> resultSetMetadata)
         {
             this.conditions = conditions != null ? conditions : ImmutableList.of();
             this.returningTerms = returningTerms != null ? returningTerms : ImmutableList.of();
             this.updates = updates != null ? updates : ImmutableList.of();
             this.resultSetMetadata = resultSetMetadata != null ? resultSetMetadata : ImmutableList.of();
-            this.source = source;
         }
 
         public boolean isDefault()
         {
             return conditions.isEmpty();
-        }
-
-        public void validateSelection(ConditionalBlock referenceBlock)
-        {
-            checkTrue((resultSetMetadata.isEmpty()) == (referenceBlock.resultSetMetadata.isEmpty()), CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE, source, referenceBlock.source);
-
-            if (!resultSetMetadata.isEmpty())
-            {
-                List<AbstractType<?>> thisTypes = resultSetMetadata.stream().map(r -> r.type).collect(Collectors.toList());
-                List<AbstractType<?>> refTypes = referenceBlock.resultSetMetadata.stream().map(r -> r.type).collect(Collectors.toList());
-                checkTrue(thisTypes.equals(refTypes), String.format(CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE, source, referenceBlock.source, thisTypes, refTypes));
-            }
         }
 
         public void authorize(ClientState state)
@@ -650,32 +657,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 this.source = source;
             }
 
-            public ConditionalBlock prepare(ClientState state, VariableSpecifications bindVariables)
+            public ConditionalBlock prepare(ClientState state, VariableSpecifications bindVariables, ResultSet.ResultMetadata metadata)
             {
-                List<ColumnMetadata> resultSetMetadata = new ArrayList<>(returning.size());
-                List<Term> returningReferences = new ArrayList<>(returning.size());
-                for (int i = 0; i < returning.size(); i++)
-                {
-                    Term.Raw raw = returning.get(i);
-                    if (raw instanceof RowDataReference.Raw)
-                    {
-                        RowDataReference.Raw refRaw = (RowDataReference.Raw) raw;
-                        // TODO: Eliminate/modify this check if we allow full tuple selections.
-                        checkTrue(refRaw.column() != null, SELECT_REFS_NEED_COLUMN_MESSAGE);
-                        RowDataReference ref = refRaw.prepareAsReceiver();
-                        returningReferences.add(ref);
-                        resultSetMetadata.add(ref.toResultMetadata());
-                    }
-                    else
-                    {
-                        assert raw instanceof Constants.Literal; // should be ensured by parser
-                        Constants.Literal constant = (Constants.Literal) raw;
-                        String fullName = String.format("[%d]", i + 1);
-                        ColumnMetadata columnMetadata = ColumnMetadata.regularColumn("", "", fullName, constant.getCompatibleTypeIfKnown(null));
-                        returningReferences.add(raw.prepare(null, columnMetadata));
-                        resultSetMetadata.add(columnMetadata);
-                    }
-                }
+                Pair<List<Term>, List<ColumnSpecification>> returningTermsWithMetadata = getReturningTermsWithMetadata(returning, metadata, source);
 
                 List<ModificationStatement> preparedUpdates = new ArrayList<>(updates.size());
 
@@ -696,7 +680,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
                     preparedConditions.add(condition.prepare("[txn]", bindVariables));
 
-                return new ConditionalBlock(preparedConditions, returningReferences, preparedUpdates, resultSetMetadata, source);
+                return new ConditionalBlock(preparedConditions, returningTermsWithMetadata.left, preparedUpdates, returningTermsWithMetadata.right);
             }
 
             public Iterable<? extends QualifiedStatement> getStatements()
@@ -709,17 +693,72 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 return !returning.isEmpty();
             }
 
-            public Raw withReturning(List<Term.Raw> returning)
-            {
-                return new Raw(returning, updates, conditions, source);
-            }
-
             public boolean isEmpty()
             {
                 return !hasReturning() && updates.isEmpty();
             }
         }
+    }
 
+    /**
+     * Prepares the returning terms and either creates or validates the resultset metadata.
+     * If metadata is provided, the returning terms are validated against it and the metadata is copied,
+     * otherwise a new metadata is built from the returning terms.
+     */
+    private static Pair<List<Term>, List<ColumnSpecification>> getReturningTermsWithMetadata(List<Term.Raw> returning, ResultSet.ResultMetadata metadata, StatementSource source)
+    {
+        assert metadata == null || !metadata.names.isEmpty();
+
+        List<ColumnSpecification> resultSetMetadata;
+        List<Term> returningReferences;
+        if (metadata != null)
+        {
+            resultSetMetadata = metadata.names;
+            returningReferences = returning.isEmpty() ? ImmutableList.of() : new ArrayList<>(metadata.names.size());
+        }
+        else
+        {
+            resultSetMetadata = new ArrayList<>(returning.size());
+            returningReferences = new ArrayList<>(returning.size());
+        }
+
+        for (int i = 0; i < returning.size(); i++)
+        {
+            Term.Raw raw = returning.get(i);
+            String fullName = String.format("[%d]", i + 1);
+            if (raw instanceof RowDataReference.Raw)
+            {
+                RowDataReference.Raw refRaw = (RowDataReference.Raw) raw;
+                // TODO: Eliminate/modify this check if we allow full tuple selections.
+                checkTrue(refRaw.column() != null, SELECT_REFS_NEED_COLUMN_MESSAGE);
+                RowDataReference ref = refRaw.prepareAsReceiver();
+                ColumnMetadata columnMetadata = ref.toResultMetadata();
+                if (metadata != null)
+                    checkTrue(metadata.names.size() > i && metadata.names.get(i).type.equals(columnMetadata.type), String.format(TransactionStatement.CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE, source, fullName, metadata.names.size() > i ? metadata.names.get(i).type : "<missing selection>", columnMetadata.type));
+                else if (source != null)
+                    resultSetMetadata.add(ref.toResultMetadata().withNewName(ColumnIdentifier.getInterned(fullName, true)));
+                else
+                    resultSetMetadata.add(ref.toResultMetadata());
+
+                returningReferences.add(ref);
+            }
+            else
+            {
+                assert raw instanceof Constants.Literal; // should be ensured by parser
+                Constants.Literal constant = (Constants.Literal) raw;
+                ColumnMetadata columnMetadata = ColumnMetadata.regularColumn("", "", fullName, constant.getCompatibleTypeIfKnown(null));
+                if (metadata != null)
+                    checkTrue(metadata.names.size() > i && metadata.names.get(i).type.equals(columnMetadata.type), String.format(TransactionStatement.CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RESULT_SETS_MESSAGE, source, fullName, metadata.names.size() > i ? metadata.names.get(i).type : "<missing selection>", columnMetadata.type));
+                else
+                    resultSetMetadata.add(columnMetadata);
+
+                returningReferences.add(raw.prepare(null, columnMetadata));
+            }
+        }
+
+        checkTrue(returningReferences.isEmpty() || returningReferences.size() == resultSetMetadata.size(), String.format(TransactionStatement.CONDITIONAL_BLOCKS_HAVE_INCONSISTENT_RETURNING_CLAUSES_MESSAGE, source));
+
+        return Pair.create(returningReferences, resultSetMetadata);
     }
 
     /**
