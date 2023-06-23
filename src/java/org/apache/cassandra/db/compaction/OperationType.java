@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.db.compaction;
 
+/**
+ * While this originally started out as a compaction specific set of operations, it grew to represent more general I/O
+ * operations to be scheduled. As such, we codify some cross-cutting properties here independent of {@link CompactionInfo}.
+ * For more details see <a href="https://issues.apache.org/jira/browse/CASSANDRA-3154">CASSANDRA-3154</a>
+ */
 public enum OperationType
 {
     /** Each modification here should be also applied to {@link org.apache.cassandra.tools.nodetool.Stop#compactionType} */
@@ -55,8 +60,8 @@ public enum OperationType
     public final String fileName;
 
     /**
-     * For purposes of calculating space for interim compactions in flight, whether or not this OperationType is expected
-     * to write data to disk
+     * For purposes of calculating space for interim compactions in flight, whether this OperationType is expected to
+     * write data to disk
      */
     public final boolean writesData;
 
