@@ -78,6 +78,6 @@ public class ImmutableIntersectingPointValues extends IntersectingPointValues
     @Override
     public int getBytesPerDimension()
     {
-        return scratch.length;
+        throw new UnsupportedOperationException();
     }
 }

@@ -23,6 +23,11 @@ import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
 
+/**
+ * This is the base class for adding values to an on-disk balanced tree. It comes in 2 forms:
+ * 1) A mutable form that has out or order values that need sorting.
+ * 2) An immutable form that has values in order that don't need sorting.
+ */
 public abstract class IntersectingPointValues extends MutablePointValues
 {
     public boolean needsSorting()

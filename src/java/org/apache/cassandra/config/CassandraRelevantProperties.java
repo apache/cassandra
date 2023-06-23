@@ -411,6 +411,7 @@ public enum CassandraRelevantProperties
     SAI_POSTINGS_SKIP("cassandra.sai.postings_skip", "3"),
 
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
+    SAI_TEST_ENABLE_BALANCED_TREE_DEBUG("cassandra.sai.test.enable_balanced_tree_debug", "false"),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),

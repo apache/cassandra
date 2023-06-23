@@ -30,6 +30,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
@@ -53,17 +55,18 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
- * Writes auxiliary posting lists for bbtree nodes. If a node has a posting list attached, it will contain every row
- * id from all leaves reachable from that node.
+ * Writes leaf postings and auxiliary posting lists for bbtree nodes. If a node has a posting list attached,
+ * it will contain every row id from all leaves reachable from that node.
  * <p>
  * Writer is stateful, because it needs to collect data from the balanced tree data structure first to find set of eligible
  * nodes and leaf nodes reachable from them.
  * <p>
- * This is an optimised writer for 1-dim points, where we know that leaf blocks are written in value order (in this
- * order we pass them to the {@link BlockBalancedTreeWriter}). That allows us to skip reading the leaves, instead
- * just order leaf blocks by their offset in the index file, and correlate them with buffered posting lists.
+ * The leaf blocks are written in value order (in the order we pass them to the {@link BlockBalancedTreeWriter}).
+ * This allows us to skip reading the leaves, instead just order leaf blocks by their offset in the index file,
+ * and correlate them with buffered posting lists.
  */
-public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedTreeReader.TraversalCallback
+@NotThreadSafe
+public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.TraversalCallback
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockBalancedTreePostingsWriter.class);
 
@@ -92,6 +95,13 @@ public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedT
         this.indexContext = indexContext;
     }
 
+    /**
+     * Called when a leaf node is hit as we traverse the packed index.
+     *
+     * @param leafNodeID the current leaf node ID in the packed inded
+     * @param leafBlockFP the file pointer to the on-disk leaf block
+     * @param pathToRoot the path to the root leaf above this leaf. Contains all the intermediate leaf node IDs.
+     */
     @Override
     public void onLeaf(int leafNodeID, long leafBlockFP, IntArrayList pathToRoot)
     {
@@ -110,6 +120,13 @@ public class BlockBalancedTreePostingsWriter implements TraversingBlockBalancedT
         }
     }
 
+    /**
+     * Writes a merged posting list for each leaf in the tree. This postings list consists of the postings
+     * associated with the leaf along with the postings associated with any leaves underneath it.
+     *
+     * After writing out the postings it writes a map of leaf node IDs to postings file pointer for all
+     * the leaf nodes. It then returns the file pointer to this map.
+     */
     public long finish(IndexOutput out) throws IOException
     {
         checkState(postings.size() == leafOffsetToNodeID.size(),

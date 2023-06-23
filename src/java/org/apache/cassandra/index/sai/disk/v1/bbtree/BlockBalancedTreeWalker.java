@@ -38,7 +38,7 @@ import org.apache.lucene.util.MathUtil;
  * <p>
  * Holds the index tree on heap and enables its traversal via {@link #traverse(TraversalCallback)}.
  */
-public class TraversingBlockBalancedTreeReader implements Closeable
+public class BlockBalancedTreeWalker implements Closeable
 {
     final FileHandle treeIndexFile;
     final int bytesPerValue;
@@ -49,9 +49,8 @@ public class TraversingBlockBalancedTreeReader implements Closeable
     final byte[] packedIndex;
     final long pointCount;
     final int maxPointsInLeafNode;
-    final int packedBytesLength;
 
-    TraversingBlockBalancedTreeReader(FileHandle treeIndexFile, long treeIndexRoot)
+    BlockBalancedTreeWalker(FileHandle treeIndexFile, long treeIndexRoot)
     {
         this.treeIndexFile = treeIndexFile;
 
@@ -63,17 +62,16 @@ public class TraversingBlockBalancedTreeReader implements Closeable
 
             maxPointsInLeafNode = in.readVInt();
             bytesPerValue = in.readVInt();
-            packedBytesLength = bytesPerValue;
 
             // Read index:
             numLeaves = in.readVInt();
             assert numLeaves > 0;
 
-            minPackedValue = new byte[packedBytesLength];
-            maxPackedValue = new byte[packedBytesLength];
+            minPackedValue = new byte[bytesPerValue];
+            maxPackedValue = new byte[bytesPerValue];
 
-            in.readBytes(minPackedValue, 0, packedBytesLength);
-            in.readBytes(maxPackedValue, 0, packedBytesLength);
+            in.readBytes(minPackedValue, 0, bytesPerValue);
+            in.readBytes(maxPackedValue, 0, bytesPerValue);
 
             if (FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerValue, maxPackedValue, 0, bytesPerValue) > 0)
             {
@@ -110,7 +108,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
 
     void traverse(TraversalCallback callback)
     {
-        traverse(callback, new PackedIndexTree(), new IntArrayList());
+        traverse(callback, new PackedIndexTree(packedIndex, bytesPerValue, numLeaves), new IntArrayList());
     }
 
     private void traverse(TraversalCallback callback, PackedIndexTree index, IntArrayList pathToRoot)
@@ -140,32 +138,18 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         }
     }
 
-    private int getTreeDepth()
-    {
-        // First +1 because all the non-leave nodes makes another power
-        // of 2; e.g. to have a fully balanced tree with 4 leaves you
-        // need a depth=3 tree:
-
-        // Second +1 because MathUtil.log computes floor of the logarithm; e.g.
-        // with 5 leaves you need a depth=4 tree:
-        return MathUtil.log(numLeaves, 2) + 2;
-    }
-
     interface TraversalCallback
     {
         void onLeaf(int leafNodeID, long leafBlockFP, IntArrayList pathToRoot);
     }
 
-    final class PackedIndexTree
+    final static class PackedIndexTree
     {
+        private final int bytesPerValue;
+        private final int numLeaves;
+
         private final byte[][] splitPackedValueStack;
-
-        private int nodeID;
-        // level is 1-based so that we can do level-1 w/o checking each time:
-        private int level;
-        private boolean leafNode;
-
-        // used to read the packed byte[]
+        // used to read the packed index byte[]
         private final ByteArrayDataInput in;
         // holds the minimum (left most) leaf block file pointer for each level we've recursed to:
         private final long[] leafBlockFPStack;
@@ -173,22 +157,26 @@ public class TraversingBlockBalancedTreeReader implements Closeable
         private final int[] leftNodePositions;
         // holds the address, in the packed byte[] index, of the right-node of each level:
         private final int[] rightNodePositions;
-        // true if the per-dim delta we read for the node at this level is a negative offset vs. the last split on this dim; this is a packed
-        // 2D array, i.e. to access array[level][dim] you read from negativeDeltas[level*numDims+dim].  this will be true if the last time we
-        // split on this dimension, we next pushed to the left subtree:
+        // true if the delta we read for the node at this level is a negative offset vs. the last split;
+        // this will be true if the last time we split, we next pushed to the left subtree:
         private final boolean[] negativeDeltas;
         // holds the packed per-level split values; the run method uses this to save the cell min/max as it recurses:
         private final byte[][] splitValuesStack;
-        // scratch value to return from getPackedValue:
-        private final BytesRef scratch;
 
-        PackedIndexTree()
+        private int nodeID;
+        // level is 1-based so that we can do level-1 w/o checking each time:
+        private int level;
+        private boolean leafNode;
+
+        PackedIndexTree(byte[] packedIndex, int bytesPerValue, int numLeaves)
         {
+            this.bytesPerValue = bytesPerValue;
+            this.numLeaves = numLeaves;
             int treeDepth = getTreeDepth();
             splitPackedValueStack = new byte[treeDepth + 1][];
             nodeID = 1;
             level = 1;
-            splitPackedValueStack[level] = new byte[packedBytesLength];
+            splitPackedValueStack[level] = new byte[bytesPerValue];
             leafBlockFPStack = new long[treeDepth + 1];
             leftNodePositions = new int[treeDepth + 1];
             rightNodePositions = new int[treeDepth + 1];
@@ -196,10 +184,8 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             negativeDeltas = new boolean[treeDepth + 1];
 
             in = new ByteArrayDataInput(packedIndex);
-            splitValuesStack[0] = new byte[packedBytesLength];
+            splitValuesStack[0] = new byte[bytesPerValue];
             readNodeData(false);
-            scratch = new BytesRef();
-            scratch.length = bytesPerValue;
         }
 
         public void pushLeft()
@@ -208,7 +194,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             nodeID *= 2;
             level++;
             if (splitPackedValueStack[level] == null)
-                splitPackedValueStack[level] = new byte[packedBytesLength];
+                splitPackedValueStack[level] = new byte[bytesPerValue];
             System.arraycopy(negativeDeltas, level - 1, negativeDeltas, level, 1);
             assert !leafNode;
             negativeDeltas[level] = true;
@@ -222,7 +208,7 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             nodeID = nodeID * 2 + 1;
             level++;
             if (splitPackedValueStack[level] == null)
-                splitPackedValueStack[level] = new byte[packedBytesLength];
+                splitPackedValueStack[level] = new byte[bytesPerValue];
             System.arraycopy(negativeDeltas, level - 1, negativeDeltas, level, 1);
             assert !leafNode;
             negativeDeltas[level] = false;
@@ -265,12 +251,10 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             return leafBlockFPStack[level];
         }
 
-        public BytesRef getSplitDimValue()
+        public byte[] getSplitValue()
         {
             assert !isLeafNode();
-            scratch.bytes = splitValuesStack[level];
-            scratch.offset = 0;
-            return scratch;
+            return splitValuesStack[level];
         }
 
         private void readNodeData(boolean isLeft)
@@ -284,16 +268,16 @@ public class TraversingBlockBalancedTreeReader implements Closeable
             leafNode = isLeafNode();
             if (!leafNode)
             {
-                // read split dim, prefix, firstDiffByteDelta encoded as int:
+                // read prefix, firstDiffByteDelta encoded as int:
                 int code = in.readVInt();
                 int prefix = code % (1 + bytesPerValue);
                 int suffix = bytesPerValue - prefix;
 
                 if (splitValuesStack[level] == null)
                 {
-                    splitValuesStack[level] = new byte[packedBytesLength];
+                    splitValuesStack[level] = new byte[bytesPerValue];
                 }
-                System.arraycopy(splitValuesStack[level - 1], 0, splitValuesStack[level], 0, packedBytesLength);
+                System.arraycopy(splitValuesStack[level - 1], 0, splitValuesStack[level], 0, bytesPerValue);
                 if (suffix > 0)
                 {
                     int firstDiffByteDelta = code / (1 + bytesPerValue);
@@ -309,6 +293,17 @@ public class TraversingBlockBalancedTreeReader implements Closeable
                 leftNodePositions[level] = in.getPosition();
                 rightNodePositions[level] = leftNodePositions[level] + leftNumBytes;
             }
+        }
+
+        private int getTreeDepth()
+        {
+            // First +1 because all the non-leave nodes makes another power
+            // of 2; e.g. to have a fully balanced tree with 4 leaves you
+            // need a depth=3 tree:
+
+            // Second +1 because MathUtil.log computes floor of the logarithm; e.g.
+            // with 5 leaves you need a depth=4 tree:
+            return MathUtil.log(numLeaves, 2) + 2;
         }
     }
 }

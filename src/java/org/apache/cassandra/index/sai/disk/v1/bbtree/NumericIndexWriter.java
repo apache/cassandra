@@ -54,7 +54,7 @@ public class NumericIndexWriter
     private final int bytesPerValue;
 
     /**
-     * @param maxSegmentRowId maximum possible segment row ID, used to create `maxDoc` for the balanced tree
+     * @param maxSegmentRowId maximum possible segment row ID, used to create `maxRows` for the balanced tree
      */
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
                               IndexContext indexContext,
@@ -98,13 +98,13 @@ public class NumericIndexWriter
         }
 
         @Override
-        public void writeLeafDocs(BlockBalancedTreeWriter.RowIDAndIndex[] sortedByRowID, int offset, int count)
+        public void writeLeafPostings(BlockBalancedTreeWriter.RowIDAndIndex[] leafPostings, int offset, int count)
         {
             PackedLongValues.Builder builder = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
 
             for (int i = offset; i < count; ++i)
             {
-                builder.add(sortedByRowID[i].rowID);
+                builder.add(leafPostings[i].rowID);
             }
             postings.add(builder.build());
         }
@@ -130,7 +130,7 @@ public class NumericIndexWriter
             // The SSTable balanced tree component file is opened in append mode, so our offset is the current file pointer.
             long treeOffset = treeOutput.getFilePointer();
 
-            treePosition = writer.writeTree(treeOutput, values, leafCallback);
+            treePosition = writer.write(treeOutput, values, leafCallback);
 
             // If the treePosition is less than 0 then we didn't write any values out and the index is empty
             if (treePosition < 0)
@@ -147,7 +147,7 @@ public class NumericIndexWriter
             components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
         }
 
-        try (TraversingBlockBalancedTreeReader reader = new TraversingBlockBalancedTreeReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext), treePosition);
+        try (BlockBalancedTreeWalker reader = new BlockBalancedTreeWalker(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext), treePosition);
              IndexOutput postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true))
         {
             long postingsOffset = postingsOutput.getFilePointer();

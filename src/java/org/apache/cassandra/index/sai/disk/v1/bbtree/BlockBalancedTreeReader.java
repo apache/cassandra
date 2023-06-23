@@ -47,7 +47,6 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -56,7 +55,7 @@ import org.apache.lucene.util.packed.DirectWriter;
  * Handles intersection of a point or point range with a block balanced tree previously written with
  * {@link BlockBalancedTreeWriter}.
  */
-public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader implements Closeable
+public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -115,7 +114,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         IndexInput treeInput = IndexFileUtils.instance.openInput(treeIndexFile);
         IndexInput postingsInput = IndexFileUtils.instance.openInput(postingsFile);
         IndexInput postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
-        PackedIndexTree index = new PackedIndexTree();
+        PackedIndexTree index = new PackedIndexTree(packedIndex, bytesPerValue, numLeaves);
 
         Intersection intersection = relation == Relation.CELL_INSIDE_QUERY
                                     ? new Intersection(treeInput, postingsInput, postingsSummaryInput, index, listener, context)
@@ -252,7 +251,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         {
             super(treeInput, postingsInput, postingsSummaryInput, index, listener, context);
             this.visitor = visitor;
-            this.packedValue = new byte[packedBytesLength];
+            this.packedValue = new byte[bytesPerValue];
             this.origIndex = new short[maxPointsInLeafNode];
         }
 
@@ -297,7 +296,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
 
             int count = treeInput.readVInt();
 
-            // loading doc ids occurred here prior
+            // loading row IDs occurred here prior
 
             int orderMapLength = treeInput.readVInt();
 
@@ -312,7 +311,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
             // seek beyond the ordermap
             treeInput.seek(orderMapPointer + orderMapLength);
 
-            FixedBitSet fixedBitSet = visitDocValues(treeInput, count, visitor, origIndex);
+            FixedBitSet fixedBitSet = visitValues(treeInput, count, visitor, origIndex);
 
             int nodeID = index.getNodeID();
 
@@ -326,26 +325,26 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
         void visitNode(PriorityQueue<PeekablePostingList> postingLists, byte[] cellMinPacked, byte[] cellMaxPacked) throws IOException
         {
             byte[] splitPackedValue = index.getSplitPackedValue();
-            BytesRef splitDimValue = index.getSplitDimValue();
+            byte[] splitDimValue = index.getSplitValue();
             assert splitDimValue.length == bytesPerValue;
 
             // make sure cellMin <= splitValue <= cellMax:
-            assert FutureArrays.compareUnsigned(cellMinPacked, 0, bytesPerValue, splitDimValue.bytes, splitDimValue.offset, splitDimValue.offset + bytesPerValue) <= 0 : "bytesPerValue=" + bytesPerValue;
-            assert FutureArrays.compareUnsigned(cellMaxPacked, 0, bytesPerValue, splitDimValue.bytes, splitDimValue.offset, splitDimValue.offset + bytesPerValue) >= 0 : "bytesPerValue=" + bytesPerValue;
+            assert FutureArrays.compareUnsigned(cellMinPacked, 0, bytesPerValue, splitDimValue, 0, bytesPerValue) <= 0 : "bytesPerValue=" + bytesPerValue;
+            assert FutureArrays.compareUnsigned(cellMaxPacked, 0, bytesPerValue, splitDimValue, 0, bytesPerValue) >= 0 : "bytesPerValue=" + bytesPerValue;
 
             // Recurse on left subtree:
-            System.arraycopy(cellMaxPacked, 0, splitPackedValue, 0, packedBytesLength);
-            System.arraycopy(splitDimValue.bytes, splitDimValue.offset, splitPackedValue, 0, bytesPerValue);
+            System.arraycopy(cellMaxPacked, 0, splitPackedValue, 0, bytesPerValue);
+            System.arraycopy(splitDimValue, 0, splitPackedValue, 0, bytesPerValue);
 
             index.pushLeft();
             collectPostingLists(postingLists, cellMinPacked, splitPackedValue);
             index.pop();
 
             // Restore the split dim value since it may have been overwritten while recursing:
-            System.arraycopy(splitPackedValue, 0, splitDimValue.bytes, splitDimValue.offset, bytesPerValue);
+            System.arraycopy(splitPackedValue, 0, splitDimValue, 0, bytesPerValue);
             // Recurse on right subtree:
-            System.arraycopy(cellMinPacked, 0, splitPackedValue, 0, packedBytesLength);
-            System.arraycopy(splitDimValue.bytes, splitDimValue.offset, splitPackedValue, 0, bytesPerValue);
+            System.arraycopy(cellMinPacked, 0, splitPackedValue, 0, bytesPerValue);
+            System.arraycopy(splitDimValue, 0, splitPackedValue, 0, bytesPerValue);
             index.pushRight();
             collectPostingLists(postingLists, splitPackedValue, cellMaxPacked);
             index.pop();
@@ -359,15 +358,15 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
             return PeekablePostingList.makePeekable(new FilteringPostingList(filter, postingsReader));
         }
 
-        private FixedBitSet visitDocValues(IndexInput in, int count, IntersectVisitor visitor, short[] origIndex) throws IOException
+        private FixedBitSet visitValues(IndexInput in, int count, IntersectVisitor visitor, short[] origIndex) throws IOException
         {
             int commonPrefixLength = readCommonPrefixLength(in);
             int compressedDimension = readCompressedDimension(in);
             // If the compressed dimension is -1 it means that all values in the block are equal
             if (compressedDimension == -1)
-                return visitRawDocValues(count, visitor, origIndex);
+                return visitRawValues(count, visitor, origIndex);
             else
-                return visitCompressedDocValues(commonPrefixLength, in, count, visitor, origIndex);
+                return visitCompressedValues(commonPrefixLength, in, count, visitor, origIndex);
         }
 
         private int readCompressedDimension(IndexInput in) throws IOException
@@ -378,11 +377,11 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
             return compressedDimension;
         }
 
-        private FixedBitSet visitCompressedDocValues(int commonPrefixLength,
-                                                     IndexInput in,
-                                                     int count,
-                                                     IntersectVisitor visitor,
-                                                     short[] origIndex) throws IOException
+        private FixedBitSet visitCompressedValues(int commonPrefixLength,
+                                                  IndexInput in,
+                                                  int count,
+                                                  IntersectVisitor visitor,
+                                                  short[] origIndex) throws IOException
         {
             // the byte at `compressedByteOffset` is compressed using run-length compression,
             // other suffix bytes are stored verbatim
@@ -411,7 +410,7 @@ public class BlockBalancedTreeReader extends TraversingBlockBalancedTreeReader i
             return fixedBitSet;
         }
 
-        private FixedBitSet visitRawDocValues(int count, IntersectVisitor visitor, final short[] origIndex)
+        private FixedBitSet visitRawValues(int count, IntersectVisitor visitor, final short[] origIndex)
         {
             FixedBitSet fixedBitSet = new FixedBitSet(maxPointsInLeafNode);
 

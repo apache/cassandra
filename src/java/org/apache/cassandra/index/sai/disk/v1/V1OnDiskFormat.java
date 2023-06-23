@@ -239,7 +239,8 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public int openFilesPerColumnIndex(IndexContext indexContext)
     {
-        // For the V1 format there are always 2 open files per index - index (balanced tree or terms) + postings
+        // For the V1 format there are always 2 open files per index - index (balanced tree or terms) + auxiliary postings
+        // for the balanced tree and postings for the literal terms
         return 2;
     }
 
