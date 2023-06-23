@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -59,7 +60,18 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
      */
     Set<Component> allComponents();
 
-    Set<Component> streamingComponents();
+    /**
+     * Returns the components that should be streamed to other nodes on repair / rebuild.
+     * This includes only the core SSTable components produced by this format.
+     * Custom components registered by e.g. secondary indexes are not included.
+     * Use {@link SSTableReader#getStreamingComponents()} for the list of all components including the custom ones.
+     */
+    default Set<Component> streamingComponents()
+    {
+        return allComponents().stream()
+                              .filter(c -> c.type.streamable)
+                              .collect(Collectors.toSet());
+    }
 
     Set<Component> primaryComponents();
 
@@ -156,23 +168,23 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
         {
             // the base data for an sstable: the remaining components can be regenerated
             // based on the data component
-            public static final Component.Type DATA = Component.Type.createSingleton("DATA", "Data.db", null);
+            public static final Component.Type DATA = Component.Type.createSingleton("DATA", "Data.db", true, null);
             // file to hold information about uncompressed data length, chunk offsets etc.
-            public static final Component.Type COMPRESSION_INFO = Component.Type.createSingleton("COMPRESSION_INFO", "CompressionInfo.db", null);
+            public static final Component.Type COMPRESSION_INFO = Component.Type.createSingleton("COMPRESSION_INFO", "CompressionInfo.db", true, null);
             // statistical metadata about the content of the sstable
-            public static final Component.Type STATS = Component.Type.createSingleton("STATS", "Statistics.db", null);
+            public static final Component.Type STATS = Component.Type.createSingleton("STATS", "Statistics.db", true, null);
             // serialized bloom filter for the row keys in the sstable
-            public static final Component.Type FILTER = Component.Type.createSingleton("FILTER", "Filter.db", null);
+            public static final Component.Type FILTER = Component.Type.createSingleton("FILTER", "Filter.db", true, null);
             // holds CRC32 checksum of the data file
-            public static final Component.Type DIGEST = Component.Type.createSingleton("DIGEST", "Digest.crc32", null);
+            public static final Component.Type DIGEST = Component.Type.createSingleton("DIGEST", "Digest.crc32", true, null);
             // holds the CRC32 for chunks in an uncompressed file.
-            public static final Component.Type CRC = Component.Type.createSingleton("CRC", "CRC.db", null);
+            public static final Component.Type CRC = Component.Type.createSingleton("CRC", "CRC.db", true, null);
             // table of contents, stores the list of all components for the sstable
-            public static final Component.Type TOC = Component.Type.createSingleton("TOC", "TOC.txt", null);
+            public static final Component.Type TOC = Component.Type.createSingleton("TOC", "TOC.txt", false, null);
             // built-in secondary index (may exist multiple per sstable)
-            public static final Component.Type SECONDARY_INDEX = Component.Type.create("SECONDARY_INDEX", "SI_.*.db", null);
+            public static final Component.Type SECONDARY_INDEX = Component.Type.create("SECONDARY_INDEX", "SI_.*.db", true, null);
             // custom component, used by e.g. custom compaction strategy
-            public static final Component.Type CUSTOM = Component.Type.create("CUSTOM", null, null);
+            public static final Component.Type CUSTOM = Component.Type.create("CUSTOM", null, true, null);
         }
 
         // singleton components for types that don't need ids

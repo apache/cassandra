@@ -165,12 +165,11 @@ public abstract class SSTable
 
     /**
      * Returns all SSTable components that should be streamed.
-     * Those are essentially all components, excluding the TOC.
      */
     public Set<Component> getStreamingComponents()
     {
         return components.stream()
-                         .filter(c -> descriptor.getFormat().streamingComponents().contains(c) || c.type == Components.Types.CUSTOM)
+                         .filter(c -> c.type.streamable)
                          .collect(Collectors.toSet());
     }
 

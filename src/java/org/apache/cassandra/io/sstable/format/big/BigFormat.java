@@ -82,9 +82,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public static class Types extends SSTableFormat.Components.Types
         {
             // index of the row keys with pointers to their positions in the data file
-            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", BigFormat.class);
+            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", true, BigFormat.class);
             // holds SSTable Index Summary (sampling of Index component)
-            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", BigFormat.class);
+            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", true, BigFormat.class);
         }
 
         public final static Component PRIMARY_INDEX = Types.PRIMARY_INDEX.getSingleton();
@@ -178,12 +178,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     public Set<Component> allComponents()
     {
         return Components.ALL_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> streamingComponents()
-    {
-        return Components.STREAM_COMPONENTS;
     }
 
     @Override
