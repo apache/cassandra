@@ -26,7 +26,8 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteArrayIndexInput;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 
@@ -81,7 +82,7 @@ public class MetadataSource
         return new MetadataSource(components);
     }
 
-    public IndexInput get(String name)
+    public DataInput get(String name)
     {
         BytesRef bytes = components.get(name);
 
@@ -91,6 +92,6 @@ public class MetadataSource
                                                              name, components.keySet()));
         }
 
-        return new ByteArrayIndexInput(name, bytes.bytes);
+        return new ByteArrayDataInput(bytes.bytes);
     }
 }
