@@ -6967,36 +6967,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
-    @Deprecated
-    public int getTableCountWarnThreshold()
-    {
-        return DatabaseDescriptor.tableCountWarnThreshold();
-    }
-
-    @Deprecated
-    public void setTableCountWarnThreshold(int value)
-    {
-        if (value < 0)
-            throw new IllegalStateException("Table count warn threshold should be positive, not "+value);
-        logger.info("Changing table count warn threshold from {} to {}", getTableCountWarnThreshold(), value);
-        DatabaseDescriptor.setTableCountWarnThreshold(value);
-    }
-
-    @Deprecated
-    public int getKeyspaceCountWarnThreshold()
-    {
-        return DatabaseDescriptor.keyspaceCountWarnThreshold();
-    }
-
-    @Deprecated
-    public void setKeyspaceCountWarnThreshold(int value)
-    {
-        if (value < 0)
-            throw new IllegalStateException("Keyspace count warn threshold should be positive, not "+value);
-        logger.info("Changing keyspace count warn threshold from {} to {}", getKeyspaceCountWarnThreshold(), value);
-        DatabaseDescriptor.setKeyspaceCountWarnThreshold(value);
-    }
-
     @Override
     public void setCompactionTombstoneWarningThreshold(int count)
     {

@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -93,6 +94,8 @@ public final class SystemDistributedKeyspace
 
     public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY, VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE);
+    
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
                 "Repair history",

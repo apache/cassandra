@@ -27,7 +27,10 @@ import java.util.regex.Pattern;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.tracing.TraceKeyspace;
 
 /**
  * When adding new String keyspace names here, double check if it needs to be added to PartitionDenylist.canDenylistKeyspace
@@ -125,5 +128,24 @@ public final class SchemaConstants
     public static Set<String> getSystemKeyspaces()
     {
         return Sets.union(Sets.union(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES), VIRTUAL_SYSTEM_KEYSPACE_NAMES);
+    }
+
+    /**
+     * Returns the set of local and replicated system keyspace names
+     * @return all local and replicated system keyspace names
+     */
+    public static Set<String> getLocalAndReplicatedSystemKeyspaceNames()
+    {
+        return Sets.union(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES);
+    }
+    
+    /**
+     * Returns the set of all local and replicated system table names
+     * @return all local and replicated system table names
+     */
+    public static Set<String> getLocalAndReplicatedSystemTableNames()
+    {
+        return Sets.union(Sets.union(SystemKeyspace.TABLE_NAMES, ImmutableSet.copyOf(SchemaKeyspaceTables.ALL)),
+                          Sets.union(Sets.union(TraceKeyspace.TABLE_NAMES, AuthKeyspace.TABLE_NAMES), SystemDistributedKeyspace.TABLE_NAMES));
     }
 }
