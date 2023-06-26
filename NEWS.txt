@@ -217,7 +217,7 @@ New features
 
 Upgrading
 ---------
-    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESCRIBE|DESC will not work in cqlsh 6.0.0
+    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence, DESCRIBE|DESC will not work in cqlsh 6.0.0
       being connected to earlier major Cassandra versions where DESCRIBE does not exist server side.
     - cqlsh shell startup script now prefers 'python3' before 'python' when identifying a runtime.
     - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request
@@ -2105,7 +2105,7 @@ Features
 --------
     - A new upgradesstables command has been added to nodetool. It is very
       similar to scrub but without the ability to discard corrupted rows (and
-      as a consequence it does not snapshot automatically before). This new
+      as a consequence, it does not snapshot automatically before). This new
       command is to be prefered to scrub in all cases where sstables should be
       rewritten to the current format for upgrade purposes.
 
