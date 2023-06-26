@@ -132,7 +132,6 @@ import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
 import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.now;
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public final class SystemKeyspace
 {
@@ -603,7 +602,8 @@ public final class SystemKeyspace
             SystemKeyspace.getOrInitializeLocalHostId(nodeIdSupplier);
     }
 
-    public static void updateCompactionHistory(String ksname,
+    public static void updateCompactionHistory(TimeUUID taskId,
+                                               String ksname,
                                                String cfname,
                                                long compactedAt,
                                                long bytesIn,
@@ -616,7 +616,7 @@ public final class SystemKeyspace
             return;
         String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
-                        nextTimeUUID(),
+                        taskId,
                         ksname,
                         cfname,
                         ByteBufferUtil.bytes(compactedAt),

@@ -32,8 +32,10 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -44,6 +46,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -66,6 +69,40 @@ public class CompactionTaskTest
     {
         cfs.getCompactionStrategyManager().enable();
         cfs.truncateBlocking();
+    }
+
+    @Test
+    public void testTaskIdIsPersistedInCompactionHistory()
+    {
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
+        Util.flush(cfs);
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
+        Util.flush(cfs);
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        Assert.assertEquals(2, sstables.size());
+
+        TimeUUID id;
+
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION))
+        {
+            id = txn.opId();
+            CompactionTask task = new CompactionTask(cfs, txn, 0);
+            task.execute(CompactionManager.instance.active);
+        }
+
+        UntypedResultSet rows = QueryProcessor.executeInternal(format("SELECT id FROM system.%s where id = %s",
+                                                                      SystemKeyspace.COMPACTION_HISTORY,
+                                                                      id.toString()));
+
+        Assert.assertNotNull(rows);
+        Assert.assertFalse(rows.isEmpty());
+
+        UntypedResultSet.Row one = rows.one();
+        TimeUUID persistedId = one.getTimeUUID("id");
+
+        Assert.assertEquals(id, persistedId);
     }
 
     @Test
