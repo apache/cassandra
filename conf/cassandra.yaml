@@ -1002,6 +1002,19 @@ snapshot_links_per_second: 0
 # Min unit: KiB
 column_index_cache_size: 2KiB
 
+# Default compaction strategy, applied when a table's parameters do not
+# specify compaction.
+# The default is to use SizeTieredCompactionStrategy, with its default
+# threshold of 4 sstables.
+# The selected compaction strategy will also apply to system tables.
+#
+# default_compaction:
+#   class_name: UnifiedCompactionStrategy
+#   parameters:
+#     scaling_parameters: T4
+#     target_sstable_size: 1GiB
+
+
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
 # compactions can help preserve read performance in a mixed read/write

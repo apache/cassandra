@@ -220,8 +220,6 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public synchronized UnifiedCompactionTask getNextBackgroundTask(long gcBefore)
     {
-        controller.onStrategyBackgroundTaskRequest();
-
         while (true)
         {
             CompactionPick pick = getNextCompactionPick(gcBefore);
@@ -247,9 +245,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         }
         else
         {
-            // This can happen e.g. due to a race with upgrade tasks
-            logger.error("Failed to submit compaction {} because a transaction could not be created. If this happens frequently, it should be reported", pick);
-            // FIXME: Needs the sstable removal race fix
+            // This can happen e.g. due to a race with upgrade tasks.
+            logger.warn("Failed to submit compaction {} because a transaction could not be created. If this happens frequently, it should be reported", pick);
+            // This may be an indication of an SSTableReader reference leak. See CASSANDRA-18342.
             return null;
         }
     }

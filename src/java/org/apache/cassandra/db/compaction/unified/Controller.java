@@ -50,7 +50,8 @@ public class Controller
      * Higher indexes will use the value of the last index with a W specified.
      */
     final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
-    private final static String DEFAULT_SCALING_PARAMETERS = CassandraRelevantProperties.UCS_SCALING_PARAMETER.getString();
+    private final static String DEFAULT_SCALING_PARAMETERS =
+        CassandraRelevantProperties.UCS_SCALING_PARAMETER.getString();
 
     /**
      * Override for the flush size in MB. The database should be able to calculate this from executing flushes, this
@@ -66,16 +67,19 @@ public class Controller
      * For others a base count of 1 is used as system tables are usually small and do not need as much compaction
      * parallelism, while having directories defined provides for parallelism in a different way.
      */
-    public static final int DEFAULT_BASE_SHARD_COUNT = CassandraRelevantProperties.UCS_BASE_SHARD_COUNT.getInt();
+    public static final int DEFAULT_BASE_SHARD_COUNT =
+        CassandraRelevantProperties.UCS_BASE_SHARD_COUNT.getInt();
 
     static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
-    public static final long DEFAULT_TARGET_SSTABLE_SIZE = CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
+    public static final long DEFAULT_TARGET_SSTABLE_SIZE =
+        CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
     static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
      * This parameter is intended to modify the shape of the LSM by taking into account the survival ratio of data, for now it is fixed to one.
      */
-    static final double DEFAULT_SURVIVAL_FACTOR = CassandraRelevantProperties.UCS_SURVIVAL_FACTOR.getDouble();
+    static final double DEFAULT_SURVIVAL_FACTOR =
+        CassandraRelevantProperties.UCS_SURVIVAL_FACTOR.getDouble();
     static final double[] DEFAULT_SURVIVAL_FACTORS = new double[] { DEFAULT_SURVIVAL_FACTOR };
 
     /**
@@ -89,7 +93,8 @@ public class Controller
     static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
 
     static final String ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION = "unsafe_aggressive_sstable_expiration";
-    static final boolean ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION = CassandraRelevantProperties.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.getBoolean();
+    static final boolean ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION =
+        CassandraRelevantProperties.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.getBoolean();
     static final boolean DEFAULT_ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION = false;
 
     static final int DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS = 60 * 10;
@@ -155,8 +160,10 @@ public class Controller
 
         if (ignoreOverlapsInExpirationCheck && !ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION)
         {
-            logger.warn("Not enabling aggressive SSTable expiration, as the system property '" + CassandraRelevantProperties.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.name() + "' is set to 'false'. " +
-                    "Set it to 'true' to enable aggressive SSTable expiration.");
+            logger.warn("Not enabling aggressive SSTable expiration, as the system property '" +
+                        CassandraRelevantProperties.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.name() +
+                        "' is set to 'false'. " +
+                        "Set it to 'true' to enable aggressive SSTable expiration.");
         }
         this.ignoreOverlapsInExpirationCheck = ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION && ignoreOverlapsInExpirationCheck;
     }
@@ -277,28 +284,12 @@ public class Controller
         return expiredSSTableCheckFrequency;
     }
 
-    /**
-     * The strategy will call this method each time {@link UnifiedCompactionStrategy#getNextBackgroundTask} is called.
-     */
-    public void onStrategyBackgroundTaskRequest()
-    {
-    }
-
-    /**
-     * Returns a maximum bucket index for the given data size and fanout.
-     */
-    private int maxBucketIndex(long totalLength, int fanout)
-    {
-        double o = getSurvivalFactor(0);
-        long m = getFlushSizeBytes();
-        return Math.max(0, (int) Math.floor((Math.log(totalLength) - Math.log(m)) / (Math.log(fanout) - Math.log(o))));
-    }
-
     public static Controller fromOptions(ColumnFamilyStore cfs, Map<String, String> options)
     {
         int[] Ws = parseScalingParameters(options.getOrDefault(SCALING_PARAMETERS_OPTION, DEFAULT_SCALING_PARAMETERS));
 
-        long flushSizeOverride = FBUtilities.parseHumanReadableBytes(options.getOrDefault(FLUSH_SIZE_OVERRIDE_OPTION, "0MiB"));
+        long flushSizeOverride = FBUtilities.parseHumanReadableBytes(options.getOrDefault(FLUSH_SIZE_OVERRIDE_OPTION,
+                                                                                          "0MiB"));
         int maxSSTablesToCompact = Integer.parseInt(options.getOrDefault(MAX_SSTABLES_TO_COMPACT_OPTION, "0"));
         long expiredSSTableCheckFrequency = options.containsKey(EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION)
                 ? Long.parseLong(options.get(EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION))
@@ -314,19 +305,20 @@ public class Controller
         }
         else
         {
-            if (SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName()) || (cfs.getDiskBoundaries().positions != null && cfs.getDiskBoundaries().positions.size() > 1))
+            if (SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName())
+                || (cfs.getDiskBoundaries().positions != null && cfs.getDiskBoundaries().positions.size() > 1))
                 baseShardCount = 1;
             else
                 baseShardCount = DEFAULT_BASE_SHARD_COUNT;
         }
 
         long targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
-                                 ? FBUtilities.parseHumanReadableBytes(options.get(TARGET_SSTABLE_SIZE_OPTION))
-                                 : DEFAULT_TARGET_SSTABLE_SIZE;
+                ? FBUtilities.parseHumanReadableBytes(options.get(TARGET_SSTABLE_SIZE_OPTION))
+                : DEFAULT_TARGET_SSTABLE_SIZE;
 
         Overlaps.InclusionMethod inclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
-                                                   ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
-                                                   : DEFAULT_OVERLAP_INCLUSION_METHOD;
+                ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
+                : DEFAULT_OVERLAP_INCLUSION_METHOD;
 
         return new Controller(cfs,
                               MonotonicClock.Global.preciseTime,
@@ -343,12 +335,6 @@ public class Controller
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
-        String nonPositiveErr = "Invalid configuration, %s should be positive: %d";
-        String booleanParseErr = "%s should either be 'true' or 'false', not %s";
-        String intParseErr = "%s is not a parsable int (base10) for %s";
-        String longParseErr = "%s is not a parsable long (base10) for %s";
-        String sizeUnacceptableErr = "%s %s is not acceptable, size must be at least %s";
-        String invalidSizeErr = "%s %s is not a valid size in bytes: %s";
         options = new HashMap<>(options);
         String s;
 
@@ -363,13 +349,15 @@ public class Controller
             {
                 int numShards = Integer.parseInt(s);
                 if (numShards <= 0)
-                    throw new ConfigurationException(String.format(nonPositiveErr,
+                    throw new ConfigurationException(String.format("Invalid configuration, %s should be positive: %d",
                                                                    BASE_SHARD_COUNT_OPTION,
                                                                    numShards));
             }
             catch (NumberFormatException e)
             {
-                throw new ConfigurationException(String.format(intParseErr, s, BASE_SHARD_COUNT_OPTION), e);
+                throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s",
+                                                               s,
+                                                               BASE_SHARD_COUNT_OPTION), e);
             }
         }
 
@@ -381,15 +369,15 @@ public class Controller
                 long targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
                 if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
                 {
-                    throw new ConfigurationException(String.format(sizeUnacceptableErr,
+                    throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
                                                                    TARGET_SSTABLE_SIZE_OPTION,
                                                                    s,
-                                                                   FBUtilities.prettyPrintBinary(MIN_TARGET_SSTABLE_SIZE, "B", "")));
+                                                                   FBUtilities.prettyPrintMemory(MIN_TARGET_SSTABLE_SIZE)));
                 }
             }
             catch (NumberFormatException e)
             {
-                throw new ConfigurationException(String.format(invalidSizeErr,
+                throw new ConfigurationException(String.format("%s %s is not a valid size in bytes: %s",
                                                                TARGET_SSTABLE_SIZE_OPTION,
                                                                s,
                                                                e.getMessage()),
@@ -404,14 +392,14 @@ public class Controller
             {
                 long flushSize = FBUtilities.parseHumanReadableBytes(s);
                 if (flushSize < MIN_TARGET_SSTABLE_SIZE)
-                    throw new ConfigurationException(String.format(sizeUnacceptableErr,
+                    throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
                                                                    FLUSH_SIZE_OVERRIDE_OPTION,
                                                                    s,
-                                                                   FBUtilities.prettyPrintBinary(MIN_TARGET_SSTABLE_SIZE, "B", "")));
+                                                                   FBUtilities.prettyPrintMemory(MIN_TARGET_SSTABLE_SIZE)));
             }
             catch (NumberFormatException e)
             {
-                throw new ConfigurationException(String.format(invalidSizeErr,
+                throw new ConfigurationException(String.format("%s %s is not a valid size in bytes: %s",
                                                                FLUSH_SIZE_OVERRIDE_OPTION,
                                                                s,
                                                                e.getMessage()),
@@ -428,7 +416,7 @@ public class Controller
              }
              catch (NumberFormatException e)
              {
-                 throw new ConfigurationException(String.format(intParseErr,
+                 throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s",
                                                                 s,
                                                                 MAX_SSTABLES_TO_COMPACT_OPTION),
                                                   e);
@@ -441,13 +429,13 @@ public class Controller
             {
                 long expiredSSTableCheckFrequency = Long.parseLong(s);
                 if (expiredSSTableCheckFrequency <= 0)
-                    throw new ConfigurationException(String.format(nonPositiveErr,
+                    throw new ConfigurationException(String.format("Invalid configuration, %s should be positive: %d",
                                                                    EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION,
                                                                    expiredSSTableCheckFrequency));
             }
             catch (NumberFormatException e)
             {
-                throw new ConfigurationException(String.format(longParseErr,
+                throw new ConfigurationException(String.format("%s is not a parsable long (base10) for %s",
                                                                s,
                                                                EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION),
                                                  e);
@@ -457,7 +445,7 @@ public class Controller
         s = options.remove(ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
         if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false"))
         {
-            throw new ConfigurationException(String.format(booleanParseErr,
+            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
                                                            ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, s));
         }
 

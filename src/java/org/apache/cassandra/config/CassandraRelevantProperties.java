@@ -517,6 +517,7 @@ public enum CassandraRelevantProperties
     TRIGGERS_DIR("cassandra.triggers_dir"),
     TRUNCATE_BALLOT_METADATA("cassandra.truncate_ballot_metadata"),
     TYPE_UDT_CONFLICT_BEHAVIOR("cassandra.type.udt.conflict_behavior"),
+    // See org.apache.cassandra.db.compaction.unified.Controller for the definition of the UCS parameters
     UCS_BASE_SHARD_COUNT("unified_compaction.base_shard_count", "4"),
     UCS_OVERLAP_INCLUSION_METHOD("unified_compaction.overlap_inclusion_method"),
     UCS_SCALING_PARAMETER("unified_compaction.scaling_parameters", "T4"),
@@ -745,9 +746,9 @@ public enum CassandraRelevantProperties
 
     /**
      * Gets the value of a system property as a double.
-     * @return system property long value if it exists, defaultValue otherwise.
+     * @return system property value if it exists, defaultValue otherwise.
      */
-    public double getLong(double overrideDefaultValue)
+    public double getDouble(double overrideDefaultValue)
     {
         String value = System.getProperty(key);
         if (value == null)

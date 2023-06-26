@@ -388,7 +388,6 @@ public class UnifiedCompactionStrategyTest
         List<SSTableReader> allSstables = new ArrayList<>();
 
         List<SSTableReader> sstables = mockSSTables(numSSTables,
-//                                                    minSstableSizeBytes,
                                                     0,
                                                     System.currentTimeMillis(),
                                                     0);
