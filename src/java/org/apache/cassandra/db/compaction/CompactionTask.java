@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 public class CompactionTask extends AbstractCompactionTask
@@ -242,10 +243,12 @@ public class CompactionTask extends AbstractCompactionTask
             for (int i = 0; i < mergedRowCounts.length; i++)
                 totalSourceRows += mergedRowCounts[i] * (i + 1);
 
-            String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
+            UUID taskTimeUUID = UUIDGen.getTimeUUID();
+            String mergeSummary = updateCompactionHistory(taskTimeUUID, cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
 
-            logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+            logger.info(String.format("Compacted (task id: %s, compaction history id: %s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
                                        taskId,
+                                       taskTimeUUID,
                                        transaction.originals().size(),
                                        newSSTableNames.toString(),
                                        getLevel(),
@@ -280,7 +283,7 @@ public class CompactionTask extends AbstractCompactionTask
         return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
     }
 
-    public static String updateCompactionHistory(String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
+    public static String updateCompactionHistory(UUID taskId, String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
     {
         StringBuilder mergeSummary = new StringBuilder(mergedRowCounts.length * 10);
         Map<Integer, Long> mergedRows = new HashMap<>();
@@ -294,7 +297,7 @@ public class CompactionTask extends AbstractCompactionTask
             mergeSummary.append(String.format("%d:%d, ", rows, count));
             mergedRows.put(rows, count);
         }
-        SystemKeyspace.updateCompactionHistory(keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
+        SystemKeyspace.updateCompactionHistory(taskId, keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
         return mergeSummary.toString();
     }
 
