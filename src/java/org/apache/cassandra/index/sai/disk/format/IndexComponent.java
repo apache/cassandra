@@ -20,6 +20,11 @@ package org.apache.cassandra.index.sai.disk.format;
 
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryWriter;
+import org.apache.cassandra.io.sstable.Component;
+
+import static org.apache.cassandra.index.sai.disk.format.Version.SAI_DESCRIPTOR;
+import static org.apache.cassandra.index.sai.disk.format.Version.SAI_SEPARATOR;
+
 
 /**
  * This is a definitive list of all the on-disk components for all versions
@@ -79,10 +84,20 @@ public enum IndexComponent
      */
     GROUP_COMPLETION_MARKER("GroupComplete");
 
+    public final Component.Type type;
     public final String name;
 
     IndexComponent(String name)
     {
         this.name = name;
+        this.type = componentType(name);
+    }
+
+    private static Component.Type componentType(String name)
+    {
+        return Component.Type.create(SAI_DESCRIPTOR + SAI_SEPARATOR + name.toUpperCase(),
+                                     SAI_DESCRIPTOR + ".*." + name + ".db",
+                                     true,
+                                     null);
     }
 }
