@@ -20,9 +20,10 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 
 @NotThreadSafe
 public abstract class AbstractBlockPackedReader implements LongArray
@@ -54,8 +55,10 @@ public abstract class AbstractBlockPackedReader implements LongArray
 
         int blockIndex = (int) (valueIndex >>> blockShift);
         int inBlockIndex = (int) (valueIndex & blockMask);
-        DirectReaders.Reader subReader = DirectReaders.getReaderForBitsPerValue(blockBitsPerValue[blockIndex]);
-        return delta(blockIndex, inBlockIndex) + subReader.get(input, blockOffsetAt(blockIndex), inBlockIndex);
+        byte bitsPerValue = blockBitsPerValue[blockIndex];
+        final LongValues subReader = bitsPerValue == 0 ? LongValues.ZEROES
+                                                       : DirectReader.getInstance(input, bitsPerValue, blockOffsetAt(blockIndex));
+        return delta(blockIndex, inBlockIndex) + subReader.get(inBlockIndex);
     }
 
     @Override

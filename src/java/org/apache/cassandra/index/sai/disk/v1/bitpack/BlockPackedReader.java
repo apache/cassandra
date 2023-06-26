@@ -26,7 +26,6 @@ import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.checkBlockSize;
@@ -70,11 +69,8 @@ public class BlockPackedReader implements LongArray.Factory
             {
                 final int token = in.readByte() & 0xFF;
                 final int bitsPerValue = token >>> BlockPackedWriter.BPV_SHIFT;
-                if (!DirectReaders.SUPPORTED_BITS_PER_VALUE.contains(bitsPerValue))
-                {
-                    throw new CorruptIndexException(String.format("Block %d is corrupted. Bits per value is %d. Supported values are %s.",
-                                                                  i, bitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), in);
-                }
+                int blockIndex = i;
+                DirectReaders.checkBitsPerValue(bitsPerValue, in, () -> String.format("Block %d", blockIndex));
                 if ((token & BlockPackedWriter.MIN_VALUE_EQUALS_0) == 0)
                 {
                     long val = zigZagDecode(1L + readVLong(in));
