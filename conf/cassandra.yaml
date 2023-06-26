@@ -1685,13 +1685,6 @@ repaired_data_tracking_for_partition_reads_enabled: false
 # mismatches are less actionable than confirmed ones.
 report_unconfirmed_repaired_data_mismatches: false
 
-# Having many tables and/or keyspaces negatively affects performance of many operations in the
-# cluster. When the number of tables/keyspaces in the cluster exceeds the following thresholds
-# a client warning will be sent back to the user when creating a table or keyspace.
-# As of cassandra 4.1, these properties are deprecated in favor of keyspaces_warn_threshold and tables_warn_threshold
-# table_count_warn_threshold: 150
-# keyspace_count_warn_threshold: 40
-
 # configure the read and write consistency levels for modifications to auth tables
 # auth_read_consistency_level: LOCAL_QUORUM
 # auth_write_consistency_level: EACH_QUORUM

@@ -1,4 +1,5 @@
 5.0
+ * Disable the deprecated keyspace/table thresholds and convert them to guardrails (CASSANDRA-18617)
  * Deprecate CloudstackSnitch and remove duplicate code in snitches (CASSANDRA-18438)
  * Add support for vectors in UDFs (CASSANDRA-18613)
  * Improve vector value validation errors (CASSANDRA-18652)
