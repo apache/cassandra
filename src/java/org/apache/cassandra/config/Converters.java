@@ -21,6 +21,8 @@ package org.apache.cassandra.config;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.apache.cassandra.schema.SchemaConstants;
+
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 
 /**
@@ -117,7 +119,13 @@ public enum Converters
      */
     MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.LongBytesPerSecondBound.class,
                                            i -> DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(i),
-                                           o -> o == null ? null : o.toMegabitsPerSecondAsInt());
+                                           o -> o == null ? null : o.toMegabitsPerSecondAsInt()),
+    KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL(int.class, int.class, 
+                                          i -> i - SchemaConstants.getLocalAndReplicatedSystemKeyspaceNames().size(),
+                                          o -> o == null ? null : o + SchemaConstants.getLocalAndReplicatedSystemKeyspaceNames().size()),
+    TABLE_COUNT_THRESHOLD_TO_GUARDRAIL(int.class, int.class, 
+                                       i -> i - SchemaConstants.getLocalAndReplicatedSystemTableNames().size(), 
+                                       o -> o == null ? null : o + SchemaConstants.getLocalAndReplicatedSystemTableNames().size());
     private final Class<?> oldType;
     private final Class<?> newType;
     private final Function<Object, Object> convert;

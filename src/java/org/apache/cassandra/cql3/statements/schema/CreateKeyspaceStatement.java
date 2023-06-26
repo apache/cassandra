@@ -31,7 +31,6 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -122,22 +121,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         // Guardrail on number of keyspaces
         Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
-    }
-
-    @Override
-    Set<String> clientWarnings(KeyspacesDiff diff)
-    {
-        // this threshold is deprecated, it will be replaced by the guardrail used in #validate(ClientState)
-        int keyspaceCount = Schema.instance.getKeyspaces().size();
-        if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
-        {
-            String msg = String.format("Cluster already contains %d keyspaces. Having a large number of keyspaces will significantly slow down schema dependent cluster operations.",
-                                       keyspaceCount);
-            logger.warn(msg);
-            clientWarnings.add(msg);
-        }
-
-        return clientWarnings;
     }
 
     public static final class Raw extends CQLStatement.Raw

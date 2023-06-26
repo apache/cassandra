@@ -18,9 +18,15 @@
 
 package org.apache.cassandra.db.guardrails;
 
+
+import java.util.concurrent.TimeUnit;
+
+import org.junit.After;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.schema.Schema;
+import org.awaitility.Awaitility;
 
 import static java.lang.String.format;
 
@@ -48,8 +54,37 @@ public class GuardrailKeyspacesTest extends ThresholdTester
         return Schema.instance.getUserKeyspaces().size();
     }
 
+    @After
+    public void afterTest() throws Throwable
+    {
+        // CQLTester deletes keyspaces after tests, but does so asynchronously
+        super.afterTest();
+
+        // Wait until only cql_test_keyspace remains
+        Awaitility.await()
+                  .atMost(10, TimeUnit.MINUTES)
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .pollInterval(10, TimeUnit.MILLISECONDS)
+                  .until(() -> Schema.instance.getUserKeyspaces().size() == 1);
+    }
+    
     @Test
     public void testCreateKeyspace() throws Throwable
+    {
+        assertCreateKeyspace();
+    }
+
+    @Test
+    public void testCreateKeyspaceWithDeprecatedKeyspaceCountThreshold() throws Throwable
+    {
+        // Convert and set a deprecated threshold value based on the total number of keyspaces, not just user keyspaces
+        int convertedValue = (int) Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(Schema.instance.getKeyspaces().size());
+        Guardrails.instance.setKeyspacesThreshold(convertedValue + 1, convertedValue + 2);
+
+        assertCreateKeyspace();
+    }
+
+    private void assertCreateKeyspace() throws Throwable
     {
         // create keyspaces until hitting the two warn/fail thresholds
         String k1 = assertCreateKeyspaceValid();
