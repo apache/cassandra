@@ -36,7 +36,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -63,8 +62,7 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
         this.componentWriters = new HashMap<>();
 
         Set<Component> unsupported = components.stream()
-                                               .filter(c -> !descriptor.getFormat().streamingComponents().contains(c))
-                                               .filter(c-> c.type != SSTableFormat.Components.Types.CUSTOM)
+                                               .filter(c -> !c.type.streamable)
                                                .collect(Collectors.toSet());
         if (!unsupported.isEmpty())
             throw new AssertionError(format("Unsupported streaming component detected %s", unsupported));

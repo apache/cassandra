@@ -44,9 +44,17 @@ public class IndexStreamingTest extends TestBaseImpl
     static
     {
         DatabaseDescriptor.clientInitialization();
-        NUM_COMPONENTS = DatabaseDescriptor.getSelectedSSTableFormat().streamingComponents().size() - 1  // -1 because no compression component
+        NUM_COMPONENTS = sstableStreamingComponentsCount()
                          + V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size()
                          + V1OnDiskFormat.LITERAL_COMPONENTS.size();
+    }
+
+    private static int sstableStreamingComponentsCount() {
+        return (int) DatabaseDescriptor.getSelectedSSTableFormat()
+                                       .allComponents()
+                                       .stream()
+                                       .filter(c -> c.type.streamable)
+                                       .count() - 1;  // -1 because we don't include the compression component
     }
 
     @Test

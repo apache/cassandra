@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -60,18 +59,6 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
      */
     Set<Component> allComponents();
 
-    /**
-     * Returns the components that should be streamed to other nodes on repair / rebuild.
-     * This includes only the core SSTable components produced by this format.
-     * Custom components registered by e.g. secondary indexes are not included.
-     * Use {@link SSTableReader#getStreamingComponents()} for the list of all components including the custom ones.
-     */
-    default Set<Component> streamingComponents()
-    {
-        return allComponents().stream()
-                              .filter(c -> c.type.streamable)
-                              .collect(Collectors.toSet());
-    }
 
     Set<Component> primaryComponents();
 
@@ -182,7 +169,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
             // table of contents, stores the list of all components for the sstable
             public static final Component.Type TOC = Component.Type.createSingleton("TOC", "TOC.txt", false, null);
             // built-in secondary index (may exist multiple per sstable)
-            public static final Component.Type SECONDARY_INDEX = Component.Type.create("SECONDARY_INDEX", "SI_.*.db", true, null);
+            public static final Component.Type SECONDARY_INDEX = Component.Type.create("SECONDARY_INDEX", "SI_.*.db", false, null);
             // custom component, used by e.g. custom compaction strategy
             public static final Component.Type CUSTOM = Component.Type.create("CUSTOM", null, true, null);
         }

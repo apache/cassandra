@@ -109,16 +109,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                                                                                 SUMMARY,
                                                                                 COMPRESSION_INFO,
                                                                                 STATS);
-
-        private static final Set<Component> STREAM_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                PRIMARY_INDEX,
-                                                                                STATS,
-                                                                                COMPRESSION_INFO,
-                                                                                FILTER,
-                                                                                SUMMARY,
-                                                                                DIGEST,
-                                                                                CRC);
-
         private static final Set<Component> ALL_COMPONENTS = ImmutableSet.of(DATA,
                                                                              PRIMARY_INDEX,
                                                                              STATS,
