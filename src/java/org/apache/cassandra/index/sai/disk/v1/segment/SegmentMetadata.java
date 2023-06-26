@@ -36,7 +36,7 @@ import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexOutput;
 
 /**
@@ -112,7 +112,7 @@ public class SegmentMetadata
         this.componentMetadatas = componentMetadatas;
     }
 
-    private SegmentMetadata(IndexInput input, PrimaryKey.Factory primaryKeyFactory) throws IOException
+    private SegmentMetadata(DataInput input, PrimaryKey.Factory primaryKeyFactory) throws IOException
     {
         this.rowIdOffset = input.readLong();
         this.numRows = input.readLong();
@@ -128,7 +128,7 @@ public class SegmentMetadata
     @SuppressWarnings({"resource", "RedundantSuppression"})
     public static List<SegmentMetadata> load(MetadataSource source, PrimaryKey.Factory primaryKeyFactory) throws IOException
     {
-        IndexInput input = source.get(NAME);
+        DataInput input = source.get(NAME);
 
         int segmentCount = input.readVInt();
 
@@ -179,7 +179,7 @@ public class SegmentMetadata
                '}';
     }
 
-    private static ByteBuffer readBytes(IndexInput input) throws IOException
+    private static ByteBuffer readBytes(DataInput input) throws IOException
     {
         int len = input.readInt();
         byte[] bytes = new byte[len];
@@ -210,7 +210,7 @@ public class SegmentMetadata
     {
         private final Map<IndexComponent, ComponentMetadata> metas = new EnumMap<>(IndexComponent.class);
 
-        ComponentMetadataMap(IndexInput input) throws IOException
+        ComponentMetadataMap(DataInput input) throws IOException
         {
             int size = input.readInt();
 
@@ -312,7 +312,7 @@ public class SegmentMetadata
             this.attributes = attributes;
         }
 
-        ComponentMetadata(IndexInput input) throws IOException
+        ComponentMetadata(DataInput input) throws IOException
         {
             this.root = input.readLong();
             this.offset = input.readLong();

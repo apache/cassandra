@@ -39,10 +39,9 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.File;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.DataInput;
 
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -87,10 +86,9 @@ public class MetadataTest extends SAIRandomizedTester
 
         for (Map.Entry<String, byte[]> entry : data.entrySet())
         {
-            final IndexInput input = reader.get(entry.getKey());
+            final DataInput input = reader.get(entry.getKey());
             assertNotNull(input);
             final byte[] expectedBytes = entry.getValue();
-            assertEquals(expectedBytes.length, input.length());
             final byte[] actualBytes = new byte[expectedBytes.length];
             input.readBytes(actualBytes, 0, expectedBytes.length);
             assertArrayEquals(expectedBytes, actualBytes);

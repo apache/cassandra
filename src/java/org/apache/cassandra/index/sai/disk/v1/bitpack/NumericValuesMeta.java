@@ -19,7 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexOutput;
 
 public class NumericValuesMeta
@@ -28,7 +28,7 @@ public class NumericValuesMeta
     public final int blockSize;
     public final long blockMetaOffset;
 
-    public NumericValuesMeta(IndexInput input) throws IOException
+    public NumericValuesMeta(DataInput input) throws IOException
     {
         valueCount = input.readLong();
         blockSize = input.readInt();

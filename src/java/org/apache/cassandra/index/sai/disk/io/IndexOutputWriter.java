@@ -37,6 +37,11 @@ public class IndexOutputWriter extends IndexOutput
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexOutputWriter.class);
 
+    /**
+     * the byte order of `out`'s native writeX operations doesn't matter,
+     * because we only use `write(byte[])` and `writeByte` methods. IndexOutput calls these
+     * (via DataOutput) with methods that enforce LittleEndian-ness.
+    */
     private final SequentialWriter out;
     private boolean closed;
 
