@@ -30,27 +30,35 @@ import org.apache.lucene.store.IndexOutput;
 
 import static org.apache.lucene.codecs.CodecUtil.CODEC_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;
+import static org.apache.lucene.codecs.CodecUtil.readBEInt;
+import static org.apache.lucene.codecs.CodecUtil.readBELong;
+import static org.apache.lucene.codecs.CodecUtil.writeBEInt;
+import static org.apache.lucene.codecs.CodecUtil.writeBELong;
 
 public class SAICodecUtils
 {
+    // Lucene switched from big-endian to little-endian file format, but retained
+    // big-endian values in CodecUtils header and footer for compatibility.
+    // We follow their lead and use explicitly big-endian values here.
+
     public static final String FOOTER_POINTER = "footerPointer";
 
     public static void writeHeader(IndexOutput out) throws IOException
     {
-        out.writeInt(CODEC_MAGIC);
+        writeBEInt(out, CODEC_MAGIC);
         out.writeString(Version.LATEST.toString());
     }
 
     public static void writeFooter(IndexOutput out) throws IOException
     {
-        out.writeInt(FOOTER_MAGIC);
-        out.writeInt(0);
+        writeBEInt(out, FOOTER_MAGIC);
+        writeBEInt(out, 0);
         writeCRC(out);
     }
 
     public static void checkHeader(DataInput in) throws IOException
     {
-        final int actualMagic = in.readInt();
+        final int actualMagic = readBEInt(in);
         if (actualMagic != CODEC_MAGIC)
         {
             throw new CorruptIndexException("codec header mismatch: actual header=" + actualMagic + " vs expected header=" + CODEC_MAGIC, in);
@@ -210,14 +218,14 @@ public class SAICodecUtils
             }
         }
 
-        final int magic = in.readInt();
+        final int magic = readBEInt(in);
 
         if (magic != FOOTER_MAGIC)
         {
             throw new CorruptIndexException("codec footer mismatch (file truncated?): actual footer=" + magic + " vs expected footer=" + FOOTER_MAGIC, in);
         }
 
-        final int algorithmID = in.readInt();
+        final int algorithmID = readBEInt(in);
 
         if (algorithmID != 0)
         {
@@ -239,7 +247,7 @@ public class SAICodecUtils
         {
             throw new IllegalStateException("Illegal CRC-32 checksum: " + value + " (resource=" + output + ')');
         }
-        output.writeLong(value);
+        writeBELong(output, value);
     }
 
     /**
@@ -249,7 +257,7 @@ public class SAICodecUtils
      */
     private static long readCRC(IndexInput input) throws IOException
     {
-        long value = input.readLong();
+        long value = readBELong(input);
         if ((value & 0xFFFFFFFF00000000L) != 0)
         {
             throw new CorruptIndexException("Illegal CRC-32 checksum: " + value, input);
