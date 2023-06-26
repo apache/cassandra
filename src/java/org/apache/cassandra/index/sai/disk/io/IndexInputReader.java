@@ -33,6 +33,11 @@ import org.apache.lucene.store.IndexInput;
  */
 public class IndexInputReader extends IndexInput
 {
+    /**
+     * the byte order of `input`'s native readX operations doesn't matter,
+     * because we only use `readFully` and `readByte` methods. IndexInput calls these
+     * (via DataInput) with methods that enforce LittleEndian-ness.
+    */
     private final RandomAccessReader input;
     private final Runnable doOnClose;
 
@@ -70,36 +75,6 @@ public class IndexInputReader extends IndexInput
     public void readBytes(byte[] bytes, int off, int len) throws IOException
     {
         input.readFully(bytes, off, len);
-    }
-
-    /**
-     * Using {@link RandomAccessReader#readShort()} directly is faster than {@link DataInput#readShort()} which calls
-     * {@link DataInput#readByte()} one by one
-     */
-    @Override
-    public short readShort() throws IOException
-    {
-        return input.readShort();
-    }
-
-    /**
-     * Using {@link RandomAccessReader#readInt()} directly is faster than {@link DataInput#readInt()} which
-     * calls {@link DataInput#readByte()} one by one
-     */
-    @Override
-    public int readInt() throws IOException
-    {
-        return input.readInt();
-    }
-
-    /**
-     * Using {@link RandomAccessReader#readLong()} directly is faster than {@link DataInput#readLong()} which
-     * calls {@link DataInput#readByte()} one by one
-     */
-    @Override
-    public long readLong() throws IOException
-    {
-        return input.readLong();
     }
 
     @Override
