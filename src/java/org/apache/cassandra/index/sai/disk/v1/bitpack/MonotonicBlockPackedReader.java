@@ -26,7 +26,6 @@ import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -71,11 +70,7 @@ public class MonotonicBlockPackedReader implements LongArray.Factory
                 minValuesBuilder.add(in.readZLong());
                 averages[i] = Float.intBitsToFloat(in.readInt());
                 final int bitsPerValue = in.readVInt();
-                if (!DirectReaders.SUPPORTED_BITS_PER_VALUE.contains(bitsPerValue))
-                {
-                    throw new CorruptIndexException(String.format("Block %d is corrupted. Bits per value is %d. Supported values are %s.",
-                                                                  i, bitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), in);
-                }
+                DirectReaders.checkBitsPerValue(bitsPerValue, in, () -> "Postings list header");
                 blockBitsPerValue[i] = (byte) bitsPerValue;
                 // when bitsPerValue is 0, block offset won't be used
                 blockOffsetsBuilder.add(bitsPerValue == 0 ? -1 : in.readVLong());

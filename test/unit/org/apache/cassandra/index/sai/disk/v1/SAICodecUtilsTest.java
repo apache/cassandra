@@ -33,6 +33,8 @@ import org.mockito.Mockito;
 
 import static org.apache.lucene.codecs.CodecUtil.CODEC_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;
+import static org.apache.lucene.codecs.CodecUtil.writeBEInt;
+import static org.apache.lucene.codecs.CodecUtil.writeBELong;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
@@ -66,7 +68,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     {
         try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
         {
-            writer.writeInt(1234);
+            writeBEInt(writer, 1234);
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
@@ -82,7 +84,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
     {
         try (IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file))
         {
-            writer.writeInt(CODEC_MAGIC);
+            writeBEInt(writer, CODEC_MAGIC);
             writer.writeString("zz");
         }
 
@@ -149,7 +151,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
             SAICodecUtils.writeFooter(writer);
-            writer.writeInt(1234);
+            writeBEInt(writer, 1234);
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
@@ -174,9 +176,9 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
 
-            writer.writeInt(1234);
-            writer.writeInt(0);
-            writer.writeLong(writer.getChecksum());
+            writeBEInt(writer, 1234);
+            writeBEInt(writer, 0);
+            writeBELong(writer, writer.getChecksum());
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
@@ -201,9 +203,9 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
 
-            writer.writeInt(FOOTER_MAGIC);
-            writer.writeInt(1);
-            writer.writeLong(writer.getChecksum());
+            writeBEInt(writer, FOOTER_MAGIC);
+            writeBEInt(writer, 1);
+            writeBELong(writer, writer.getChecksum());
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
@@ -228,9 +230,9 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
 
-            writer.writeInt(FOOTER_MAGIC);
-            writer.writeInt(0);
-            writer.writeLong(0);
+            writeBEInt(writer, FOOTER_MAGIC);
+            writeBEInt(writer, 0);
+            writeBELong(writer, 0);
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
@@ -255,9 +257,9 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
 
-            writer.writeInt(FOOTER_MAGIC);
-            writer.writeInt(0);
-            writer.writeLong(0xFFFFFFFF00000000L);
+            writeBEInt(writer, FOOTER_MAGIC);
+            writeBEInt(writer, 0);
+            writeBELong(writer, 0xFFFFFFFF00000000L);
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
@@ -298,9 +300,9 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
 
-            writer.writeInt(FOOTER_MAGIC);
-            writer.writeInt(0);
-            writer.writeLong(0);
+            writeBEInt(writer, FOOTER_MAGIC);
+            writeBEInt(writer, 0);
+            writeBELong(writer, 0);
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))
@@ -324,9 +326,9 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
             for (int value = 0; value < numBytes; value++)
                 writer.writeByte(getRandom().nextByte());
 
-            writer.writeInt(FOOTER_MAGIC);
-            writer.writeInt(0);
-            writer.writeLong(0xFFFFFFFF00000000L);
+            writeBEInt(writer, FOOTER_MAGIC);
+            writeBEInt(writer, 0);
+            writeBELong(writer, 0xFFFFFFFF00000000L);
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file))

@@ -138,7 +138,7 @@ public class TermsReaderTest extends SAIRandomizedTester
                     {
                         final long expectedRowID = expectedPostingList.get(i);
                         long result = actualPostingList.nextPosting();
-                        assertEquals(expectedRowID, result);
+                        assertEquals(String.format("row %d mismatch of %d in enum %d", i, expectedPostingList.size(), termsEnum.indexOf(pair)), expectedRowID, result);
                     }
 
                     long lastResult = actualPostingList.nextPosting();
