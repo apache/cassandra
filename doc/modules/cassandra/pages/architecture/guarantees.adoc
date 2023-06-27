@@ -29,9 +29,8 @@ inherent risk of partition failure, one has to choose between
 consistency and availability and both cannot be guaranteed at the same
 time. CAP theorem is illustrated in Figure 1.
 
+.CAP Theorem
 image::Figure_1_guarantees.jpg[image]
-
-Figure 1. CAP Theorem
 
 High availability is a priority in web-based applications and to this
 objective Cassandra chooses Availability and Partition Tolerance from

@@ -190,7 +190,7 @@ This will increase the performance of bootstrapping a node and will also
 put less pressure on nodes serving the data. This does not affect if N <
 3 in each DC as then it streams data from only 2 nodes.
 
-Stream Operation Types ^^^^^^^^^^^^^
+=== Stream Operation Types
 
 It is important to know the type or purpose of a certain stream. Version
 4.0

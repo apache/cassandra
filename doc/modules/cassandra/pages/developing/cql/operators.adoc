@@ -61,7 +61,7 @@ A `duration` can be added (+) or substracted (-) from a `timestamp` or a
 
 [source,cql]
 ----
-include::example$CQL/datetime_arithmetic.cql[]
+include::cassandra:example$CQL/datetime_arithmetic.cql[]
 ----
 
 will select all the records with a value of `t` which is in the last 2

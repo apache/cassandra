@@ -33,7 +33,7 @@ expression `[a-zA-Z][a-zA-Z0-9_]*`.
 
 A number of such identifiers, like `SELECT` or `WITH`, are _keywords_.
 They have a fixed meaning for the language and most are reserved. The
-list of those keywords can be found in xref:cql/appendices.adoc#appendix-A[Appendix A].
+list of those keywords can be found in xref:cassandra:developing/cql/appendices.adoc#appendix-A[Appendix A].
 
 Identifiers and (unquoted) keywords are case insensitive. Thus `SELECT`
 is the same than `select` or `sElEcT`, and `myId` is the same than
@@ -56,7 +56,6 @@ Inside a quoted identifier, the double-quote character can be repeated
 to escape it, so `"foo "" bar"` is a valid identifier.
 
 [NOTE]
-.Note
 ====
 The _quoted identifier_ can declare columns with arbitrary names, and
 these can sometime clash with specific names used by the server. For
@@ -73,7 +72,7 @@ More formally, we have:
 
 [source, bnf]
 ----
-include::example$BNF/identifier.bnf[]
+include::cassandra:example$BNF/identifier.bnf[]
 ----
 
 [[constants]]
@@ -83,7 +82,7 @@ CQL defines the following _constants_:
 
 [source, bnf]
 ----
-include::example$BNF/constant.bnf[]
+include::cassandra:example$BNF/constant.bnf[]
 ----
 
 In other words:
@@ -95,7 +94,7 @@ single-quote(`'`). A single-quote can be included by repeating it, e.g.
 defined by enclosing the arbitrary sequence of characters by two dollar
 characters, in which case single-quote can be used without escaping
 (`$$It's raining today$$`). That latter form is often used when defining
-xref:cql/functions.adoc#udfs[user-defined functions] to avoid having to escape single-quote
+xref:cassandra:developing/cql/functions.adoc#udfs[user-defined functions] to avoid having to escape single-quote
 characters in function body (as they are more likely to occur than
 `$$`).
 * Integer, float and boolean constant are defined as expected. Note
@@ -106,7 +105,7 @@ constants.
 * The content for blobs is provided in hexadecimal and prefixed by `0x`.
 * The special `NULL` constant denotes the absence of value.
 
-For how these constants are typed, see the xref:cql/types.adoc[Data types] section.
+For how these constants are typed, see the xref:cassandra:developing/cql/types.adoc[Data types] section.
 
 == Terms
 
@@ -115,17 +114,17 @@ CQL support. Terms are defined by:
 
 [source, bnf]
 ----
-include::example$BNF/term.bnf[]
+include::cassandra:example$BNF/term.bnf[]
 ----
 
 A term is thus one of:
 
-* A xref:cql/defintions.adoc#constants[constant]
-* A literal for either a xref:cql/types.adoc#collections[collection], a xref:cql/types.adoc#vectors[vector],
-a xref:cql/types.adoc#udts[user-defined type] or a xref:cql/types.adoc#tuples[tuple]
-* A xref:cql/functions.adoc#cql-functions[function] call, either a xref:cql/functions.adoc#scalar-native-functions[native function]
-or a xref:cql/functions.adoc#user-defined-scalar-functions[user-defined function]
-* An xref:cql/operators.adoc#arithmetic_operators[arithmetic operation] between terms
+* A xref:cassandra:developing/cql/defintions.adoc#constants[constant]
+* A literal for either a xref:cassandra:developing/cql/types.adoc#collections[collection], a xref:cassandra:developing/cql/types.adoc#vectors[vector],
+a xref:cassandra:developing/cql/types.adoc#udts[user-defined type] or a xref:cassandra:developing/cql/types.adoc#tuples[tuple]
+* A xref:cassandra:developing/cql/functions.adoc#cql-functions[function] call, either a xref:cassandra:developing/cql/functions.adoc#scalar-native-functions[native function]
+or a xref:cassandra:developing/cql/functions.adoc#user-defined-scalar-functions[user-defined function]
+* An xref:cassandra:developing/cql/operators.adoc#arithmetic_operators[arithmetic operation] between terms
 * A type hint
 * A bind marker, which denotes a variable to be bound at execution time.
 See the section on `prepared-statements` for details. A bind marker can
@@ -171,7 +170,7 @@ this documentation (see links above):
 
 [source, bnf]
 ----
-include::example$BNF/cql_statement.bnf[]
+include::cassandra:example$BNF/cql_statement.bnf[]
 ----
 
 == Prepared Statements

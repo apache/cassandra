@@ -28,7 +28,6 @@ granularity of archiving; 8 or 16 MiB is reasonable.
 `max_mutation_size` is a half the size of `commitlog_segment_size`.
 
 [NOTE]
-.Note
 ====
 If `max_mutation_size` is set explicitly then
 `commitlog_segment_size` must be set to at least twice the size of
@@ -49,7 +48,6 @@ _Default Value:_ 10000ms
 _Default Value:_ batch
 
 [NOTE]
-.Note
 ====
 In the event of an unexpected shutdown, Cassandra can lose up
 to the sync period or more if the sync is delayed. If using "batch"
@@ -218,5 +216,5 @@ match the "ib" SSTable version
 
 [source,bash]
 ----
-include::example$BASH/find_sstables.sh[]
+include::cassandra:example$BASH/find_sstables.sh[]
 ----

@@ -1,11 +1,11 @@
 = Logical Data Modeling
 
-Now that you have defined your queries, you’re ready to begin designing
+Now that you have defined your queries, you're ready to begin designing
 Cassandra tables. First, create a logical model containing a table for
 each query, capturing entities and relationships from the conceptual
 model.
 
-To name each table, you’ll identify the primary entity type for which
+To name each table, you'll identify the primary entity type for which
 you are querying and use that to start the entity name. If you are
 querying by attributes of other related entities, append those to the
 table name, separated with `_by_`. For example, `hotels_by_poi`.
@@ -24,7 +24,7 @@ the query. If any of these additional attributes are the same for every
 instance of the partition key, mark the column as static.
 
 Now that was a pretty quick description of a fairly involved process, so
-it will be worthwhile to work through a detailed example. First, let’s
+it will be worthwhile to work through a detailed example. First, let's
 introduce a notation that you can use to represent logical models.
 
 Several individuals within the Cassandra community have proposed
@@ -34,7 +34,7 @@ informative way to visualize the relationships between queries and
 tables in your designs. This figure shows the Chebotko notation for a
 logical data model.
 
-image::data-modeling_chebotko_logical.png[image]
+image::cassandra:developing/data-modeling/data-modeling_chebotko_logical.png[image]
 
 Each table is shown with its title and a list of columns. Primary key
 columns are identified via symbols such as *K* for partition key columns
@@ -46,31 +46,31 @@ table is designed to support.
 
 The figure below shows a Chebotko logical data model for the queries
 involving hotels, points of interest, rooms, and amenities. One thing
-you'll notice immediately is that the Cassandra design doesn’t include
+you'll notice immediately is that the Cassandra design doesn't include
 dedicated tables for rooms or amenities, as you had in the relational
-design. This is because the workflow didn’t identify any queries
+design. This is because the workflow didn't identify any queries
 requiring this direct access.
 
-image::data-modeling_hotel_logical.png[image]
+image::cassandra:developing/data-modeling/data-modeling_hotel_logical.png[image]
 
-Let’s explore the details of each of these tables.
+Let's explore the details of each of these tables.
 
-The first query Q1 is to find hotels near a point of interest, so you’ll
+The first query Q1 is to find hotels near a point of interest, so you'll
 call this table `hotels_by_poi`. Searching by a named point of interest
 is a clue that the point of interest should be a part of the primary
-key. Let’s reference the point of interest by name, because according to
+key. Let's reference the point of interest by name, because according to
 the workflow that is how users will start their search.
 
-You’ll note that you certainly could have more than one hotel near a
-given point of interest, so you’ll need another component in the primary
+You'll note that you certainly could have more than one hotel near a
+given point of interest, so you'll need another component in the primary
 key in order to make sure you have a unique partition for each hotel. So
 you add the hotel key as a clustering column.
 
-An important consideration in designing your table’s primary key is
+An important consideration in designing your table's primary key is
 making sure that it defines a unique data element. Otherwise you run the
 risk of accidentally overwriting data.
 
-Now for the second query (Q2), you’ll need a table to get information
+Now for the second query (Q2), you'll need a table to get information
 about a specific hotel. One approach would have been to put all of the
 attributes of a hotel in the `hotels_by_poi` table, but you added only
 those attributes that were required by the application workflow.
@@ -81,10 +81,10 @@ and the application knows the unique identifiers of the hotels returned.
 When the user selects a hotel to view details, you can then use Q2,
 which is used to obtain details about the hotel. Because you already
 have the `hotel_id` from Q1, you use that as a reference to the hotel
-you’re looking for. Therefore the second table is just called `hotels`.
+you're looking for. Therefore the second table is just called `hotels`.
 
 Another option would have been to store a set of `poi_names` in the
-hotels table. This is an equally valid approach. You’ll learn through
+hotels table. This is an equally valid approach. You'll learn through
 experience which approach is best for your application.
 
 Q3 is just a reverse of Q1—looking for points of interest near a hotel,
@@ -93,14 +93,14 @@ need to access the details of each point of interest, as represented by
 the `pois_by_hotel` table. As previously, you add the point of interest
 name as a clustering key to guarantee uniqueness.
 
-At this point, let’s now consider how to support query Q4 to help the
+At this point, let's now consider how to support query Q4 to help the
 user find available rooms at a selected hotel for the nights they are
 interested in staying. Note that this query involves both a start date
-and an end date. Because you’re querying over a range instead of a
-single date, you know that you’ll need to use the date as a clustering
+and an end date. Because you're querying over a range instead of a
+single date, you know that you'll need to use the date as a clustering
 key. Use the `hotel_id` as a primary key to group room data for each
 hotel on a single partition, which should help searches be super fast.
-Let’s call this the `available_rooms_by_hotel_date` table.
+Let's call this the `available_rooms_by_hotel_date` table.
 
 To support searching over a range, use `clustering columns
 <clustering-columns>` to store attributes that you need to access in a
@@ -123,11 +123,11 @@ dates.
 == Reservation Logical Data Model
 
 Now let's switch gears to look at the reservation queries. The figure
-shows a logical data model for reservations. You’ll notice that these
+shows a logical data model for reservations. You'll notice that these
 tables represent a denormalized design; the same data appears in
 multiple tables, with differing keys.
 
-image::data-modeling_reservation_logical.png[image]
+image::cassandra:developing/data-modeling/data-modeling_reservation_logical.png[image]
 
 In order to satisfy Q6, the `reservations_by_guest` table can be used to
 look up the reservation by guest name. You could envision query Q7 being
@@ -156,7 +156,7 @@ omitted from the example.
 == Patterns and Anti-Patterns
 
 As with other types of software design, there are some well-known
-patterns and anti-patterns for data modeling in Cassandra. You’ve
+patterns and anti-patterns for data modeling in Cassandra. You've
 already used one of the most common patterns in this hotel model—the
 wide partition pattern.
 
@@ -169,9 +169,9 @@ experiments.
 
 The time series pattern is also useful for data other than measurements.
 Consider the example of a banking application. You could store each
-customer’s balance in a row, but that might lead to a lot of read and
+customer's balance in a row, but that might lead to a lot of read and
 write contention as various customers check their balance or make
-transactions. You’d probably be tempted to wrap a transaction around
+transactions. You'd probably be tempted to wrap a transaction around
 writes just to protect the balance from being updated in error. In
 contrast, a time series–style design would store each transaction as a
 timestamped row and leave the work of calculating the current balance to

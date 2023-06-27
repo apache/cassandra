@@ -6,7 +6,7 @@ can also be set using `nodetool setlogginglevels`.
 
 == Options
 
-=== `appender name="<appender_choice>"...</appender>` 
+=== `appender name="<appender_choice>"...</appender>`
 
 Specify log type and settings. Possible appender names are: `SYSTEMLOG`,
 `DEBUGLOG`, `ASYNCDEBUGLOG`, and `STDOUT`. `SYSTEMLOG` ensures that WARN
@@ -19,7 +19,7 @@ format.
 *Example:* <appender name="SYSTEMLOG"
 class="ch.qos.logback.core.rolling.RollingFileAppender">
 
-=== `<file> <filename> </file>` 
+=== `<file> <filename> </file>`
 
 Specify the filename for a log.
 
@@ -32,9 +32,8 @@ Specify the level for a log. Part of the filter. Levels are: `ALL`,
 most verbose log, `ERROR` the least.
 
 [NOTE]
-.Note
 ====
-Note: Increasing logging levels can generate heavy logging output on
+Increasing logging levels can generate heavy logging output on
 a moderately trafficked cluster. You can use the
 `nodetool getlogginglevels` command to see the current logging
 configuration.

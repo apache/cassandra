@@ -2,7 +2,7 @@
 
 Apache Cassandra 4.0 adds a new highly performant feature that supports live query logging (https://issues.apache.org/jira/browse/CASSANDRA-13983[CASSANDRA-13983]).
 FQL is safe for production use, with configurable limits to heap memory and disk space to prevent out-of-memory errors.
-This feature is useful for live traffic capture, as well as traffic replay. 
+This feature is useful for live traffic capture, as well as traffic replay.
 The tool provided can be used for both debugging query traffic and migration.
 New ``nodetool`` options are also added to enable, disable or reset FQL, as well as a new tool to read and replay the binary logs.
 The full query logging (FQL) capability uses http://github.com/OpenHFT/Chronicle-Queue[Chronicle-Queue] to rotate a log of queries.
@@ -33,7 +33,7 @@ The query log contains:
 * any parameters necessary to bind wildcard values
 * all query options
 
-The logger writes single or batched CQL queries after they finish, so only successfully completed queries are logged. 
+The logger writes single or batched CQL queries after they finish, so only successfully completed queries are logged.
 Failed or timed-out queries are not logged. Different data is logged, depending on the type of query.
 
 A single CQL query log entry contains:
