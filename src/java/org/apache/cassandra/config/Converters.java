@@ -94,6 +94,12 @@ public enum Converters
     BYTES_DATASTORAGE(Integer.class, DataStorageSpec.IntBytesBound.class,
                       DataStorageSpec.IntBytesBound::new,
                       o -> o == null ? null : o.toBytes()),
+    LONG_BYTES_DATASTORAGE_MEBIBYTES_INT(Integer.class, DataStorageSpec.LongBytesBound.class,
+                                              o -> o == null ? null : new DataStorageSpec.LongBytesBound(o, DataStorageSpec.DataStorageUnit.MEBIBYTES),
+                                              o -> o == null ? null : o.toMebibytesInt()),
+    LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE(DataStorageSpec.IntMebibytesBound.class, DataStorageSpec.LongBytesBound.class,
+                                                 o -> o == null ? null : new DataStorageSpec.LongBytesBound(o.toBytesInLong()),
+                                                 o -> o == null ? null : new DataStorageSpec.IntMebibytesBound(o.toMebibytesInt())),
     /**
      * This converter is used to support backward compatibility for parameters where in the past negative number was used as a value
      * Example: native_transport_max_concurrent_requests_in_bytes_per_ip = -1 and native_transport_max_request_data_in_flight_per_ip = null

@@ -2175,24 +2175,6 @@ public class DatabaseDescriptor
         conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
-    @Deprecated
-    public static long getCompactionLargePartitionWarningThreshold()
-    {
-        return conf.compaction_large_partition_warning_threshold.toBytesInLong();
-    }
-
-    @Deprecated
-    public static int getCompactionTombstoneWarningThreshold()
-    {
-        return conf.compaction_tombstone_warning_threshold;
-    }
-
-    @Deprecated
-    public static void setCompactionTombstoneWarningThreshold(int count)
-    {
-        conf.compaction_tombstone_warning_threshold = count;
-    }
-
     public static int getConcurrentValidations()
     {
         return conf.concurrent_validations;

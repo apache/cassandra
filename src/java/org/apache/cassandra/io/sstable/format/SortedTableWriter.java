@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
@@ -216,8 +215,6 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         long rowSize = endPosition - partitionWriter.getInitialPosition();
         guardPartitionThreshold(Guardrails.partitionSize, key, rowSize);
         guardPartitionThreshold(Guardrails.partitionTombstones, key, metadataCollector.totalTombstones);
-        maybeLogLargePartitionWarning(key, rowSize);
-        maybeLogManyTombstonesWarning(key, metadataCollector.totalTombstones);
         metadataCollector.addPartitionSizeInBytes(rowSize);
         metadataCollector.addKey(key.getKey());
         metadataCollector.addCellPerPartitionCount();
@@ -337,26 +334,6 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
                                            metadata().partitionKeyType.getString(key.getKey()),
                                            getFilename());
             guardrail.guard(size, message, true, null);
-        }
-    }
-
-    @Deprecated
-    private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
-    {
-        if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
-        {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing large partition {}/{}:{} ({}) to sstable {}", metadata.keyspace, metadata.name, keyString, FBUtilities.prettyPrintMemory(rowSize), getFilename());
-        }
-    }
-
-    @Deprecated
-    private void maybeLogManyTombstonesWarning(DecoratedKey key, int tombstoneCount)
-    {
-        if (tombstoneCount > DatabaseDescriptor.getCompactionTombstoneWarningThreshold())
-        {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing {} tombstones to {}/{}:{} in sstable {}", tombstoneCount, metadata.keyspace, metadata.name, keyString, getFilename());
         }
     }
 

@@ -121,6 +121,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.BootStrapper;
@@ -7002,13 +7003,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (count < 0)
             throw new IllegalStateException("compaction tombstone warning threshold needs to be >= 0, not "+count);
         logger.info("Setting compaction_tombstone_warning_threshold to {}", count);
-        DatabaseDescriptor.setCompactionTombstoneWarningThreshold(count);
+        Guardrails.instance.setPartitionTombstonesThreshold(count, Guardrails.instance.getPartitionTombstonesFailThreshold());
     }
 
     @Override
     public int getCompactionTombstoneWarningThreshold()
     {
-        return DatabaseDescriptor.getCompactionTombstoneWarningThreshold();
+        return Math.toIntExact(Guardrails.instance.getPartitionTombstonesWarnThreshold());
     }
 
     public void addSnapshot(TableSnapshot snapshot) {

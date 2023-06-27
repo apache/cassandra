@@ -330,9 +330,6 @@ public class DatabaseDescriptorTest
         long maxIntMebibytesAsBytes = (long) maxInt * 1024 * 1024;
         long maxIntKibibytesAsBytes = (long) maxInt * 1024;
 
-        conf.compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound(maxInt);
-        Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getCompactionLargePartitionWarningThreshold());
-
         conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(maxInt);
         Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getMinFreeSpacePerDriveInBytes());
 
