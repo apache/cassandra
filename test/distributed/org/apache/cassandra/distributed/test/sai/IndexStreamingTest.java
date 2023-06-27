@@ -38,6 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class IndexStreamingTest extends TestBaseImpl
 {
+    // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
+    // all cases of the vtable - hence we add a big enough blob column
     private static final ByteBuffer BLOB = ByteBuffer.wrap(new byte[1 << 16]);
     private static final int NUM_COMPONENTS;
 
@@ -77,8 +79,6 @@ public class IndexStreamingTest extends TestBaseImpl
                                                              .set("streaming_slow_events_log_timeout", "0s"))
                                            .start()))
         {
-            // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
-            // all cases of the vtable
             cluster.schemaChange(withKeyspace(
                 "CREATE TABLE %s.test (pk int PRIMARY KEY, v text, b blob) WITH compression = { 'enabled' : false };"
             ));
