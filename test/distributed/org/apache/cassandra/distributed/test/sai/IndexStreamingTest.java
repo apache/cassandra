@@ -73,7 +73,8 @@ public class IndexStreamingTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(c -> c.with(Feature.values())
-                                                             .set("stream_entire_sstables", zeroCopyStreaming).set("streaming_slow_events_log_timeout", "0s"))
+                                                             .set("stream_entire_sstables", zeroCopyStreaming)
+                                                             .set("streaming_slow_events_log_timeout", "0s"))
                                            .start()))
         {
             // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
