@@ -51,7 +51,8 @@ public class IndexStreamingTest extends TestBaseImpl
                          + V1OnDiskFormat.LITERAL_COMPONENTS.size();
     }
 
-    private static int sstableStreamingComponentsCount() {
+    private static int sstableStreamingComponentsCount()
+    {
         return (int) DatabaseDescriptor.getSelectedSSTableFormat()
                                        .allComponents()
                                        .stream()
