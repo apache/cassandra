@@ -22,12 +22,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
 /***
@@ -44,16 +41,6 @@ public class ResettableByteBuffersIndexOutput extends IndexOutput
         super("", name);
         delegate = new ByteBuffersDataOutput(expectedSize);
         bbio = new ByteBuffersIndexOutput(delegate, "", name + "-bb");
-    }
-
-    public ByteBuffersDataInput toDataInput()
-    {
-        return delegate.toDataInput();
-    }
-
-    public IndexInput toIndexInput()
-    {
-        return new ByteBuffersIndexInput(toDataInput(), "");
     }
 
     public void copyTo(IndexOutput out) throws IOException
