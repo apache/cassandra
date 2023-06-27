@@ -12,7 +12,7 @@
 #  limitations under the License.
 
 GENERATE_NODETOOL_DOCS = ./scripts/gen-nodetool-docs.py
-MAKE_CASSANDRA_YAML = ./scripts/convert_yaml_to_adoc.py ../conf/cassandra.yaml ./modules/cassandra/pages/configuration/cass_yaml_file.adoc
+MAKE_CASSANDRA_YAML = ./scripts/convert_yaml_to_adoc.py ../conf/cassandra.yaml ./modules/cassandra/pages/managing/configuration/cass_yaml_file.adoc
 
 .PHONY: html
 html:
@@ -20,7 +20,7 @@ html:
 
 .PHONY: gen-asciidoc
 gen-asciidoc:
-	@mkdir -p modules/cassandra/pages/tools/nodetool
+	@mkdir -p modules/cassandra/pages/managing/tools/nodetool
 	@mkdir -p modules/cassandra/examples/TEXT/NODETOOL
 	python3 $(GENERATE_NODETOOL_DOCS)
 	python3 $(MAKE_CASSANDRA_YAML)
