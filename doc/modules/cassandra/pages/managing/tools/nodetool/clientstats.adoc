@@ -1,0 +1,7 @@
+== clientstats
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/clientstats.txt[]
+----

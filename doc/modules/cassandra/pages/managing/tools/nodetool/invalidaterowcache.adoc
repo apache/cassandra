@@ -1,0 +1,7 @@
+== invalidaterowcache
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/invalidaterowcache.txt[]
+----

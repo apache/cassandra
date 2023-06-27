@@ -1,0 +1,7 @@
+== getbatchlogreplaythrottle
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getbatchlogreplaythrottle.txt[]
+----

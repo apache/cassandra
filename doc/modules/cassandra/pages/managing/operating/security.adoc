@@ -172,7 +172,7 @@ using the `role_manager` setting in `cassandra.yaml`. The default
 setting uses `CassandraRoleManager`, an implementation which stores role
 information in the tables of the `system_auth` keyspace.
 
-See also the xref:cql/security.adoc#database-roles[`CQL documentation on roles`].
+See also the xref:cassandra:developing/cql/security.adoc#database-roles[`CQL documentation on roles`].
 
 == Authentication
 
@@ -268,7 +268,7 @@ ALTER ROLE cassandra WITH SUPERUSER = false AND LOGIN = false;
 
 [arabic, start=7]
 . Finally, set up the roles and credentials for your application users
-with xref:cql/security.adoc#create-role[`CREATE ROLE`] statements.
+with xref:cassandra:developing/cql/security.adoc#create-role[`CREATE ROLE`] statements.
 
 At the end of these steps, the one node is configured to use password
 authentication. To roll that out across the cluster, repeat steps 2 and
@@ -276,13 +276,13 @@ authentication. To roll that out across the cluster, repeat steps 2 and
 authentication will be fully enabled throughout the cluster.
 
 Note that using `PasswordAuthenticator` also requires the use of
-xref:cql/security.adoc#operation-roles[`CassandraRoleManager`].
+xref:cassandra:developing/cql/security.adoc#operation-roles[`CassandraRoleManager`].
 
 See also: `setting-credentials-for-internal-authentication`,
-xref:cql/security.adoc#create-role[`CREATE ROLE`],
-xref:cql/security.adoc#alter-role[`ALTER ROLE`],
-xref:xref:cql/security.adoc#alter-keyspace[`ALTER KEYSPACE`] and 
-xref:cql/security.adoc#grant-permission[`GRANT PERMISSION`].
+xref:cassandra:developing/cql/security.adoc#create-role[`CREATE ROLE`],
+xref:cassandra:developing/cql/security.adoc#alter-role[`ALTER ROLE`],
+xref:xref:cassandra:developing/cql/security.adoc#alter-keyspace[`ALTER KEYSPACE`] and 
+xref:cassandra:developing/cql/security.adoc#grant-permission[`GRANT PERMISSION`].
 
 == Authorization
 
@@ -347,9 +347,9 @@ GRANT SELECT ON ks.t1 TO db_user;
 and 2 for each node in turn. As each node restarts and clients
 reconnect, the enforcement of the granted permissions will begin.
 
-See also: xref:cql/security.adoc#grant-permission[`GRANT PERMISSION`],
-xref:cql/security.adoc#grant-all[`GRANT ALL`] and 
-xref:cql/security.adoc#revoke-permission[`REVOKE PERMISSION`].
+See also: xref:cassandra:developing/cql/security.adoc#grant-permission[`GRANT PERMISSION`],
+xref:cassandra:developing/cql/security.adoc#grant-all[`GRANT ALL`] and 
+xref:cassandra:developing/cql/security.adoc#revoke-permission[`REVOKE PERMISSION`].
 
 [[auth-caching]]
 == Caching
@@ -408,7 +408,7 @@ Note that by default, local-only connections are not subject to
 authentication, but this can be enabled.
 
 If enabling remote connections, it is recommended to also use
-xref:operating/security.adoc#jmx-with-ssl[`SSL`] connections.
+xref:cassandra:managing/operating/security.adoc#jmx-with-ssl[`SSL`] connections.
 
 Finally, after enabling auth and/or SSL, ensure that tools which use
 JMX, such as xref:tools/nodetool/nodetools.adoc[`nodetool`] are correctly configured and working
@@ -482,7 +482,7 @@ With this option, the same database roles used for CQL authentication
 can be used to control access to JMX, so updates can be managed
 centrally using just `cqlsh`. Furthermore, fine grained control over
 exactly which operations are permitted on particular MBeans can be
-acheived via xref:cql/security.adoc#grant-permission[`GRANT PERMISSION`].
+acheived via xref:cassandra:developing/cql/security.adoc#grant-permission[`GRANT PERMISSION`].
 
 To enable integrated authentication, edit `cassandra-env.sh` to
 uncomment these lines:
@@ -555,7 +555,7 @@ Adding/removing roles and granting/revoking of permissions is handled
 dynamically once the initial setup is complete, so no further restarts
 are required if permissions are altered.
 
-See also: xref:cql/security.adoc#permissions[`Permissions`].
+See also: xref:cassandra:developing/cql/security.adoc#permissions[`Permissions`].
 
 === JMX With SSL
 

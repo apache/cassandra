@@ -1,0 +1,7 @@
+== getfullquerylog
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getfullquerylog.txt[]
+----

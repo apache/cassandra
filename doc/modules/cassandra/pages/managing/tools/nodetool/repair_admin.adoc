@@ -1,0 +1,7 @@
+== repair_admin
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/repair_admin.txt[]
+----

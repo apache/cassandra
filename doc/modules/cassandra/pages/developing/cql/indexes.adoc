@@ -6,7 +6,7 @@ name defined by:
 
 [source,bnf]
 ----
-include::example$BNF/index_name.bnf[]
+include::cassandra:example$BNF/index_name.bnf[]
 ----
 
 [[create-index-statement]]
@@ -19,7 +19,7 @@ desired.
 
 [source,bnf]
 ----
-include::example$BNF/create_index_statement.bnf[]
+include::cassandra:example$BNF/create_index_statement.bnf[]
 ----
 
 If data already exists for the column, it will be indexed
@@ -32,7 +32,7 @@ If it is used, the statement will be a no-op if the index already exists.
 
 [source,cql]
 ----
-include::example$CQL/create_index.cql[]
+include::cassandra:example$CQL/create_index.cql[]
 ----
 
 === Index Types
@@ -59,7 +59,7 @@ Dropping a secondary index uses the `DROP INDEX` statement:
 
 [source,bnf]
 ----
-include::example$BNF/drop_index_statement.bnf[]
+include::cassandra:example$BNF/drop_index_statement.bnf[]
 ----
 
 The `DROP INDEX` statement is used to drop an existing secondary index.

@@ -1,0 +1,7 @@
+== getsstables
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getsstables.txt[]
+----
