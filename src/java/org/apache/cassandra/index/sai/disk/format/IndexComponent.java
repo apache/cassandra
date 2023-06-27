@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.index.sai.disk.format;
 
+import java.util.regex.Pattern;
+
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryWriter;
 import org.apache.cassandra.io.sstable.Component;
@@ -84,8 +86,8 @@ public enum IndexComponent
      */
     GROUP_COMPLETION_MARKER("GroupComplete");
 
-    public final Component.Type type;
     public final String name;
+    public final Component.Type type;
 
     IndexComponent(String name)
     {
@@ -95,9 +97,10 @@ public enum IndexComponent
 
     private static Component.Type componentType(String name)
     {
-        return Component.Type.create(SAI_DESCRIPTOR + SAI_SEPARATOR + name.toUpperCase(),
-                                     SAI_DESCRIPTOR + ".*." + name + ".db",
-                                     true,
-                                     null);
+        String componentName = SAI_DESCRIPTOR + SAI_SEPARATOR + name;
+        String repr = Pattern.quote(SAI_DESCRIPTOR + SAI_SEPARATOR)
+                      + ".*"
+                      + Pattern.quote(SAI_SEPARATOR + name + ".db");
+        return Component.Type.create(componentName, repr, true, null);
     }
 }
