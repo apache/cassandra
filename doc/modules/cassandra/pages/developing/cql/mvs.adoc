@@ -4,7 +4,7 @@ Materialized views names are defined by:
 
 [source,bnf]
 ----
-include::example$BNF/view_name.bnf[]
+include::cassandra:example$BNF/view_name.bnf[]
 ----
 
 [[create-materialized-view-statement]]
@@ -15,14 +15,14 @@ You can create a materialized view on a table using a
 
 [source,bnf]
 ----
-include::example$BNF/create_mv_statement.bnf[]
+include::cassandra:example$BNF/create_mv_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/create_mv_statement.cql[]
+include::cassandra:example$CQL/create_mv_statement.cql[]
 ----
 
 The `CREATE MATERIALIZED VIEW` statement creates a new materialized
@@ -91,21 +91,21 @@ So for instance, give the following base table definition:
 
 [source,cql]
 ----
-include::example$CQL/mv_table_def.cql[]
+include::cassandra:example$CQL/mv_table_def.cql[]
 ----
 
 then the following view definitions are allowed:
 
 [source,cql]
 ----
-include::example$CQL/mv_table_from_base.cql[]
+include::cassandra:example$CQL/mv_table_from_base.cql[]
 ----
 
 but the following ones are *not* allowed:
 
 [source,cql]
 ----
-include::example$CQL/mv_table_error.cql[]
+include::cassandra:example$CQL/mv_table_error.cql[]
 ----
 
 === MV options
@@ -122,7 +122,7 @@ the `ALTER MATERIALIZED VIEW` statement:
 
 [source,bnf]
 ----
-include::example$BNF/alter_mv_statement.bnf[]
+include::cassandra:example$BNF/alter_mv_statement.bnf[]
 ----
 
 The options that can be updated are the same than at creation time and
@@ -137,7 +137,7 @@ statement:
 
 [source, bnf]
 ----
-include::example$BNF/drop_mv_statement.bnf[]
+include::cassandra:example$BNF/drop_mv_statement.bnf[]
 ----
 
 If the materialized view does not exists, the statement will return an

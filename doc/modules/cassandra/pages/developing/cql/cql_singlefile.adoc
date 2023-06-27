@@ -1,10 +1,10 @@
-== Cassandra Query Language (CQL) v3.4.3
+= Cassandra Query Language (CQL) v3.4.3
 
 \{toc:maxLevel=3}
 
-=== CQL Syntax
+== CQL Syntax
 
-==== Preamble
+=== Preamble
 
 This document describes the Cassandra Query Language (CQL) version 3.
 CQL v3 is not backward compatible with CQL v2 and differs from it in
@@ -19,7 +19,7 @@ definition than they have in SQL. But please note that as such, they do
 *not* refer to the concept of rows and columns found in the internal
 implementation of Cassandra and in the thrift and CQL v2 API.
 
-==== Conventions
+=== Conventions
 
 To aid in specifying the CQL syntax, we will use the following
 conventions in this document:
@@ -49,7 +49,7 @@ bc(sample). SELECT sample_usage FROM cql;
 shown in a `fixed-width font`.
 
 [[identifiers]]
-==== Identifiers and keywords
+=== Identifiers and keywords
 
 The CQL language uses _identifiers_ (or _names_) to identify tables,
 columns and other objects. An identifier is a token matching the regular
@@ -90,7 +90,7 @@ identifiers, it is strongly advised to avoid any name enclosed by
 squared brackets (like `"[applied]"`) and any name that looks like a
 function call (like `"f(x)"`).
 
-==== Constants
+=== Constants
 
 CQL defines the following kind of _constants_: strings, integers,
 floats, booleans, uuids and blobs:
@@ -122,7 +122,7 @@ CQL support. Terms are defined by:
 
 [source, bnf]
 ----
-include::example$BNF/term.bnf[]
+include::cassandra:example$BNF/term.bnf[]
 ----
 
 A term is thus one of:
@@ -140,7 +140,7 @@ be either anonymous (`?`) or named (`:some_name`). The latter form
 provides a more convenient way to refer to the variable for binding it
 and should generally be preferred.
 
-==== Comments
+=== Comments
 
 A comment in CQL is a line beginning by either double dashes (`--`) or
 double slash (`//`).
@@ -154,7 +154,7 @@ bc(sample). +
 /* This is +
 a multi-line comment */
 
-==== Statements
+=== Statements
 
 CQL consists of statements. As in SQL, these statements can be divided
 in 3 categories:
@@ -245,7 +245,7 @@ $$double-dollar string can contain single ’ quotes$$ +
 p.
 
 [[preparedStatement]]
-==== Prepared Statement
+=== Prepared Statement
 
 CQL supports _prepared statements_. Prepared statement is an
 optimization that allows to parse a query only once but execute it
@@ -265,10 +265,10 @@ bind markers are used, the names for the query parameters will be
 `[limit]`, `[timestamp]`, and `[ttl]`, respectively.
 
 [[dataDefinition]]
-=== Data Definition
+== Data Definition
 
 [[createKeyspaceStmt]]
-==== CREATE KEYSPACE
+=== CREATE KEYSPACE
 
 _Syntax:_
 
@@ -326,7 +326,7 @@ unless the `IF NOT EXISTS` option is used. If it is used, the statement
 will be a no-op if the keyspace already exists.
 
 [[useStmt]]
-==== USE
+=== USE
 
 _Syntax:_
 
@@ -343,7 +343,7 @@ selected keyspace, unless link:#statements[otherwise specified], until
 another USE statement is issued or the connection terminates.
 
 [[alterKeyspaceStmt]]
-==== ALTER KEYSPACE
+=== ALTER KEYSPACE
 
 _Syntax:_
 
@@ -362,7 +362,7 @@ keyspace. The supported `<properties>` are the same as for the
 link:#createKeyspaceStmt[`CREATE KEYSPACE`] statement.
 
 [[dropKeyspaceStmt]]
-==== DROP KEYSPACE
+=== DROP KEYSPACE
 
 _Syntax:_
 
@@ -380,7 +380,7 @@ If the keyspace does not exists, the statement will return an error,
 unless `IF EXISTS` is used in which case the operation is a no-op.
 
 [[createTableStmt]]
-==== CREATE TABLE
+=== CREATE TABLE
 
 _Syntax:_
 
@@ -431,7 +431,7 @@ unless the `IF NOT EXISTS` option is used. If it is used, the statement
 will be a no-op if the table already exists.
 
 [[createTableName]]
-===== `<tablename>`
+==== `<tablename>`
 
 Valid table names are the same as valid
 link:#createKeyspaceStmt[keyspace names] (up to 32 characters long
@@ -442,7 +442,7 @@ link:#statements[`<tablename>`] grammar), it is created in the specified
 keyspace (but does *not* change the current keyspace).
 
 [[createTableColumn]]
-===== `<column-definition>`
+==== `<column-definition>`
 
 A `CREATE TABLE` statement defines the columns that rows of the table
 can have. A _column_ is defined by its name (an identifier) and its type
@@ -474,7 +474,7 @@ PRIMARY KEY (k) +
 )
 
 [[createTablepartitionClustering]]
-===== Partition key and clustering columns
+==== Partition key and clustering columns
 
 In CQL, the order in which columns are defined for the `PRIMARY KEY`
 matters. The first column of the key is called the _partition key_. It
@@ -493,7 +493,7 @@ making the retrieval of rows in that clustering order particularly
 efficient (see `SELECT`).
 
 [[createTableStatic]]
-===== `STATIC` columns
+==== `STATIC` columns
 
 Some columns can be declared as `STATIC` in a table definition. A column
 that is static will be ``shared'' by all the rows belonging to the same
@@ -527,7 +527,7 @@ so every column is inherently static).
 * only non `PRIMARY KEY` columns can be static
 
 [[createTableOptions]]
-===== `<option>`
+==== `<option>`
 
 The `CREATE TABLE` statement supports a number of options that controls
 the configuration of a new table. These options can be specified after
@@ -582,7 +582,7 @@ link:#cachingOptions[below].
 |===
 
 [[compactionOptions]]
-===== Compaction options
+==== Compaction options
 
 The `compaction` property must at least define the `'class'` sub-option,
 that defines the compaction strategy class to use. The default supported
@@ -3051,7 +3051,7 @@ You can define, insert and update a vector with:
 
 [source,cql]
 ----
-include::example$CQL/vector.cql[]
+include::cassandra:example$CQL/vector.cql[]
 ----
 
 Note that it isn't possible to change the individual values of a vector, and it isn't possible to select individual

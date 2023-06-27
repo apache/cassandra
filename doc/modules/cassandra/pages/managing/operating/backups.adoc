@@ -70,70 +70,70 @@ Create the keyspace `cqlkeyspace`:
 
 [source,cql]
 ----
-include::example$CQL/create_ks_backup.cql[]
+include::cassandra:example$CQL/create_ks_backup.cql[]
 ----
 
 Create two tables `t` and `t2` in the `cqlkeyspace` keyspace.
 
 [source,cql]
 ----
-include::example$CQL/create_table_backup.cql[]
+include::cassandra:example$CQL/create_table_backup.cql[]
 ----
 
 Add data to the tables: 
 
 [source,cql]
 ----
-include::example$CQL/insert_data_backup.cql[]
+include::cassandra:example$CQL/insert_data_backup.cql[]
 ----
 
 Query the table to list the data:
 
 [source,cql]
 ----
-include::example$CQL/select_data_backup.cql[]
+include::cassandra:example$CQL/select_data_backup.cql[]
 ----
 
 results in
 
 [source,cql]
 ----
-include::example$RESULTS/select_data_backup.result[]
+include::cassandra:example$RESULTS/select_data_backup.result[]
 ----
 
 Create a second keyspace `catalogkeyspace`:
 
 [source,cql]
 ----
-include::example$CQL/create_ks2_backup.cql[]
+include::cassandra:example$CQL/create_ks2_backup.cql[]
 ----
 
 Create two tables `journal`  and `magazine` in `catalogkeyspace`:
 
 [source,cql]
 ----
-include::example$CQL/create_table2_backup.cql[]
+include::cassandra:example$CQL/create_table2_backup.cql[]
 ----
 
 Add data to the tables:
 
 [source,cql]
 ----
-include::example$CQL/insert_data2_backup.cql[]
+include::cassandra:example$CQL/insert_data2_backup.cql[]
 ----
 
 Query the tables to list the data:
 
 [source,cql]
 ----
-include::example$CQL/select_data2_backup.cql[]
+include::cassandra:example$CQL/select_data2_backup.cql[]
 ----
 
 results in 
 
 [source,cql]
 ----
-include::example$RESULTS/select_data2_backup.result[]
+include::cassandra:example$RESULTS/select_data2_backup.result[]
 ----
 
 == Snapshots
@@ -143,14 +143,14 @@ The command used to create a snapshot is `nodetool snapshot` with the usage:
 
 [source,bash]
 ----
-include::example$BASH/nodetool_snapshot.sh[]
+include::cassandra:example$BASH/nodetool_snapshot.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/nodetool_snapshot_help.result[]
+include::cassandra:example$RESULTS/nodetool_snapshot_help.result[]
 ----
 
 === Configuring for Snapshots
@@ -160,7 +160,7 @@ have set `auto_snapshots` setting to `false` in the `cassandra.yaml` file:
 
 [source,yaml]
 ----
-include::example$YAML/auto_snapshot.yaml[]
+include::cassandra:example$YAML/auto_snapshot.yaml[]
 ----
 
 Also set `snapshot_before_compaction` to `false` to disable creating
@@ -168,7 +168,7 @@ snapshots automatically before compaction:
 
 [source,yaml]
 ----
-include::example$YAML/snapshot_before_compaction.yaml[]
+include::cassandra:example$YAML/snapshot_before_compaction.yaml[]
 ----
 
 === Creating Snapshots
@@ -177,7 +177,7 @@ Before creating any snapshots, search for snapshots and none will be listed:
 
 [source,bash]
 ----
-include::example$BASH/find_snapshots.sh[]
+include::cassandra:example$BASH/find_snapshots.sh[]
 ----
 
 We shall be using the example keyspaces and tables to create snapshots.
@@ -189,14 +189,14 @@ in the `catalogkeyspace` keyspace:
 
 [source,bash]
 ----
-include::example$BASH/snapshot_backup2.sh[]
+include::cassandra:example$BASH/snapshot_backup2.sh[]
 ----
 
 results in
 
 [source,none]
 ----
-include::example$RESULTS/snapshot_backup2.result[]
+include::cassandra:example$RESULTS/snapshot_backup2.result[]
 ----
 
 Using the `find` command above, the snapshots and `snapshots` directories 
@@ -204,14 +204,14 @@ are now found with listed files similar to:
 
 [source, plaintext]
 ----
-include::example$RESULTS/snapshot_backup2_find.result[]
+include::cassandra:example$RESULTS/snapshot_backup2_find.result[]
 ----
 
 Snapshots of all tables in multiple keyspaces may be created similarly:
 
 [source,bash]
 ----
-include::example$BASH/snapshot_both_backups.sh[]
+include::cassandra:example$BASH/snapshot_both_backups.sh[]
 ----
 
 ==== Taking Snapshots of Single Table in a Keyspace
@@ -221,21 +221,21 @@ syntax becomes as follows:
 
 [source,bash]
 ----
-include::example$BASH/snapshot_one_table.sh[]
+include::cassandra:example$BASH/snapshot_one_table.sh[]
 ----
 
 Using the syntax above, create a snapshot for table `magazine` in keyspace `catalogkeyspace`:
 
 [source,bash]
 ----
-include::example$BASH/snapshot_one_table2.sh[]
+include::cassandra:example$BASH/snapshot_one_table2.sh[]
 ----
 
 results in
  
 [source, plaintext]
 ----
-include::example$RESULTS/snapshot_one_table2.result[]
+include::cassandra:example$RESULTS/snapshot_one_table2.result[]
 ----
 
 ==== Taking Snapshot of Multiple Tables from same Keyspace
@@ -246,14 +246,14 @@ For example, create snapshots for tables `t` and `t2` in the `cqlkeyspace` keysp
 
 [source,bash]
 ----
-include::example$BASH/snapshot_mult_tables.sh[]
+include::cassandra:example$BASH/snapshot_mult_tables.sh[]
 ----
 
 results in
 
 [source,plaintext]
 ----
-include::example$RESULTS/snapshot_mult_tables.result[]
+include::cassandra:example$RESULTS/snapshot_mult_tables.result[]
 ----
 
 Multiple snapshots of the same set of tables may be created and tagged with a different name. 
@@ -262,14 +262,14 @@ keyspace and tag the snapshots differently:
 
 [source,bash]
 ----
-include::example$BASH/snapshot_mult_tables_again.sh[]
+include::cassandra:example$BASH/snapshot_mult_tables_again.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/snapshot_mult_tables_again.result[]
+include::cassandra:example$RESULTS/snapshot_mult_tables_again.result[]
 ----
 
 ==== Taking Snapshot of Multiple Tables from Different Keyspaces
@@ -286,13 +286,13 @@ snapshot `multi-ks`.
 
 [source,bash]
 ----
-include::example$BASH/snapshot_mult_ks.sh[]
+include::cassandra:example$BASH/snapshot_mult_ks.sh[]
 ----
 
 results in
 [source, plaintext]
 ----
-include::example$RESULTS/snapshot_mult_ks.result[]
+include::cassandra:example$RESULTS/snapshot_mult_ks.result[]
 ----
 
 === Listing Snapshots
@@ -302,14 +302,14 @@ snapshots that we created in the preceding examples get listed:
 
 [source,bash]
 ----
-include::example$BASH/nodetool_list_snapshots.sh[]
+include::cassandra:example$BASH/nodetool_list_snapshots.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/nodetool_list_snapshots.result[]
+include::cassandra:example$RESULTS/nodetool_list_snapshots.result[]
 ----
 
 === Finding Snapshots Directories
@@ -319,14 +319,14 @@ command:
 
 [source,bash]
 ----
-include::example$BASH/find_snapshots.sh[]
+include::cassandra:example$BASH/find_snapshots.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/snapshot_all.result[]
+include::cassandra:example$RESULTS/snapshot_all.result[]
 ----
 
 To list the snapshots for a particular table first change to the snapshots directory for that table. 
@@ -334,14 +334,14 @@ For example, list the snapshots for the `catalogkeyspace/journal` table:
 
 [source,bash]
 ----
-include::example$BASH/find_two_snapshots.sh[]
+include::cassandra:example$BASH/find_two_snapshots.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/find_two_snapshots.result[]
+include::cassandra:example$RESULTS/find_two_snapshots.result[]
 ----
 
 A `snapshots` directory lists the SSTable files in the snapshot.
@@ -350,14 +350,14 @@ that can recreate the table with CQL when restoring from a snapshot:
 
 [source,bash]
 ----
-include::example$BASH/snapshot_files.sh[]
+include::cassandra:example$BASH/snapshot_files.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/snapshot_files.result[]
+include::cassandra:example$RESULTS/snapshot_files.result[]
 ----
 
 === Clearing Snapshots
@@ -370,14 +370,14 @@ For example, delete a snapshot called `magazine` from keyspace `cqlkeyspace`:
 
 [source,bash]
 ----
-include::example$BASH/nodetool_clearsnapshot.sh[]
+include::cassandra:example$BASH/nodetool_clearsnapshot.sh[]
 ----
 
 or delete all snapshots from `cqlkeyspace` with the –all option:
 
 [source,bash]
 ----
-include::example$BASH/nodetool_clearsnapshot_all.sh[]
+include::cassandra:example$BASH/nodetool_clearsnapshot_all.sh[]
 ----
 
 == Incremental Backups
@@ -392,7 +392,7 @@ To create incremental backups set `incremental_backups` to `true` in
 
 [source,yaml]
 ----
-include::example$YAML/incremental_bups.yaml[]
+include::cassandra:example$YAML/incremental_bups.yaml[]
 ----
 
 This is the only setting needed to create incremental backups. 
@@ -412,7 +412,7 @@ command. Incremental backups get created.
 
 [source,bash]
 ----
-include::example$BASH/nodetool_flush.sh[]
+include::cassandra:example$BASH/nodetool_flush.sh[]
 ----
 
 === Finding Incremental Backups
@@ -422,12 +422,12 @@ within a table directory. Backups may be found with following command.
 
 [source,bash]
 ----
-include::example$BASH/find_backups.sh[]
+include::cassandra:example$BASH/find_backups.sh[]
 ----
 results in
 [source,none]
 ----
-include::example$RESULTS/find_backups.result[]
+include::cassandra:example$RESULTS/find_backups.result[]
 ----
 
 === Creating an Incremental Backup
@@ -439,7 +439,7 @@ Flush the keyspace and table:
 
 [source,bash]
 ----
-include::example$BASH/nodetool_flush_table.sh[]
+include::cassandra:example$BASH/nodetool_flush_table.sh[]
 ----
 
 A search for backups and a `backups` directory will list a backup directory,
@@ -447,28 +447,28 @@ even if we have added no table data yet.
 
 [source,bash]
 ----
-include::example$BASH/find_backups.sh[]
+include::cassandra:example$BASH/find_backups.sh[]
 ----
 
 results in
 
 [source,plaintext]
 ----
-include::example$RESULTS/find_backups_table.result[]
+include::cassandra:example$RESULTS/find_backups_table.result[]
 ----
 
 Checking the `backups` directory will show that there are also no backup files:
 
 [source,bash]
 ----
-include::example$BASH/check_backups.sh[]
+include::cassandra:example$BASH/check_backups.sh[]
 ----
 
 results in
 
 [source, plaintext]
 ----
-include::example$RESULTS/no_bups.result[]
+include::cassandra:example$RESULTS/no_bups.result[]
 ----
 
 If a row of data is added to the data, running the `nodetool flush` command will
@@ -476,14 +476,14 @@ flush the table data and an incremental backup will be created:
 
 [source,bash]
 ----
-include::example$BASH/flush_and_check.sh[]
+include::cassandra:example$BASH/flush_and_check.sh[]
 ----
 
 results in 
 
 [source, plaintext]
 ----
-include::example$RESULTS/flush_and_check.result[]
+include::cassandra:example$RESULTS/flush_and_check.result[]
 ----
 
 [NOTE]
@@ -499,7 +499,7 @@ second:
 
 [source,none]
 ----
-include::example$RESULTS/flush_and_check2.result[]
+include::cassandra:example$RESULTS/flush_and_check2.result[]
 ----
 
 == Restoring from Incremental Backups and Snapshots

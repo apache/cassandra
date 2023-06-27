@@ -218,5 +218,5 @@ match the "ib" SSTable version
 
 [source,bash]
 ----
-include::example$BASH/find_sstables.sh[]
+include::cassandra:example$BASH/find_sstables.sh[]
 ----

@@ -1,7 +1,6 @@
 // Need some intro for UDF and native functions in general and point those to it.  
 // [[cql-functions]][[native-functions]] 
-
-== Functions
+= Functions
 
 CQL supports 2 main categories of functions:
 
@@ -26,15 +25,15 @@ A function is identifier by its name:
 
 [source, bnf]
 ----
-include::example$BNF/function.bnf[]
+include::cassandra:example$BNF/function.bnf[]
 ----
 
-=== Scalar functions
+== Scalar functions
 
 [[scalar-native-functions]]
-==== Native functions
+=== Native functions
 
-===== Cast
+==== Cast
 
 The `cast` function can be used to converts one native datatype to
 another.
@@ -99,7 +98,7 @@ double value 1 will be converted to the text value '1.0'. For instance:
 SELECT avg(cast(count as double)) FROM myTable
 ----
 
-===== Token
+==== Token
 
 The `token` function computes the token for a given partition key. 
 The exact signature of the token function depends on the table concerned and the partitioner used by the cluster.
@@ -118,21 +117,21 @@ For example, consider the following table:
 
 [source,cql]
 ----
-include::example$CQL/create_table_simple.cql[]
+include::cassandra:example$CQL/create_table_simple.cql[]
 ----
 
 The table uses the default Murmur3Partitioner.
 The `token` function uses the single argument `text`, because the partition key is `userid` of text type.
 The returned type will be `bigint`.
 
-===== Uuid
+==== Uuid
 
 The `uuid` function takes no parameters and generates a random type 4
 uuid suitable for use in `INSERT` or `UPDATE` statements.
 
-===== Timeuuid functions
+==== Timeuuid functions
 
-====== `now`
+===== `now`
 
 The `now` function takes no arguments and generates, on the coordinator
 node, a new unique timeuuid at the time the function is invoked. Note
@@ -143,7 +142,7 @@ For example, a query of the form:
 
 [source,cql]
 ----
-include::example$CQL/timeuuid_now.cql[]
+include::cassandra:example$CQL/timeuuid_now.cql[]
 ----
 
 will not return a result, by design, since the value returned by
@@ -151,7 +150,7 @@ will not return a result, by design, since the value returned by
 
 `current_timeuuid` is an alias of `now`.
 
-====== `min_timeuuid` and `max_timeuuid`
+===== `min_timeuuid` and `max_timeuuid`
 
 The `min_timeuuid` function takes a `timestamp` value `t`, either a timestamp or a date string.
 It returns a _fake_ `timeuuid` corresponding to the _smallest_ possible `timeuuid` for timestamp `t`.
@@ -161,7 +160,7 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/timeuuid_min_max.cql[]
+include::cassandra:example$CQL/timeuuid_min_max.cql[]
 ----
 
 will select all rows where the `timeuuid` column `t` is later than `'2013-01-01 00:05+0000'` and earlier than `'2013-02-02 10:00+0000'`. 
@@ -176,9 +175,9 @@ In particular, the value returned by these two methods will not be unique.
 Thus, only use these methods for *querying*, not for *insertion*, to prevent possible data overwriting. 
 ====
 
-===== Datetime functions
+==== Datetime functions
 
-====== Retrieving the current date/time
+===== Retrieving the current date/time
 
 The following functions can be used to retrieve the date/time at the
 time where the function is invoked:
@@ -200,10 +199,10 @@ For example the last two days of data can be retrieved using:
 
 [source,cql]
 ----
-include::example$CQL/current_date.cql[]
+include::cassandra:example$CQL/current_date.cql[]
 ----
 
-====== Time conversion functions
+===== Time conversion functions
 
 A number of functions are provided to convert a `timeuuid`, a `timestamp` or a `date` into another `native` type.
 
@@ -226,7 +225,7 @@ A number of functions are provided to convert a `timeuuid`, a `timestamp` or a `
 | `to_unix_timestamp` | `date` | Converts the `date` argument into a `bigInt` raw value
 |===
 
-===== Blob conversion functions
+==== Blob conversion functions
 
 A number of functions are provided to convert the native types into
 binary data, or a `blob`. 
@@ -234,7 +233,7 @@ For every xref:cql/types.adoc#native-types[type] supported by CQL, the function 
 Conversely, the function `blob_as_type` takes a 64-bit `blob` argument and converts it to a `bigint` value.
 For example, `bigint_as_blob(3)` returns `0x0000000000000003` and `blob_as_bigint(0x0000000000000003)` returns `3`.
 
-===== Math Functions
+==== Math Functions
 
 Cql provides the following math functions: `abs`, `exp`, `log`, `log10`, and `round`.
 The return type for these functions is always the same as the input type.
@@ -254,7 +253,7 @@ The return type for these functions is always the same as the input type.
 |`round` | Rounds the input to the nearest whole number using rounding mode `HALF_UP`.
 |===
 
-===== Collection functions
+==== Collection functions
 
 A number of functions are provided to operate on collection columns.
 
@@ -278,21 +277,21 @@ A number of functions are provided to operate on collection columns.
 |===
 
 [[data-masking-functions]]
-===== Data masking functions
+==== Data masking functions
 
 A number of functions allow to obscure the real contents of a column containing sensitive data.
 
-include::partial$masking_functions.adoc[]
+include::cassandra:partial$masking_functions.adoc[]
 
 [[vector-similarity-functions]]
 ===== Vector similarity functions
 
 A number of functions allow to obtain the similarity score between vectors of floats.
 
-include::partial$vector_functions.adoc[]
+include::cassandra:partial$vector_functions.adoc[]
 
 [[user-defined-scalar-functions]]
-==== User-defined functions
+=== User-defined functions
 
 User-defined functions (UDFs) execute user-provided code in Cassandra. 
 By default, Cassandra supports defining functions in _Java_.
@@ -312,7 +311,7 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/function_overload.cql[]
+include::cassandra:example$CQL/function_overload.cql[]
 ----
 
 UDFs are susceptible to all of the normal problems with the chosen programming language. 
@@ -333,47 +332,47 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/function_dollarsign.cql[]
+include::cassandra:example$CQL/function_dollarsign.cql[]
 ----
 
 The implicitly available `udfContext` field (or binding for script UDFs) provides the necessary functionality to create new UDT and tuple values:
 
 [source,cql]
 ----
-include::example$CQL/function_udfcontext.cql[]
+include::cassandra:example$CQL/function_udfcontext.cql[]
 ----
 
 The definition of the `UDFContext` interface can be found in the Apache Cassandra source code for `org.apache.cassandra.cql3.functions.UDFContext`.
 
 [source,java]
 ----
-include::example$JAVA/udfcontext.java[]
+include::cassandra:example$JAVA/udfcontext.java[]
 ----
 
 Java UDFs already have some imports for common interfaces and classes defined. These imports are:
 
 [source,java]
 ----
-include::example$JAVA/udf_imports.java[]
+include::cassandra:example$JAVA/udf_imports.java[]
 ----
 
 Please note, that these convenience imports are not available for script UDFs.
 
 [[create-function-statement]]
-==== CREATE FUNCTION statement
+=== CREATE FUNCTION statement
 
 Creating a new user-defined function uses the `CREATE FUNCTION` statement:
 
 [source,bnf]
 ----
-include::example$BNF/create_function_statement.bnf[]
+include::cassandra:example$BNF/create_function_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/create_function.cql[]
+include::cassandra:example$CQL/create_function.cql[]
 ----
 
 `CREATE FUNCTION` with the optional `OR REPLACE` keywords creates either a function or replaces an existing one with the same signature. 
@@ -387,7 +386,7 @@ Behavior for `null` input values must be defined for each function:
 * `RETURNS NULL ON NULL INPUT` declares that the function will always return `null` if any of the input arguments is `null`.
 * `CALLED ON NULL INPUT` declares that the function will always be executed.
 
-===== Function Signature
+==== Function Signature
 
 Signatures are used to distinguish individual functions. The signature consists of a fully-qualified function name of the <keyspace>.<function_name> and a concatenated list of all the argument types.
 
@@ -397,27 +396,27 @@ Functions belong to a keyspace; if no keyspace is specified, the current keyspac
 User-defined functions are not allowed in the system keyspaces.
 
 [[drop-function-statement]]
-==== DROP FUNCTION statement
+=== DROP FUNCTION statement
 
 Dropping a function uses the `DROP FUNCTION` statement:
 
 [source, bnf]
 ----
-include::example$BNF/drop_function_statement.bnf[]
+include::cassandra:example$BNF/drop_function_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/drop_function.cql[]
+include::cassandra:example$CQL/drop_function.cql[]
 ----
 
 You must specify the argument types of the function, the arguments_signature, in the drop command if there are multiple overloaded functions with the same name but different signatures.  
 `DROP FUNCTION` with the optional `IF EXISTS` keywords drops a function if it exists, but does not throw an error if it doesn't.
 
 [[aggregate-functions]]
-=== Aggregate functions
+== Aggregate functions
 
 Aggregate functions work on a set of rows. 
 Values for each row are input, to return a single value for the set of rows aggregated.
@@ -425,10 +424,10 @@ Values for each row are input, to return a single value for the set of rows aggr
 If `normal` columns, `scalar functions`, `UDT` fields, `writetime`, or `ttl` are selected together with aggregate functions, the values
 returned for them will be the ones of the first row matching the query.
 
-==== Native aggregates
+=== Native aggregates
 
 [[count-function]]
-===== Count
+==== Count
 
 The `count` function can be used to count the rows returned by a query.
 
@@ -436,17 +435,17 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/count.cql[]
+include::cassandra:example$CQL/count.cql[]
 ----
 
 It also can count the non-null values of a given column:
 
 [source,cql]
 ----
-include::example$CQL/count_nonnull.cql[]
+include::cassandra:example$CQL/count_nonnull.cql[]
 ----
 
-===== Max and Min
+==== Max and Min
 
 The `max` and `min` functions compute the maximum and the minimum value returned by a query for a given column. 
 
@@ -454,10 +453,10 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/min_max.cql[]
+include::cassandra:example$CQL/min_max.cql[]
 ----
 
-===== Sum
+==== Sum
 
 The `sum` function sums up all the values returned by a query for a given column.
 
@@ -467,7 +466,7 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/sum.cql[]
+include::cassandra:example$CQL/sum.cql[]
 ----
 
 The returned value is of the same type as the input values, so there is a risk of overflowing the type if the sum of the
@@ -476,10 +475,10 @@ type large enough to contain the type. For example:
 
 [source,cql]
 ----
-include::example$CQL/sum_with_cast.cql[]
+include::cassandra:example$CQL/sum_with_cast.cql[]
 ----
 
-===== Avg
+==== Avg
 
 The `avg` function computes the average of all the values returned by a query for a given column.
 
@@ -487,7 +486,7 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/avg.cql[]
+include::cassandra:example$CQL/avg.cql[]
 ----
 
 The average of an empty collection returns zero.
@@ -498,11 +497,11 @@ You can use type casting to cast to a type with the desired decimal precision. F
 
 [source,cql]
 ----
-include::example$CQL/avg_with_cast.cql[]
+include::cassandra:example$CQL/avg_with_cast.cql[]
 ----
 
 [[user-defined-aggregates-functions]]
-==== User-Defined Aggregates (UDAs)
+=== User-Defined Aggregates (UDAs)
 
 User-defined aggregates allow the creation of custom aggregate functions. 
 User-defined aggregates can be used in `SELECT` statement.
@@ -522,18 +521,18 @@ keyspace has been selected using the `USE` statement):
 
 [source,cql]
 ----
-include::example$CQL/uda.cql[]
+include::cassandra:example$CQL/uda.cql[]
 ----
 
 [[create-aggregate-statement]]
-==== CREATE AGGREGATE statement
+=== CREATE AGGREGATE statement
 
 Creating (or replacing) a user-defined aggregate function uses the
 `CREATE AGGREGATE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/create_aggregate_statement.bnf[]
+include::cassandra:example$BNF/create_aggregate_statement.bnf[]
 ----
 
 See above for a complete example.
@@ -561,21 +560,21 @@ If no `FINALFUNC` is defined, the overall return type of the aggregate function 
 If a `FINALFUNC` is defined, it is the return type of that function.
 
 [[drop-aggregate-statement]]
-==== DROP AGGREGATE statement
+=== DROP AGGREGATE statement
 
 Dropping an user-defined aggregate function uses the `DROP AGGREGATE`
 statement:
 
 [source, bnf]
 ----
-include::example$BNF/drop_aggregate_statement.bnf[]
+include::cassandra:example$BNF/drop_aggregate_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/drop_aggregate.cql[]
+include::cassandra:example$CQL/drop_aggregate.cql[]
 ----
 
 The `DROP AGGREGATE` statement removes an aggregate created using `CREATE AGGREGATE`. 
