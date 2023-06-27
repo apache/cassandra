@@ -128,7 +128,7 @@ public class IndexStreamingTest extends TestBaseImpl
             assertThat(qr.hasNext()).isTrue();
 
             QueryResultUtil.assertThat(qr.next())
-                           .isEqualTo("peers", Collections.singletonList("/127.0.0.1:7012"))
+                           .isEqualTo("peers", Collections.singletonList(first.broadcastAddress().toString()))
                            .isEqualTo("follower", false)
                            .isEqualTo("operation", "Rebuild")
                            .isEqualTo("status", "success")
