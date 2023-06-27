@@ -1,7 +1,7 @@
 = Transient Replication
 
-*Note*:
-
+[IMPORTANT]
+====
 Transient Replication
 (https://issues.apache.org/jira/browse/CASSANDRA-14404[CASSANDRA-14404])
 is an experimental feature designed for expert Apache Cassandra users
@@ -16,6 +16,7 @@ anticipated that a future version will support monotonic reads with
 transient replication as well as LWT, logged batches, and counters.
 Being experimental, Transient replication is *not* recommended for
 production use.
+====
 
 == Objective
 

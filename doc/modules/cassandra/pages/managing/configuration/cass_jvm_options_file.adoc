@@ -13,7 +13,6 @@ tools.
 See each file for examples of settings.
 
 [NOTE]
-.Note
 ====
 The `jvm-*` files replace the `cassandra-envsh` file used in Cassandra
 versions prior to Cassandra 3.0. The `cassandra-env.sh` bash script file
