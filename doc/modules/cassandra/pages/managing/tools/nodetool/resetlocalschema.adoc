@@ -1,0 +1,7 @@
+== resetlocalschema
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/resetlocalschema.txt[]
+----

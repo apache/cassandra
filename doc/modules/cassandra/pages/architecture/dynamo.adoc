@@ -429,7 +429,6 @@ seed nodes, often one for each rack or datacenter. Seed nodes are often
 chosen using existing off-the-shelf service discovery mechanisms.
 
 [NOTE]
-.Note
 ====
 Nodes do not have to agree on the seed nodes, and indeed once a cluster
 is bootstrapped, newly launched nodes can be configured to use any
@@ -462,7 +461,6 @@ will try to reach out and connect, and if it can open communication
 channels it will mark that node as available.
 
 [NOTE]
-.Note
 ====
 `UP` and `DOWN` state are local node decisions and are not propagated with
 gossip. Heartbeat state is propagated with gossip, but nodes will not

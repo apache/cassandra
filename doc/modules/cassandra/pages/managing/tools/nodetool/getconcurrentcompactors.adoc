@@ -1,0 +1,7 @@
+== getconcurrentcompactors
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getconcurrentcompactors.txt[]
+----

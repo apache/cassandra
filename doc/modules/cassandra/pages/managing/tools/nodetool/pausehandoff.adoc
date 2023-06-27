@@ -1,0 +1,7 @@
+== pausehandoff
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/pausehandoff.txt[]
+----

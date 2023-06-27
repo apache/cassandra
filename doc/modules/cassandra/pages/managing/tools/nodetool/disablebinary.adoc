@@ -1,0 +1,7 @@
+== disablebinary
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/disablebinary.txt[]
+----

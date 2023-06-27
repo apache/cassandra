@@ -1,0 +1,7 @@
+== invalidatenetworkpermissionscache
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/invalidatenetworkpermissionscache.txt[]
+----

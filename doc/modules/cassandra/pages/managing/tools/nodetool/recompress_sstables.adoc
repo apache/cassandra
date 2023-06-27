@@ -1,0 +1,7 @@
+== recompress_sstables
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/recompress_sstables.txt[]
+----

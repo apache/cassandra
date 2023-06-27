@@ -1,8 +1,13 @@
 = Cassandra Stress
 :page-aliases: cassandra-stress.adoc
 
-The `cassandra-stress` tool is used to benchmark and load-test a Cassandra
-cluster. 
+[IMPORTANT] 
+====
+The `cassandra-stress` tool is deprecated.
+A better tool for benchmarking Cassandra is https://docs.nosqlbench.io/[NoSQLBench].
+====
+
+The `cassandra-stress` tool is used to benchmark and load-test a Cassandra cluster. 
 `cassandra-stress` supports testing arbitrary CQL tables and queries, allowing users to benchmark their own data model.
 
 This documentation focuses on user mode to test personal schema.
@@ -246,7 +251,7 @@ the table will be truncated once before the test.
 The full example can be found here:
 [source, yaml]
 ----
-include::example$YAML/stress-example.yaml[]
+include::cassandra:example$YAML/stress-example.yaml[]
 ---- 
 
 Running a user mode test with multiple yaml files::::
@@ -280,7 +285,7 @@ queries:
 The full example can be found here:
 [source, yaml]
 ----
-include::example$YAML/stress-lwt-example.yaml[]
+include::cassandra:example$YAML/stress-lwt-example.yaml[]
 ----
 
 == Graphing

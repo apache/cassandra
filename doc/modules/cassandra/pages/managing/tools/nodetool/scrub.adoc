@@ -1,0 +1,7 @@
+== scrub
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/scrub.txt[]
+----

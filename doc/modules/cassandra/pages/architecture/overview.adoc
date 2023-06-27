@@ -38,7 +38,7 @@ following design objectives:
 
 == Features
 
-Cassandra provides the Cassandra Query Language (xref:cql/ddl.adoc[CQL]), an SQL-like
+Cassandra provides the Cassandra Query Language (xref:cassandra:developing/cql/ddl.adoc[CQL]), an SQL-like
 language, to create and update database schema and access data. CQL
 allows users to organize data within a cluster of Cassandra nodes using:
 

@@ -1,38 +1,37 @@
-role_name ::= identifier | string= Security
-
+// role_name ::= identifier | string= Security
 [[cql-roles]]
-== Database Roles
+= Database Roles
 
 CQL uses database roles to represent users and group of users.
 Syntactically, a role is defined by:
 
 [source, bnf]
 ----
-include::example$BNF/role_name.bnf[]
+include::cassandra:example$BNF/role_name.bnf[]
 ----
 
 
 [[create-role-statement]]
-=== CREATE ROLE
+== CREATE ROLE
 
 Creating a role uses the `CREATE ROLE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/create_role_statement.bnf[]
+include::cassandra:example$BNF/create_role_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/create_role.cql[]
+include::cassandra:example$CQL/create_role.cql[]
 ----
 
 By default roles do not possess `LOGIN` privileges or `SUPERUSER`
 status.
 
-xref:cql/security.adoc#cql-permissions[Permissions] on database resources are granted to
+xref:cassandra:developing/cql/security.adoc#cql-permissions[Permissions] on database resources are granted to
 roles; types of resources include keyspaces, tables, functions and roles
 themselves. Roles may be granted to other roles to create hierarchical
 permissions structures; in these hierarchies, permissions and
@@ -44,13 +43,13 @@ acquire any roles and privileges granted to that role.
 
 Only a client with with the `CREATE` permission on the database roles
 resource may issue `CREATE ROLE` requests (see the
-xref:cql/security.adoc#cql-permissions[relevant section]), unless the client is a
+xref:cassandra:developing/cql/security.adoc#cql-permissions[relevant section]), unless the client is a
 `SUPERUSER`. Role management in Cassandra is pluggable and custom
 implementations may support only a subset of the listed options.
 
 Role names should be quoted if they contain non-alphanumeric characters.
 
-==== Setting credentials for internal authentication
+=== Setting credentials for internal authentication
 
 Use the `WITH PASSWORD` clause to set a password for internal
 authentication, enclosing the password in single quotation marks.
@@ -60,7 +59,7 @@ If internal authentication has not been set up or the role does not have
 
 USE `WITH HASHED PASSWORD` to provide the jBcrypt hashed password directly. See the `hash_password` tool.
 
-==== Restricting connections to specific datacenters
+=== Restricting connections to specific datacenters
 
 If a `network_authorizer` has been configured, you can restrict login
 roles to specific datacenters with the `ACCESS TO DATACENTERS` clause
@@ -69,7 +68,7 @@ specifiying datacenters implicitly grants access to all datacenters. The
 clause `ACCESS TO ALL DATACENTERS` can be used for explicitness, but
 there's no functional difference.
 
-==== Restricting connections from specific CIDR groups
+=== Restricting connections from specific CIDR groups
 
 If a `cidr_authorizer` has been configured, you can restrict roles to login
 only from specific regions, aka CIDR groups, with the `ACCESS FROM CIDRS` clause
@@ -81,7 +80,7 @@ groups restrictions. Valid CIDR groups should be used with `ACCESS FROM CIDRS`
 clause. `nodetool list-cidrgroups` command can be used to see available CIDR groups
 in the Cluster.
 
-==== Creating a role conditionally
+=== Creating a role conditionally
 
 Attempting to create an existing role results in an invalid query
 condition unless the `IF NOT EXISTS` option is used. If the option is
@@ -89,30 +88,30 @@ used and the role exists, the statement is a no-op:
 
 [source,cql]
 ----
-include::example$CQL/create_role_ifnotexists.cql[]
+include::cassandra:example$CQL/create_role_ifnotexists.cql[]
 ----
 
 [[alter-role-statement]]
-=== ALTER ROLE
+== ALTER ROLE
 
 Altering a role options uses the `ALTER ROLE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/alter_role_statement.bnf[]
+include::cassandra:example$BNF/alter_role_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/alter_role.cql[]
+include::cassandra:example$CQL/alter_role.cql[]
 ----
 If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
 USE `WITH HASHED PASSWORD` to provide the jBcrypt hashed password directly. See the `hash_password` tool.
 
-==== Restricting connections to specific datacenters
+=== Restricting connections to specific datacenters
 
 If a `network_authorizer` has been configured, you can restrict login
 roles to specific datacenters with the `ACCESS TO DATACENTERS` clause
@@ -120,7 +119,7 @@ followed by a set literal of datacenters the user can access. To remove
 any data center restrictions, use the `ACCESS TO ALL DATACENTERS`
 clause.
 
-==== Restricting connections from specific CIDR groups
+=== Restricting connections from specific CIDR groups
 
 If a `cidr_authorizer` has been configured, you can restrict roles to login
 only from specific regions, aka CIDR groups, with the `ACCESS FROM CIDRS` clause
@@ -132,7 +131,7 @@ groups restrictions. Valid CIDR groups should be used with `ACCESS FROM CIDRS`
 clause. `nodetool list-cidrgroups` command can be used to see available CIDR groups
 in the Cluster.
 
-==== Conditions on executing `ALTER ROLE` statements:
+=== Conditions on executing `ALTER ROLE` statements:
 
 * a client must have `SUPERUSER` status to alter the `SUPERUSER` status
 of another role
@@ -144,13 +143,13 @@ identified at login (e.g. `PASSWORD`)
 `permission <cql-permissions>` on that role
 
 [[drop-role-statement]]
-=== DROP ROLE
+== DROP ROLE
 
 Dropping a role uses the `DROP ROLE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/drop_role_statement.bnf[]
+include::cassandra:example$BNF/drop_role_statement.bnf[]
 ----
 
 `DROP ROLE` requires the client to have `DROP`
@@ -164,34 +163,33 @@ query condition unless the `IF EXISTS` option is used. If the option is
 used and the role does not exist the statement is a no-op.
 
 [NOTE]
-.Note
 ====
 DROP ROLE intentionally does not terminate any open user sessions.
 Currently connected sessions will remain connected and will retain the
 ability to perform any database actions which do not require
-xref:cql/security.adoc#authorization[authorization]. 
-However, if authorization is enabled, xref:cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
-subject to the xref:cql/security.adoc#auth-caching[caching options] configured in xref:cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file. 
+xref:cassandra:developing/cql/security.adoc#authorization[authorization]. 
+However, if authorization is enabled, xref:cassandra:developing/cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
+subject to the xref:cassandra:developing/cql/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file. 
 Should a dropped role be subsequently recreated and have new xref:security.adoc#grant-permission-statement[permissions] or
 xref:security.adoc#grant-role-statement[roles]` granted to it, any client sessions still
 connected will acquire the newly granted permissions and roles.
 ====
 
 [[grant-role-statement]]
-=== GRANT ROLE
+== GRANT ROLE
 
 Granting a role to another uses the `GRANT ROLE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/grant_role_statement.bnf[]
+include::cassandra:example$BNF/grant_role_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/grant_role.cql[]
+include::cassandra:example$CQL/grant_role.cql[]
 ----
 
 This statement grants the `report_writer` role to `alice`. Any
@@ -202,24 +200,24 @@ not permitted. The following examples result in error conditions:
 
 [source,cql]
 ----
-include::example$CQL/role_error.cql[]
+include::cassandra:example$CQL/role_error.cql[]
 ----
 
 [[revoke-role-statement]]
-=== REVOKE ROLE
+== REVOKE ROLE
 
 Revoking a role uses the `REVOKE ROLE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/revoke_role_statement.bnf[]
+include::cassandra:example$BNF/revoke_role_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/revoke_role.cql[]
+include::cassandra:example$CQL/revoke_role.cql[]
 ----
 
 This statement revokes the `report_writer` role from `alice`. Any
@@ -227,21 +225,21 @@ permissions that `alice` has acquired via the `report_writer` role are
 also revoked.
 
 [[list-roles-statement]]
-=== LIST ROLES
+== LIST ROLES
 
 All the known roles (in the system or granted to specific role) can be
 listed using the `LIST ROLES` statement:
 
 [source, bnf]
 ----
-include::example$BNF/list_roles_statement.bnf[]
+include::cassandra:example$BNF/list_roles_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/list_roles.cql[]
+include::cassandra:example$CQL/list_roles.cql[]
 ----
 
 returns all known roles in the system, this requires `DESCRIBE`
@@ -252,7 +250,7 @@ acquired:
 
 [source,cql]
 ----
-include::example$CQL/list_roles_of.cql[]
+include::cassandra:example$CQL/list_roles_of.cql[]
 ----
 
 This example lists all roles directly granted to `bob` without including any of the
@@ -260,7 +258,7 @@ transitively acquired ones:
 
 [source,cql]
 ----
-include::example$CQL/list_roles_nonrecursive.cql[]
+include::cassandra:example$CQL/list_roles_nonrecursive.cql[]
 ----
 
 == Users
@@ -279,14 +277,14 @@ Creating a user uses the `CREATE USER` statement:
 
 [source, bnf]
 ----
-include::example$BNF/create_user_statement.bnf[]
+include::cassandra:example$BNF/create_user_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/create_user.cql[]
+include::cassandra:example$CQL/create_user.cql[]
 ----
 
 The `CREATE USER` command is equivalent to `CREATE ROLE` where the `LOGIN` option is `true`. 
@@ -294,7 +292,7 @@ So, the following pairs of statements are equivalent:
 
 [source,cql]
 ----
-include::example$CQL/create_user_role.cql[]
+include::cassandra:example$CQL/create_user_role.cql[]
 ----
 
 [[alter-user-statement]]
@@ -304,14 +302,14 @@ Altering the options of a user uses the `ALTER USER` statement:
 
 [source, bnf]
 ----
-include::example$BNF/alter_user_statement.bnf[]
+include::cassandra:example$BNF/alter_user_statement.bnf[]
 ----
 If the role does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 For example:
 
 [source,cql]
 ----
-include::example$CQL/alter_user.cql[]
+include::cassandra:example$CQL/alter_user.cql[]
 ----
 
 [[drop-user-statement]]
@@ -321,7 +319,7 @@ Dropping a user uses the `DROP USER` statement:
 
 [source, bnf]
 ----
-include::example$BNF/drop_user_statement.bnf[]
+include::cassandra:example$BNF/drop_user_statement.bnf[]
 ----
 
 [[list-users-statement]]
@@ -331,7 +329,7 @@ Existing users can be listed using the `LIST USERS` statement:
 
 [source, bnf]
 ----
-include::example$BNF/list_users_statement.bnf[]
+include::cassandra:example$BNF/list_users_statement.bnf[]
 ----
 
 Note that this statement is equivalent to xref:security.adoc#list-roles-statement[`LIST ROLES], but only roles with the `LOGIN` privilege are included in the output.
@@ -524,14 +522,14 @@ Granting a permission uses the `GRANT PERMISSION` statement:
 
 [source, bnf]
 ----
-include::example$BNF/grant_permission_statement.bnf[]
+include::cassandra:example$BNF/grant_permission_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/grant_perm.cql[]
+include::cassandra:example$CQL/grant_perm.cql[]
 ----
 
 This example gives any user with the role `data_reader` permission to execute
@@ -539,7 +537,7 @@ This example gives any user with the role `data_reader` permission to execute
 
 [source,cql]
 ----
-include::example$CQL/grant_modify.cql[]
+include::cassandra:example$CQL/grant_modify.cql[]
 ----
 
 To give any user with the role `data_writer` permission to perform
@@ -548,7 +546,7 @@ tables in the `keyspace1` keyspace:
 
 [source,cql]
 ----
-include::example$CQL/grant_drop.cql[]
+include::cassandra:example$CQL/grant_drop.cql[]
 ----
 
 To give any user with the `schema_owner` role permissions to `DROP` a specific
@@ -556,7 +554,7 @@ To give any user with the `schema_owner` role permissions to `DROP` a specific
 
 [source,cql]
 ----
-include::example$CQL/grant_execute.cql[]
+include::cassandra:example$CQL/grant_execute.cql[]
 ----
 
 This command grants any user with the `report_writer` role permission to execute
@@ -565,7 +563,7 @@ This command grants any user with the `report_writer` role permission to execute
 
 [source,cql]
 ----
-include::example$CQL/grant_describe.cql[]
+include::cassandra:example$CQL/grant_describe.cql[]
 ----
 
 This grants any user with the `role_admin` role permission to view any
@@ -592,14 +590,14 @@ statement:
 
 [source, bnf]
 ----
-include::example$BNF/revoke_permission_statement.bnf[]
+include::cassandra:example$BNF/revoke_permission_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/revoke_perm.cql[]
+include::cassandra:example$CQL/revoke_perm.cql[]
 ----
 
 Because of their function in normal driver operations, certain tables
@@ -609,7 +607,7 @@ their assigned role:
 
 [source,cql]
 ----
-include::example$CQL/no_revoke.cql[]
+include::cassandra:example$CQL/no_revoke.cql[]
 ----
 
 [[list-permissions-statement]]
@@ -619,14 +617,14 @@ Listing granted permissions uses the `LIST PERMISSIONS` statement:
 
 [source, bnf]
 ----
-include::example$BNF/list_permissions_statement.bnf[]
+include::cassandra:example$BNF/list_permissions_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/list_perm.cql[]
+include::cassandra:example$CQL/list_perm.cql[]
 ----
 
 Show all permissions granted to `alice`, including those acquired
@@ -634,7 +632,7 @@ transitively from any other roles:
 
 [source,cql]
 ----
-include::example$CQL/list_all_perm.cql[]
+include::cassandra:example$CQL/list_all_perm.cql[]
 ----
 
 Show all permissions on `keyspace1.table1` granted to `bob`, including
@@ -647,7 +645,7 @@ which were directly granted to `bob` or one of `bob`'s roles:
 
 [source,cql]
 ----
-include::example$CQL/list_select_perm.cql[]
+include::cassandra:example$CQL/list_select_perm.cql[]
 ----
 
 Show any permissions granted to `carlos` or any of `carlos`'s roles,

@@ -1,0 +1,7 @@
+== getauthcacheconfig
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getauthcacheconfig.txt[]
+----

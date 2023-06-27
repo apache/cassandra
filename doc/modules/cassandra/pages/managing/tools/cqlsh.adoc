@@ -22,7 +22,7 @@ of `cqlsh`.
 
 By default, `cqlsh` displays all timestamps with a UTC timezone.
 For Python 3.9 or higher, timestamps can be displayed in different timezones by modifying the
-`timezone` option in xref:cql/tools/cqlsh.adoc#cqlshrc[cqlshrc] or by setting the environment
+`timezone` option in xref:cassandra:developing/cql/tools/cqlsh.adoc#cqlshrc[cqlshrc] or by setting the environment
 variable `TZ`.
 Python 3.8 or lower, however, will also require the installation of http://pytz.sourceforge.net/[pytz] library.
 

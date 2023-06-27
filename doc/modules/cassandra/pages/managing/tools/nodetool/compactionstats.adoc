@@ -1,0 +1,7 @@
+== compactionstats
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/compactionstats.txt[]
+----

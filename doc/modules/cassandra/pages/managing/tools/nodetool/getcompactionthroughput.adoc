@@ -1,0 +1,7 @@
+== getcompactionthroughput
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getcompactionthroughput.txt[]
+----
