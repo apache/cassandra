@@ -31,6 +31,16 @@ public interface StreamManagerMBean extends NotificationEmitter
     Set<CompositeData> getCurrentStreams();
 
     /**
+     * Returns the current state of all completed streams.
+     */
+    Set<CompositeData> getCompletedStreams();
+
+    /**
+     * Returns the current state of all ongoing and completed streams.
+     */
+    Set<CompositeData> getAllStreams();
+
+    /**
      * @return whether the streaming virtual table should collect stats while streaming is running
      */
     boolean getStreamingStatsEnabled();

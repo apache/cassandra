@@ -42,6 +42,11 @@ public class NetStats extends NodeToolCmd
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
+    @Option(title = "all_streams",
+    name = {"-a", "--all"},
+    description = "Display current streams and recently completed streams")
+    private boolean allStreams = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -50,28 +55,9 @@ public class NetStats extends NodeToolCmd
         Set<StreamState> statuses = probe.getStreamStatus();
         if (statuses.isEmpty())
             out.println("Not sending any streams.");
-        for (StreamState status : statuses)
-        {
-            out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
-            for (SessionInfo info : status.sessions)
-            {
-                out.printf("    %s", InetAddressAndPort.toString(info.peer, printPort));
-                // print private IP when it is used
-                if (!info.peer.equals(info.connecting))
-                {
-                    out.printf(" (using %s)", InetAddressAndPort.toString(info.connecting, printPort));
-                }
-                out.printf("%n");
-                if (!info.receivingSummaries.isEmpty())
-                {
-                    printReceivingSummaries(out, info, humanReadable);
-                }
-                if (!info.sendingSummaries.isEmpty())
-                {
-                    printSendingSummaries(out, info, humanReadable);
-                }
-            }
-        }
+        printStreamStates(out, statuses, "Current");
+        if (allStreams)
+            printStreamStates(out, probe.getCompletedStreamStatus(), "Completed");
 
         if (!probe.isStarting())
         {
@@ -120,6 +106,34 @@ public class NetStats extends NodeToolCmd
             for (long n : ms.getGossipMessageDroppedTasksWithPort().values())
                 dropped += n;
             out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
+        }
+    }
+
+    private void printStreamStates(PrintStream out, Set<StreamState> statuses, String name)
+    {
+        if (!statuses.isEmpty())
+            out.printf("%s streams:%n", name);
+        for (StreamState status : statuses)
+        {
+            out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
+            for (SessionInfo info : status.sessions)
+            {
+                out.printf("    %s", InetAddressAndPort.toString(info.peer, printPort));
+                // print private IP when it is used
+                if (!info.peer.equals(info.connecting))
+                {
+                    out.printf(" (using %s)", InetAddressAndPort.toString(info.connecting, printPort));
+                }
+                out.printf("%n");
+                if (!info.receivingSummaries.isEmpty())
+                {
+                    printReceivingSummaries(out, info, humanReadable);
+                }
+                if (!info.sendingSummaries.isEmpty())
+                {
+                    printSendingSummaries(out, info, humanReadable);
+                }
+            }
         }
     }
 

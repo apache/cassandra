@@ -224,6 +224,7 @@ public class StreamManager implements StreamManagerMBean
      */
     private final Map<TimeUUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
     private final Map<TimeUUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();
+    private final Map<TimeUUID, StreamResultFuture> completedStreams = new NonBlockingHashMap<>();
 
     private final Cache<TimeUUID, StreamingState> states;
     private final StreamListener listener = new StreamListener()
@@ -332,6 +333,22 @@ public class StreamManager implements StreamManagerMBean
         }));
     }
 
+    public Set<CompositeData> getCompletedStreams()
+    {
+        return Sets.newHashSet(Iterables.transform(completedStreams.values(), new Function<StreamResultFuture, CompositeData>()
+        {
+            public CompositeData apply(StreamResultFuture input)
+            {
+                return StreamStateCompositeData.toCompositeData(input.getCurrentState());
+            }
+        }));
+    }
+
+    public Set<CompositeData> getAllStreams()
+    {
+        return Sets.union(getCurrentStreams(), getCompletedStreams());
+    }
+
     @Override
     public boolean getStreamingStatsEnabled()
     {
@@ -360,7 +377,10 @@ public class StreamManager implements StreamManagerMBean
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
-        result.addListener(() -> initiatorStreams.remove(result.planId));
+        result.addListener(() -> {
+            StreamResultFuture completedStream = initiatorStreams.remove(result.planId);
+            completedStreams.put(result.planId, completedStream);
+        });
 
         initiatorStreams.put(result.planId, result);
         notifySafeOnRegister(result);
@@ -370,7 +390,10 @@ public class StreamManager implements StreamManagerMBean
     {
         result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
-        result.addListener(() -> followerStreams.remove(result.planId));
+        result.addListener(() -> {
+            StreamResultFuture completedStream = followerStreams.remove(result.planId);
+            completedStreams.put(result.planId, completedStream);
+        });
 
         StreamResultFuture previous = followerStreams.putIfAbsent(result.planId, result);
         if (previous == null)
@@ -385,7 +408,7 @@ public class StreamManager implements StreamManagerMBean
     public void putInitiatorStream(StreamResultFuture future)
     {
         StreamResultFuture current = initiatorStreams.putIfAbsent(future.planId, future);
-        assert current == null: "Duplicat initiator stream for " + future.planId;
+        assert current == null: "Duplicate initiator stream for " + future.planId;
     }
 
     @VisibleForTesting

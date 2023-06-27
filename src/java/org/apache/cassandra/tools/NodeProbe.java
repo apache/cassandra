@@ -1070,6 +1070,17 @@ public class NodeProbe implements AutoCloseable
         }));
     }
 
+    public Set<StreamState> getCompletedStreamStatus()
+    {
+        return Sets.newHashSet(Iterables.transform(streamProxy.getCompletedStreams(), new Function<CompositeData, StreamState>()
+        {
+            public StreamState apply(CompositeData input)
+            {
+                return StreamStateCompositeData.fromCompositeData(input);
+            }
+        }));
+    }
+
     public String getOperationMode()
     {
         return ssProxy.getOperationMode();
