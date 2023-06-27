@@ -139,7 +139,9 @@ public class IndexStreamingTest extends TestBaseImpl
                            .columnsEqualTo("files_sent", "files_to_send", "bytes_sent", "bytes_to_send").isEqualTo("files_sent", 0L);
 
             // did we trigger slow event log?
-            cluster.forEach(i -> Assertions.assertThat(i.logs().grep("Handling streaming events took longer than").getResult()).describedAs("Unable to find slow log for node%d", i.config().num()).isNotEmpty());
+            cluster.forEach(i -> Assertions.assertThat(i.logs().grep("Handling streaming events took longer than").getResult())
+                                           .describedAs("Unable to find slow log for node%d", i.config().num())
+                                           .isNotEmpty());
 
             for (int i = 0; i < sstableCount; i++)
             {
