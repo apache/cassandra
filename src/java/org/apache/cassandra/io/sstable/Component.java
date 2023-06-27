@@ -63,12 +63,12 @@ public class Component
          *
          * @param name         type name, must be unique for this and all parent formats
          * @param repr         the regular expression to be used to recognize a name represents this type
-         * @param isStreamable whether components of this type should be streamed to other nodes
+         * @param streamable   whether components of this type should be streamed to other nodes
          * @param formatClass  format class for which this type is defined for
          */
-        public static Type create(String name, String repr, boolean isStreamable, Class<? extends SSTableFormat<?, ?>> formatClass)
+        public static Type create(String name, String repr, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
-            return new Type(name, repr, false, isStreamable, formatClass);
+            return new Type(name, repr, false, streamable, formatClass);
         }
 
         /**
@@ -76,12 +76,12 @@ public class Component
          *
          * @param name         type name, must be unique for this and all parent formats
          * @param repr         the regular expression to be used to recognize a name represents this type
-         * @param isStreamable whether components of this type should be streamed to other nodes
+         * @param streamable   whether components of this type should be streamed to other nodes
          * @param formatClass  format class for which this type is defined for
          */
-        public static Type createSingleton(String name, String repr, boolean isStreamable, Class<? extends SSTableFormat<?, ?>> formatClass)
+        public static Type createSingleton(String name, String repr, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
-            return new Type(name, repr, true, isStreamable, formatClass);
+            return new Type(name, repr, true, streamable, formatClass);
         }
 
         private Type(String name, String repr, boolean isSingleton, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
