@@ -64,7 +64,6 @@ Datacenter and rack naming convention. Options are `legacy` or
 *Default value:* standard
 
 [NOTE]
-.Note
 ====
 YOU MUST USE THE `legacy` VALUE IF YOU ARE UPGRADING A PRE-4.0 CLUSTER.
 ====

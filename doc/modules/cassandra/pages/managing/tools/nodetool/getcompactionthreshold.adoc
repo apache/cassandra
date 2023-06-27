@@ -1,0 +1,7 @@
+== getcompactionthreshold
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getcompactionthreshold.txt[]
+----

@@ -487,7 +487,6 @@ include::cassandra:example$RESULTS/flush_and_check.result[]
 ----
 
 [NOTE]
-.note
 ====
 The `backups` directory for any table, such as `cqlkeyspace/t` is created in the
 `data` directory for that table.

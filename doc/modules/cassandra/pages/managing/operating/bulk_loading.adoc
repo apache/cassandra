@@ -25,7 +25,7 @@ The `sstableloader` and `nodetool import` are accessible if the
 Cassandra installation `bin` directory is in the `PATH` environment
 variable. 
 Or these may be accessed directly from the `bin` directory. 
-The examples use the keyspaces and tables created in xref:cql/operating/backups.adoc[Backups].
+The examples use the keyspaces and tables created in xref:cassandra:developing/cql/operating/backups.adoc[Backups].
 
 == Using sstableloader
 

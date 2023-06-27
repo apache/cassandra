@@ -31,7 +31,7 @@ include::cassandra:example$CQL/create_role.cql[]
 By default roles do not possess `LOGIN` privileges or `SUPERUSER`
 status.
 
-xref:cql/security.adoc#cql-permissions[Permissions] on database resources are granted to
+xref:cassandra:developing/cql/security.adoc#cql-permissions[Permissions] on database resources are granted to
 roles; types of resources include keyspaces, tables, functions and roles
 themselves. Roles may be granted to other roles to create hierarchical
 permissions structures; in these hierarchies, permissions and
@@ -43,7 +43,7 @@ acquire any roles and privileges granted to that role.
 
 Only a client with with the `CREATE` permission on the database roles
 resource may issue `CREATE ROLE` requests (see the
-xref:cql/security.adoc#cql-permissions[relevant section]), unless the client is a
+xref:cassandra:developing/cql/security.adoc#cql-permissions[relevant section]), unless the client is a
 `SUPERUSER`. Role management in Cassandra is pluggable and custom
 implementations may support only a subset of the listed options.
 
@@ -163,14 +163,13 @@ query condition unless the `IF EXISTS` option is used. If the option is
 used and the role does not exist the statement is a no-op.
 
 [NOTE]
-.Note
 ====
 DROP ROLE intentionally does not terminate any open user sessions.
 Currently connected sessions will remain connected and will retain the
 ability to perform any database actions which do not require
-xref:cql/security.adoc#authorization[authorization]. 
-However, if authorization is enabled, xref:cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
-subject to the xref:cql/security.adoc#auth-caching[caching options] configured in xref:cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file. 
+xref:cassandra:developing/cql/security.adoc#authorization[authorization]. 
+However, if authorization is enabled, xref:cassandra:developing/cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
+subject to the xref:cassandra:developing/cql/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file. 
 Should a dropped role be subsequently recreated and have new xref:security.adoc#grant-permission-statement[permissions] or
 xref:security.adoc#grant-role-statement[roles]` granted to it, any client sessions still
 connected will acquire the newly granted permissions and roles.

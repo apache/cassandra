@@ -1,0 +1,7 @@
+== disablegossip
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/disablegossip.txt[]
+----

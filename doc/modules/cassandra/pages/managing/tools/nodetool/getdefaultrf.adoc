@@ -1,0 +1,7 @@
+== getdefaultrf
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getdefaultrf.txt[]
+----

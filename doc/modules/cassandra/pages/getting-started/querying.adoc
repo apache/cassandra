@@ -1,6 +1,6 @@
 = Inserting and querying
 
-The API for Cassandra is xref:cql/ddl.adoc[`CQL`, the Cassandra Query Language]. To
+The API for Cassandra is xref:cassandra:developing/cql/ddl.adoc[`CQL`, the Cassandra Query Language]. To
 use CQL, you will need to connect to the cluster, using either:
 
 * `cqlsh`, a shell for CQL

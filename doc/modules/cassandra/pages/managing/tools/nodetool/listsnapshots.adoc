@@ -1,0 +1,7 @@
+== listsnapshots
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/listsnapshots.txt[]
+----

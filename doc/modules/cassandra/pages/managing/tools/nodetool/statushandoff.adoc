@@ -1,0 +1,7 @@
+== statushandoff
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/statushandoff.txt[]
+----

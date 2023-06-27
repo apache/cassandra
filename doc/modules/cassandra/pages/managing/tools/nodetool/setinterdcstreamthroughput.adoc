@@ -1,0 +1,7 @@
+== setinterdcstreamthroughput
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/setinterdcstreamthroughput.txt[]
+----
