@@ -313,7 +313,7 @@ public class PostingsReader implements OrdinalPostingList
         }
         else
         {
-            final long id = currentFoRValues.get(postingIndex);
+            long id = currentFoRValues.get(postingIndex);
             postingsDecoded++;
             return Math.toIntExact(id);
         }

@@ -37,6 +37,10 @@ import static org.apache.lucene.codecs.CodecUtil.writeBELong;
 
 public class SAICodecUtils
 {
+    // Lucene switched from big-endian to little-endian file format, but retained
+    // big-endian values in CodecUtils header and footer for compatibility.
+    // We follow their lead and use explicitly big-endian values here.
+
     public static final String FOOTER_POINTER = "footerPointer";
 
     public static void writeHeader(IndexOutput out) throws IOException
@@ -233,7 +237,6 @@ public class SAICodecUtils
 
     /**
      * Writes CRC32 value as a 64-bit long to the output.
-     *
      * @throws IllegalStateException if CRC is formatted incorrectly (wrong bits set)
      * @throws IOException if an i/o error occurs
      */
@@ -249,7 +252,6 @@ public class SAICodecUtils
 
     /**
      * Reads CRC32 value as a 64-bit long from the input.
-     *
      * @throws CorruptIndexException if CRC is formatted incorrectly (wrong bits set)
      * @throws IOException if an i/o error occurs
      */

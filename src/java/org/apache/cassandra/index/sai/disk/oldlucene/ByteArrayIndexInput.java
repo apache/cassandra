@@ -26,12 +26,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 
 /**
- * A {@link IndexInput} backed by a byte array.
+ * A {@link IndexInput} backed by a byte array.  Copied from Lucene 7.5.
  *
- * ByteBufferIndexInput is nominally the blessed replacement for this, but
- * it's a pretty different API.
- *
- * @lucene.experimental
+ * (ByteBufferIndexInput looks at first glance like a modern replacement for this, but
+ * it's really only intended to be used for reading mmapped buffers.)
  */
 public final class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 {
