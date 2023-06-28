@@ -24,9 +24,9 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface ValueSerializer<K, V>
 {
-    int serializedSize(V value, int userVersion);
+    int serializedSize(K key, V value, int userVersion);
 
-    void serialize(V value, DataOutputPlus out, int userVersion) throws IOException;
+    void serialize(K key, V value, DataOutputPlus out, int userVersion) throws IOException;
 
     /**
      * Deserialize the value given the key is known. Allows to avoid serializing

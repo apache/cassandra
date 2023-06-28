@@ -358,6 +358,9 @@ public class AccordTestUtils
             public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
         };
 
+        AccordJournal journal = new AccordJournal();
+        journal.start();
+
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
         AccordCommandStore result = new AccordCommandStore(0,
                                                            time,
@@ -365,6 +368,7 @@ public class AccordTestUtils
                                                            null,
                                                            cs -> NOOP_PROGRESS_LOG,
                                                            holder,
+                                                           journal,
                                                            loadExecutor,
                                                            saveExecutor);
         holder.set(result);

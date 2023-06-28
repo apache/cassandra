@@ -57,6 +57,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.service.accord.AccordStateCache;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
@@ -80,6 +81,7 @@ public class TestBaseImpl extends DistributedTestBase
         ICluster.setup();
         SKIP_GC_INSPECTOR.setBoolean(true);
         System.setProperty("sigar.nativeLogging", "false");
+        AccordStateCache.validateLoadOnEvict(true);
     }
 
     @Override
