@@ -45,13 +45,11 @@ import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * A {@link SSTableMultiWriter} that splits the output sstable at the partition boundaries of the compaction
- * shards used by {@link org.apache.cassandra.db.compaction.UnifiedCompactionStrategy} as long as the size of
- * the sstable so far is sufficiently large.
+ * shards used by {@link org.apache.cassandra.db.compaction.UnifiedCompactionStrategy}.
  * <p/>
- * This is class is similar to {@link ShardedMultiWriter} but for flushing. Unfortunately
+ * This is class is similar to {@link ShardedCompactionWriter} but for flushing. Unfortunately
  * we currently have 2 separate writers hierarchy that are not compatible and so we must
- * duplicate the functionality of splitting sstables over compaction shards if they have
- * reached a minimum size.
+ * duplicate the functionality.
  */
 public class ShardedMultiWriter implements SSTableMultiWriter
 {

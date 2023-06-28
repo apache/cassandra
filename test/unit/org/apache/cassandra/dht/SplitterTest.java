@@ -90,16 +90,23 @@ public class SplitterTest
         List<Splitter.WeightedRange> ranges = new ArrayList<>();
         ranges.add(new Splitter.WeightedRange(1.0, t(0, 10)));
         ranges.add(new Splitter.WeightedRange(1.0, t(20, 30)));
-        ranges.add(new Splitter.WeightedRange(0.5, t(40, 60)));
+        ranges.add(new Splitter.WeightedRange(1.0, t(40, 50)));
 
-        List<Splitter.WeightedRange> ranges2 = new ArrayList<>();
+        List<Splitter.WeightedRange> ranges2 = new ArrayList<>(); // same total coverage, split point inside weight-1 range
         ranges2.add(new Splitter.WeightedRange(1.0, t(0, 10)));
         ranges2.add(new Splitter.WeightedRange(1.0, t(20, 30)));
-        ranges2.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+        ranges2.add(new Splitter.WeightedRange(0.5, t(40, 60)));
+
+        List<Splitter.WeightedRange> ranges3 = new ArrayList<>(); // same total coverage, split point inside weight-0.5 range
+        ranges3.add(new Splitter.WeightedRange(1.0, t(0, 10)));
+        ranges3.add(new Splitter.WeightedRange(0.5, t(15, 35)));
+        ranges3.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+
         IPartitioner partitioner = Murmur3Partitioner.instance;
         Splitter splitter = partitioner.splitter().get();
 
         assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges2, false));
+        assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges3, false));
     }
 
     @Test

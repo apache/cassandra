@@ -433,7 +433,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     /**
-     * @return a LinkedHashMap of arenas with buckets where order of arenas are preserved
+     * @return a list of the levels in the compaction hierarchy
      */
     @VisibleForTesting
     List<Level> getLevels()
@@ -442,14 +442,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     }
 
     /**
-     * Groups the sstables passed in into arenas and buckets. This is used by the strategy to determine
-     * new compactions, and by external tools in CNDB to analyze the strategy decisions.
+     * Groups the sstables passed in into levels. This is used by the strategy to determine
+     * new compactions, and by external tools to analyze the strategy decisions.
      *
-     * @param sstables a collection of the sstables to be assigned to arenas
+     * @param sstables a collection of the sstables to be assigned to levels
      * @param compactionFilter a filter to exclude CompactionSSTables,
      *                         e.g., {@link #isSuitableForCompaction}
      *
-     * @return a map of arenas to their buckets
+     * @return a list of the levels in the compaction hierarchy
      */
     public List<Level> getLevels(Collection<SSTableReader> sstables,
                                  Predicate<SSTableReader> compactionFilter)
@@ -464,13 +464,13 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         List<Level> levels = new ArrayList<>(MAX_LEVELS);
         suitable.sort(shardManager::compareByDensity);
 
-        double maxSize = controller.getMaxLevelDensity(0, controller.getBaseSstableSize(controller.getFanout(0)) / shardManager.localSpaceCoverage());
+        double maxDensity = controller.getMaxLevelDensity(0, controller.getBaseSstableSize(controller.getFanout(0)) / shardManager.localSpaceCoverage());
         int index = 0;
-        Level level = new Level(controller, index, 0, maxSize);
+        Level level = new Level(controller, index, 0, maxDensity);
         for (SSTableReader candidate : suitable)
         {
-            final double size = shardManager.density(candidate);
-            if (size < level.max)
+            final double density = shardManager.density(candidate);
+            if (density < level.max)
             {
                 level.add(candidate);
                 continue;
@@ -482,10 +482,10 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             while (true)
             {
                 ++index;
-                double minSize = maxSize;
-                maxSize = controller.getMaxLevelDensity(index, minSize);
-                level = new Level(controller, index, minSize, maxSize);
-                if (size < level.max)
+                double minDensity = maxDensity;
+                maxDensity = controller.getMaxLevelDensity(index, minDensity);
+                level = new Level(controller, index, minDensity, maxDensity);
+                if (density < level.max)
                 {
                     level.add(candidate);
                     break;
@@ -549,7 +549,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         final int threshold; // number of SSTables that trigger a compaction
         final double min; // min density of sstables for this level
         final double max; // max density of sstables for this level
-        int maxOverlap = -1; // maximum number of overlapping sstables
+        int maxOverlap = -1; // maximum number of overlapping sstables, i.e. maximum number of sstables that need
+                             // to be queried on this level for any given key
 
         Level(Controller controller, int index, double minSize, double maxSize)
         {
@@ -585,7 +586,13 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         }
 
         /**
-         * Return the compaction pick
+         * Return the compaction pick for this level.
+         * <p>
+         * This is done by splitting the level into buckets that we can treat as independent regions for compaction.
+         * We then use the maxOverlap value (i.e. the maximum number of sstables that can contain data for any covered
+         * key) of each bucket to determine if compactions are needed, and to prioritize the buckets that contribute
+         * most to the complexity of queries: if maxOverlap is below the level's threshold, no compaction is needed;
+         * otherwise, we choose one from the buckets that have the highest maxOverlap.
          */
         CompactionPick getCompactionPick(SelectionContext context)
         {
@@ -629,6 +636,24 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             return selected;
         }
 
+        /**
+         * Group the sstables in this level into buckets.
+         * <p>
+         * The buckets are formed by grouping sstables that overlap at some key together, and then expanded to cover
+         * any overlapping sstable according to the overlap inclusion method. With the usual TRANSITIVE method this
+         * results into non-overlapping buckets that can't affect one another and can be compacted in parallel without
+         * any loss of efficiency.
+         * <p>
+         * Other overlap inclusion methods are provided to cover situations where we may be okay with compacting
+         * sstables partially and doing more than the strictly necessary amount of compaction to solve a problem: e.g.
+         * after an upgrade from LCS where transitive overlap may cause a complete level to be compacted together
+         * (creating an operation that will take a very long time to complete) and we want to make some progress as
+         * quickly as possible at the cost of redoing some work.
+         * <p>
+         * The number of sstables that overlap at some key defines the "overlap" of a set of sstables. The maximum such
+         * value in the bucket is its "maxOverlap", i.e. the highest number of sstables we need to read to find the
+         * data associated with a given key.
+         */
         @VisibleForTesting
         List<Bucket> getBuckets(SelectionContext context)
         {
