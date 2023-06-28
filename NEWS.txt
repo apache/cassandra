@@ -51,6 +51,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.0.11
+======
+
+Upgrading
+---------
+    - Please beware that if you use Ec2Snitch or Ec2MultiRegionSnitch, by default it will 
+      communicate with AWS IMDS of version 2. This change is transparent, there does not need 
+      to be done anything upon upgrade. Furthermore, IMDS of version 2 can be configured to be required in AWS EC2 console.
+      Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
+
 4.0.8
 =====
 
