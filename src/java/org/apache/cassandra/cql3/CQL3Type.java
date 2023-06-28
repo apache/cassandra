@@ -834,13 +834,13 @@ public interface CQL3Type
         private static class RawVector extends Raw
         {
             private final CQL3Type.Raw element;
-            private final int dimention;
+            private final int dimension;
 
-            private RawVector(Raw element, int dimention)
+            private RawVector(Raw element, int dimension)
             {
                 super(true);
                 this.element = element;
-                this.dimention = dimention;
+                this.dimension = dimension;
             }
 
             @Override
@@ -865,7 +865,13 @@ public interface CQL3Type
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 CQL3Type type = element.prepare(keyspace, udts);
-                return new Vector(type.getType(), dimention);
+                return new Vector(type.getType(), dimension);
+            }
+
+            @Override
+            public String toString()
+            {
+                return "vector<" + element.toString() + ", " + dimension + '>';
             }
         }
 
