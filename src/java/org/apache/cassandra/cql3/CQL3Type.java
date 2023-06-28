@@ -867,6 +867,12 @@ public interface CQL3Type
                 CQL3Type type = element.prepare(keyspace, udts);
                 return new Vector(type.getType(), dimention);
             }
+
+            @Override
+            public String toString()
+            {
+                return "vector<" + element.toString() + ", " + dimention + '>';
+            }
         }
 
         private static class RawUT extends Raw

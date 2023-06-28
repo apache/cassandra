@@ -25,12 +25,14 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.NumberType;
 import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.lang.String.format;
@@ -48,13 +50,14 @@ public interface FunctionParameter
      * @param keyspace the current keyspace
      * @param arg a parameter value in a specific function call
      * @param receiverType the type of the object that will receive the result of the function call
+     * @param inferredTypes the types that have been inferred for the other parameters
      * @return the inferred data type of the parameter, or {@link null} it isn't possible to infer it
      */
     @Nullable
     default AbstractType<?> inferType(String keyspace,
                                       AssignmentTestable arg,
                                       @Nullable AbstractType<?> receiverType,
-                                      List<AbstractType<?>> previousTypes)
+                                      @Nullable List<AbstractType<?>> inferredTypes)
     {
         return arg.getCompatibleTypeIfKnown(keyspace);
     }
@@ -83,9 +86,9 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> previousTypes)
+                                             List<AbstractType<?>> inferredTypes)
             {
-                return wrapped.inferType(keyspace, arg, receiverType, previousTypes);
+                return wrapped.inferType(keyspace, arg, receiverType, inferredTypes);
             }
 
             @Override
@@ -130,7 +133,7 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> previousTypes)
+                                             List<AbstractType<?>> inferredTypes)
             {
                 AbstractType<?> inferred = arg.getCompatibleTypeIfKnown(keyspace);
                 return inferred != null ? inferred : types[0].getType();
@@ -168,7 +171,7 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> previousTypes)
+                                             List<AbstractType<?>> inferredTypes)
             {
                 AbstractType<?> type = arg.getCompatibleTypeIfKnown(keyspace);
                 return type == null && inferFromReceiver ? receiverType : type;
@@ -189,9 +192,10 @@ public interface FunctionParameter
     }
 
     /**
-     * @return a function parameter definition that accepts values with the same type as the first parameter
+     * @return a function parameter definition that accepts values of any type, provided that it's the same type as all
+     * the other parameters
      */
-    static FunctionParameter sameAsFirst()
+    static FunctionParameter sameAs(int index, FunctionParameter parameter)
     {
         return new FunctionParameter()
         {
@@ -199,21 +203,22 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> previousTypes)
+                                             @Nullable List<AbstractType<?>> inferredTypes)
             {
-                return previousTypes.get(0);
+                AbstractType<?> type = inferredTypes == null ? null : inferredTypes.get(index);
+                return type != null ? type : parameter.inferType(keyspace, arg, receiverType, inferredTypes);
             }
 
             @Override
             public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
             {
-                // nothing to do here, all types are accepted
+                parameter.validateType(name, arg, argType);
             }
 
             @Override
             public String toString()
             {
-                return "same";
+                return parameter.toString();
             }
         };
     }
@@ -333,6 +338,57 @@ public interface FunctionParameter
             public String toString()
             {
                 return "map";
+            }
+        };
+    }
+
+    /**
+     * @param type the type of the vector elements
+     * @return a function parameter definition that accepts values of type {@link VectorType} with elements of the
+     * specified {@code type} and any dimensions.
+     */
+    static FunctionParameter vector(CQL3Type type)
+    {
+        return new FunctionParameter()
+        {
+            @Override
+            public AbstractType<?> inferType(String keyspace,
+                                             AssignmentTestable arg,
+                                             @Nullable AbstractType<?> receiverType,
+                                             List<AbstractType<?>> inferredTypes)
+            {
+                if (arg instanceof Selectable.WithArrayLiteral)
+                    return VectorType.getInstance(type.getType(), ((Selectable.WithArrayLiteral) arg).getSize());
+
+                AbstractType<?> inferred = arg.getCompatibleTypeIfKnown(keyspace);
+                return inferred == null ? receiverType : inferred;
+            }
+
+            @Override
+            public void validateType(FunctionName name, AssignmentTestable arg, AbstractType<?> argType)
+            {
+                if (argType.isVector())
+                {
+                    VectorType<?> vectorType = (VectorType<?>) argType;
+                    if (vectorType.elementType.asCQL3Type() == type)
+                        return;
+                }
+                else if (argType instanceof ListType) // if it's terminal it will be a list
+                {
+                    ListType<?> listType = (ListType<?>) argType;
+                    if (listType.getElementsType().testAssignment(type.getType()) == NOT_ASSIGNABLE)
+                        return;
+                }
+
+                throw new InvalidRequestException(format("Function %s requires a %s vector argument, " +
+                                                         "but found argument %s of type %s",
+                                                         name, type, arg, argType.asCQL3Type()));
+            }
+
+            @Override
+            public String toString()
+            {
+                return format("vector<%s, n>", type);
             }
         };
     }

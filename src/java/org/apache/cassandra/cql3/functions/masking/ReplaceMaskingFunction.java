@@ -62,7 +62,9 @@ public class ReplaceMaskingFunction extends MaskingFunction
     /** @return a {@link FunctionFactory} to build new {@link ReplaceMaskingFunction}s. */
     public static FunctionFactory factory()
     {
-        return new MaskingFunction.Factory(NAME, FunctionParameter.anyType(true), FunctionParameter.sameAsFirst())
+        return new MaskingFunction.Factory(NAME,
+                                           FunctionParameter.anyType(true),
+                                           FunctionParameter.sameAs(0, FunctionParameter.anyType(true)))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)

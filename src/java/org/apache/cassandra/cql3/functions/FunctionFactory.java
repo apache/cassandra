@@ -90,9 +90,20 @@ public abstract class FunctionFactory
         if (numArgs < numMandatoryParameters || numArgs > numParameters)
             throw invalidNumberOfArgumentsException();
 
-        // try to infer the types of the arguments
+        // Do a first pass trying to infer the types of the arguments individually, without any context about the types
+        // of the other arguments. We don't do any validation during this first pass.
         List<AbstractType<?>> types = new ArrayList<>(args.size());
         for (int i = 0; i < args.size(); i++)
+        {
+            AssignmentTestable arg = args.get(i);
+            FunctionParameter parameter = parameters.get(i);
+            types.add(parameter.inferType(SchemaConstants.SYSTEM_KEYSPACE_NAME, arg, receiverType, null));
+        }
+
+        // Do a second pass trying to infer the types of the arguments considering the types of other inferred types.
+        // This is done in reverse order to favour a left-to-right reading, so arguments on the right have to match
+        // arguments on the left.
+        for (int i = args.size() - 1; i >= 0; i--)
         {
             AssignmentTestable arg = args.get(i);
             FunctionParameter parameter = parameters.get(i);
@@ -101,9 +112,14 @@ public abstract class FunctionFactory
                 throw new InvalidRequestException(String.format("Cannot infer type of argument %s in call to " +
                                                                 "function %s: use type casts to disambiguate",
                                                                 arg, this));
-            parameter.validateType(name, arg, type);
             type = type.udfType();
-            types.add(type);
+            types.set(i, type);
+        }
+
+        // Validate the inferred types of the arguments, again favouring a left-to-right reading.
+        for (int i = 0; i < args.size(); i++)
+        {
+            parameters.get(i).validateType(name, args.get(i), types.get(i));
         }
 
         return doGetOrCreateFunction(types, receiverType);
