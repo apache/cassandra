@@ -179,7 +179,7 @@ public abstract class Controller
      * for 0.5.
      */
     static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
-    static final double DEFAULT_SSTABLE_GROWTH = FBUtilities.parsePercent(System.getProperty(PREFIX + SSTABLE_GROWTH_OPTION, "0"));
+    static final double DEFAULT_SSTABLE_GROWTH = FBUtilities.parsePercent(System.getProperty(PREFIX + SSTABLE_GROWTH_OPTION, "0.5"));
 
     /**
      * Number of reserved threads to keep for each compaction level. This is used to ensure that there are always
