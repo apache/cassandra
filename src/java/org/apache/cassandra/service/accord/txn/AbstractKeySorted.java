@@ -111,7 +111,7 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
     abstract PartitionKey getKey(T item);
     abstract T[] newArray(int size);
 
-    private int compare(T left, T right)
+    public int compare(T left, T right)
     {
         int cmp = getKey(left).compareTo(getKey(right));
         return cmp != 0 ? cmp : compareNonKeyFields(left, right);

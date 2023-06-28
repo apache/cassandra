@@ -35,21 +35,18 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Result;
 import accord.impl.CommandTimeseries;
 import accord.impl.CommandsForKey;
 import accord.local.Command;
@@ -61,19 +58,18 @@ import accord.local.Listeners;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SaveStatus;
+import accord.local.SerializerSupport;
+import accord.local.SerializerSupport.MessageProvider;
+import accord.local.SerializerSupport.WaitingOnProvider;
 import accord.local.Status;
 import accord.local.Status.Durability;
 import accord.primitives.Ballot;
-import accord.primitives.Deps;
-import accord.primitives.PartialDeps;
-import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.primitives.Writes;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
@@ -144,18 +140,17 @@ import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordConfigurationService.SyncStatus;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
-import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static accord.utils.Invariants.checkArgument;
@@ -238,17 +233,14 @@ public class AccordKeyspace
               "accord commands",
               "CREATE TABLE %s ("
               + "store_id int,"
-              + "domain int," // this is stored as part of txn_id, used currently for more cheaper scans of the table
+              + "domain int," // this is stored as part of txn_id, used currently for cheaper scans of the table
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "status int,"
               + "route blob,"
               + "durability int,"
-              + "txn blob,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
               + format("promised_ballot %s,", TIMESTAMP_TUPLE)
               + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
-              + "dependencies blob,"
-              + "writes blob,"
               + "waiting_on blob,"
               + "listeners set<blob>, "
               + "PRIMARY KEY((store_id, domain, txn_id))"
@@ -260,10 +252,6 @@ public class AccordKeyspace
     private static class LocalVersionedSerializers
     {
         static final LocalVersionedSerializer<Route<?>> route = localSerializer(KeySerializers.route);
-        static final LocalVersionedSerializer<AccordRoutingKey> routingKey = localSerializer(AccordRoutingKey.serializer);
-        static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
-        static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
-        static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
         static final LocalVersionedSerializer<Command.DurableAndIdempotentListener> listeners = localSerializer(ListenerSerializers.listener);
         static final LocalVersionedSerializer<Topology> topology = localSerializer(TopologySerializers.topology);
         static final LocalVersionedSerializer<ReducingRangeMap<Timestamp>> rejectBefore = localSerializer(CommandStoreSerializers.rejectBefore);
@@ -295,27 +283,18 @@ public class AccordKeyspace
         public static final ColumnMetadata status = getColumn(Commands, "status");
         public static final ColumnMetadata route = getColumn(Commands, "route");
         public static final ColumnMetadata durability = getColumn(Commands, "durability");
-        static final ColumnMetadata txn = getColumn(Commands, "txn");
         public static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
         static final ColumnMetadata promised_ballot = getColumn(Commands, "promised_ballot");
         static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
-        static final ColumnMetadata dependencies = getColumn(Commands, "dependencies");
-        static final ColumnMetadata writes = getColumn(Commands, "writes");
         static final ColumnMetadata waiting_on = getColumn(Commands, "waiting_on");
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
 
-        public static ColumnMetadata[][] TRUNCATE_FIELDS = new ColumnMetadata[][] {
-             new ColumnMetadata[] { durability, execute_at, route, status },
-             new ColumnMetadata[] { durability, execute_at, route, status, writes },
-        };
+        public static final ColumnMetadata[] TRUNCATE_FIELDS = new ColumnMetadata[] { durability, execute_at, route, status };
 
         static
         {
-            for (ColumnMetadata[] cds : TRUNCATE_FIELDS)
-            {
-                for (int i = 1 ; i < cds.length ; ++i)
-                    checkState(cds[i - 1].compareTo(cds[i]) < 0);
-            }
+            for (int i = 1 ; i < TRUNCATE_FIELDS.length ; ++i)
+                Invariants.checkState(TRUNCATE_FIELDS[i - 1].compareTo(TRUNCATE_FIELDS[i]) < 0);
         }
     }
 
@@ -368,37 +347,24 @@ public class AccordKeyspace
         @Nullable
         public static Route<?> getRoute(Row row)
         {
-            Cell cell = row.getCell(route);
-            if (cell == null)
-                return null;
-            try
-            {
-                return deserializeOrNull(cell.buffer(), LocalVersionedSerializers.route);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            Cell<?> cell = row.getCell(route);
+            return deserializeRouteOrNull(cell);
         }
 
-        private static Object[] truncatedApplyLeaf(long newTimestamp, SaveStatus newSaveStatus, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, @Nullable Cell<?> writesCell, boolean updateTimestamps)
+        private static Object[] truncatedApplyLeaf(long newTimestamp, SaveStatus newSaveStatus, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, boolean updateTimestamps)
         {
             checkArgument(durabilityCell.column() == CommandsColumns.durability);
             checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
             checkArgument(routeCell.column() == CommandsColumns.route);
-            checkArgument(writesCell == null || writesCell.column() == CommandsColumns.writes);
-            boolean includeOutcome = writesCell != null;
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS[includeOutcome ? 1 : 0].length);
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS.length);
             int colIndex = 0;
             newLeaf[colIndex++] = updateTimestamps ? durabilityCell.withUpdatedTimestamp(newTimestamp) : durabilityCell;
             newLeaf[colIndex++] = updateTimestamps ? executeAtCell.withUpdatedTimestamp(newTimestamp) : executeAtCell;
             newLeaf[colIndex++] = updateTimestamps ? routeCell.withUpdatedTimestamp(newTimestamp) : routeCell;
             // Status always needs to use the new timestamp since we are replacing the existing value
             // All the other columns are being retained unmodified with at most updated timestamps to accomdate deletion
+            //noinspection UnusedAssignment
             newLeaf[colIndex++] = BufferCell.live(status, newTimestamp, ByteBufferAccessor.instance.valueOf(newSaveStatus.ordinal()));
-            if (includeOutcome)
-                //noinspection UnusedAssignment
-                newLeaf[colIndex++] = updateTimestamps ? writesCell.withUpdatedTimestamp(newTimestamp) : writesCell;
             return newLeaf;
         }
 
@@ -409,8 +375,6 @@ public class AccordKeyspace
             checkArgument(routeCell.column() == CommandsColumns.route);
             long oldTimestamp = row.primaryKeyLivenessInfo().timestamp();
             long newTimestamp = oldTimestamp + 1;
-            Cell<?> writesCell = withOutcome ? row.getCell(CommandsColumns.writes) : null;
-
             // If durability is not universal we don't want to delete older versions of the row that might have recorded
             // a higher durability value. maybeDropTruncatedCommandColumns will take care of dropping things even if we don't drop via tombstones.
             // durability should be the only column that could have an older value that is insufficient for propagating forward
@@ -418,10 +382,10 @@ public class AccordKeyspace
 
             // We may not have what we need to generate a deletion and include the outcome in the truncated row
             // so need to wait until we can have the outcome to issue the deletion otherwise it would be shadowed and lost
-            if (withOutcome && writesCell == null)
+            if (withOutcome)
                 doDeletion = false;
 
-            Object[] newLeaf = truncatedApplyLeaf(newTimestamp, newSaveStatus, durabilityCell, executeAtCell, routeCell, writesCell, doDeletion);
+            Object[] newLeaf = truncatedApplyLeaf(newTimestamp, newSaveStatus, durabilityCell, executeAtCell, routeCell, doDeletion);
 
             // Including a deletion allows future compactions to drop data before it gets to the purger
             // but it is pretty optional because maybeDropTruncatedCommandColumns will drop the extra columns
@@ -430,7 +394,7 @@ public class AccordKeyspace
             return BTreeRow.create(row.clustering(), LivenessInfo.create(newTimestamp, nowInSec), deletion, newLeaf);
         }
 
-        public static Row maybeDropTruncatedCommandColumns(Row row, boolean withOutcome, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, Cell<?> statusCell)
+        public static Row maybeDropTruncatedCommandColumns(Row row, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, Cell<?> statusCell)
         {
             checkArgument(durabilityCell.column() == CommandsColumns.durability);
             checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
@@ -440,31 +404,19 @@ public class AccordKeyspace
             // If it's the exact length of the post truncate column count without outcome fields
             // then it is exactly the columns needed for getting this far and withOutcome doesn't matter since
             // nothing additional is available to include anyway
-            if (colCount == TRUNCATE_FIELDS[0].length)
-                return row;
-
-            Cell<?> writesCell = row.getCell(CommandsColumns.writes);
-            // This has just the columns needed for truncation with outcome so return it unmodified
-            if (colCount == TRUNCATE_FIELDS[1].length && withOutcome)
+            if (colCount == TRUNCATE_FIELDS.length)
                 return row;
 
             // Construct a replacement with just the available columns that are still needed
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS[withOutcome ? 1 : 0].length);
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS.length);
             int colIndex = 0;
             newLeaf[colIndex++] = durabilityCell;
             newLeaf[colIndex++] = executeAtCell;
             newLeaf[colIndex++] = routeCell;
+            //noinspection UnusedAssignment
             newLeaf[colIndex++] = statusCell;
-            if (withOutcome && writesCell != null)
-                //noinspection UnusedAssignment
-                newLeaf[colIndex++] = writesCell;
 
-            return  BTreeRow.create(row.clustering(), row.primaryKeyLivenessInfo(), row.deletion(), newLeaf);
-        }
-
-        public static Writes getWrites(Row row) throws IOException
-        {
-            return deserializeWithVersionOr(row, writes, LocalVersionedSerializers.writes, () -> null);
+            return BTreeRow.create(row.clustering(), row.primaryKeyLivenessInfo(), row.deletion(), newLeaf);
         }
     }
 
@@ -723,53 +675,6 @@ public class AccordKeyspace
         }
     }
 
-    private static <T> T deserializeOrNull(ByteBuffer bytes, LocalVersionedSerializer<T> serializer) throws IOException
-    {
-        return bytes != null && !ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer) : null;
-    }
-
-    private static WaitingOn deserializeWaitingOn(@Nullable Deps deps, @Nullable ByteBuffer bytes) throws IOException
-    {
-        if (bytes == null || !bytes.hasRemaining())
-            return deps == null ? WaitingOn.EMPTY : WaitingOn.none(deps);
-
-        return WaitingOnSerializer.deserialize(deps, new DataInputBuffer(bytes, false));
-    }
-
-    private static <T extends Timestamp> ImmutableSortedSet<T> deserializeTimestampSet(Set<ByteBuffer> serialized, TimestampFactory<T> timestampFactory)
-    {
-        if (serialized == null || serialized.isEmpty())
-            return ImmutableSortedSet.of();
-
-        List<T> result = new ArrayList<>(serialized.size());
-        for (ByteBuffer bytes : serialized)
-            result.add(deserializeTimestampOrNull(bytes, timestampFactory));
-
-        return ImmutableSortedSet.copyOf(result);
-    }
-
-    private static ImmutableSortedSet<TxnId> deserializeTxnIdNavigableSet(UntypedResultSet.Row row, String name)
-    {
-        return deserializeTimestampSet(row.getSet(name, BytesType.instance), TxnId::fromBits);
-    }
-
-    private static Listeners.Immutable deserializeListeners(Set<ByteBuffer> serialized) throws IOException
-    {
-        if (serialized == null || serialized.isEmpty())
-            return Listeners.Immutable.EMPTY;
-        Listeners result = new Listeners();
-        for (ByteBuffer bytes : serialized)
-        {
-            result.add(deserialize(bytes, LocalVersionedSerializers.listeners));
-        }
-        return new Listeners.Immutable(result);
-    }
-
-    private static Listeners.Immutable deserializeListeners(UntypedResultSet.Row row, String name) throws IOException
-    {
-        return deserializeListeners(row.getSet(name, BytesType.instance));
-    }
-
     private interface SerializeFunction<V>
     {
         ByteBuffer apply(V v) throws IOException;
@@ -796,11 +701,6 @@ public class AccordKeyspace
     private static <C extends Command, V> void addCellIfModified(ColumnMetadata column, Function<C, V> get, LocalVersionedSerializer<V> serializer, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
     {
         addCellIfModified(column, get, v -> serializeOrNull(v, serializer), builder, timestampMicros, nowInSeconds, original, command);
-    }
-
-    private static <C extends Command, V> void addKeyCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
-    {
-        addCellIfModified(column, get, v -> serializeOrNull((AccordRoutingKey) v, LocalVersionedSerializers.routingKey), builder, timestampMicros, nowInSeconds, original, command);
     }
 
     private static <C extends Command, V extends Enum<V>> void addEnumCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, int nowInSeconds, C original, C command) throws IOException
@@ -885,20 +785,13 @@ public class AccordKeyspace
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestampMicros, nowInSeconds));
 
-            addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, nowInSeconds, original, command);
             addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.txn, Command::partialTxn, LocalVersionedSerializers.partialTxn, builder, timestampMicros, nowInSeconds, original, command);
-
+            addCellIfModified(CommandsColumns.route, Command::route, LocalVersionedSerializers.route, builder, timestampMicros, nowInSeconds, original, command);
+            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
+            addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
             addCellIfModified(CommandsColumns.accepted_ballot, Command::accepted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, command);
-
-            addCellIfModified(CommandsColumns.dependencies, Command::partialDeps, LocalVersionedSerializers.partialDeps, builder, timestampMicros, nowInSeconds, original, command);
-
-            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
-
-            addCellIfModified(CommandsColumns.writes, Command::writes, v -> serialize(v, LocalVersionedSerializers.writes), builder, timestampMicros, nowInSeconds, original, command);
 
             // TODO review this is just to work around Truncated not being committed but having a status after committed
             // so status claims it is committed.
@@ -1015,37 +908,6 @@ public class AccordKeyspace
     public static SaveStatus deserializeSaveStatusOrNull(Cell cell)
     {
         return cell == null ? null : CommandSerializers.saveStatus.forOrdinal(cell.accessor().getInt(cell.value(), 0));
-    }
-
-    public static Route<?> deserializeRouteOrNull(Cell cell)
-    {
-        if (cell == null)
-            return null;
-        try
-        {
-            return deserializeOrNull(cell.buffer(), LocalVersionedSerializers.route);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static <T> T deserializeWithVersionOr(UntypedResultSet.Row row, String dataColumn, LocalVersionedSerializer<T> serializer, Supplier<T> defaultSupplier) throws IOException
-    {
-        if (!row.has(dataColumn))
-            return defaultSupplier.get();
-
-        return deserialize(row.getBlob(dataColumn), serializer);
-    }
-
-    private static <T> T deserializeWithVersionOr(Row row, ColumnMetadata metadata, LocalVersionedSerializer<T> serializer, Supplier<T> defaultSupplier) throws IOException
-    {
-        Cell cell = row.getCell(metadata);
-        if (cell == null)
-            return defaultSupplier.get();
-
-        return deserialize(cell.buffer(), serializer);
     }
 
     public static UntypedResultSet loadCommandRow(CommandStore commandStore, TxnId txnId)
@@ -1206,7 +1068,7 @@ public class AccordKeyspace
                                            AccordKeyspace.serializeToken(start), startInclusive,
                                            AccordKeyspace.serializeToken(end), endInclusive,
                                            ImmutableSet.of("key"),
-                                           Stage.READ.executor(), Observable.distinct(callback).map(value -> AccordKeyspace.deserializeKey(value)));
+                                           Stage.READ.executor(), Observable.distinct(callback).map(AccordKeyspace::deserializeKey));
         work.schedule();
     }
 
@@ -1267,83 +1129,41 @@ public class AccordKeyspace
     public static Command loadCommand(AccordCommandStore commandStore, TxnId txnId)
     {
         commandStore.checkNotInStoreThread();
+        return unsafeLoadCommand(commandStore, txnId);
+    }
 
+    static Command unsafeLoadCommand(AccordCommandStore commandStore, TxnId txnId)
+    {
         UntypedResultSet rows = loadCommandRow(commandStore, txnId);
-
         if (rows.isEmpty())
-        {
             return null;
-        }
+        UntypedResultSet.Row row = rows.one();
 
         try
         {
-            UntypedResultSet.Row row = rows.one();
             checkState(deserializeTxnId(row).equals(txnId));
+
+            CommonAttributes.Mutable attrs =
+                new CommonAttributes.Mutable(txnId)
+                                    .durability(deserializeDurability(row))
+                                    .route(deserializeRouteOrNull(row))
+                                    .setListeners(deserializeListeners(row));
             SaveStatus status = deserializeStatus(row);
-            CommonAttributes.Mutable attributes = new CommonAttributes.Mutable(txnId);
-            // TODO: something less brittle than ordinal, more efficient than values()
-            attributes.durability(Status.Durability.values()[row.getInt("durability", 0)]);
-            attributes.route(deserializeOrNull(row.getBlob("route"), LocalVersionedSerializers.route));
-            attributes.partialTxn(deserializeTxn(row));
-            PartialDeps deps = deserializeDependencies(row);
-            attributes.partialDeps(deps);
-            attributes.setListeners(deserializeListeners(row, "listeners"));
-            WaitingOn waitingOn = deserializeWaitingOn(deps, row.getBlob("waiting_on"));
 
-            Timestamp executeAt = deserializeExecuteAt(row);
-            Ballot promised = deserializeTimestampOrNull(row, "promised_ballot", Ballot::fromBits);
-            Ballot accepted = deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits);
-            Writes writes = deserializeWithVersionOr(row, "writes", LocalVersionedSerializers.writes, () -> null);
+            Timestamp executeAt = deserializeExecuteAtOrNull(row);
+            Ballot promised = deserializePromisedOrNull(row);
+            Ballot accepted = deserializeAcceptedOrNull(row);
 
-            switch (status.status)
-            {
-                case NotDefined:
-                    return Command.SerializerSupport.notDefined(attributes, promised);
-                case PreAccepted:
-                    return Command.SerializerSupport.preaccepted(attributes, executeAt, promised);
-                case AcceptedInvalidate:
-                case Accepted:
-                case PreCommitted:
-                    return Command.SerializerSupport.accepted(attributes, status, executeAt, promised, accepted);
-                case Committed:
-                case ReadyToExecute:
-                    return Command.SerializerSupport.committed(attributes, status, executeAt, promised, accepted, waitingOn);
-                case PreApplied:
-                case Applied:
-                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOn, writes, Result.APPLIED);
-                case Truncated:
-                    return Command.SerializerSupport.truncatedApply(attributes, status, executeAt, writes, Result.APPLIED);
-                case Invalidated:
-                    return Command.SerializerSupport.invalidated(txnId, attributes.durableListeners());
-                default:
-                    throw new IllegalStateException("Unhandled status " + status);
-            }
-        }
-        catch (IOException e)
-        {
-            logger.error("Exception loading AccordCommand " + txnId, e);
-            throw new RuntimeException(e);
+            WaitingOnProvider waitingOn = deserializeWaitingOn(row);
+            MessageProvider messages = commandStore.makeMessageProvider(txnId);
+
+            return SerializerSupport.reconstruct(attrs, status, executeAt, promised, accepted, waitingOn, messages);
         }
         catch (Throwable t)
         {
             logger.error("Exception loading AccordCommand " + txnId, t);
-            throw t;
+            throw Throwables.unchecked(t);
         }
-    }
-
-    public static PartialDeps deserializeDependencies(UntypedResultSet.Row row) throws IOException
-    {
-        return deserializeOrNull(row.getBlob("dependencies"), LocalVersionedSerializers.partialDeps);
-    }
-
-    public static Timestamp deserializeExecuteAt(UntypedResultSet.Row row)
-    {
-        return deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
-    }
-
-    public static SaveStatus deserializeStatus(UntypedResultSet.Row row)
-    {
-        return SaveStatus.values()[row.getInt("status")];
     }
 
     public static TxnId deserializeTxnId(UntypedResultSet.Row row)
@@ -1351,9 +1171,88 @@ public class AccordKeyspace
         return deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits);
     }
 
-    public static PartialTxn deserializeTxn(UntypedResultSet.Row row) throws IOException
+    public static Status.Durability deserializeDurability(UntypedResultSet.Row row)
     {
-        return deserializeOrNull(row.getBlob("txn"), LocalVersionedSerializers.partialTxn);
+        // TODO (performance, expected): something less brittle than ordinal, more efficient than values()
+        return Status.Durability.values()[row.getInt("durability", 0)];
+    }
+
+    private static Route<?> deserializeRouteOrNull(ByteBuffer bytes) throws IOException
+    {
+        return bytes != null && !ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, LocalVersionedSerializers.route) : null;
+    }
+
+    private static Route<?> deserializeRouteOrNull(UntypedResultSet.Row row) throws IOException
+    {
+        return deserializeRouteOrNull(row.getBlob("route"));
+    }
+
+    public static Route<?> deserializeRouteOrNull(Cell<?> cell)
+    {
+        if (cell == null)
+            return null;
+
+        try
+        {
+            return deserializeRouteOrNull(cell.buffer());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Listeners.Immutable deserializeListeners(UntypedResultSet.Row row) throws IOException
+    {
+        Set<ByteBuffer> serialized = row.getSet("listeners", BytesType.instance);
+        if (serialized == null || serialized.isEmpty())
+            return Listeners.Immutable.EMPTY;
+
+        Listeners<Command.DurableAndIdempotentListener> result = new Listeners<>();
+        for (ByteBuffer bytes : serialized)
+            result.add(deserialize(bytes, LocalVersionedSerializers.listeners));
+        return new Listeners.Immutable(result);
+    }
+
+    public static SaveStatus deserializeStatus(UntypedResultSet.Row row)
+    {
+        // TODO (performance, expected): something less brittle than ordinal, more efficient than values()
+        return SaveStatus.values()[row.getInt("status")];
+    }
+
+    public static Timestamp deserializeExecuteAtOrNull(UntypedResultSet.Row row)
+    {
+        return deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
+    }
+
+    public static Ballot deserializePromisedOrNull(UntypedResultSet.Row row)
+    {
+        return deserializeTimestampOrNull(row.getBlob("promised_ballot"), Ballot::fromBits);
+    }
+
+    public static Ballot deserializeAcceptedOrNull(UntypedResultSet.Row row)
+    {
+        return deserializeTimestampOrNull(row.getBlob("accepted_ballot"), Ballot::fromBits);
+    }
+
+    private static WaitingOnProvider deserializeWaitingOn(UntypedResultSet.Row row)
+    {
+        ByteBuffer bytes = row.getBlob("waiting_on");
+
+        return (deps) ->
+        {
+            if (bytes == null || !bytes.hasRemaining())
+                return deps == null ? WaitingOn.EMPTY : WaitingOn.none(deps);
+
+            try
+            {
+                return WaitingOnSerializer.deserialize(deps, new DataInputBuffer(bytes, false));
+            }
+            catch (IOException e)
+            {
+                throw Throwables.unchecked(e);
+            }
+        };
     }
 
     public static PartitionKey deserializeKey(ByteBuffer buffer)
@@ -1516,6 +1415,11 @@ public class AccordKeyspace
     public static CommandsForKey loadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
         commandStore.checkNotInStoreThread();
+        return unsafeLoadCommandsForKey(commandStore, key);
+    }
+
+    static CommandsForKey unsafeLoadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
