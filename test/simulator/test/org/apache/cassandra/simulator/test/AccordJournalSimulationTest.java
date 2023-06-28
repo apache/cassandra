@@ -118,7 +118,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         {
             for (int i = 0; i < State.events; i++)
             {
-                TxnRequest<?> event = State.journal.read(State.toTxnId(i), AccordJournal.Type.PREACCEPT_REQ);
+                TxnRequest<?> event = State.journal.readMessage(State.toTxnId(i), AccordJournal.Type.PRE_ACCEPT, PreAccept.class);
                 State.logger.info("Event {} -> {}", i, event);
                 if (event == null)
                     throw new AssertionError(String.format("Unable to read event %d", i));
@@ -179,7 +179,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         public static void append(int event)
         {
             TxnRequest<?> request = toRequest(event);
-            journal.append(request, executor, new AsyncWriteCallback()
+            journal.appendMessage(request, executor, new AsyncWriteCallback()
             {
                 @Override
                 public void run()

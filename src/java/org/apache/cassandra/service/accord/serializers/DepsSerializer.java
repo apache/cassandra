@@ -33,6 +33,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.utils.NullableSerializer;
 
 import static accord.primitives.KeyDeps.SerializerSupport.keysToTxnIds;
 import static accord.primitives.KeyDeps.SerializerSupport.keysToTxnIdsCount;
@@ -74,6 +75,8 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
                  + KeySerializers.ranges.serializedSize(partialDeps.covering, version);
         }
     };
+
+    public static final IVersionedSerializer<PartialDeps> nullablePartialDeps = NullableSerializer.wrap(partialDeps);
 
     @Override
     public void serialize(D deps, DataOutputPlus out, int version) throws IOException
