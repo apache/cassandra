@@ -39,6 +39,7 @@ import static accord.utils.Invariants.checkState;
 import static java.lang.String.format;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_LOAD;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADED;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADING;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.SAVING;
 
@@ -51,6 +52,16 @@ import static org.apache.cassandra.service.accord.AccordCachingState.Status.SAVI
 public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?>>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordStateCache.class);
+
+    // Debug mode to verify that loading from journal + system tables results in
+    // functionally identical (or superceding) command to the one we've just evicted.
+    private static boolean VALIDATE_LOAD_ON_EVICT = false;
+
+    @VisibleForTesting
+    public static void validateLoadOnEvict(boolean value)
+    {
+        VALIDATE_LOAD_ON_EVICT = value;
+    }
 
     static class Stats
     {
@@ -163,6 +174,10 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         checkState(!isInQueue(node));
 
         bytesCached -= node.lastQueriedEstimatedSizeOnHeap;
+
+        if (node.status() == LOADED && VALIDATE_LOAD_ON_EVICT)
+            instanceForNode(node).validateLoadEvicted(node);
+
         if (!node.hasListeners())
         {
             AccordCachingState<?, ?> self = cache.remove(node.key());
@@ -185,10 +200,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         Function<AccordCachingState<K, V>, S> safeRefFactory,
         Function<K, V> loadFunction,
         BiFunction<V, V, Runnable> saveFunction,
+        BiFunction<K, V, Boolean> validateFunction,
         ToLongFunction<V> heapEstimator)
     {
         Instance<K, V, S> instance =
-            new Instance<>(keyClass, safeRefFactory, loadFunction, saveFunction, heapEstimator);
+            new Instance<>(keyClass, safeRefFactory, loadFunction, saveFunction, validateFunction, heapEstimator);
 
         if (instances.put(realKeyClass, instance) != null)
             throw new IllegalArgumentException(format("Cache instances for key type %s already exists", realKeyClass.getName()));
@@ -202,6 +218,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         private final Function<AccordCachingState<K, V>, S> safeRefFactory;
         private Function<K, V> loadFunction;
         private BiFunction<V, V, Runnable> saveFunction;
+        private final BiFunction<K, V, Boolean> validateFunction;
         private final ToLongFunction<V> heapEstimator;
         private final Stats stats = new Stats();
 
@@ -210,12 +227,14 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             Function<AccordCachingState<K, V>, S> safeRefFactory,
             Function<K, V> loadFunction,
             BiFunction<V, V, Runnable> saveFunction,
+            BiFunction<K, V, Boolean> validateFunction,
             ToLongFunction<V> heapEstimator)
         {
             this.keyClass = keyClass;
             this.safeRefFactory = safeRefFactory;
             this.loadFunction = loadFunction;
             this.saveFunction = saveFunction;
+            this.validateFunction = validateFunction;
             this.heapEstimator = heapEstimator;
         }
 
@@ -337,6 +356,16 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
 
             // TODO (performance, expected): triggering on every release is potentially heavy
             maybeEvictSomeNodes();
+        }
+
+        void validateLoadEvicted(AccordCachingState<?, ?> node)
+        {
+            @SuppressWarnings("unchecked")
+            AccordCachingState<K, V> state = (AccordCachingState<K, V>) node;
+            K key = state.key();
+            V evicted = state.get();
+            if (!validateFunction.apply(key, evicted))
+                throw new IllegalStateException("Reloaded value for key " + key + " is not equal to or fuller than evicted value " + evicted);
         }
 
         @VisibleForTesting

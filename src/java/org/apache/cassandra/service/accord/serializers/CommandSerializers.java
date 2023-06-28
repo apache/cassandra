@@ -29,6 +29,7 @@ import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
 import accord.local.Status.Durability;
+import accord.local.Status.Known;
 import accord.primitives.Ballot;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
@@ -183,6 +184,7 @@ public class CommandSerializers
     private static final IVersionedSerializer<Update> update = new CastingSerializer<>(TxnUpdate.class, TxnUpdate.serializer);
 
     public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
+    public static final IVersionedSerializer<PartialTxn> nullablePartialTxn = NullableSerializer.wrap(partialTxn);
 
     public static final EnumSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
     public static final EnumSerializer<Status> status = new EnumSerializer<>(Status.class);
@@ -221,6 +223,43 @@ public class CommandSerializers
             if (hasWrites)
                 size += TxnWrite.serializer.serializedSize((TxnWrite) writes.write, version);
             return size;
+        }
+    };
+
+    public static final IVersionedSerializer<Writes> nullableWrites = NullableSerializer.wrap(writes);
+
+    public static final EnumSerializer<Status.Definition> definition = new EnumSerializer<>(Status.Definition.class);
+    public static final EnumSerializer<Status.KnownExecuteAt> knownExecuteAt = new EnumSerializer<>(Status.KnownExecuteAt.class);
+    public static final EnumSerializer<Status.KnownDeps> knownDeps = new EnumSerializer<>(Status.KnownDeps.class);
+    public static final EnumSerializer<Status.Outcome> outcome = new EnumSerializer<>(Status.Outcome.class);
+
+    public static final IVersionedSerializer<Known> known = new IVersionedSerializer<Known>()
+    {
+        @Override
+        public void serialize(Known known, DataOutputPlus out, int version) throws IOException
+        {
+            definition.serialize(known.definition, out, version);
+            knownExecuteAt.serialize(known.executeAt, out, version);
+            knownDeps.serialize(known.deps, out, version);
+            outcome.serialize(known.outcome, out, version);
+        }
+
+        @Override
+        public Known deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return new Known(definition.deserialize(in, version),
+                             knownExecuteAt.deserialize(in, version),
+                             knownDeps.deserialize(in, version),
+                             outcome.deserialize(in, version));
+        }
+
+        @Override
+        public long serializedSize(Known known, int version)
+        {
+            return definition.serializedSize(known.definition, version)
+                 + knownExecuteAt.serializedSize(known.executeAt, version)
+                 + knownDeps.serializedSize(known.deps, version)
+                 + outcome.serializedSize(known.outcome, version);
         }
     };
 }

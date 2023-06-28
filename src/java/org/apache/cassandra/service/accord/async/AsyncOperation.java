@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.service.accord.async;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +34,7 @@ import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.primitives.RoutableKey;
+import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
@@ -135,7 +139,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys());
     }
 
-    private void callback(Object o, Throwable throwable)
+    private void onLoaded(Object o, Throwable throwable)
     {
         if (throwable != null)
         {
@@ -146,6 +150,11 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         {
             run();
         }
+    }
+
+    void onUnblocked()
+    {
+        commandStore.executor().execute(this);
     }
 
     private void state(State state)
@@ -166,11 +175,36 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         }
     }
 
+    @Nullable
+    TxnId primaryTxnId()
+    {
+        return preLoadContext.primaryTxnId();
+    }
+
+    @SuppressWarnings("unchecked")
+    Iterable<RoutableKey> keys()
+    {
+        Seekables<?, ?> keys = preLoadContext.keys();
+        switch (keys.domain())
+        {
+            default:
+                throw new IllegalStateException("Unhandled domain " + keys.domain());
+            case Key:
+                return (Iterable<RoutableKey>) keys;
+            case Range:
+                // TODO (expected): handle ranges
+                return Collections.emptyList();
+        }
+    }
+
     private void fail(Throwable throwable)
     {
+        commandStore.checkInStoreThread();
         Invariants.nonNull(throwable);
+
         if (state.isComplete())
             return;
+
         try
         {
             switch (state)
@@ -183,7 +217,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                     commandStore.abortCurrentOperation();
                 case LOADING:
                     context.releaseResources(commandStore);
-                    break;
+                    commandStore.executionOrder().unregister(this);
                 case INITIALIZED:
                     break; // nothing to clean up, call callback
             }
@@ -201,13 +235,17 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     protected void runInternal()
     {
+        Boolean canRun = null;
         switch (state)
         {
             default: throw new IllegalStateException("Unexpected state " + state);
             case INITIALIZED:
+                canRun = commandStore.executionOrder().register(this);
                 state(LOADING);
             case LOADING:
-                if (!loader.load(context, this::callback))
+                if (null == canRun)
+                    canRun = commandStore.executionOrder().canRun(this);
+                if (!loader.load(context, this::onLoaded) || !canRun)
                     return;
                 state(PREPARING);
             case PREPARING:
@@ -218,6 +256,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 safeStore.postExecute(context.commands, context.commandsForKeys);
                 context.releaseResources(commandStore);
                 commandStore.completeOperation(safeStore);
+                commandStore.executionOrder().unregister(this);
                 state(COMPLETING);
             case COMPLETING:
                 finish(result, null);

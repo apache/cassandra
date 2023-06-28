@@ -62,20 +62,20 @@ public class JournalTest
         journal.write(id3, 3L, Collections.singleton(1));
         journal.write(id4, 4L, Collections.singleton(1));
 
-        assertEquals(1L, (long) journal.read(id1));
-        assertEquals(2L, (long) journal.read(id2));
-        assertEquals(3L, (long) journal.read(id3));
-        assertEquals(4L, (long) journal.read(id4));
+        assertEquals(1L, (long) journal.readFirst(id1));
+        assertEquals(2L, (long) journal.readFirst(id2));
+        assertEquals(3L, (long) journal.readFirst(id3));
+        assertEquals(4L, (long) journal.readFirst(id4));
 
         journal.shutdown();
 
         journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
         journal.start();
 
-        assertEquals(1L, (long) journal.read(id1));
-        assertEquals(2L, (long) journal.read(id2));
-        assertEquals(3L, (long) journal.read(id3));
-        assertEquals(4L, (long) journal.read(id4));
+        assertEquals(1L, (long) journal.readFirst(id1));
+        assertEquals(2L, (long) journal.readFirst(id2));
+        assertEquals(3L, (long) journal.readFirst(id3));
+        assertEquals(4L, (long) journal.readFirst(id4));
 
         journal.shutdown();
     }
@@ -84,12 +84,12 @@ public class JournalTest
     {
         static final LongSerializer INSTANCE = new LongSerializer();
 
-        public int serializedSize(Long value, int userVersion)
+        public int serializedSize(TimeUUID key, Long value, int userVersion)
         {
             return Long.BYTES;
         }
 
-        public void serialize(Long value, DataOutputPlus out, int userVersion) throws IOException
+        public void serialize(TimeUUID key, Long value, DataOutputPlus out, int userVersion) throws IOException
         {
             out.writeLong(value);
         }

@@ -99,6 +99,7 @@ public class AccordCommandTest
         PartialRoute<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
+        commandStore.appendToJournal(preAccept);
 
         // Check preaccept
         getUninterruptibly(commandStore.execute(preAccept, instance -> {
@@ -131,6 +132,7 @@ public class AccordCommandTest
             deps = builder.build();
         }
         Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
+        commandStore.appendToJournal(accept);
 
         getUninterruptibly(commandStore.execute(accept, instance -> {
             Accept.AcceptReply reply = accept.apply(instance);
@@ -151,7 +153,8 @@ public class AccordCommandTest
         }));
 
         // check commit
-        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, executeAt, partialTxn, deps, fullRoute, null);
+        Commit commit = Commit.SerializerSupport.create(txnId, route, 1, Commit.Kind.Maximal, executeAt, partialTxn, deps, fullRoute, null);
+        commandStore.appendToJournal(commit);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
         getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
@@ -180,12 +183,14 @@ public class AccordCommandTest
         PartialRoute<?> route = fullRoute.slice(fullRange(txn));
         PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, false, 1, partialTxn, fullRoute);
+        commandStore.appendToJournal(preAccept1);
 
         getUninterruptibly(commandStore.execute(preAccept1, preAccept1::apply));
 
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, false, 1, partialTxn, fullRoute);
+        commandStore.appendToJournal(preAccept2);
         getUninterruptibly(commandStore.execute(preAccept2, instance -> {
             PreAccept.PreAcceptReply reply = preAccept2.apply(instance);
             Assert.assertTrue(reply.isOk());

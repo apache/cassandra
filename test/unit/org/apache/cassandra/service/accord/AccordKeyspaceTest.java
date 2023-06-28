@@ -29,11 +29,13 @@ import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
+import accord.messages.Commit;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
 import accord.primitives.Keys;
+import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
@@ -70,18 +72,23 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         RoutingKey routingKey = partialTxn.keys().get(0).asKey().toUnseekable();
         FullRoute<?> route = partialTxn.keys().toRoute(routingKey);
         Deps deps = new Deps(KeyDeps.none((Keys) txn.keys()), RangeDeps.NONE);
+        PartialDeps partialDeps = deps.slice(GLOBAL_SCOPE);
 
 
         CommonAttributes.Mutable common = new CommonAttributes.Mutable(id);
         common.partialTxn(partialTxn);
         common.route(route);
-        common.partialDeps(deps.slice(GLOBAL_SCOPE));
+        common.partialDeps(partialDeps);
         common.durability(Status.Durability.NotDurable);
-        Command.WaitingOn waitingOn = Command.WaitingOn.none(deps.slice(GLOBAL_SCOPE));
-        Command.Committed committed = Command.SerializerSupport.committed(common, SaveStatus.Committed, id, Ballot.ZERO, Ballot.ZERO, waitingOn);
+        Command.WaitingOn waitingOn = Command.WaitingOn.none(partialDeps);
 
+        Command.Committed committed = Command.SerializerSupport.committed(common, SaveStatus.Committed, id, Ballot.ZERO, Ballot.ZERO, waitingOn);
         AccordSafeCommand safeCommand = new AccordSafeCommand(AccordTestUtils.loaded(id, null));
         safeCommand.set(committed);
+
+        Commit commit = Commit.SerializerSupport.create(id, route.slice(GLOBAL_SCOPE), 1, Commit.Kind.Maximal, id, partialTxn, partialDeps, route, null);
+        store.appendToJournal(commit);
+
         Mutation mutation = AccordKeyspace.getCommandMutation(store, safeCommand, 42);
         mutation.apply();
 

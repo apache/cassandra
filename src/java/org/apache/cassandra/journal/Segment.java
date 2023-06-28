@@ -49,7 +49,7 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
      * Reading entries (by id, by offset, iterate)
      */
 
-    boolean read(K id, RecordConsumer<K> consumer)
+    boolean readFirst(K id, RecordConsumer<K> consumer)
     {
         int offset = index().lookUpFirst(id);
         if (offset == -1)
@@ -65,7 +65,7 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
         return false;
     }
 
-    boolean read(K id, EntrySerializer.EntryHolder<K> into)
+    boolean readFirst(K id, EntrySerializer.EntryHolder<K> into)
     {
         int offset = index().lookUpFirst(id);
         if (offset == -1 || !read(offset, into))

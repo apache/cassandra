@@ -831,7 +831,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 case TRUNCATE_WITH_OUTCOME:
                 case TRUNCATE:
                     if (saveStatus.compareTo(cleanup.appliesIfNot) >= 0)
-                        return maybeDropTruncatedCommandColumns(row, cleanup == TRUNCATE_WITH_OUTCOME, durabilityCell, executeAtCell, routeCell, statusCell);
+                        return maybeDropTruncatedCommandColumns(row, durabilityCell, executeAtCell, routeCell, statusCell);
                     return truncatedApply(cleanup.appliesIfNot,
                                           row, nowInSec, durability, durabilityCell, executeAtCell, routeCell, cleanup == TRUNCATE_WITH_OUTCOME);
 

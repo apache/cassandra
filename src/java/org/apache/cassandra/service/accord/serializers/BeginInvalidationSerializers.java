@@ -31,10 +31,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
-import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
-
 public class BeginInvalidationSerializers
 {
     public static final IVersionedSerializer<BeginInvalidation> request = new IVersionedSerializer<BeginInvalidation>()
@@ -69,35 +65,35 @@ public class BeginInvalidationSerializers
         @Override
         public void serialize(InvalidateReply reply, DataOutputPlus out, int version) throws IOException
         {
-            serializeNullable(reply.supersededBy, out, version, CommandSerializers.ballot);
+            CommandSerializers.nullableBallot.serialize(reply.supersededBy, out, version);
             CommandSerializers.ballot.serialize(reply.accepted, out, version);
             CommandSerializers.status.serialize(reply.status, out, version);
             out.writeBoolean(reply.acceptedFastPath);
-            serializeNullable(reply.route, out, version, KeySerializers.route);
-            serializeNullable(reply.homeKey, out, version, KeySerializers.routingKey);
+            KeySerializers.nullableRoute.serialize(reply.route, out, version);
+            KeySerializers.nullableRoutingKey.serialize(reply.homeKey, out, version);
         }
 
         @Override
         public InvalidateReply deserialize(DataInputPlus in, int version) throws IOException
         {
-            Ballot supersededBy = deserializeNullable(in, version, CommandSerializers.ballot);
+            Ballot supersededBy = CommandSerializers.nullableBallot.deserialize(in, version);
             Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
             Status status = CommandSerializers.status.deserialize(in, version);
             boolean acceptedFastPath = in.readBoolean();
-            Route<?> route = deserializeNullable(in, version, KeySerializers.route);
-            RoutingKey homeKey = deserializeNullable(in, version, KeySerializers.routingKey);
+            Route<?> route = KeySerializers.nullableRoute.deserialize(in, version);
+            RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
             return new InvalidateReply(supersededBy, accepted, status, acceptedFastPath, route, homeKey);
         }
 
         @Override
         public long serializedSize(InvalidateReply reply, int version)
         {
-            return serializedNullableSize(reply.supersededBy, version, CommandSerializers.ballot)
-                    + CommandSerializers.ballot.serializedSize(reply.accepted, version)
-                    + CommandSerializers.status.serializedSize(reply.status, version)
-                    + TypeSizes.BOOL_SIZE
-                    + serializedNullableSize(reply.route, version, KeySerializers.route)
-                    + serializedNullableSize(reply.homeKey, version, KeySerializers.routingKey);
+            return CommandSerializers.nullableBallot.serializedSize(reply.supersededBy, version)
+                 + CommandSerializers.ballot.serializedSize(reply.accepted, version)
+                 + CommandSerializers.status.serializedSize(reply.status, version)
+                 + TypeSizes.BOOL_SIZE
+                 + KeySerializers.nullableRoute.serializedSize(reply.route, version)
+                 + KeySerializers.nullableRoutingKey.serializedSize(reply.homeKey, version);
         }
     };
 }

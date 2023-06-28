@@ -19,5 +19,11 @@ package org.apache.cassandra.journal;
 
 public interface AsyncWriteCallback extends Runnable
 {
+    AsyncWriteCallback NOOP = new AsyncWriteCallback()
+    {
+        @Override public void onFailure(Throwable error) {}
+        @Override public void run() {}
+    };
+
     void onFailure(Throwable error);
 }

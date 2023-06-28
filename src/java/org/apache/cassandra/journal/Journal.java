@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
 import javax.annotation.Nonnull;
@@ -37,9 +39,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer.Context;
+import org.agrona.collections.ObjectHashSet;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.File;
@@ -75,7 +79,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
  * @param <K> the type of keys used to address the records;
               must be fixed-size and byte-order comparable
  */
-public class Journal<K, V>
+public class Journal<K, V> implements Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(Journal.class);
 
@@ -160,6 +164,12 @@ public class Journal<K, V>
             tmpFile.delete();
     }
 
+    @Override
+    public boolean isTerminated()
+    {
+        return false;
+    }
+
     public void shutdown()
     {
         allocator.shutdown();
@@ -171,28 +181,16 @@ public class Journal<K, V>
         metrics.deregister();
     }
 
-    /**
-     * Looks up a record by the provided id.
-     * <p/>
-     * Looking up an invalidated record may or may not return a record, depending on
-     * compaction progress.
-     * <p/>
-     * In case multiple copies of the record exist in the log (e.g. because of user retries),
-     * only the first found record will be consumed.
-     *
-     * @param id user-provided record id, expected to roughly correlate with time and go up
-     * @param consumer function to consume the raw record (bytes and invalidation set) if found
-     * @return true if the record was found, false otherwise
-     */
-    public boolean read(K id, RecordConsumer<K> consumer)
+    @Override
+    public Object shutdownNow()
     {
-        try (ReferencedSegments<K> segments = selectAndReference(id))
-        {
-            for (Segment<K> segment : segments.all())
-                if (segment.read(id, consumer))
-                    return true;
-        }
+        shutdown();
+        return null;
+    }
 
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
         return false;
     }
 
@@ -208,7 +206,7 @@ public class Journal<K, V>
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @return deserialized record if found, null otherwise
      */
-    public V read(K id)
+    public V readFirst(K id)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
 
@@ -216,12 +214,11 @@ public class Journal<K, V>
         {
             for (Segment<K> segment : segments.all())
             {
-                if (segment.read(id, holder))
+                if (segment.readFirst(id, holder))
                 {
                     try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
                     {
                         return valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion);
-
                     }
                     catch (IOException e)
                     {
@@ -231,8 +228,102 @@ public class Journal<K, V>
                 }
             }
         }
-
         return null;
+    }
+
+    /**
+     * Looks up a record by the provided id, if the value satisfies the provided condition.
+     * <p/>
+     * Looking up an invalidated record may or may not return a record, depending on
+     * compaction progress.
+     * <p/>
+     * In case multiple copies of the record exist in the log (e.g. because of user retries),
+     * and more than one of them satisfy the provided condition, the first one found will be returned.
+     *
+     * @param id user-provided record id, expected to roughly correlate with time and go up
+     * @param condition predicate to test the record against
+     * @return deserialized record if found, null otherwise
+     */
+    public V readFirstMatching(K id, Predicate<V> condition)
+    {
+        EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
+
+        try (ReferencedSegments<K> segments = selectAndReference(id))
+        {
+            for (Segment<K> segment : segments.all())
+            {
+                int[] offsets = segment.index().lookUp(id);
+                for (int offset : offsets)
+                {
+                    holder.clear();
+                    if (segment.read(offset, holder))
+                    {
+                        try (DataInputBuffer in = new DataInputBuffer(holder.value, false))
+                        {
+                            V record = valueSerializer.deserialize(holder.key, in, segment.descriptor.userVersion);
+                            if (condition.test(record))
+                                return record;
+                        }
+                        catch (IOException e)
+                        {
+                            // can only throw if serializer is buggy
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Looks up a record by the provided id.
+     * <p/>
+     * Looking up an invalidated record may or may not return a record, depending on
+     * compaction progress.
+     * <p/>
+     * In case multiple copies of the record exist in the log (e.g. because of user retries),
+     * only the first found record will be consumed.
+     *
+     * @param id user-provided record id, expected to roughly correlate with time and go up
+     * @param consumer function to consume the raw record (bytes and invalidation set) if found
+     * @return true if the record was found, false otherwise
+     */
+    public boolean readFirst(K id, RecordConsumer<K> consumer)
+    {
+        try (ReferencedSegments<K> segments = selectAndReference(id))
+        {
+            for (Segment<K> segment : segments.all())
+                if (segment.readFirst(id, consumer))
+                    return true;
+        }
+        return false;
+    }
+
+    /**
+     * Test for existence of entries with specified ids.
+     *
+     * @return subset of ids to test that have been found in the journal
+     */
+    public Set<K> test(Set<K> test)
+    {
+        Set<K> present = new ObjectHashSet<>(test.size() + 1, 0.9f);
+        try (ReferencedSegments<K> segments = selectAndReference(test))
+        {
+            for (Segment<K> segment : segments.all())
+            {
+                for (K id : test)
+                {
+                    if (segment.index().lookUpFirst(id) != -1)
+                    {
+                        present.add(id);
+                        if (test.size() == present.size())
+                            return present;
+                    }
+                }
+            }
+        }
+        return present;
     }
 
     /**
@@ -248,7 +339,7 @@ public class Journal<K, V>
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
-            valueSerializer.serialize(record, dob, params.userVersion());
+            valueSerializer.serialize(id, record, dob, params.userVersion());
             ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
             flusher.waitForFlush(alloc);
@@ -276,7 +367,7 @@ public class Journal<K, V>
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
-            valueSerializer.serialize(record, dob, params.userVersion());
+            valueSerializer.serialize(id, record, dob, params.userVersion());
             ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.asyncWrite(id, dob.unsafeGetBufferAndFlip(), hosts, executor, callback);
             flusher.asyncFlush(alloc);
@@ -466,19 +557,24 @@ public class Journal<K, V>
     }
 
     /**
-     * Select segments that could potentially have an entry with the specified id and
+     * Select segments that could potentially have any entry with the specified ids and
      * attempt to grab references to them all.
      *
      * @return a subset of segments with references to them
      */
-    ReferencedSegments<K> selectAndReference(K id)
+    ReferencedSegments<K> selectAndReference(Iterable<K> ids)
     {
         while (true)
         {
-            ReferencedSegments<K> referenced = segments().selectAndReference(id);
+            ReferencedSegments<K> referenced = segments().selectAndReference(ids);
             if (null != referenced)
                 return referenced;
         }
+    }
+
+    ReferencedSegments<K> selectAndReference(K id)
+    {
+        return selectAndReference(Collections.singleton(id));
     }
 
     private Segments<K> segments()
