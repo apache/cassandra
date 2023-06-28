@@ -52,6 +52,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.utils.NullableSerializer;
 
 public class KeySerializers
 {
@@ -59,6 +60,7 @@ public class KeySerializers
 
     public static final IVersionedSerializer<Key> key = (IVersionedSerializer<Key>) (IVersionedSerializer<?>) PartitionKey.serializer;
     public static final IVersionedSerializer<RoutingKey> routingKey = (IVersionedSerializer<RoutingKey>) (IVersionedSerializer<?>) AccordRoutingKey.serializer;
+    public static final IVersionedSerializer<RoutingKey> nullableRoutingKey = NullableSerializer.wrap(routingKey);
 
     public static final IVersionedSerializer<RoutingKeys> routingKeys = new AbstractKeysSerializer<RoutingKey, RoutingKeys>(routingKey, RoutingKey[]::new)
     {
@@ -199,6 +201,7 @@ public class KeySerializers
     public static final IVersionedSerializer<Route<?>> route = new AbstractRoutablesSerializer<>(
         EnumSet.of(UnseekablesKind.PartialKeyRoute, UnseekablesKind.FullKeyRoute, UnseekablesKind.PartialRangeRoute, UnseekablesKind.FullRangeRoute)
     );
+    public static final IVersionedSerializer<Route<?>> nullableRoute = NullableSerializer.wrap(route);
 
     public static final IVersionedSerializer<PartialRoute<?>> partialRoute = new AbstractRoutablesSerializer<>(
         EnumSet.of(UnseekablesKind.PartialKeyRoute, UnseekablesKind.PartialRangeRoute)

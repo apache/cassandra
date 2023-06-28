@@ -40,8 +40,9 @@ public class CommitSerializers
         @Override
         public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException
         {
+            out.writeBoolean(msg.kind == Commit.Kind.Maximal);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
-            serializeNullable(msg.partialTxn, out, version, CommandSerializers.partialTxn);
+            CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
             DepsSerializer.partialDeps.serialize(msg.partialDeps, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
             serializeNullable(msg.read, out, version, ReadDataSerializers.request);
@@ -51,8 +52,9 @@ public class CommitSerializers
         public Commit deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
             return Commit.SerializerSupport.create(txnId, scope, waitForEpoch,
+                                                   in.readBoolean() ? Commit.Kind.Maximal : Commit.Kind.Minimal,
                                                    CommandSerializers.timestamp.deserialize(in, version),
-                                                   deserializeNullable(in, version, CommandSerializers.partialTxn),
+                                                   CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                                    DepsSerializer.partialDeps.deserialize(in, version),
                                                    deserializeNullable(in, version, KeySerializers.fullRoute),
                                                    deserializeNullable(in, version, ReadDataSerializers.request)
@@ -62,8 +64,9 @@ public class CommitSerializers
         @Override
         public long serializedBodySize(Commit msg, int version)
         {
-            return CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
-                   + serializedNullableSize(msg.partialTxn, version, CommandSerializers.partialTxn)
+            return TypeSizes.BOOL_SIZE
+                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
+                   + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version)
                    + DepsSerializer.partialDeps.serializedSize(msg.partialDeps, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
                    + serializedNullableSize(msg.read, version, ReadDataSerializers.request);

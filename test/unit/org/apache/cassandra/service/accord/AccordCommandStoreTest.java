@@ -34,9 +34,12 @@ import accord.impl.CommandsForKey;
 import accord.local.Command;
 import accord.local.CommonAttributes;
 import accord.local.SaveStatus;
+import accord.messages.Apply;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
+import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -107,7 +110,8 @@ public class AccordCommandStoreTest
 
         CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
         PartialTxn txn = createPartialTxn(0);
-        attrs.route(RoutingKeys.of(key.toUnseekable()).toRoute(key.toUnseekable()));
+        Route<?> route = RoutingKeys.of(key.toUnseekable()).toRoute(key.toUnseekable());
+        attrs.route(route);
         attrs.durability(Majority);
         Ballot promised = ballot(1, clock.incrementAndGet(), 1);
         Ballot accepted = ballot(1, clock.incrementAndGet(), 1);
@@ -120,12 +124,27 @@ public class AccordCommandStoreTest
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies, new ImmutableBitSet(waitingOnCommit), new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
+
+
         Command command = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
                                                              waitingOn, result.left, Result.APPLIED);
-
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
+
+        Apply apply =
+            Apply.SerializationSupport.create(txnId,
+                                              route.slice(Ranges.of(TokenRange.fullRange("ks"))),
+                                              1L,
+                                              Apply.Kind.Minimal,
+                                              depTxn.keys(),
+                                              executeAt,
+                                              dependencies,
+                                              null,
+                                              result.left,
+                                              Result.APPLIED);
+        commandStore.appendToJournal(apply);
         AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
+
         logger.info("E: {}", command);
         Command actual = AccordKeyspace.loadCommand(commandStore, txnId);
         logger.info("A: {}", actual);

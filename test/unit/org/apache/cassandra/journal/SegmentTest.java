@@ -76,22 +76,22 @@ public class SegmentTest
         // read all 4 entries by id and compare with originals
         EntrySerializer.EntryHolder<TimeUUID> holder = new EntrySerializer.EntryHolder<>();
 
-        segment.read(id1, holder);
+        segment.readFirst(id1, holder);
         assertEquals(id1, holder.key);
         assertEquals(hosts1, holder.hosts);
         assertEquals(record1, holder.value);
 
-        segment.read(id2, holder);
+        segment.readFirst(id2, holder);
         assertEquals(id2, holder.key);
         assertEquals(hosts2, holder.hosts);
         assertEquals(record2, holder.value);
 
-        segment.read(id3, holder);
+        segment.readFirst(id3, holder);
         assertEquals(id3, holder.key);
         assertEquals(hosts3, holder.hosts);
         assertEquals(record3, holder.value);
 
-        segment.read(id4, holder);
+        segment.readFirst(id4, holder);
         assertEquals(id4, holder.key);
         assertEquals(hosts4, holder.hosts);
         assertEquals(record4, holder.value);
@@ -143,22 +143,22 @@ public class SegmentTest
         // read all 4 entries by id and compare with originals
         EntrySerializer.EntryHolder<TimeUUID> holder = new EntrySerializer.EntryHolder<>();
 
-        staticSegment.read(id1, holder);
+        staticSegment.readFirst(id1, holder);
         assertEquals(id1, holder.key);
         assertEquals(hosts1, holder.hosts);
         assertEquals(record1, holder.value);
 
-        staticSegment.read(id2, holder);
+        staticSegment.readFirst(id2, holder);
         assertEquals(id2, holder.key);
         assertEquals(hosts2, holder.hosts);
         assertEquals(record2, holder.value);
 
-        staticSegment.read(id3, holder);
+        staticSegment.readFirst(id3, holder);
         assertEquals(id3, holder.key);
         assertEquals(hosts3, holder.hosts);
         assertEquals(record3, holder.value);
 
-        staticSegment.read(id4, holder);
+        staticSegment.readFirst(id4, holder);
         assertEquals(id4, holder.key);
         assertEquals(hosts4, holder.hosts);
         assertEquals(record4, holder.value);

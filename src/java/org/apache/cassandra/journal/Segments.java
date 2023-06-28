@@ -137,18 +137,18 @@ class Segments<K>
     }
 
     /**
-     * Select segments that could potentially have an entry with the specified id and
+     * Select segments that could potentially have an entry with the specified ids and
      * attempt to grab references to them all.
      *
      * @return a subset of segments with references to them, or {@code null} if failed to grab the refs
      */
     @SuppressWarnings("resource")
-    ReferencedSegments<K> selectAndReference(K id)
+    ReferencedSegments<K> selectAndReference(Iterable<K> ids)
     {
         List<ActiveSegment<K>> selectedActive = null;
         for (ActiveSegment<K> segment : onlyActive())
         {
-            if (segment.index.mayContainId(id))
+            if (segment.index.mayContainIds(ids))
             {
                 if (null == selectedActive)
                     selectedActive = new ArrayList<>();
@@ -160,7 +160,7 @@ class Segments<K>
         Map<Descriptor, StaticSegment<K>> selectedStatic = null;
         for (StaticSegment<K> segment : onlyStatic())
         {
-            if (segment.index().mayContainId(id))
+            if (segment.index().mayContainIds(ids))
             {
                 if (null == selectedStatic)
                     selectedStatic = new HashMap<>();

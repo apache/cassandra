@@ -42,6 +42,9 @@ import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
+import accord.messages.Accept;
+import accord.messages.Commit;
+import accord.messages.PreAccept;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
@@ -50,6 +53,7 @@ import accord.primitives.PartialRoute;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
+import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -160,7 +164,20 @@ public class AsyncOperationTest
         Command command = AccordTestUtils.Commands.committed(txnId, createPartialTxn(0), executeAt);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
+
         AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
+        Commit commit =
+            Commit.SerializerSupport.create(txnId,
+                                            command.route().slice(AccordTestUtils.fullRange(command.partialTxn().keys())),
+                                            txnId.epoch(),
+                                            Commit.Kind.Maximal,
+                                            executeAt,
+                                            command.partialTxn(),
+                                            command.partialDeps(),
+                                            Route.castToFullRoute(command.route()),
+                                            null);
+        commandStore.appendToJournal(commit);
+
         return command;
     }
 
@@ -182,20 +199,37 @@ public class AsyncOperationTest
         Ranges ranges = AccordTestUtils.fullRange(partialTxn.keys());
         PartialRoute<?> partialRoute = route.slice(ranges);
         PartialDeps deps = PartialDeps.builder(ranges).build();
+
+        // create and write messages to the journal for loading to succeed
+        PreAccept preAccept =
+            PreAccept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, txnId.epoch(), partialTxn, route);
+        Accept accept =
+            Accept.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), txnId.epoch(), false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
+        Commit commit =
+            Commit.SerializerSupport.create(txnId, partialRoute, txnId.epoch(), Commit.Kind.Minimal, executeAt, partialTxn, deps, route, null);
+
+        commandStore.appendToJournal(preAccept);
+        commandStore.appendToJournal(accept);
+        commandStore.appendToJournal(commit);
+
         try
         {
-            return getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
+            Command command = getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, executeAt, deps);
                 CheckedCommands.commit(safe, txnId, route, null, partialTxn, executeAt, deps);
+                return safe.ifInitialised(txnId).current();
+            }).beginAsResult());
 
-                // clear cache
+            // clear cache
+            commandStore.executeBlocking(() -> {
                 long cacheSize = commandStore.getCacheSize();
                 commandStore.setCacheSize(0);
                 commandStore.setCacheSize(cacheSize);
+                commandStore.cache().awaitSaveResults();
+            });
 
-                return safe.ifInitialised(txnId).current();
-            }).beginAsResult());
+            return command;
         }
         catch (ExecutionException e)
         {

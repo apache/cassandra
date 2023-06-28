@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -52,10 +53,12 @@ import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
+import accord.local.SerializerSupport;
+import accord.local.SerializerSupport.MessageProvider;
+import accord.messages.Message;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
-import accord.primitives.PartialDeps;
-import accord.primitives.PartialTxn;
+import accord.primitives.Ballot;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -75,6 +78,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
+import org.apache.cassandra.service.accord.async.ExecutionOrder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -103,7 +107,9 @@ public class AccordCommandStore extends CommandStore
 
     private final long threadId;
     public final String loggingId;
+    private final AccordJournal journal;
     private final ExecutorService executor;
+    private final ExecutionOrder executionOrder;
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
     private final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
@@ -117,9 +123,10 @@ public class AccordCommandStore extends CommandStore
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
-                              EpochUpdateHolder epochUpdateHolder)
+                              EpochUpdateHolder epochUpdateHolder,
+                              AccordJournal journal)
     {
-        this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, Stage.READ.executor(), Stage.MUTATION.executor());
+        this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor());
     }
 
     @VisibleForTesting
@@ -129,13 +136,16 @@ public class AccordCommandStore extends CommandStore
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               EpochUpdateHolder epochUpdateHolder,
+                              AccordJournal journal,
                               ExecutorPlus loadExecutor,
                               ExecutorPlus saveExecutor)
     {
         super(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder);
+        this.journal = journal;
         loggingId = String.format("[%s]", id);
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
-        threadId = getThreadId(this.executor);
+        executionOrder = new ExecutionOrder();
+        threadId = getThreadId(executor);
         stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20);
         commandCache =
             stateCache.instance(TxnId.class,
@@ -143,6 +153,7 @@ public class AccordCommandStore extends CommandStore
                                 AccordSafeCommand::new,
                                 this::loadCommand,
                                 this::saveCommand,
+                                this::validateCommand,
                                 AccordObjectSizes::command);
         commandsForKeyCache =
             stateCache.instance(RoutableKey.class,
@@ -150,6 +161,7 @@ public class AccordCommandStore extends CommandStore
                                 AccordSafeCommandsForKey::new,
                                 this::loadCommandsForKey,
                                 this::saveCommandsForKey,
+                                this::validateCommandsForKey,
                                 AccordObjectSizes::commandsForKey);
         AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
             executor.submit(() -> {
@@ -169,27 +181,36 @@ public class AccordCommandStore extends CommandStore
         executor.execute(this::loadRangesToCommands);
     }
 
+    static Factory factory(AccordJournal journal)
+    {
+        return (id, time, agent, dataStore, progressLogFactory, rangesForEpoch) ->
+               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, journal);
+    }
+
     private void loadRangesToCommands()
     {
         AsyncPromise<CommandsForRanges> future = new AsyncPromise<>();
-        AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "txn", "execute_at", "dependencies"), new Observable<UntypedResultSet.Row>()
+        AccordKeyspace.findAllCommandsByDomain(id, Routable.Domain.Range, ImmutableSet.of("txn_id", "status", "accepted_ballot", "execute_at"), new Observable<UntypedResultSet.Row>()
         {
             private CommandsForRanges.Builder builder = new CommandsForRanges.Builder();
+
             @Override
             public void onNext(UntypedResultSet.Row row) throws Exception
             {
                 TxnId txnId = AccordKeyspace.deserializeTxnId(row);
                 SaveStatus status = AccordKeyspace.deserializeStatus(row);
-                Timestamp executeAt = AccordKeyspace.deserializeExecuteAt(row);
+                Timestamp executeAt = AccordKeyspace.deserializeExecuteAtOrNull(row);
+                Ballot accepted = AccordKeyspace.deserializeAcceptedOrNull(row);
 
-                PartialTxn txn = AccordKeyspace.deserializeTxn(row);
-                Seekables<?, ?> keys = txn.keys();
+                MessageProvider messageProvider = journal.makeMessageProvider(txnId);
+
+                SerializerSupport.TxnAndDeps txnAndDeps = SerializerSupport.extractTxnAndDeps(status, accepted, messageProvider);
+                Seekables<?, ?> keys = txnAndDeps.txn.keys();
                 if (keys.domain() != Routable.Domain.Range)
-                    throw new AssertionError(String.format("Txn keys are not range for %s", txn));
+                    throw new AssertionError(String.format("Txn keys are not range for %s", txnAndDeps.txn));
                 Ranges ranges = (Ranges) keys;
 
-                PartialDeps deps = AccordKeyspace.deserializeDependencies(row);
-                List<TxnId> dependsOn = deps == null ? Collections.emptyList() : deps.txnIds();
+                List<TxnId> dependsOn = txnAndDeps.deps == null ? Collections.emptyList() : txnAndDeps.deps.txnIds();
                 builder.put(txnId, ranges, status, executeAt, dependsOn);
             }
 
@@ -270,11 +291,6 @@ public class AccordCommandStore extends CommandStore
         return AccordKeyspace.loadCommand(this, txnId);
     }
 
-    CommandsForKey loadCommandsForKey(RoutableKey key)
-    {
-        return AccordKeyspace.loadCommandsForKey(this, (PartitionKey) key);
-    }
-
     @Nullable
     Runnable saveCommand(Command before, Command after)
     {
@@ -282,11 +298,28 @@ public class AccordCommandStore extends CommandStore
         return null != mutation ? mutation::apply : null;
     }
 
+    boolean validateCommand(TxnId txnId, Command evicting)
+    {
+        Command reloaded = AccordKeyspace.unsafeLoadCommand(this, txnId);
+        return (evicting == null && reloaded == null) || (evicting != null && reloaded != null && reloaded.isEqualOrFuller(evicting));
+    }
+
+    CommandsForKey loadCommandsForKey(RoutableKey key)
+    {
+        return AccordKeyspace.loadCommandsForKey(this, (PartitionKey) key);
+    }
+
     @Nullable
     private Runnable saveCommandsForKey(CommandsForKey before, CommandsForKey after)
     {
         Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(id, before, after, nextSystemTimestampMicros());
         return null != mutation ? mutation::apply : null;
+    }
+
+    boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
+    {
+        CommandsForKey reloaded = AccordKeyspace.unsafeLoadCommandsForKey(this, (PartitionKey) key);
+        return Objects.equals(evicting, reloaded);
     }
 
     @VisibleForTesting
@@ -349,6 +382,11 @@ public class AccordCommandStore extends CommandStore
     ProgressLog progressLog()
     {
         return progressLog;
+    }
+
+    public ExecutionOrder executionOrder()
+    {
+        return executionOrder;
     }
 
     @Override
@@ -494,5 +532,16 @@ public class AccordCommandStore extends CommandStore
     {
         super.markShardDurable(safeStore, globalSyncId, ranges);
         commandsForRanges.prune(globalSyncId, ranges);
+    }
+
+    MessageProvider makeMessageProvider(TxnId txnId)
+    {
+        return journal.makeMessageProvider(txnId);
+    }
+
+    @VisibleForTesting
+    public void appendToJournal(Message message)
+    {
+        journal.appendMessageBlocking(message);
     }
 }

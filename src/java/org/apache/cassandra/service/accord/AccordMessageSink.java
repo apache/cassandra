@@ -66,9 +66,11 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.ACCEPT_REQ,               Verb.ACCORD_ACCEPT_REQ);
             mapping.put(MessageType.ACCEPT_RSP,               Verb.ACCORD_ACCEPT_RSP);
             mapping.put(MessageType.ACCEPT_INVALIDATE_REQ,    Verb.ACCORD_ACCEPT_INVALIDATE_REQ);
-            mapping.put(MessageType.COMMIT_REQ,               Verb.ACCORD_COMMIT_REQ);
+            mapping.put(MessageType.COMMIT_MINIMAL_REQ,       Verb.ACCORD_COMMIT_REQ);
+            mapping.put(MessageType.COMMIT_MAXIMAL_REQ,       Verb.ACCORD_COMMIT_REQ);
             mapping.put(MessageType.COMMIT_INVALIDATE_REQ,    Verb.ACCORD_COMMIT_INVALIDATE_REQ);
-            mapping.put(MessageType.APPLY_REQ,                Verb.ACCORD_APPLY_REQ);
+            mapping.put(MessageType.APPLY_MINIMAL_REQ,        Verb.ACCORD_APPLY_REQ);
+            mapping.put(MessageType.APPLY_MAXIMAL_REQ,        Verb.ACCORD_APPLY_REQ);
             mapping.put(MessageType.APPLY_RSP,                Verb.ACCORD_APPLY_RSP);
             mapping.put(MessageType.READ_REQ,                 Verb.ACCORD_READ_REQ);
             mapping.put(MessageType.READ_RSP,                 Verb.ACCORD_READ_RSP);
@@ -99,8 +101,15 @@ public class AccordMessageSink implements MessageSink
                 // Any request can receive a generic failure response
                 if (type == MessageType.FAILURE_RSP)
                     continue;
-                if (!mapping.containsKey(type))
-                    throw new AssertionError("Missing mapping for Accord MessageType " + type);
+
+                if (mapping.containsKey(type))
+                {
+                    if (type.isLocal()) throw new AssertionError("Extraneous mapping for LOCAL Accord MessageType " + type);
+                }
+                else
+                {
+                    if (type.isRemote()) throw new AssertionError("Missing mapping for REMOTE Accord MessageType " + type);
+                }
             }
         }
     }

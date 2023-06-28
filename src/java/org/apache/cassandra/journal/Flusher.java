@@ -281,7 +281,7 @@ final class Flusher<K, V>
     {
         pending.incrementAndGet();
         requestExtraFlush();
-        // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO FIXME
+        // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO (expected): collect async flush metrics
         pending.decrementAndGet();
         written.incrementAndGet();
     }
@@ -297,7 +297,7 @@ final class Flusher<K, V>
     private void asyncFlushGroup(ActiveSegment<K>.Allocation alloc)
     {
         pending.incrementAndGet();
-        // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO FIXME
+        // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO (expected): collect async flush metrics
         pending.decrementAndGet();
         written.incrementAndGet();
     }
@@ -317,7 +317,7 @@ final class Flusher<K, V>
     private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore)
     {
         pending.incrementAndGet();
-        // awaitFlushAt(expectedFlushTime, journal.metrics.waitingOnFlush.time()); // TODO FIXME
+        // awaitFlushAt(expectedFlushTime, journal.metrics.waitingOnFlush.time()); // TODO (expected): collect async flush metrics
         pending.decrementAndGet();
         written.incrementAndGet();
     }

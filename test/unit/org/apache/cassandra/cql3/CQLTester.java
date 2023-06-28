@@ -175,6 +175,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;
@@ -435,6 +436,7 @@ public abstract class CQLTester
 
         // Once per-JVM is enough
         prepareServer();
+        AccordStateCache.validateLoadOnEvict(true);
     }
 
     protected static void prePrepareServer()
