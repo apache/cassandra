@@ -259,7 +259,6 @@
 
         <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
