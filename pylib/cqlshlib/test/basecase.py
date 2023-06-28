@@ -32,7 +32,7 @@ sys.path.append(cqlsh_dir)
 TEST_HOST = os.environ.get('CQL_TEST_HOST', '127.0.0.1')
 TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
 TEST_USER = os.environ.get('CQL_TEST_USER', 'cassandra')
-TEST_PWD = os.environ.get('CQL_TEST_PWD')
+TEST_PWD = os.environ.get('CQL_TEST_PWD', 'cassandra')
 
 
 class BaseTestCase(unittest.TestCase):

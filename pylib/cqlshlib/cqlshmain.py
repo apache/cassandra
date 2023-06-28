@@ -112,13 +112,10 @@ precedence over any defaults.""" % globals()
 parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                  usage="Usage: %(prog)s [options] [host [port]]",
                                  prog='cqlsh')
-
-parser.add_argument('-v','--version', action='version',version='cqlsh ' + version)
-
+parser.add_argument('-v', '--version', action='version', version='cqlsh ' + version)
 parser.add_argument("-C", "--color", action='store_true', dest='color',
-                  help='Always use color output')
-parser.add_argument("--no-color", action='store_false', dest='color',
-                  help='Never use color output')
+                                            help='Always use color output')
+parser.add_argument("--no-color", action='store_false', dest='color', help='Never use color output')
 parser.add_argument("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
                                                     - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
                                                     - browser path followed by %%s, example: /usr/bin/google-chrome-stable %%s""")
@@ -129,41 +126,41 @@ parser.add_argument("-p", "--password", help="Authenticate using password.")
 parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
 parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
 parser.add_argument('--debug', action='store_true',
-                  help='Show additional debugging information')
+                    help='Show additional debugging information')
 parser.add_argument('--coverage', action='store_true',
-                  help='Collect coverage data')
+                    help='Collect coverage data')
 parser.add_argument("--encoding", help="Specify a non-default encoding for output."
-                  + " (Default: %s)" % (UTF8,))
+                    + " (Default: %s)" % (UTF8,))
 parser.add_argument("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_argument("--credentials", help="Specify an alternative credentials file location.")
 parser.add_argument('--cqlversion', default=None,
-                  help='Specify a particular CQL version, '
-                       'by default the highest version supported by the server will be used.'
-                       ' Examples: "3.0.3", "3.1.0"')
+                    help='Specify a particular CQL version, '
+                    'by default the highest version supported by the server will be used.'
+                    ' Examples: "3.0.3", "3.1.0"')
 parser.add_argument("--protocol-version", type=int, default=None,
-                  help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+                    help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
 
 parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
 parser.add_argument("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
-                  help='Specify the connection timeout in seconds (default: %(default)s seconds).')
+                    help='Specify the connection timeout in seconds (default: %(default)s seconds).')
 parser.add_argument("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
-                  help='Specify the default request timeout in seconds (default: %(default)s seconds).')
+                    help='Specify the default request timeout in seconds (default: %(default)s seconds).')
 parser.add_argument("-t", "--tty", action='store_true', dest='tty',
-                  help='Force tty mode (command prompt).')
-#parser.add_argument('-v', action="version", help='Print the current version of cqlsh.')
+                    help='Force tty mode (command prompt).')
 
 # This is a hidden option to suppress the warning when the -p/--password command line option is used.
 # Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
 # Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
 # The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
 parser.add_argument("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
-                  help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS)
 
 # use cfarguments for config file
 
 cfarguments, args = parser.parse_known_args()
 
 # BEGIN history config
+
 
 def mkdirp(path):
     """Creates all parent directories up to path parameter or fails when path exists, but it is not a directory."""
@@ -196,7 +193,7 @@ except OSError:
 
 DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
 
-if cfarguments.cqlshrc != None:
+if cfarguments.cqlshrc is not None:
     CONFIG_FILE = os.path.expanduser(cfarguments.cqlshrc)
     if not os.path.exists(CONFIG_FILE):
         print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, DEFAULT_CQLSHRC))
@@ -2051,6 +2048,7 @@ def should_use_color():
         pass
     return True
 
+
 def read_options(cmdlineargs, environment=os.environ):
     configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
@@ -2118,25 +2116,25 @@ def read_options(cmdlineargs, environment=os.environ):
     # we need the following so that these two scenarios will work
     #   cqlsh --credentials=~/.cassandra/creds
     #   cqlsh --credentials ~/.cassandra/creds
-    
-    if options.credentials != None:    
+
+    if options.credentials is not None:
         options.credentials = os.path.expanduser(options.credentials)
 
-    if options.credentials != None:  
+    if options.credentials is not None:
         if not is_file_secure(options.credentials):
             print("\nWarning: Credentials file '{0}' exists but is not used, because:"
-                "\n  a. the file owner is not the current user; or"
-                "\n  b. the file is readable by group or other."
-                "\nPlease ensure the file is owned by the current user and is not readable by group or other."
-                "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
-                "\n  chown YOUR_USERNAME credentials"
-                "\n  chmod 600 credentials\n".format(options.credentials),
-                file=sys.stderr)
+                  "\n  a. the file owner is not the current user; or"
+                  "\n  b. the file is readable by group or other."
+                  "\nPlease ensure the file is owned by the current user and is not readable by group or other."
+                  "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
+                  "\n  chown YOUR_USERNAME credentials"
+                  "\n  chmod 600 credentials\n".format(options.credentials),
+                  file=sys.stderr)
             options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
     if not options.username:
         credentials = configparser.ConfigParser()
-        if options.credentials != None:   
+        if options.credentials is not None:
             credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
@@ -2144,7 +2142,7 @@ def read_options(cmdlineargs, environment=os.environ):
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
-        if options.credentials != None:   
+        if options.credentials is not None:
             rawcredentials.read(options.credentials)
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
@@ -2177,7 +2175,6 @@ def read_options(cmdlineargs, environment=os.environ):
 
     hostname = environment.get('CQLSH_HOST', hostname)
     port = environment.get('CQLSH_PORT', port)
-
 
     if len(arguments) > 0:
         hostname = arguments[0]
