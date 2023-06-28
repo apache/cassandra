@@ -134,6 +134,7 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.File;
@@ -1163,7 +1164,9 @@ public abstract class CQLTester
         catch (Exception e)
         {
             logger.info("Error performing schema change", e);
-            throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
+            if (e instanceof InvalidRequestException)
+                throw new InvalidRequestException(String.format("Error setting schema for test (query was: %s)", query), e);
+            throw new RuntimeException(String.format("Error setting schema for test (query was: %s)", query), e);
         }
     }
 

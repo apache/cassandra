@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -193,6 +194,9 @@ public class IndexWriterConfig
 
             if (options.containsKey(MAXIMUM_NODE_CONNECTIONS))
             {
+                if (!CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.getBoolean())
+                    throw new InvalidRequestException(String.format("Maximum node connections cannot be set without enabling %s", CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.name()));
+
                 try
                 {
                     maximumNodeConnections = Integer.parseInt(options.get(MAXIMUM_NODE_CONNECTIONS));
@@ -207,6 +211,9 @@ public class IndexWriterConfig
             }
             if (options.containsKey(CONSTRUCTION_BEAM_WIDTH))
             {
+                if (!CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.getBoolean())
+                    throw new InvalidRequestException(String.format("Construction beam width cannot be set without enabling %s", CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.name()));
+
                 try
                 {
                     queueSize = Integer.parseInt(options.get(CONSTRUCTION_BEAM_WIDTH));
