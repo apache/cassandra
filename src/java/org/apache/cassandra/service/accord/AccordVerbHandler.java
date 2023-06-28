@@ -25,6 +25,9 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
 import accord.messages.Request;
+import accord.utils.MapReduceConsume;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
@@ -34,11 +37,13 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 
     private final Node node;
     private final AccordEndpointMapper endpointMapper;
+    private final AccordJournal journal;
 
-    public AccordVerbHandler(Node node, AccordEndpointMapper endpointMapper)
+    public AccordVerbHandler(Node node, AccordEndpointMapper endpointMapper, AccordJournal journal)
     {
         this.node = node;
         this.endpointMapper = endpointMapper;
+        this.journal = journal;
     }
 
     @Override
@@ -59,6 +64,33 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
                 return;
             }
         }
-        request.process(node, endpointMapper.mappedId(message.from()), message);
+
+        if (!request.type().hasSideEffects())
+        {
+            request.process(node, endpointMapper.mappedId(message.from()), message);
+            return;
+        }
+
+        journal.appendMessage(request, ImmediateExecutor.INSTANCE, new AsyncWriteCallback()
+        {
+            @Override
+            public void run()
+            {
+                // TODO (performance, expected): do not retain references to messages beyond a certain total
+                //      cache threshold; in case of flush lagging behind, read the messages from journal and
+                //      deserialize instead before processing, to prevent memory pressure buildup from messages
+                //      pending flush to disk.
+                request.process(node, endpointMapper.mappedId(message.from()), message);
+            }
+
+            @Override
+            public void onFailure(Throwable error)
+            {
+                if (request instanceof MapReduceConsume)
+                    ((MapReduceConsume<?,?>) request).accept(null, error);
+                else
+                    node.agent().onUncaughtException(error);
+            }
+        });
     }
 }

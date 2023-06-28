@@ -88,13 +88,13 @@ public class RecoverySerializers
             CommandSerializers.txnId.serialize(recoverOk.txnId, out, version);
             CommandSerializers.status.serialize(recoverOk.status, out, version);
             CommandSerializers.ballot.serialize(recoverOk.accepted, out, version);
-            serializeNullable(recoverOk.executeAt, out, version, CommandSerializers.timestamp);
+            CommandSerializers.nullableTimestamp.serialize(recoverOk.executeAt, out, version);
             DepsSerializer.partialDeps.serialize(recoverOk.deps, out, version);
-            serializeNullable(recoverOk.acceptedDeps, out, version, DepsSerializer.partialDeps);
+            DepsSerializer.nullablePartialDeps.serialize(recoverOk.acceptedDeps, out, version);
             DepsSerializer.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
             DepsSerializer.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
             out.writeBoolean(recoverOk.rejectsFastPath);
-            serializeNullable(recoverOk.writes, out, version, CommandSerializers.writes);
+            CommandSerializers.nullableWrites.serialize(recoverOk.writes, out, version);
         }
 
         @Override
@@ -136,13 +136,13 @@ public class RecoverySerializers
             return deserializeOk(id,
                                  status,
                                  CommandSerializers.ballot.deserialize(in, version),
-                                 deserializeNullable(in, version, CommandSerializers.timestamp),
+                                 CommandSerializers.nullableTimestamp.deserialize(in, version),
                                  DepsSerializer.partialDeps.deserialize(in, version),
-                                 deserializeNullable(in, version, DepsSerializer.partialDeps),
+                                 DepsSerializer.nullablePartialDeps.deserialize(in, version),
                                  DepsSerializer.deps.deserialize(in, version),
                                  DepsSerializer.deps.deserialize(in, version),
                                  in.readBoolean(),
-                                 deserializeNullable(in, version, CommandSerializers.writes),
+                                 CommandSerializers.nullableWrites.deserialize(in, version),
                                  result,
                                  in,
                                  version);
@@ -158,13 +158,13 @@ public class RecoverySerializers
             long size = CommandSerializers.txnId.serializedSize(recoverOk.txnId, version);
             size += CommandSerializers.status.serializedSize(recoverOk.status, version);
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
-            size += serializedNullableSize(recoverOk.executeAt, version, CommandSerializers.timestamp);
+            size += CommandSerializers.nullableTimestamp.serializedSize(recoverOk.executeAt, version);
             size += DepsSerializer.partialDeps.serializedSize(recoverOk.deps, version);
-            size += serializedNullableSize(recoverOk.acceptedDeps, version, DepsSerializer.partialDeps);
+            size += DepsSerializer.nullablePartialDeps.serializedSize(recoverOk.acceptedDeps, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
-            size += serializedNullableSize(recoverOk.writes, version, CommandSerializers.writes);
+            size += CommandSerializers.nullableWrites.serializedSize(recoverOk.writes, version);
             return size;
         }
 

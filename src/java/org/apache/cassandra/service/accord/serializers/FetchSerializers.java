@@ -21,11 +21,22 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.Data;
+import accord.api.RoutingKey;
 import accord.impl.AbstractFetchCoordinator.FetchRequest;
 import accord.impl.AbstractFetchCoordinator.FetchResponse;
+import accord.local.SaveStatus;
+import accord.local.Status.Durability;
+import accord.local.Status.Known;
+import accord.messages.Propagate;
 import accord.messages.ReadData;
 import accord.messages.ReadData.ReadReply;
+import accord.primitives.PartialDeps;
+import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
+import accord.primitives.Route;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
+import accord.primitives.Writes;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -33,6 +44,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.StreamData;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.StreamingTxn;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.CastingSerializer;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
@@ -97,7 +109,7 @@ public class FetchSerializers
             FetchResponse response = (FetchResponse) reply;
             serializeNullable(response.unavailable, out, version, KeySerializers.ranges);
             serializeNullable(response.data, out, version, streamDataSerializer);
-            serializeNullable(response.maxApplied, out, version, CommandSerializers.timestamp);
+            CommandSerializers.nullableTimestamp.serialize(response.maxApplied, out, version);
         }
 
         @Override
@@ -109,7 +121,7 @@ public class FetchSerializers
 
             return new FetchResponse(deserializeNullable(in, version, KeySerializers.ranges),
                                      deserializeNullable(in, version, streamDataSerializer),
-                                     deserializeNullable(in, version, CommandSerializers.timestamp));
+                                     CommandSerializers.nullableTimestamp.deserialize(in, version));
         }
 
         @Override
@@ -122,7 +134,69 @@ public class FetchSerializers
             return TypeSizes.BYTE_SIZE
                    + serializedNullableSize(response.unavailable, version, KeySerializers.ranges)
                    + serializedNullableSize(response.data, version, streamDataSerializer)
-                   + serializedNullableSize(response.maxApplied, version, CommandSerializers.timestamp);
+                   + CommandSerializers.nullableTimestamp.serializedSize(response.maxApplied, version);
+        }
+    };
+
+    public static final IVersionedSerializer<Propagate> propagate = new IVersionedSerializer<Propagate>()
+    {
+        @Override
+        public void serialize(Propagate p, DataOutputPlus out, int version) throws IOException
+        {
+            CommandSerializers.txnId.serialize(p.txnId, out, version);
+            KeySerializers.route.serialize(p.route, out, version);
+            CommandSerializers.saveStatus.serialize(p.saveStatus, out, version);
+            CommandSerializers.saveStatus.serialize(p.maxSaveStatus, out, version);
+            CommandSerializers.durability.serialize(p.durability, out, version);
+            KeySerializers.nullableRoutingKey.serialize(p.homeKey, out, version);
+            KeySerializers.nullableRoutingKey.serialize(p.progressKey, out, version);
+            CommandSerializers.known.serialize(p.achieved, out, version);
+            CommandSerializers.nullablePartialTxn.serialize(p.partialTxn, out, version);
+            DepsSerializer.nullablePartialDeps.serialize(p.partialDeps, out, version);
+            out.writeLong(p.toEpoch);
+            CommandSerializers.nullableTimestamp.serialize(p.executeAt, out, version);
+            CommandSerializers.nullableWrites.serialize(p.writes, out, version);
+            TxnData.nullableSerializer.serialize((TxnData) p.result, out, version);
+        }
+
+        @Override
+        public Propagate deserialize(DataInputPlus in, int version) throws IOException
+        {
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            Route<?> route = KeySerializers.route.deserialize(in, version);
+            SaveStatus saveStatus = CommandSerializers.saveStatus.deserialize(in, version);
+            SaveStatus maxSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
+            Durability durability = CommandSerializers.durability.deserialize(in, version);
+            RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
+            RoutingKey progressKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
+            Known achieved = CommandSerializers.known.deserialize(in, version);
+            PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
+            PartialDeps partialDeps = DepsSerializer.nullablePartialDeps.deserialize(in, version);
+            long toEpoch = in.readLong();
+            Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
+            Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
+            TxnData result = TxnData.nullableSerializer.deserialize(in, version);
+            return Propagate.SerializerSupport.create(txnId, route, saveStatus, maxSaveStatus, durability, homeKey, progressKey, achieved, partialTxn, partialDeps, toEpoch, executeAt, writes, result);
+        }
+
+        @Override
+        public long serializedSize(Propagate p, int version)
+        {
+            return CommandSerializers.txnId.serializedSize(p.txnId, version)
+                 + KeySerializers.route.serializedSize(p.route, version)
+                 + CommandSerializers.saveStatus.serializedSize(p.saveStatus, version)
+                 + CommandSerializers.saveStatus.serializedSize(p.maxSaveStatus, version)
+                 + CommandSerializers.durability.serializedSize(p.durability, version)
+                 + KeySerializers.nullableRoutingKey.serializedSize(p.homeKey, version)
+                 + KeySerializers.nullableRoutingKey.serializedSize(p.progressKey, version)
+                 + CommandSerializers.known.serializedSize(p.achieved, version)
+                 + CommandSerializers.nullablePartialTxn.serializedSize(p.partialTxn, version)
+                 + DepsSerializer.nullablePartialDeps.serializedSize(p.partialDeps, version)
+                 + TypeSizes.sizeof(p.toEpoch)
+                 + CommandSerializers.nullableTimestamp.serializedSize(p.executeAt, version)
+                 + CommandSerializers.nullableWrites.serializedSize(p.writes, version)
+                 + TxnData.nullableSerializer.serializedSize((TxnData) p.result, version)
+            ;
         }
     };
 }
