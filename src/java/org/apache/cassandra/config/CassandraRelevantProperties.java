@@ -336,7 +336,8 @@ public enum CassandraRelevantProperties
     // Default metric aggegration strategy for tables without aggregation explicitly set.
     TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION("cassandra.table_metrics_default_histograms_aggregation", TableMetrics.MetricsAggregation.INDIVIDUAL.name()),
     // Determines if table metrics should be also exported to shared global metric
-    TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true");
+    TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true"),
+    FILE_CACHE_SIZE_IN_MB("cassandra.file_cache_size_in_mb", "2048");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
