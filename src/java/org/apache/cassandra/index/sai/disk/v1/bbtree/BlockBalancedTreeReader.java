@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,17 +78,17 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
         this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, treePostingsRoot);
-        leafOrderMapReader = DirectReaders.getReaderForBitsPerValue((byte) DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1));
+        leafOrderMapReader = DirectReaders.getReaderForBitsPerValue((byte) DirectWriter.unsignedBitsRequired(state.maxPointsInLeafNode - 1));
     }
 
     public int getBytesPerValue()
     {
-        return bytesPerValue;
+        return state.bytesPerValue;
     }
 
     public long getPointCount()
     {
-        return pointCount;
+        return state.pointCount;
     }
 
     @Override
@@ -102,7 +101,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
     @SuppressWarnings({"resource", "RedundantSuppression"})
     public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
     {
-        Relation relation = visitor.compare(minPackedValue, maxPackedValue);
+        Relation relation = visitor.compare(state.minPackedValue, state.maxPackedValue);
 
         if (relation == Relation.CELL_OUTSIDE_QUERY)
         {
@@ -114,11 +113,11 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         IndexInput treeInput = IndexFileUtils.instance.openInput(treeIndexFile);
         IndexInput postingsInput = IndexFileUtils.instance.openInput(postingsFile);
         IndexInput postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
-        PackedIndexTree index = new PackedIndexTree(packedIndex, bytesPerValue, numLeaves);
+        state.reset();
 
         Intersection intersection = relation == Relation.CELL_INSIDE_QUERY
-                                    ? new Intersection(treeInput, postingsInput, postingsSummaryInput, index, listener, context)
-                                    : new FilteringIntersection(treeInput, postingsInput, postingsSummaryInput, index, visitor, listener, context);
+                                    ? new Intersection(treeInput, postingsInput, postingsSummaryInput, listener, context)
+                                    : new FilteringIntersection(treeInput, postingsInput, postingsSummaryInput, visitor, listener, context);
 
         return intersection.execute();
     }
@@ -135,31 +134,29 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         final IndexInput treeInput;
         final IndexInput postingsInput;
         final IndexInput postingsSummaryInput;
-        final PackedIndexTree index;
         final QueryEventListener.BalancedTreeEventListener listener;
+        final PriorityQueue<PeekablePostingList> postingLists;
 
         Intersection(IndexInput treeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
-                     PackedIndexTree index, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
+                     QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
         {
             this.treeInput = treeInput;
             this.postingsInput = postingsInput;
             this.postingsSummaryInput = postingsSummaryInput;
-            this.index = index;
             this.listener = listener;
             this.context = context;
+            postingLists = new PriorityQueue<>(state.numLeaves, COMPARATOR);
         }
 
         public PostingList execute()
         {
             try
             {
-                PriorityQueue<PeekablePostingList> postingLists = new PriorityQueue<>(100, COMPARATOR);
-
-                executeInternal(postingLists);
+                executeInternal();
 
                 FileUtils.closeQuietly(treeInput);
 
-                return mergePostings(postingLists);
+                return mergePostings();
             }
             catch (Throwable t)
             {
@@ -171,9 +168,9 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             }
         }
 
-        protected void executeInternal(final PriorityQueue<PeekablePostingList> postingLists) throws IOException
+        protected void executeInternal() throws IOException
         {
-            collectPostingLists(postingLists);
+            collectPostingLists();
         }
 
         protected void closeOnException()
@@ -183,7 +180,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             FileUtils.closeQuietly(postingsSummaryInput);
         }
 
-        protected PostingList mergePostings(PriorityQueue<PeekablePostingList> postingLists)
+        protected PostingList mergePostings()
         {
             final long elapsedMicros = queryExecutionTimer.stop().elapsed(TimeUnit.MICROSECONDS);
 
@@ -205,30 +202,30 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             }
         }
 
-        private void collectPostingLists(PriorityQueue<PeekablePostingList> postingLists) throws IOException
+        private void collectPostingLists() throws IOException
         {
             context.checkpoint();
 
-            final int nodeID = index.getNodeID();
-
-            // if there is pre-built posting for entire subtree
-            if (postingsIndex.exists(nodeID))
+            // This will return true if the node is a child leaf that has postings or if there is postings for the
+            // entire subtree under a leaf
+            if (postingsIndex.exists(state.nodeID))
             {
-                postingLists.add(initPostingReader(postingsIndex.getPostingsFilePointer(nodeID)));
+                postingLists.add(initPostingReader(postingsIndex.getPostingsFilePointer(state.nodeID)));
                 return;
             }
 
-            Preconditions.checkState(!index.isLeafNode(), "Leaf node %s does not have balanced tree postings.", index.getNodeID());
+            if (state.isLeafNode())
+                throw new CorruptIndexException(indexContext.logMessage(String.format("Leaf node %s does not have balanced tree postings.", state.nodeID)), "");
 
             // Recurse on left subtree:
-            index.pushLeft();
-            collectPostingLists(postingLists);
-            index.pop();
+            state.pushLeft();
+            collectPostingLists();
+            state.pop();
 
             // Recurse on right subtree:
-            index.pushRight();
-            collectPostingLists(postingLists);
-            index.pop();
+            state.pushRight();
+            collectPostingLists();
+            state.pop();
         }
 
         @SuppressWarnings({"resource", "RedundantSuppression"})
@@ -246,60 +243,53 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         private final short[] origIndex;
 
         FilteringIntersection(IndexInput treeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
-                              PackedIndexTree index, IntersectVisitor visitor,
-                              QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
+                              IntersectVisitor visitor, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
         {
-            super(treeInput, postingsInput, postingsSummaryInput, index, listener, context);
+            super(treeInput, postingsInput, postingsSummaryInput, listener, context);
             this.visitor = visitor;
-            this.packedValue = new byte[bytesPerValue];
-            this.origIndex = new short[maxPointsInLeafNode];
+            this.packedValue = new byte[state.bytesPerValue];
+            this.origIndex = new short[state.maxPointsInLeafNode];
         }
 
         @Override
-        public void executeInternal(final PriorityQueue<PeekablePostingList> postingLists) throws IOException
+        public void executeInternal() throws IOException
         {
-            collectPostingLists(postingLists, minPackedValue, maxPackedValue);
+            collectPostingLists(state.minPackedValue, state.maxPackedValue);
         }
 
-        private void collectPostingLists(PriorityQueue<PeekablePostingList> postingLists, byte[] cellMinPacked, byte[] cellMaxPacked) throws IOException
+        private void collectPostingLists(byte[] minPackedValue, byte[] maxPackedValue) throws IOException
         {
             context.checkpoint();
 
-            final Relation r = visitor.compare(cellMinPacked, cellMaxPacked);
+            final Relation r = visitor.compare(minPackedValue, maxPackedValue);
 
+            // This value range is fully outside the query shape: stop recursing
             if (r == Relation.CELL_OUTSIDE_QUERY)
-            {
-                // This cell is fully outside the query shape: stop recursing
                 return;
-            }
 
             if (r == Relation.CELL_INSIDE_QUERY)
             {
-                // This cell is fully inside the query shape: recursively add all points in this cell without filtering
-                super.collectPostingLists(postingLists);
+                // This value range is fully inside the query shape: recursively add all points from this node without filtering
+                super.collectPostingLists();
                 return;
             }
 
-            if (index.isLeafNode())
+            if (state.isLeafNode())
             {
-                if (index.nodeExists())
-                    filterLeaf(postingLists);
+                if (state.nodeExists())
+                    filterLeaf();
                 return;
             }
 
-            visitNode(postingLists, cellMinPacked, cellMaxPacked);
+            visitNode(minPackedValue, maxPackedValue);
         }
 
-        private void filterLeaf(PriorityQueue<PeekablePostingList> postingLists) throws IOException
+        private void filterLeaf() throws IOException
         {
-            treeInput.seek(index.getLeafBlockFP());
+            treeInput.seek(state.getLeafBlockFP());
 
             int count = treeInput.readVInt();
-
-            // loading row IDs occurred here prior
-
             int orderMapLength = treeInput.readVInt();
-
             long orderMapPointer = treeInput.getFilePointer();
 
             SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(treeInput);
@@ -311,43 +301,37 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             // seek beyond the ordermap
             treeInput.seek(orderMapPointer + orderMapLength);
 
-            FixedBitSet fixedBitSet = visitValues(treeInput, count, visitor, origIndex);
+            FixedBitSet fixedBitSet = buildPostingsFilter(treeInput, count, visitor, origIndex);
 
-            int nodeID = index.getNodeID();
-
-            if (postingsIndex.exists(nodeID) && fixedBitSet.cardinality() > 0)
+            if (postingsIndex.exists(state.nodeID) && fixedBitSet.cardinality() > 0)
             {
-                long pointer = postingsIndex.getPostingsFilePointer(nodeID);
+                long pointer = postingsIndex.getPostingsFilePointer(state.nodeID);
                 postingLists.add(initFilteringPostingReader(pointer, fixedBitSet));
             }
         }
 
-        void visitNode(PriorityQueue<PeekablePostingList> postingLists, byte[] cellMinPacked, byte[] cellMaxPacked) throws IOException
+        void visitNode(byte[] minPackedValue, byte[] maxPackedValue) throws IOException
         {
-            byte[] splitPackedValue = index.getSplitPackedValue();
-            byte[] splitDimValue = index.getSplitValue();
-            assert splitDimValue.length == bytesPerValue;
+            assert !state.isLeafNode() : "Cannot recurse down tree because nodeID " + state.nodeID + " is a leaf node";
 
-            // make sure cellMin <= splitValue <= cellMax:
-            assert FutureArrays.compareUnsigned(cellMinPacked, 0, bytesPerValue, splitDimValue, 0, bytesPerValue) <= 0 : "bytesPerValue=" + bytesPerValue;
-            assert FutureArrays.compareUnsigned(cellMaxPacked, 0, bytesPerValue, splitDimValue, 0, bytesPerValue) >= 0 : "bytesPerValue=" + bytesPerValue;
+            byte[] splitValue = state.getSplitValue();
+
+            if (BlockBalancedTreeWriter.DEBUG)
+            {
+                // make sure cellMin <= splitValue <= cellMax:
+                assert FutureArrays.compareUnsigned(minPackedValue, 0, state.bytesPerValue, splitValue, 0, state.bytesPerValue) <= 0 : "bytesPerValue=" + state.bytesPerValue;
+                assert FutureArrays.compareUnsigned(maxPackedValue, 0, state.bytesPerValue, splitValue, 0, state.bytesPerValue) >= 0 : "bytesPerValue=" + state.bytesPerValue;
+            }
 
             // Recurse on left subtree:
-            System.arraycopy(cellMaxPacked, 0, splitPackedValue, 0, bytesPerValue);
-            System.arraycopy(splitDimValue, 0, splitPackedValue, 0, bytesPerValue);
+            state.pushLeft();
+            collectPostingLists(minPackedValue, splitValue);
+            state.pop();
 
-            index.pushLeft();
-            collectPostingLists(postingLists, cellMinPacked, splitPackedValue);
-            index.pop();
-
-            // Restore the split dim value since it may have been overwritten while recursing:
-            System.arraycopy(splitPackedValue, 0, splitDimValue, 0, bytesPerValue);
             // Recurse on right subtree:
-            System.arraycopy(cellMinPacked, 0, splitPackedValue, 0, bytesPerValue);
-            System.arraycopy(splitDimValue, 0, splitPackedValue, 0, bytesPerValue);
-            index.pushRight();
-            collectPostingLists(postingLists, splitPackedValue, cellMaxPacked);
-            index.pop();
+            state.pushRight();
+            collectPostingLists(splitValue, maxPackedValue);
+            state.pop();
         }
 
         @SuppressWarnings({"resource", "RedundantSuppression"})
@@ -358,30 +342,18 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             return PeekablePostingList.makePeekable(new FilteringPostingList(filter, postingsReader));
         }
 
-        private FixedBitSet visitValues(IndexInput in, int count, IntersectVisitor visitor, short[] origIndex) throws IOException
+        private FixedBitSet buildPostingsFilter(IndexInput in, int count, IntersectVisitor visitor, short[] origIndex) throws IOException
         {
             int commonPrefixLength = readCommonPrefixLength(in);
-            int compressedDimension = readCompressedDimension(in);
-            // If the compressed dimension is -1 it means that all values in the block are equal
-            if (compressedDimension == -1)
-                return visitRawValues(count, visitor, origIndex);
-            else
-                return visitCompressedValues(commonPrefixLength, in, count, visitor, origIndex);
+            return commonPrefixLength == state.bytesPerValue ? buildPostingsFilterForSingleValueLeaf(count, visitor, origIndex)
+                                                             : buildPostingsFilterForMultiValueLeaf(commonPrefixLength, in, count, visitor, origIndex);
         }
 
-        private int readCompressedDimension(IndexInput in) throws IOException
-        {
-            int compressedDimension = in.readByte();
-            if (compressedDimension != -1 && compressedDimension != 0)
-                throw new CorruptIndexException(String.format("Dimension should be in the range [-1, 0], but was %d.", compressedDimension), in);
-            return compressedDimension;
-        }
-
-        private FixedBitSet visitCompressedValues(int commonPrefixLength,
-                                                  IndexInput in,
-                                                  int count,
-                                                  IntersectVisitor visitor,
-                                                  short[] origIndex) throws IOException
+        private FixedBitSet buildPostingsFilterForMultiValueLeaf(int commonPrefixLength,
+                                                                 IndexInput in,
+                                                                 int count,
+                                                                 IntersectVisitor visitor,
+                                                                 short[] origIndex) throws IOException
         {
             // the byte at `compressedByteOffset` is compressed using run-length compression,
             // other suffix bytes are stored verbatim
@@ -389,7 +361,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             commonPrefixLength++;
             int i;
 
-            FixedBitSet fixedBitSet = new FixedBitSet(maxPointsInLeafNode);
+            FixedBitSet fixedBitSet = new FixedBitSet(state.maxPointsInLeafNode);
 
             for (i = 0; i < count; )
             {
@@ -397,9 +369,9 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
                 final int runLen = Byte.toUnsignedInt(in.readByte());
                 for (int j = 0; j < runLen; ++j)
                 {
-                    in.readBytes(packedValue, commonPrefixLength, bytesPerValue - commonPrefixLength);
+                    in.readBytes(packedValue, commonPrefixLength, state.bytesPerValue - commonPrefixLength);
                     final int rowIDIndex = origIndex[i + j];
-                    if (visitor.visit(packedValue))
+                    if (visitor.contains(packedValue))
                         fixedBitSet.set(rowIDIndex);
                 }
                 i += runLen;
@@ -410,13 +382,13 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             return fixedBitSet;
         }
 
-        private FixedBitSet visitRawValues(int count, IntersectVisitor visitor, final short[] origIndex)
+        private FixedBitSet buildPostingsFilterForSingleValueLeaf(int count, IntersectVisitor visitor, final short[] origIndex)
         {
-            FixedBitSet fixedBitSet = new FixedBitSet(maxPointsInLeafNode);
+            FixedBitSet fixedBitSet = new FixedBitSet(state.maxPointsInLeafNode);
 
-            // In our one-dimensional case, all the values in the leaf are the same, so we only
+            // All the values in the leaf are the same, so we only
             // need to visit once then set the bits for the relevant indexes
-            if (visitor.visit(packedValue))
+            if (visitor.contains(packedValue))
             {
                 for (int i = 0; i < count; ++i)
                     fixedBitSet.set(origIndex[i]);
@@ -443,7 +415,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
          * to decide whether to accept it. Values are visited in increasing order, and in the case of ties,
          * in increasing order by segment row ID.
          */
-        boolean visit(byte[] packedValue);
+        boolean contains(byte[] packedValue);
 
         /**
          * Called for non-leaf cells to test how the cell relates to the query, to

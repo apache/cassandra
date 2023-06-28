@@ -64,7 +64,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         Arrays.asList(postings(1, 5, 7), postings(3, 4, 6), postings(2, 8, 10), postings(11, 12, 13));
 
         setBDKPostingsWriterSizing(1, 2);
-        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter(leaves, indexContext);
+        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter();
 
         // should build postings for nodes 2 & 3 (lvl 2) and 8, 10, 12, 14 (lvl 4)
         writer.onLeaf(64, 1, pathToRoot(1, 2, 4, 8, 16));
@@ -75,7 +75,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         long fp;
         try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext))
         {
-            fp = writer.finish(output);
+            fp = writer.finish(output, leaves, indexContext);
         }
 
         BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
@@ -114,7 +114,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         List<PackedLongValues> leaves = Collections.singletonList(postings(1, 2, 3));
 
         setBDKPostingsWriterSizing(1, 5);
-        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter(leaves, indexContext);
+        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter();
 
         // The tree is too short to have any internal posting lists.
         writer.onLeaf(16, 1, pathToRoot(1, 2, 4, 8));
@@ -122,7 +122,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         long fp;
         try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext))
         {
-            fp = writer.finish(output);
+            fp = writer.finish(output, leaves, indexContext);
         }
 
         // There is only a single posting list...the leaf posting list.
@@ -136,7 +136,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         List<PackedLongValues> leaves = Collections.singletonList(postings(1, 2, 3));
 
         setBDKPostingsWriterSizing(2, 2);
-        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter(leaves, indexContext);
+        BlockBalancedTreePostingsWriter writer = new BlockBalancedTreePostingsWriter();
 
         // The tree is too short to have any internal posting lists.
         writer.onLeaf(16, 1, pathToRoot(1, 2, 4, 8));
@@ -144,7 +144,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         long fp;
         try (IndexOutputWriter output = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext))
         {
-            fp = writer.finish(output);
+            fp = writer.finish(output, leaves, indexContext);
         }
 
         // There is only a single posting list...the leaf posting list.

@@ -90,11 +90,11 @@ public class NumericIndexWriter
 
     private static class LeafCallback implements BlockBalancedTreeWriter.Callback
     {
-        final List<PackedLongValues> postings = new ArrayList<>(DEFAULT_POSTINGS_SIZE);
+        final List<PackedLongValues> leafPostings = new ArrayList<>(DEFAULT_POSTINGS_SIZE);
 
         public int numLeaves()
         {
-            return postings.size();
+            return leafPostings.size();
         }
 
         @Override
@@ -106,7 +106,7 @@ public class NumericIndexWriter
             {
                 builder.add(leafPostings[i].rowID);
             }
-            postings.add(builder.build());
+            this.leafPostings.add(builder.build());
         }
     }
 
@@ -141,7 +141,7 @@ public class NumericIndexWriter
             Map<String, String> attributes = new LinkedHashMap<>();
             attributes.put("max_points_in_leaf_node", Integer.toString(writer.getMaxPointsInLeafNode()));
             attributes.put("num_leaves", Integer.toString(leafCallback.numLeaves()));
-            attributes.put("num_points", Long.toString(writer.getPointCount()));
+            attributes.put("num_points", Long.toString(writer.getValueCount()));
             attributes.put("bytes_per_value", Long.toString(writer.getBytesPerValue()));
 
             components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
@@ -152,11 +152,11 @@ public class NumericIndexWriter
         {
             long postingsOffset = postingsOutput.getFilePointer();
 
-            BlockBalancedTreePostingsWriter postingsWriter = new BlockBalancedTreePostingsWriter(leafCallback.postings, indexContext);
+            BlockBalancedTreePostingsWriter postingsWriter = new BlockBalancedTreePostingsWriter();
             reader.traverse(postingsWriter);
 
             // The balanced tree postings writer already writes its own header & footer.
-            long postingsPosition = postingsWriter.finish(postingsOutput);
+            long postingsPosition = postingsWriter.finish(postingsOutput, leafCallback.leafPostings, indexContext);
 
             Map<String, String> attributes = new LinkedHashMap<>();
             attributes.put("num_leaf_postings", Integer.toString(postingsWriter.numLeafPostings));
@@ -174,6 +174,6 @@ public class NumericIndexWriter
      */
     public long getPointCount()
     {
-        return writer.getPointCount();
+        return writer.getValueCount();
     }
 }

@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -28,6 +29,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.FileHandle;
@@ -41,6 +43,7 @@ import static org.apache.lucene.index.PointValues.Relation.CELL_OUTSIDE_QUERY;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
@@ -51,7 +54,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     private final BlockBalancedTreeReader.IntersectVisitor NONE_MATCH = new BlockBalancedTreeReader.IntersectVisitor()
     {
         @Override
-        public boolean visit(byte[] packedValue)
+        public boolean contains(byte[] packedValue)
         {
             return false;
         }
@@ -66,7 +69,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     private final BlockBalancedTreeReader.IntersectVisitor ALL_MATCH = new BlockBalancedTreeReader.IntersectVisitor()
     {
         @Override
-        public boolean visit(byte[] packedValue)
+        public boolean contains(byte[] packedValue)
         {
             return true;
         }
@@ -86,6 +89,32 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     {
         indexDescriptor = newIndexDescriptor();
         indexContext = SAITester.createIndexContext(newIndex(), Int32Type.instance);
+    }
+
+    @Test
+    public void testFilteringIntersection() throws Exception
+    {
+        int numRows = 1000;
+
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+
+        byte[] scratch = new byte[4];
+        for (int docID = 0; docID < numRows; docID++)
+        {
+            NumericUtils.intToSortableBytes(docID, scratch, 0);
+            buffer.addPackedValue(docID, new BytesRef(scratch));
+        }
+
+        final BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer);
+
+        Expression expression = new Expression(indexContext);
+        expression.add(Operator.GT, Int32Type.instance.decompose(444));
+        expression.add(Operator.LT, Int32Type.instance.decompose(555));
+        PostingList intersection = performIntersection(reader, BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4));
+        assertNotNull(intersection);
+        assertEquals(110, intersection.size());
+        for (long posting = 445; posting < 555; posting++)
+            assertEquals(posting, intersection.nextPosting());
     }
 
     @Test
@@ -206,7 +235,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         return new BlockBalancedTreeReader.IntersectVisitor()
         {
             @Override
-            public boolean visit(byte[] packedValue)
+            public boolean contains(byte[] packedValue)
             {
                 int x = NumericUtils.sortableBytesToInt(packedValue, 0);
                 return x >= queryMin && x <= queryMax;

@@ -30,7 +30,7 @@ public class BlockBalancedTreeQueries
     private static final BlockBalancedTreeReader.IntersectVisitor MATCH_ALL = new BlockBalancedTreeReader.IntersectVisitor()
     {
         @Override
-        public boolean visit(byte[] packedValue)
+        public boolean contains(byte[] packedValue)
         {
             return true;
         }
@@ -63,7 +63,7 @@ public class BlockBalancedTreeQueries
             upper = new Bound(upperBound, !expression.upper.inclusive);
         }
 
-        return new RangeQueryVisitor(bytesPerValue, lower, upper);
+        return new RangeQueryVisitor(lower, upper);
     }
 
     private static byte[] toComparableBytes(int bytesPerDim, ByteBuffer value, AbstractType<?> type)
@@ -72,21 +72,6 @@ public class BlockBalancedTreeQueries
         assert buffer.length == bytesPerDim;
         TypeUtil.toComparableBytes(value, type, buffer);
         return buffer;
-    }
-
-    private static abstract class RangeQuery implements BlockBalancedTreeReader.IntersectVisitor
-    {
-        final int bytesPerValue;
-
-        RangeQuery(int bytesPerValue)
-        {
-            this.bytesPerValue = bytesPerValue;
-        }
-
-        int compareUnsigned(byte[] packedValue, Bound bound)
-        {
-            return FutureArrays.compareUnsigned(packedValue, 0, bytesPerValue, bound.bound, 0, bytesPerValue);
-        }
     }
 
     private static class Bound
@@ -100,35 +85,41 @@ public class BlockBalancedTreeQueries
             this.exclusive = exclusive;
         }
 
-        boolean smallerThan(int cmp)
+        boolean smallerThan(byte[] packedValue)
         {
+            int cmp = compareTo(packedValue);
+            return cmp < 0 || (cmp == 0 && exclusive);
+        }
+
+        boolean greaterThan(byte[] packedValue)
+        {
+            int cmp = compareTo(packedValue);
             return cmp > 0 || (cmp == 0 && exclusive);
         }
 
-        boolean greaterThan(int cmp)
+        private int compareTo(byte[] packedValue)
         {
-            return cmp < 0 || (cmp == 0 && exclusive);
+            return FutureArrays.compareUnsigned(bound, 0, bound.length, packedValue, 0, bound.length);
         }
     }
 
-    private static class RangeQueryVisitor extends RangeQuery
+    private static class RangeQueryVisitor implements BlockBalancedTreeReader.IntersectVisitor
     {
         private final Bound lower;
         private final Bound upper;
 
-        private RangeQueryVisitor(int bytesPerValue, Bound lower, Bound upper)
+        private RangeQueryVisitor(Bound lower, Bound upper)
         {
-            super(bytesPerValue);
             this.lower = lower;
             this.upper = upper;
         }
 
         @Override
-        public boolean visit(byte[] packedValue)
+        public boolean contains(byte[] packedValue)
         {
             if (lower != null)
             {
-                if (lower.greaterThan(compareUnsigned(packedValue, lower)))
+                if (lower.greaterThan(packedValue))
                 {
                     // value is too low, in this dimension
                     return false;
@@ -137,7 +128,7 @@ public class BlockBalancedTreeQueries
 
             if (upper != null)
             {
-                return !upper.smallerThan(compareUnsigned(packedValue, upper));
+                return !upper.smallerThan(packedValue);
             }
 
             return true;
@@ -150,32 +141,21 @@ public class BlockBalancedTreeQueries
 
             if (lower != null)
             {
-                int maxCmp = compareUnsigned(maxPackedValue, lower);
-                if (lower.greaterThan(maxCmp))
+                if (lower.greaterThan(maxPackedValue))
                     return Relation.CELL_OUTSIDE_QUERY;
 
-                int minCmp = compareUnsigned(minPackedValue, lower);
-                crosses = lower.greaterThan(minCmp);
+                crosses = lower.greaterThan(minPackedValue);
             }
 
             if (upper != null)
             {
-                int minCmp = compareUnsigned(minPackedValue, upper);
-                if (upper.smallerThan(minCmp))
+                if (upper.smallerThan(minPackedValue))
                     return Relation.CELL_OUTSIDE_QUERY;
 
-                int maxCmp = compareUnsigned(maxPackedValue, upper);
-                crosses |= upper.smallerThan(maxCmp);
+                crosses |= upper.smallerThan(maxPackedValue);
             }
 
-            if (crosses)
-            {
-                return Relation.CELL_CROSSES_QUERY;
-            }
-            else
-            {
-                return Relation.CELL_INSIDE_QUERY;
-            }
+            return crosses ? Relation.CELL_CROSSES_QUERY : Relation.CELL_INSIDE_QUERY;
         }
     }
 }

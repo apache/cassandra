@@ -81,19 +81,11 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
      */
     public static final int POSTINGS_SKIP = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
 
-    private final List<PackedLongValues> postings;
     private final TreeMap<Long, Integer> leafOffsetToNodeID = new TreeMap<>(Long::compareTo);
     private final Multimap<Integer, Integer> nodeToChildLeaves = HashMultimap.create();
 
-    private final IndexContext indexContext;
     int numNonLeafPostings = 0;
     int numLeafPostings = 0;
-
-    BlockBalancedTreePostingsWriter(List<PackedLongValues> postings, IndexContext indexContext)
-    {
-        this.postings = postings;
-        this.indexContext = indexContext;
-    }
 
     /**
      * Called when a leaf node is hit as we traverse the packed index.
@@ -121,25 +113,26 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
     }
 
     /**
-     * Writes a merged posting list for each leaf in the tree. This postings list consists of the postings
-     * associated with the leaf along with the postings associated with any leaves underneath it.
-     *
-     * After writing out the postings it writes a map of leaf node IDs to postings file pointer for all
-     * the leaf nodes. It then returns the file pointer to this map.
+     * Writes merged posting lists for eligible internal nodes and leaf postings for each leaf in the tree.
+     * The merged postings list for an internal node contains all postings from the postings lists of leaf nodes
+     * in the subtree rooted at that node.
+     * <p>
+     * After writing out the postings, it writes a map of node ID -> postings file pointer for all
+     * nodes with an attached postings list. It then returns the file pointer to this map.
      */
-    public long finish(IndexOutput out) throws IOException
+    public long finish(IndexOutput out, List<PackedLongValues> leafPostings, IndexContext indexContext) throws IOException
     {
-        checkState(postings.size() == leafOffsetToNodeID.size(),
+        checkState(leafPostings.size() == leafOffsetToNodeID.size(),
                    "Expected equal number of postings lists (%s) and leaf offsets (%s).",
-                   postings.size(), leafOffsetToNodeID.size());
+                   leafPostings.size(), leafOffsetToNodeID.size());
 
         try (PostingsWriter postingsWriter = new PostingsWriter(out))
         {
-            Iterator<PackedLongValues> postingsIterator = postings.iterator();
+            Iterator<PackedLongValues> postingsIterator = leafPostings.iterator();
             Map<Integer, PackedLongValues> leafToPostings = new HashMap<>();
             leafOffsetToNodeID.forEach((fp, nodeID) -> leafToPostings.put(nodeID, postingsIterator.next()));
 
-            long postingsRamBytesUsed = postings.stream()
+            long postingsRamBytesUsed = leafPostings.stream()
                                                 .mapToLong(PackedLongValues::ramBytesUsed)
                                                 .sum();
 
@@ -151,13 +144,12 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
             Collection<Integer> leafNodeIDs = leafOffsetToNodeID.values();
 
             logger.debug(indexContext.logMessage("Writing posting lists for {} internal and {} leaf balanced tree nodes. Leaf postings memory usage: {}."),
-                         internalNodeIDs.size(),
-                         leafNodeIDs.size(),
-                         FBUtilities.prettyPrintMemory(postingsRamBytesUsed));
+                         internalNodeIDs.size(), leafNodeIDs.size(), FBUtilities.prettyPrintMemory(postingsRamBytesUsed));
 
             long startFP = out.getFilePointer();
             Stopwatch flushTime = Stopwatch.createStarted();
             TreeMap<Integer, Long> nodeIDToPostingsFilePointer = new TreeMap<>();
+            PriorityQueue<PeekablePostingList> postingLists = new PriorityQueue<>(MINIMUM_POSTINGS_LEAVES, Comparator.comparingLong(PeekablePostingList::peek));
             for (int nodeID : Iterables.concat(internalNodeIDs, leafNodeIDs))
             {
                 Collection<Integer> leaves = nodeToChildLeaves.get(nodeID);
@@ -172,7 +164,6 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
                     numNonLeafPostings++;
                 }
 
-                PriorityQueue<PeekablePostingList> postingLists = new PriorityQueue<>(100, Comparator.comparingLong(PeekablePostingList::peek));
                 for (Integer leaf : leaves)
                     postingLists.add(PeekablePostingList.makePeekable(new PackedLongsPostingList(leafToPostings.get(leaf))));
 
@@ -184,6 +175,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
                     if (postingFilePosition >= 0)
                         nodeIDToPostingsFilePointer.put(nodeID, postingFilePosition);
                 }
+                postingLists.clear();
             }
             flushTime.stop();
             logger.debug(indexContext.logMessage("Flushed {} of posting lists for balanced tree nodes in {} ms."),

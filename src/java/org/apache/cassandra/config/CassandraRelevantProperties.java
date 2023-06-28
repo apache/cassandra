@@ -404,14 +404,14 @@ public enum CassandraRelevantProperties
     SAI_MINIMUM_POSTINGS_LEAVES("cassandra.sai.minimum_postings_leaves", "64"),
 
     /**
-     * Skip, or the sampling interval, for selecting a bkd tree level that is eligible for an auxiliary posting list.
+     * Skip, or the sampling interval, for selecting a balanced tree level that is eligible for an auxiliary posting list.
      * Sampling starts from 0, but balanced tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
      * level 0, because there is no node at level 0).
      */
     SAI_POSTINGS_SKIP("cassandra.sai.postings_skip", "3"),
 
+    SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
-    SAI_TEST_ENABLE_BALANCED_TREE_DEBUG("cassandra.sai.test.enable_balanced_tree_debug", "false"),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),

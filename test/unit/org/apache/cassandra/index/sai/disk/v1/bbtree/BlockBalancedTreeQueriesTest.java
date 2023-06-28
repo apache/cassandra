@@ -38,15 +38,29 @@ import static org.junit.Assert.assertTrue;
 public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
 {
     @Test
+    public void testMatchesAll()
+    {
+        Expression expression = new Expression(SAITester.createIndexContext("meh", Int32Type.instance));
+        BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
+
+        for (int visit = 0; visit < between(100, 1000); visit++)
+            assertTrue(query.contains(toSortableBytes(nextInt(Integer.MAX_VALUE))));
+
+        for (int compare = 0; compare < between(100, 1000); compare++)
+            assertEquals(CELL_INSIDE_QUERY, query.compare(toSortableBytes(between(0, Integer.MAX_VALUE/2)),
+                                                          toSortableBytes(between(Integer.MAX_VALUE/2, Integer.MAX_VALUE))));
+    }
+
+    @Test
     public void testInclusiveLowerBound()
     {
         int lowerBound = between(-10, 10);
         Expression expression = buildExpression(Operator.GTE, lowerBound);
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
-        assertTrue(query.visit(toSortableBytes(lowerBound)));
-        assertTrue(query.visit(toSortableBytes(lowerBound + 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound - 1)));
+        assertTrue(query.contains(toSortableBytes(lowerBound)));
+        assertTrue(query.contains(toSortableBytes(lowerBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(lowerBound - 2), toSortableBytes(lowerBound - 1)));
         assertEquals(CELL_INSIDE_QUERY, query.compare(toSortableBytes(lowerBound), toSortableBytes(lowerBound + 1)));
@@ -60,9 +74,9 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.GT, lowerBound);
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
-        assertFalse(query.visit(toSortableBytes(lowerBound)));
-        assertTrue(query.visit(toSortableBytes(lowerBound + 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound - 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound)));
+        assertTrue(query.contains(toSortableBytes(lowerBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(lowerBound - 1), toSortableBytes(lowerBound)));
         assertEquals(CELL_INSIDE_QUERY, query.compare(toSortableBytes(lowerBound + 1), toSortableBytes(lowerBound + 2)));
@@ -76,9 +90,9 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.LTE, upperBound);
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertTrue(query.visit(toSortableBytes(upperBound - 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound)));
-        assertFalse(query.visit(toSortableBytes(upperBound + 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound - 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound)));
+        assertFalse(query.contains(toSortableBytes(upperBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(upperBound + 1), toSortableBytes(upperBound + 2)));
         assertEquals(CELL_INSIDE_QUERY, query.compare(toSortableBytes(upperBound - 1), toSortableBytes(upperBound)));
@@ -92,9 +106,9 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.LT, upper);
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertTrue(query.visit(toSortableBytes(upper - 1)));
-        assertFalse(query.visit(toSortableBytes(upper)));
-        assertFalse(query.visit(toSortableBytes(upper + 1)));
+        assertTrue(query.contains(toSortableBytes(upper - 1)));
+        assertFalse(query.contains(toSortableBytes(upper)));
+        assertFalse(query.contains(toSortableBytes(upper + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(upper), toSortableBytes(upper + 1)));
         assertEquals(CELL_INSIDE_QUERY, query.compare(toSortableBytes(upper - 2), toSortableBytes(upper - 1)));
@@ -109,12 +123,12 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.GTE, lowerBound).add(Operator.LTE, Int32Type.instance.decompose(upperBound));
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
-        assertTrue(query.visit(toSortableBytes(lowerBound)));
-        assertTrue(query.visit(toSortableBytes(lowerBound + 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound - 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound)));
-        assertFalse(query.visit(toSortableBytes(upperBound + 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound - 1)));
+        assertTrue(query.contains(toSortableBytes(lowerBound)));
+        assertTrue(query.contains(toSortableBytes(lowerBound + 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound - 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound)));
+        assertFalse(query.contains(toSortableBytes(upperBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(lowerBound - 2), toSortableBytes(lowerBound - 1)));
         assertEquals(CELL_CROSSES_QUERY, query.compare(toSortableBytes(lowerBound - 1), toSortableBytes(lowerBound)));
@@ -131,12 +145,12 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.GT, lowerBound).add(Operator.LT, Int32Type.instance.decompose(upperBound));
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
-        assertFalse(query.visit(toSortableBytes(lowerBound)));
-        assertTrue(query.visit(toSortableBytes(lowerBound + 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound - 1)));
-        assertFalse(query.visit(toSortableBytes(upperBound)));
-        assertFalse(query.visit(toSortableBytes(upperBound + 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound - 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound)));
+        assertTrue(query.contains(toSortableBytes(lowerBound + 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound - 1)));
+        assertFalse(query.contains(toSortableBytes(upperBound)));
+        assertFalse(query.contains(toSortableBytes(upperBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(lowerBound - 1), toSortableBytes(lowerBound)));
         assertEquals(CELL_CROSSES_QUERY, query.compare(toSortableBytes(lowerBound), toSortableBytes(lowerBound + 1)));
@@ -153,12 +167,12 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.GT, lowerBound).add(Operator.LTE, Int32Type.instance.decompose(upperBound));
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
-        assertFalse(query.visit(toSortableBytes(lowerBound)));
-        assertTrue(query.visit(toSortableBytes(lowerBound + 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound - 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound)));
-        assertFalse(query.visit(toSortableBytes(upperBound + 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound - 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound)));
+        assertTrue(query.contains(toSortableBytes(lowerBound + 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound - 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound)));
+        assertFalse(query.contains(toSortableBytes(upperBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(lowerBound - 1), toSortableBytes(lowerBound)));
         assertEquals(CELL_CROSSES_QUERY, query.compare(toSortableBytes(lowerBound), toSortableBytes(lowerBound + 1)));
@@ -175,12 +189,12 @@ public class BlockBalancedTreeQueriesTest extends SAIRandomizedTester
         Expression expression = buildExpression(Operator.GTE, lowerBound).add(Operator.LT, Int32Type.instance.decompose(upperBound));
         BlockBalancedTreeReader.IntersectVisitor query = BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4);
 
-        assertFalse(query.visit(toSortableBytes(lowerBound - 1)));
-        assertTrue(query.visit(toSortableBytes(lowerBound)));
-        assertTrue(query.visit(toSortableBytes(lowerBound + 1)));
-        assertTrue(query.visit(toSortableBytes(upperBound - 1)));
-        assertFalse(query.visit(toSortableBytes(upperBound)));
-        assertFalse(query.visit(toSortableBytes(upperBound + 1)));
+        assertFalse(query.contains(toSortableBytes(lowerBound - 1)));
+        assertTrue(query.contains(toSortableBytes(lowerBound)));
+        assertTrue(query.contains(toSortableBytes(lowerBound + 1)));
+        assertTrue(query.contains(toSortableBytes(upperBound - 1)));
+        assertFalse(query.contains(toSortableBytes(upperBound)));
+        assertFalse(query.contains(toSortableBytes(upperBound + 1)));
 
         assertEquals(CELL_OUTSIDE_QUERY, query.compare(toSortableBytes(lowerBound - 2), toSortableBytes(lowerBound - 1)));
         assertEquals(CELL_CROSSES_QUERY, query.compare(toSortableBytes(lowerBound - 1), toSortableBytes(lowerBound)));

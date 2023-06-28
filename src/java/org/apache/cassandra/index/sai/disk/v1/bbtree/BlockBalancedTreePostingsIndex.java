@@ -25,7 +25,6 @@ import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.validate;
 
 /**
@@ -62,7 +61,6 @@ class BlockBalancedTreePostingsIndex
      */
     boolean exists(int nodeID)
     {
-        checkArgument(nodeID > 0);
         return index.containsKey(nodeID);
     }
 
@@ -75,7 +73,6 @@ class BlockBalancedTreePostingsIndex
      */
     long getPostingsFilePointer(int nodeID)
     {
-        checkArgument(exists(nodeID));
         return index.get(nodeID);
     }
 

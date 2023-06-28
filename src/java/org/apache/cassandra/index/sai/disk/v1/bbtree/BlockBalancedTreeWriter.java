@@ -85,7 +85,7 @@ import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
 public class BlockBalancedTreeWriter
 {
     // Enable to check that values are added to the tree in correct order and within bounds
-    private static final boolean DEBUG = CassandraRelevantProperties.SAI_TEST_ENABLE_BALANCED_TREE_DEBUG.getBoolean();
+    public static final boolean DEBUG = CassandraRelevantProperties.SAI_TEST_BALANCED_TREE_DEBUG_ENABLED.getBoolean();
 
     // Default maximum number of point in each leaf block
     public static final int DEFAULT_MAX_POINTS_IN_LEAF_NODE = 1024;
@@ -94,7 +94,7 @@ public class BlockBalancedTreeWriter
     private final int maxPointsInLeafNode;
     private final byte[] minPackedValue;
     private final byte[] maxPackedValue;
-    private long pointCount;
+    private long valueCount;
     private final long maxRows;
 
     public BlockBalancedTreeWriter(long maxRows, int bytesPerValue, int maxPointsInLeafNode)
@@ -113,9 +113,9 @@ public class BlockBalancedTreeWriter
         maxPackedValue = new byte[bytesPerValue];
     }
 
-    public long getPointCount()
+    public long getValueCount()
     {
-        return pointCount;
+        return valueCount;
     }
 
     public int getBytesPerValue()
@@ -153,11 +153,13 @@ public class BlockBalancedTreeWriter
 
         reader.intersect((rowID, packedValue) -> leafWriter.add(packedValue, rowID));
 
-        pointCount = leafWriter.finish();
+        valueCount = leafWriter.finish();
 
-        long treeFilePointer = pointCount == 0 ? -1 : treeOutput.getFilePointer();
+        long treeFilePointer = valueCount == 0 ? -1 : treeOutput.getFilePointer();
 
-        writeBalancedTree(treeOutput, maxPointsInLeafNode, leafWriter.leafBlockStartValues, leafWriter.leafBlockFilePointers);
+        // There is only any point in writing the balanced tree if any values were added
+        if (treeFilePointer >= 0)
+            writeBalancedTree(treeOutput, maxPointsInLeafNode, leafWriter.leafBlockStartValues, leafWriter.leafBlockFilePointers);
 
         SAICodecUtils.writeFooter(treeOutput);
 
@@ -168,20 +170,20 @@ public class BlockBalancedTreeWriter
     {
         int numInnerNodes = leafBlockStartValues.size();
         byte[] splitValues = new byte[(1 + numInnerNodes) * bytesPerValue];
-        recurseBalanceTree(1, 0, numInnerNodes, splitValues, leafBlockStartValues);
+        int depth = recurseBalanceTree(1, 0, numInnerNodes, 1, splitValues, leafBlockStartValues);
         long[] leafBlockFPs = leafBlockFilePointer.stream().mapToLong(l -> l).toArray();
         byte[] packedIndex = packIndex(leafBlockFPs, splitValues);
 
         out.writeVInt(countPerLeaf);
         out.writeVInt(bytesPerValue);
 
-        assert leafBlockFPs.length > 0;
         out.writeVInt(leafBlockFPs.length);
+        out.writeVInt(Math.min(depth, leafBlockFPs.length));
 
         out.writeBytes(minPackedValue, 0, bytesPerValue);
         out.writeBytes(maxPackedValue, 0, bytesPerValue);
 
-        out.writeVLong(pointCount);
+        out.writeVLong(valueCount);
 
         out.writeVInt(packedIndex.length);
         out.writeBytes(packedIndex, 0, packedIndex.length);
@@ -190,8 +192,9 @@ public class BlockBalancedTreeWriter
     /**
      * This can, potentially, be removed in the future by CASSANDRA-18597
      */
-    private void recurseBalanceTree(int nodeID, int offset, int count, byte[] splitValues, List<byte[]> leafBlockStartValues)
+    private int recurseBalanceTree(int nodeID, int offset, int count, int treeDepth, byte[] splitValues, List<byte[]> leafBlockStartValues)
     {
+        treeDepth++;
         if (count == 1)
         {
             // Leaf index node
@@ -220,11 +223,11 @@ public class BlockBalancedTreeWriter
                     // under here, to save this while loop on each recursion
 
                     // Recurse left
-                    recurseBalanceTree(2 * nodeID, offset, leftHalf, splitValues, leafBlockStartValues);
+                    int leftTreeDepth = recurseBalanceTree(2 * nodeID, offset, leftHalf, treeDepth, splitValues, leafBlockStartValues);
 
                     // Recurse right
-                    recurseBalanceTree(2 * nodeID + 1, rootOffset + 1, count - leftHalf - 1, splitValues, leafBlockStartValues);
-                    return;
+                    int rightTreeDepth = recurseBalanceTree(2 * nodeID + 1, rootOffset + 1, count - leftHalf - 1, treeDepth, splitValues, leafBlockStartValues);
+                    return Math.max(leftTreeDepth, rightTreeDepth);
                 }
                 totalCount += countAtLevel;
                 countAtLevel *= 2;
@@ -234,6 +237,7 @@ public class BlockBalancedTreeWriter
         {
             assert count == 0;
         }
+        return treeDepth;
     }
 
     // Packs the two arrays, representing a balanced binary tree, into a compact byte[] structure.
@@ -319,7 +323,8 @@ public class BlockBalancedTreeWriter
             }
             else
             {
-                return 0;
+                throw new IllegalStateException();
+//                return 0;
             }
         }
         else
@@ -356,9 +361,7 @@ public class BlockBalancedTreeWriter
                 firstDiffByteDelta = (splitValues[address + prefix] & 0xFF) - (lastSplitValue[prefix] & 0xFF);
                 // If this is left then we need to negate the delta
                 if (isLeft)
-                {
                     firstDiffByteDelta = -firstDiffByteDelta;
-                }
                 assert firstDiffByteDelta > 0;
             }
             else
@@ -658,15 +661,10 @@ public class BlockBalancedTreeWriter
 
         private void writeLeafBlockPackedValues(DataOutput out, int commonPrefixLength, int count) throws IOException
         {
-            if (commonPrefixLength == bytesPerValue)
+            // If all the values are the same (e.g. the common prefix length == bytes per value) then we don't
+            // need to write anything. Otherwise, we run length compress the values to disk.
+            if (commonPrefixLength != bytesPerValue)
             {
-                // all values in this block are equal
-                out.writeByte((byte) -1);
-            }
-            else
-            {
-                assert commonPrefixLength < bytesPerValue;
-                out.writeByte((byte) 0);
                 int compressedByteOffset = commonPrefixLength;
                 commonPrefixLength++;
                 for (int i = 0; i < count; )

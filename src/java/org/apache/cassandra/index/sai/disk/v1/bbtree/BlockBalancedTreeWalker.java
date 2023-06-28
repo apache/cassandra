@@ -18,6 +18,8 @@
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.util.Arrays;
 
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
@@ -29,9 +31,10 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FutureArrays;
-import org.apache.lucene.util.MathUtil;
 
 /**
  * Base reader for a block balanced tree previously written with {@link BlockBalancedTreeWriter}.
@@ -41,50 +44,19 @@ import org.apache.lucene.util.MathUtil;
 public class BlockBalancedTreeWalker implements Closeable
 {
     final FileHandle treeIndexFile;
-    final int bytesPerValue;
-    final int numLeaves;
-    final byte[] minPackedValue;
-    final byte[] maxPackedValue;
-    // Packed array of byte[] holding all split values in the full binary tree:
-    final byte[] packedIndex;
-    final long pointCount;
-    final int maxPointsInLeafNode;
+    final TraversalState state;
 
     BlockBalancedTreeWalker(FileHandle treeIndexFile, long treeIndexRoot)
     {
         this.treeIndexFile = treeIndexFile;
 
         try (RandomAccessReader reader = treeIndexFile.createReader();
-             IndexInputReader in = IndexInputReader.create(reader))
+             IndexInput indexInput = IndexInputReader.create(reader))
         {
-            SAICodecUtils.validate(in);
-            in.seek(treeIndexRoot);
+            SAICodecUtils.validate(indexInput);
+            indexInput.seek(treeIndexRoot);
 
-            maxPointsInLeafNode = in.readVInt();
-            bytesPerValue = in.readVInt();
-
-            // Read index:
-            numLeaves = in.readVInt();
-            assert numLeaves > 0;
-
-            minPackedValue = new byte[bytesPerValue];
-            maxPackedValue = new byte[bytesPerValue];
-
-            in.readBytes(minPackedValue, 0, bytesPerValue);
-            in.readBytes(maxPackedValue, 0, bytesPerValue);
-
-            if (FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerValue, maxPackedValue, 0, bytesPerValue) > 0)
-            {
-                String message = String.format("Min packed value %s is > max packed value %s.",
-                                               new BytesRef(minPackedValue), new BytesRef(maxPackedValue));
-                throw new CorruptIndexException(message, in);
-            }
-
-            pointCount = in.readVLong();
-
-            int numBytes = in.readVInt();
-            packedIndex = new byte[numBytes];
-            in.readBytes(packedIndex, 0, numBytes);
+            state = new TraversalState(indexInput);
         }
         catch (Throwable t)
         {
@@ -95,9 +67,7 @@ public class BlockBalancedTreeWalker implements Closeable
 
     public long memoryUsage()
     {
-        return ObjectSizes.sizeOfArray(packedIndex)
-               + ObjectSizes.sizeOfArray(minPackedValue)
-               + ObjectSizes.sizeOfArray(maxPackedValue);
+        return state.memoryUsage;
     }
 
     @Override
@@ -108,33 +78,33 @@ public class BlockBalancedTreeWalker implements Closeable
 
     void traverse(TraversalCallback callback)
     {
-        traverse(callback, new PackedIndexTree(packedIndex, bytesPerValue, numLeaves), new IntArrayList());
+        state.reset();
+        traverse(callback, new IntArrayList());
     }
 
-    private void traverse(TraversalCallback callback, PackedIndexTree index, IntArrayList pathToRoot)
+    private void traverse(TraversalCallback callback, IntArrayList pathToRoot)
     {
-        if (index.isLeafNode())
+        if (state.isLeafNode())
         {
             // In the unbalanced case it's possible the left most node only has one child:
-            if (index.nodeExists())
+            if (state.nodeExists())
             {
-                callback.onLeaf(index.getNodeID(), index.getLeafBlockFP(), pathToRoot);
+                callback.onLeaf(state.nodeID, state.getLeafBlockFP(), pathToRoot);
             }
         }
         else
         {
-            int nodeID = index.getNodeID();
             IntArrayList currentPath = new IntArrayList();
             currentPath.addAll(pathToRoot);
-            currentPath.add(nodeID);
+            currentPath.add(state.nodeID);
 
-            index.pushLeft();
-            traverse(callback, index, currentPath);
-            index.pop();
+            state.pushLeft();
+            traverse(callback, currentPath);
+            state.pop();
 
-            index.pushRight();
-            traverse(callback, index, currentPath);
-            index.pop();
+            state.pushRight();
+            traverse(callback, currentPath);
+            state.pop();
         }
     }
 
@@ -143,49 +113,104 @@ public class BlockBalancedTreeWalker implements Closeable
         void onLeaf(int leafNodeID, long leafBlockFP, IntArrayList pathToRoot);
     }
 
-    final static class PackedIndexTree
+    /**
+     * This maintains the state for a traversal of the packed index. It is loaded once and can be resused
+     * by calling the reset method.
+     * <p>
+     * The packed index is a packed representation of a balanced tree and takes the form of a packed array of
+     * file pointer / split value pairs. Both the file pointers and split values are prefix compressed by tree level
+     * requiring us to maintain a stack of values for each level in the tree. The stack size is always the tree depth.
+     * <p>
+     * The tree is traversed by recursively following the left and then right subtrees under the current node. For the
+     * following tree (split values in square brackets):
+     * <pre>
+     *        1[16]
+     *       / \
+     *      /   \
+     *     2[8]  3[24]
+     *    / \   / \
+     *   4   5 6   7
+     * </pre>
+     * The traversal will be 1 -> 2 -> 4 -> 5 -> 3 -> 6 -> 7 with nodes 4, 5, 6 & 7 being leaf nodes.
+     * <p>
+     * Assuming the full range of values in the tree is 0 -> 32, the non-leaf nodes will represent the following
+     * values:
+     * <pre>
+     *         1[0-32]
+     *        /      \
+     *    2[0-16]   3[16-32]
+     * </pre>
+     */
+    final static class TraversalState
     {
-        private final int bytesPerValue;
-        private final int numLeaves;
+        final int bytesPerValue;
+        final int numLeaves;
+        final int treeDepth;
+        final byte[] minPackedValue;
+        final byte[] maxPackedValue;
+        final long pointCount;
+        final int maxPointsInLeafNode;
+        final long memoryUsage;
 
-        private final byte[][] splitPackedValueStack;
         // used to read the packed index byte[]
-        private final ByteArrayDataInput in;
+        final ByteArrayDataInput dataInput;
         // holds the minimum (left most) leaf block file pointer for each level we've recursed to:
-        private final long[] leafBlockFPStack;
+        final long[] leafBlockFPStack;
         // holds the address, in the packed byte[] index, of the left-node of each level:
-        private final int[] leftNodePositions;
+        final int[] leftNodePositions;
         // holds the address, in the packed byte[] index, of the right-node of each level:
-        private final int[] rightNodePositions;
-        // true if the delta we read for the node at this level is a negative offset vs. the last split;
-        // this will be true if the last time we split, we next pushed to the left subtree:
-        private final boolean[] negativeDeltas;
+        final int[] rightNodePositions;
         // holds the packed per-level split values; the run method uses this to save the cell min/max as it recurses:
-        private final byte[][] splitValuesStack;
+        final byte[][] splitValuesStack;
 
-        private int nodeID;
-        // level is 1-based so that we can do level-1 w/o checking each time:
-        private int level;
-        private boolean leafNode;
+        int nodeID;
+        int level;
 
-        PackedIndexTree(byte[] packedIndex, int bytesPerValue, int numLeaves)
+        TraversalState(DataInput dataInput) throws IOException
         {
-            this.bytesPerValue = bytesPerValue;
-            this.numLeaves = numLeaves;
-            int treeDepth = getTreeDepth();
-            splitPackedValueStack = new byte[treeDepth + 1][];
-            nodeID = 1;
-            level = 1;
-            splitPackedValueStack[level] = new byte[bytesPerValue];
-            leafBlockFPStack = new long[treeDepth + 1];
-            leftNodePositions = new int[treeDepth + 1];
-            rightNodePositions = new int[treeDepth + 1];
-            splitValuesStack = new byte[treeDepth + 1][];
-            negativeDeltas = new boolean[treeDepth + 1];
+            maxPointsInLeafNode = dataInput.readVInt();
+            bytesPerValue = dataInput.readVInt();
 
-            in = new ByteArrayDataInput(packedIndex);
-            splitValuesStack[0] = new byte[bytesPerValue];
+            // Read index:
+            numLeaves = dataInput.readVInt();
+            assert numLeaves > 0;
+            treeDepth = dataInput.readVInt();
+            minPackedValue = new byte[bytesPerValue];
+            maxPackedValue = new byte[bytesPerValue];
+
+            dataInput.readBytes(minPackedValue, 0, bytesPerValue);
+            dataInput.readBytes(maxPackedValue, 0, bytesPerValue);
+
+            if (FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerValue, maxPackedValue, 0, bytesPerValue) > 0)
+            {
+                String message = String.format("Min packed value %s is > max packed value %s.",
+                                               new BytesRef(minPackedValue), new BytesRef(maxPackedValue));
+                throw new CorruptIndexException(message, dataInput);
+            }
+
+            pointCount = dataInput.readVLong();
+
+            int numBytes = dataInput.readVInt();
+            byte[] packedIndex = new byte[numBytes];
+            dataInput.readBytes(packedIndex, 0, numBytes);
+
+            memoryUsage = ObjectSizes.sizeOfArray(packedIndex) + ObjectSizes.sizeOfArray(minPackedValue) + ObjectSizes.sizeOfArray(maxPackedValue);
+
+            nodeID = 1;
+            level = 0;
+            leafBlockFPStack = new long[treeDepth];
+            leftNodePositions = new int[treeDepth];
+            rightNodePositions = new int[treeDepth];
+            splitValuesStack = new byte[treeDepth][];
+            this.dataInput = new ByteArrayDataInput(packedIndex);
             readNodeData(false);
+        }
+
+        public void reset()
+        {
+            nodeID = 1;
+            level = 0;
+            dataInput.setPosition(0);
         }
 
         public void pushLeft()
@@ -193,12 +218,7 @@ public class BlockBalancedTreeWalker implements Closeable
             int nodePosition = leftNodePositions[level];
             nodeID *= 2;
             level++;
-            if (splitPackedValueStack[level] == null)
-                splitPackedValueStack[level] = new byte[bytesPerValue];
-            System.arraycopy(negativeDeltas, level - 1, negativeDeltas, level, 1);
-            assert !leafNode;
-            negativeDeltas[level] = true;
-            in.setPosition(nodePosition);
+            dataInput.setPosition(nodePosition);
             readNodeData(true);
         }
 
@@ -207,12 +227,7 @@ public class BlockBalancedTreeWalker implements Closeable
             int nodePosition = rightNodePositions[level];
             nodeID = nodeID * 2 + 1;
             level++;
-            if (splitPackedValueStack[level] == null)
-                splitPackedValueStack[level] = new byte[bytesPerValue];
-            System.arraycopy(negativeDeltas, level - 1, negativeDeltas, level, 1);
-            assert !leafNode;
-            negativeDeltas[level] = false;
-            in.setPosition(nodePosition);
+            dataInput.setPosition(nodePosition);
             readNodeData(false);
         }
 
@@ -220,7 +235,6 @@ public class BlockBalancedTreeWalker implements Closeable
         {
             nodeID /= 2;
             level--;
-            leafNode = false;
         }
 
         public boolean isLeafNode()
@@ -233,21 +247,8 @@ public class BlockBalancedTreeWalker implements Closeable
             return nodeID - numLeaves < numLeaves;
         }
 
-        public int getNodeID()
-        {
-            return nodeID;
-        }
-
-        public byte[] getSplitPackedValue()
-        {
-            assert !isLeafNode();
-            assert splitPackedValueStack[level] != null : "level=" + level;
-            return splitPackedValueStack[level];
-        }
-
         public long getLeafBlockFP()
         {
-            assert isLeafNode() : "nodeID=" + nodeID + " is not a leaf";
             return leafBlockFPStack[level];
         }
 
@@ -259,51 +260,46 @@ public class BlockBalancedTreeWalker implements Closeable
 
         private void readNodeData(boolean isLeft)
         {
-            leafBlockFPStack[level] = leafBlockFPStack[level - 1];
+            leafBlockFPStack[level] = level == 0 ? 0 : leafBlockFPStack[level - 1];
 
             // read leaf block FP delta
             if (!isLeft)
-                leafBlockFPStack[level] += in.readVLong();
+                leafBlockFPStack[level] += dataInput.readVLong();
 
-            leafNode = isLeafNode();
-            if (!leafNode)
+            if (!isLeafNode())
             {
                 // read prefix, firstDiffByteDelta encoded as int:
-                int code = in.readVInt();
+                int code = dataInput.readVInt();
                 int prefix = code % (1 + bytesPerValue);
                 int suffix = bytesPerValue - prefix;
 
-                if (splitValuesStack[level] == null)
-                {
-                    splitValuesStack[level] = new byte[bytesPerValue];
-                }
-                System.arraycopy(splitValuesStack[level - 1], 0, splitValuesStack[level], 0, bytesPerValue);
+                pushSplitValueStack();
                 if (suffix > 0)
                 {
                     int firstDiffByteDelta = code / (1 + bytesPerValue);
-                    if (negativeDeltas[level])
+                    // If we are pushing to the left subtree then the delta will be negative
+                    if (isLeft)
                         firstDiffByteDelta = -firstDiffByteDelta;
                     int oldByte = splitValuesStack[level][prefix] & 0xFF;
                     splitValuesStack[level][prefix] = (byte) (oldByte + firstDiffByteDelta);
-                    in.readBytes(splitValuesStack[level], prefix + 1, suffix - 1);
+                    dataInput.readBytes(splitValuesStack[level], prefix + 1, suffix - 1);
                 }
 
-                int leftNumBytes = nodeID * 2 < numLeaves ? in.readVInt() : 0;
+                int leftNumBytes = nodeID * 2 < numLeaves ? dataInput.readVInt() : 0;
 
-                leftNodePositions[level] = in.getPosition();
+                leftNodePositions[level] = dataInput.getPosition();
                 rightNodePositions[level] = leftNodePositions[level] + leftNumBytes;
             }
         }
 
-        private int getTreeDepth()
+        private void pushSplitValueStack()
         {
-            // First +1 because all the non-leave nodes makes another power
-            // of 2; e.g. to have a fully balanced tree with 4 leaves you
-            // need a depth=3 tree:
-
-            // Second +1 because MathUtil.log computes floor of the logarithm; e.g.
-            // with 5 leaves you need a depth=4 tree:
-            return MathUtil.log(numLeaves, 2) + 2;
+            if (splitValuesStack[level] == null)
+                splitValuesStack[level] = new byte[bytesPerValue];
+            if (level == 0)
+                Arrays.fill(splitValuesStack[level], (byte) 0);
+            else
+                System.arraycopy(splitValuesStack[level - 1], 0, splitValuesStack[level], 0, bytesPerValue);
         }
     }
 }

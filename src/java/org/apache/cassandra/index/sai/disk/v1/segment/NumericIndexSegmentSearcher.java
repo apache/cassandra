@@ -35,6 +35,7 @@ import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.lucene.index.CorruptIndexException;
 
 import static org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeQueries.balancedTreeQueryFrom;
 
@@ -56,9 +57,11 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
 
         final long treePosition = metadata.getIndexRoot(IndexComponent.BALANCED_TREE);
-        assert treePosition >= 0;
+        if (treePosition < 0)
+            throw new CorruptIndexException(indexContext.logMessage("The tree position is less than zero."), IndexComponent.BALANCED_TREE.name);
         final long postingsPosition = metadata.getIndexRoot(IndexComponent.POSTING_LISTS);
-        assert postingsPosition >= 0;
+        if (postingsPosition < 0)
+            throw new CorruptIndexException(indexContext.logMessage("The postings position is less than zero."), IndexComponent.BALANCED_TREE.name);
 
         treeReader = new BlockBalancedTreeReader(indexContext,
                                                  indexFiles.balancedTree(),

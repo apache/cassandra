@@ -100,7 +100,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
             try (final PostingList ignored = reader.intersect(new BlockBalancedTreeReader.IntersectVisitor()
             {
                 @Override
-                public boolean visit(byte[] packedValue)
+                public boolean contains(byte[] packedValue)
                 {
                     // we should read point values in reverse order after sorting
                     assertEquals(1 + visited.get(), NumericUtils.sortableBytesToInt(packedValue, 0));
@@ -149,7 +149,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
             try (final PostingList ignored = reader.intersect(new BlockBalancedTreeReader.IntersectVisitor()
             {
                 @Override
-                public boolean visit(byte[] packedValue)
+                public boolean contains(byte[] packedValue)
                 {
                     final ByteComparable actualTerm = ByteComparable.fixedLength(packedValue);
                     final ByteComparable expectedTerm = ByteComparable.of(Math.toIntExact(visited.get()));
