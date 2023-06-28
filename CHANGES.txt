@@ -4,6 +4,7 @@
  * Add keyspace and table name to exception message during ColumnSubselection deserialization (CASSANDRA-18346)
  * Remove unnecessary String.format invocation in QueryProcessor when getting a prepared statement from cache (CASSANDRA-17202)
 Merged from 3.0:
+ * Suppress CVE-2023-35116 (CASSANDRA-18630)
  * Pass taskId from CompactionTask to system.compaction_history (CASSANDRA-12183)
  * Suppress CVE-2023-34455, CVE-2023-34454, CVE-2023-34453 (CASSANDRA-18608)
  * Backport CASSANDRA-10508: Remove hard-coded SSL cipher suites (CASSANDRA-18575)
