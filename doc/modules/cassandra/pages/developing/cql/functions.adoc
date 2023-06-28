@@ -284,6 +284,13 @@ A number of functions allow to obscure the real contents of a column containing 
 
 include::partial$masking_functions.adoc[]
 
+[[vector-similarity-functions]]
+===== Vector similarity functions
+
+A number of functions allow to obtain the similarity score between vectors of floats.
+
+include::partial$vector_functions.adoc[]
+
 [[user-defined-scalar-functions]]
 ==== User-defined functions
 

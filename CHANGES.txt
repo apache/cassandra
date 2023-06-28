@@ -1,4 +1,5 @@
 5.0
+ * Add vector similarity functions (CASSANDRA-18640)
  * Lift MessagingService.minimum_version to 40 (CASSANDRA-18314)
  * Introduce pluggable crypto providers and default to AmazonCorrettoCryptoProvider (CASSANDRA-18624)
  * Improved DeletionTime serialization (CASSANDRA-18648)

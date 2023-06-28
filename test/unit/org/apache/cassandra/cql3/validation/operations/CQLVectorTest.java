@@ -457,14 +457,14 @@ public class CQLVectorTest extends CQLTester.InMemory
                                   format("SELECT %s([1, 2, 3], [4, 5, 6]) FROM %%s", f));
 
         // Test wrong types on function creation
-        assertInvalidThrowMessage("vectors may only have positive dimentions; given 0",
+        assertInvalidThrowMessage("vectors may only have positive dimensions; given 0",
                                   InvalidRequestException.class,
                                   "CREATE FUNCTION %s (x vector<int, 0>) " +
                                   "CALLED ON NULL INPUT " +
                                   "RETURNS vector<int, 2> " +
                                   "LANGUAGE java " +
                                   "AS 'return x;'");
-        assertInvalidThrowMessage("vectors may only have positive dimentions; given 0",
+        assertInvalidThrowMessage("vectors may only have positive dimensions; given 0",
                                   InvalidRequestException.class,
                                   "CREATE FUNCTION %s (x vector<int, 2>) " +
                                   "CALLED ON NULL INPUT " +

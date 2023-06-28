@@ -31,7 +31,7 @@ public class VectorType extends DataType
     VectorType(DataType subtype, int dimensions)
     {
         super(Name.VECTOR);
-        assert dimensions > 0 : "vectors may only have positive dimentions; given " + dimensions;
+        assert dimensions > 0 : "vectors may only have positive dimensions; given " + dimensions;
         this.subtype = subtype;
         this.dimensions = dimensions;
     }

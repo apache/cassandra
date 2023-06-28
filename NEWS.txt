@@ -84,6 +84,7 @@ New features
       class. Further details and documentation can be found in
       src/java/org/apache/cassandra/db/compaction/UnifiedCompactionStrategy.md
     - New `VectorType` (cql `vector<element_type, dimension>`) which adds new fixed-length element arrays. See CASSANDRA-18504
+    - Added new vector similarity functions `similarity_cosine`, `similarity_euclidean` and `similarity_dot_product`.
     - Removed UDT type migration logic for 3.6+ clusters upgrading to 4.0.  If migration has been disabled, it must be
       enabled before upgrading to 5.0 if the cluster used UDTs. See CASSANDRA-18504
     - Entended max expiration time from 2038-01-19T03:14:06+00:00 to 2106-02-07T06:28:13+00:00
