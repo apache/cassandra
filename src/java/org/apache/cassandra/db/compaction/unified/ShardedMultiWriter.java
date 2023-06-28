@@ -70,16 +70,16 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     private int currentWriter;
 
     public ShardedMultiWriter(CompactionRealm realm,
-                              Descriptor descriptor,
-                              long keyCount,
-                              long repairedAt,
-                              UUID pendingRepair,
-                              boolean isTransient,
-                              IntervalSet<CommitLogPosition> commitLogPositions,
-                              SerializationHeader header,
-                              Collection<Index.Group> indexGroups,
-                              LifecycleNewTracker lifecycleNewTracker,
-                              ShardTracker boundaries)
+                                Descriptor descriptor,
+                                long keyCount,
+                                long repairedAt,
+                                UUID pendingRepair,
+                                boolean isTransient,
+                                IntervalSet<CommitLogPosition> commitLogPositions,
+                                SerializationHeader header,
+                                Collection<Index.Group> indexGroups,
+                                LifecycleNewTracker lifecycleNewTracker,
+                                ShardTracker boundaries)
     {
         this.realm = realm;
         this.descriptor = descriptor;

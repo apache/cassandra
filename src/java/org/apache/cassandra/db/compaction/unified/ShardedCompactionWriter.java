@@ -36,8 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A {@link CompactionAwareWriter} that splits the output sstable at the partition boundaries of the compaction
- * shards used by {@link org.apache.cassandra.db.compaction.UnifiedCompactionStrategy} as long as the size of
- * the sstable so far is sufficiently large.
+ * shards used by {@link org.apache.cassandra.db.compaction.UnifiedCompactionStrategy}.
  */
 public class ShardedCompactionWriter extends CompactionAwareWriter
 {
@@ -66,7 +65,9 @@ public class ShardedCompactionWriter extends CompactionAwareWriter
     @Override
     protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
     {
-        // If we have written anything and cross a shard boundary, switch to a new writer.
+        // If we have written anything and cross a shard boundary, switch to a new writer. We use the uncompressed
+        // file pointer here because there may be writes that are not yet reflected in the on-disk size, and we want
+        // to split as soon as there is content, regardless how small.
         final long uncompressedBytesWritten = sstableWriter.currentWriter().getFilePointer();
         if (boundaries.advanceTo(key.getToken()) && uncompressedBytesWritten > 0)
         {

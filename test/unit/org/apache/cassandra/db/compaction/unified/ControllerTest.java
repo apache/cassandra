@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -37,9 +38,13 @@ import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.ReplicationFactor;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MovingAverage;
+import org.apache.cassandra.utils.Overlaps;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import static junit.framework.TestCase.assertNull;
@@ -56,9 +61,9 @@ import static org.mockito.Mockito.when;
 public abstract class ControllerTest
 {
     static final double epsilon = 0.00000001;
-    static final int dataSizeGB = 512;
+    static final long dataSizeGB = 512;
     static final int numShards = 4; // pick it so that dataSizeGB is exactly divisible or tests will break
-    static final int sstableSizeMB = 2;
+    static final long sstableSizeMB = 2;
     static final double maxSpaceOverhead = 0.3d;
     static final boolean allowOverlaps = false;
     static final long checkFrequency= 600L;
@@ -136,17 +141,25 @@ public abstract class ControllerTest
         assertNotNull(controller);
         assertNotNull(controller.toString());
 
-        assertEquals((long) sstableSizeMB << 20, controller.getMinSstableSizeBytes());
-        assertEquals((long) dataSizeGB << 30, controller.getDataSetSizeBytes());
-        // No longer true: assertEquals(numShards, controller.getNumShards(1));
-        assertEquals(((long) dataSizeGB << 30) / numShards, controller.getShardSizeBytes());
+        assertEquals(dataSizeGB << 30, controller.getDataSetSizeBytes());
         assertFalse(controller.isRunning());
         for (int i = 0; i < 5; i++) // simulate 5 levels
             assertEquals(Controller.DEFAULT_SURVIVAL_FACTOR, controller.getSurvivalFactor(i), epsilon);
         assertNull(controller.getCalculator());
-        assertEquals(2, controller.getNumShards(0));
-        assertEquals(16, controller.getNumShards(16 * 100 << 20));
-        assertEquals(Controller.OverlapInclusionMethod.SINGLE, controller.overlapInclusionMethod());
+        if (!options.containsKey(Controller.NUM_SHARDS_OPTION))
+        {
+            assertEquals(2, controller.getNumShards(0));
+            assertEquals(16, controller.getNumShards(16 * 100 << 20));
+            assertEquals(Overlaps.InclusionMethod.SINGLE, controller.overlapInclusionMethod());
+        }
+        else
+        {
+            int numShards = Integer.parseInt(options.get(Controller.NUM_SHARDS_OPTION));
+            long minSSTableSize = FBUtilities.parseHumanReadableBytes(options.get(Controller.MIN_SSTABLE_SIZE_OPTION));
+            assertEquals(1, controller.getNumShards(0));
+            assertEquals(numShards, controller.getNumShards(numShards * minSSTableSize));
+            assertEquals(numShards, controller.getNumShards(16 * 100 << 20));
+        }
 
         return controller;
     }
@@ -158,20 +171,35 @@ public abstract class ControllerTest
         assertTrue(options.toString(), options.isEmpty());
     }
 
+    private static void putWithAlt(Map<String, String> options, String opt, String alt, int altShift, long altVal)
+    {
+        if (options.containsKey(opt) || options.containsKey(alt))
+            return;
+        if (ThreadLocalRandom.current().nextBoolean())
+            options.put(opt, FBUtilities.prettyPrintMemory(altVal << altShift));
+        else
+            options.put(alt, Long.toString(altVal));
+    }
+
     private static void addOptions(boolean adaptive, Map<String, String> options)
     {
         options.putIfAbsent(Controller.ADAPTIVE_OPTION, Boolean.toString(adaptive));
-        options.putIfAbsent(Controller.MIN_SSTABLE_SIZE_OPTION_MB, Integer.toString(sstableSizeMB));
+        putWithAlt(options, Controller.DATASET_SIZE_OPTION, Controller.DATASET_SIZE_OPTION_GB, 30, dataSizeGB);
 
-        options.putIfAbsent(Controller.DATASET_SIZE_OPTION_GB, Integer.toString(dataSizeGB));
-        options.putIfAbsent(Controller.NUM_SHARDS_OPTION, Integer.toString(numShards));
-        options.putIfAbsent(Controller.MAX_SPACE_OVERHEAD_OPTION, Double.toString(maxSpaceOverhead));
+        if (ThreadLocalRandom.current().nextBoolean())
+            options.putIfAbsent(Controller.MAX_SPACE_OVERHEAD_OPTION, Double.toString(maxSpaceOverhead));
+        else
+            options.putIfAbsent(Controller.MAX_SPACE_OVERHEAD_OPTION, String.format("%.1f%%", maxSpaceOverhead * 100));
+
         options.putIfAbsent(Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, Boolean.toString(allowOverlaps));
         options.putIfAbsent(Controller.EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION, Long.toString(checkFrequency));
 
-        options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(2));
-        options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
-        options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Controller.OverlapInclusionMethod.SINGLE.toString().toLowerCase());
+        if (!options.containsKey(Controller.NUM_SHARDS_OPTION))
+        {
+            options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(2));
+            options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
+        }
+        options.putIfAbsent(Controller.OVERLAP_INCLUSION_METHOD_OPTION, Overlaps.InclusionMethod.SINGLE.toString().toLowerCase());
     }
 
     void testStartShutdown(Controller controller)
@@ -180,8 +208,7 @@ public abstract class ControllerTest
 
         assertEquals((long) dataSizeGB << 30, controller.getDataSetSizeBytes());
         assertEquals(numShards, controller.getNumShards(1));
-        assertEquals(((long) dataSizeGB << 30) / numShards, controller.getShardSizeBytes());
-        assertEquals((long) sstableSizeMB << 20, controller.getMinSstableSizeBytes());
+        assertEquals((long) sstableSizeMB << 20, controller.getTargetSSTableSize());
         assertFalse(controller.isRunning());
         assertEquals(Controller.DEFAULT_SURVIVAL_FACTOR, controller.getSurvivalFactor(0), epsilon);
         assertNull(controller.getCalculator());
@@ -272,12 +299,14 @@ public abstract class ControllerTest
     }
 
     @Test
-    public void testGetNumShards()
+    public void testGetNumShards_growth_0()
     {
         Map<String, String> options = new HashMap<>();
-        options.putIfAbsent(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
-        options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
+        options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "100MiB");
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
         Controller controller = Controller.fromOptions(cfs, options);
+        assertEquals(0.0, controller.sstableGrowthModifier, 0.0);
 
         // Easy ones
         // x00 MiB = x * 100
@@ -292,13 +321,229 @@ public abstract class ControllerTest
         // Check lower limit
         assertEquals(3, controller.getNumShards(Math.scalb(200, 20)));
         assertEquals(3, controller.getNumShards(Math.scalb(100, 20)));
-        assertEquals(3, controller.getNumShards(Math.scalb(10, 20)));
-        assertEquals(3, controller.getNumShards(5));
-        assertEquals(3, controller.getNumShards(0));
+        assertEquals(3, controller.getNumShards(Math.scalb(50, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(30, 20)));
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(29, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(20, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(19, 20)));
+        assertEquals(1, controller.getNumShards(5));
+        assertEquals(1, controller.getNumShards(0));
         // Check upper limit
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(600, 40)));
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(10, 60)));
         assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Double.POSITIVE_INFINITY));
+        // Check NaN
+        assertEquals(3, controller.getNumShards(Double.NaN));
+    }
+
+    @Test
+    public void testGetNumShards_growth_1()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "100MiB");
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
+        options.put(Controller.SSTABLE_GROWTH_OPTION, "1.0");
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // Easy ones
+        // x00 MiB = x * 100
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(2400, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 30)));
+        // Check rounding
+        assertEquals(3, controller.getNumShards(Math.scalb(800, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(900, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(800, 30)));
+        assertEquals(3, controller.getNumShards(Math.scalb(900, 30)));
+        // Check lower limit
+        assertEquals(3, controller.getNumShards(Math.scalb(200, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(100, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(50, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(30, 20)));
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(29, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(20, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(19, 20)));
+        assertEquals(1, controller.getNumShards(5));
+        assertEquals(1, controller.getNumShards(0));
+        // Check upper limit
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 40)));
+        assertEquals(3, controller.getNumShards(Math.scalb(10, 60)));
+        assertEquals(3, controller.getNumShards(Double.POSITIVE_INFINITY));
+        // Check NaN
+        assertEquals(3, controller.getNumShards(Double.NaN));
+    }
+
+    @Test
+    public void testGetNumShards_legacy()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.NUM_SHARDS_OPTION, Integer.toString(3));
+        mockFlushSize(100);
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // Easy ones
+        // x00 MiB = x * 100
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(2400, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 30)));
+        // Check rounding
+        assertEquals(3, controller.getNumShards(Math.scalb(800, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(900, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(800, 30)));
+        assertEquals(3, controller.getNumShards(Math.scalb(900, 30)));
+        // Check lower limit
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(500, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(400, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(300, 20)));
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(290, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(200, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(190, 20)));
+        assertEquals(1, controller.getNumShards(5));
+        assertEquals(1, controller.getNumShards(0));
+        // Check upper limit
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 40)));
+        assertEquals(3, controller.getNumShards(Math.scalb(10, 60)));
+        assertEquals(3, controller.getNumShards(Double.POSITIVE_INFINITY));
+        // Check NaN
+        assertEquals(3, controller.getNumShards(Double.NaN));
+
+        assertEquals(Integer.MAX_VALUE, controller.getReservedThreadsPerLevel());
+    }
+
+    @Test
+    public void testGetNumShards_growth_1_2()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "100MiB");
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
+        options.put(Controller.SSTABLE_GROWTH_OPTION, "0.5");
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // Easy ones
+        // x00 MiB = x * 3 * 100
+        assertEquals(3 * 2, controller.getNumShards(Math.scalb(4 * 3 * 100, 20)));
+        assertEquals(3 * 4, controller.getNumShards(Math.scalb(16 * 3 * 100, 20)));
+        assertEquals(3 * 32, controller.getNumShards(Math.scalb(3 * 100, 20 + 10)));
+        // Check rounding. Note: Size must grow by 2x to get sqrt(2) times more shards.
+        assertEquals(6, controller.getNumShards(Math.scalb(2350, 20)));
+        assertEquals(12, controller.getNumShards(Math.scalb(2450, 20)));
+        assertEquals(3 * 32, controller.getNumShards(Math.scalb(550, 30)));
+        assertEquals(6 * 32, controller.getNumShards(Math.scalb(650, 30)));
+        // Check lower limit
+        assertEquals(3, controller.getNumShards(Math.scalb(200, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(100, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(50, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(30, 20)));
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(29, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(20, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(19, 20)));
+        assertEquals(1, controller.getNumShards(5));
+        assertEquals(1, controller.getNumShards(0));
+        // Check upper limit
+        assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(600, 60)));
+        assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(10, 80)));
+        assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Double.POSITIVE_INFINITY));
+        // Check NaN
+        assertEquals(3, controller.getNumShards(Double.NaN));
+    }
+
+    @Test
+    public void testGetNumShards_growth_1_3()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "100MiB");
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
+        options.put(Controller.SSTABLE_GROWTH_OPTION, "0.333");
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // Easy ones
+        // x00 MiB = x * 3 * 100
+        assertEquals(3 * 4, controller.getNumShards(Math.scalb(8 * 3 * 100, 20)));
+        assertEquals(3 * 16, controller.getNumShards(Math.scalb(64 * 3 * 100, 20)));
+        assertEquals(3 * 64, controller.getNumShards(Math.scalb(3 * 100, 20 + 9)));
+        // Check rounding. Note: size must grow by 2 ^ 3/4 to get sqrt(2) times more shards
+        assertEquals(12, controller.getNumShards(Math.scalb(4000, 20)));
+        assertEquals(24, controller.getNumShards(Math.scalb(4100, 20)));
+        assertEquals(3 * 64, controller.getNumShards(Math.scalb(500, 29)));
+        assertEquals(6 * 64, controller.getNumShards(Math.scalb(550, 29)));
+        // Check lower limit
+        assertEquals(3, controller.getNumShards(Math.scalb(200, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(100, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(50, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(30, 20)));
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(29, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(20, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(19, 20)));
+        assertEquals(1, controller.getNumShards(5));
+        assertEquals(1, controller.getNumShards(0));
+        // Check upper limit
+        assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(600, 50)));
+        assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Math.scalb(10, 60)));
+        assertEquals(3 * (int) Controller.MAX_SHARD_SPLIT, controller.getNumShards(Double.POSITIVE_INFINITY));
+        assertEquals(3, controller.getNumShards(Double.NaN));
+    }
+
+    @Test
+    public void testMinSizeAuto()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "200MiB");
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "auto");
+        mockFlushSize(45); // rounds up to 50MiB
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(149, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(100, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(99, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(50, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(49, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(10, 20)));
+
+        // sanity check
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 20)));
+        assertEquals(12, controller.getNumShards(Math.scalb(2400, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(400, 20)));
+        assertEquals(3, controller.getNumShards(Math.scalb(200, 20)));
+    }
+
+    private void mockFlushSize(double d)
+    {
+        TableMetrics metrics = Mockito.mock(TableMetrics.class);
+        MovingAverage flushSize = Mockito.mock(MovingAverage.class);
+        when(cfs.metrics()).thenReturn(metrics);
+        when(metrics.flushSizeOnDisk()).thenReturn(flushSize);
+        when(flushSize.get()).thenReturn(Math.scalb(d, 20)); // rounds up to 50MiB
+    }
+
+    @Test
+    public void testMinSizeAutoAtMostTargetMin()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
+        options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "200MiB");
+        options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "Auto");
+        mockFlushSize(300); // above target min, set to 141MiB
+        Controller controller = Controller.fromOptions(cfs, options);
+
+        // Check min size
+        assertEquals(2, controller.getNumShards(Math.scalb(400, 20)));
+        assertEquals(2, controller.getNumShards(Math.scalb(300, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(200, 20)));
+        assertEquals(1, controller.getNumShards(Math.scalb(100, 20)));
+        // sanity check
+        assertEquals(3, controller.getNumShards(Math.scalb(600, 20)));
+        assertEquals(12, controller.getNumShards(Math.scalb(2400, 20)));
     }
 
     void testValidateCompactionStrategyOptions(boolean testLogType)

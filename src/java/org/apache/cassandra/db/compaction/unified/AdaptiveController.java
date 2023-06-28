@@ -27,12 +27,14 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.compaction.CompactionPick;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.Overlaps;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -98,19 +100,19 @@ public class AdaptiveController extends Controller
                               int[] scalingParameters,
                               int[] previousScalingParameters,
                               double[] survivalFactors,
-                              long dataSetSizeMB,
-                              int numShards,
-                              long minSstableSizeMB,
-                              long flushSizeOverrideMB,
+                              long dataSetSize,
+                              long minSSTableSize,
+                              long flushSizeOverride,
                               long currentFlushSize,
                               double maxSpaceOverhead,
                               int maxSSTablesToCompact,
                               long expiredSSTableCheckFrequency,
                               boolean ignoreOverlapsInExpirationCheck,
-                              boolean l0ShardsEnabled,
                               int baseShardCount,
-                              double targetSStableSize,
-                              OverlapInclusionMethod overlapInclusionMethod,
+                              long targetSStableSize,
+                              double sstableGrowthModifier,
+                              int reservedThreadsPerLevel,
+                              Overlaps.InclusionMethod overlapInclusionMethod,
                               int intervalSec,
                               int minScalingParameter,
                               int maxScalingParameter,
@@ -123,18 +125,18 @@ public class AdaptiveController extends Controller
         super(clock,
               env,
               survivalFactors,
-              dataSetSizeMB,
-              numShards,
-              minSstableSizeMB,
-              flushSizeOverrideMB,
+              dataSetSize,
+              minSSTableSize,
+              flushSizeOverride,
               currentFlushSize,
               maxSpaceOverhead,
               maxSSTablesToCompact,
               expiredSSTableCheckFrequency,
               ignoreOverlapsInExpirationCheck,
-              l0ShardsEnabled,
               baseShardCount,
               targetSStableSize,
+              sstableGrowthModifier,
+              reservedThreadsPerLevel,
               overlapInclusionMethod);
 
         this.scalingParameters = scalingParameters;
@@ -151,24 +153,24 @@ public class AdaptiveController extends Controller
 
     static Controller fromOptions(Environment env,
                                   double[] survivalFactors,
-                                  long dataSetSizeMB,
-                                  int numShards,
-                                  long minSstableSizeMB,
-                                  long flushSizeOverrideMB,
+                                  long dataSetSize,
+                                  long minSSTableSize,
+                                  long flushSizeOverride,
                                   double maxSpaceOverhead,
                                   int maxSSTablesToCompact,
                                   long expiredSSTableCheckFrequency,
                                   boolean ignoreOverlapsInExpirationCheck,
-                                  boolean l0ShardsEnabled,
                                   int baseShardCount,
-                                  double targetSSTableSize,
-                                  OverlapInclusionMethod overlapInclusionMethod,
+                                  long targetSSTableSize,
+                                  double sstableGrowthModifier,
+                                  int reservedThreadsPerLevel,
+                                  Overlaps.InclusionMethod overlapInclusionMethod,
                                   String keyspaceName,
                                   String tableName,
                                   Map<String, String> options)
     {
         int[] scalingParameters = null;
-        long currentFlushSize = flushSizeOverrideMB << 20;
+        long currentFlushSize = flushSizeOverride;
 
         File f = getControllerConfigPath(keyspaceName, tableName);
         try
@@ -176,7 +178,7 @@ public class AdaptiveController extends Controller
             JSONParser jsonParser = new JSONParser();
             JSONObject jsonObject = (JSONObject) jsonParser.parse(new FileReader(f));
             scalingParameters = readStoredScalingParameters((JSONArray) jsonObject.get("scaling_parameters"));
-            if (jsonObject.get("current_flush_size") != null && flushSizeOverrideMB == 0)
+            if (jsonObject.get("current_flush_size") != null && flushSizeOverride == 0)
             {
                 currentFlushSize = (long) jsonObject.get("current_flush_size");
                 logger.debug("Successfully read stored current_flush_size from disk");
@@ -246,18 +248,18 @@ public class AdaptiveController extends Controller
                                       scalingParameters,
                                       previousScalingParameters,
                                       survivalFactors,
-                                      dataSetSizeMB,
-                                      numShards,
-                                      minSstableSizeMB,
-                                      flushSizeOverrideMB,
+                                      dataSetSize,
+                                      minSSTableSize,
+                                      flushSizeOverride,
                                       currentFlushSize,
                                       maxSpaceOverhead,
                                       maxSSTablesToCompact,
                                       expiredSSTableCheckFrequency,
                                       ignoreOverlapsInExpirationCheck,
-                                      l0ShardsEnabled,
                                       baseShardCount,
                                       targetSSTableSize,
+                                      sstableGrowthModifier,
+                                      reservedThreadsPerLevel,
                                       overlapInclusionMethod,
                                       intervalSec,
                                       minScalingParameter,
@@ -406,8 +408,20 @@ public class AdaptiveController extends Controller
         return minCost;
     }
 
+    /**
+     * Checks to see if the chosen compaction is a result of recent adaptive parameter change.
+     * An adaptive compaction is a compaction triggered by changing the scaling parameter W
+     */
     @Override
-    public int getMaxAdaptiveCompactions()
+    public boolean isRecentAdaptive(CompactionPick pick)
+    {
+        int numTables = pick.sstables().size();
+        int level = (int) pick.parent();
+        return (numTables >= getThreshold(level) && numTables < getPreviousThreshold(level));
+    }
+
+    @Override
+    public int getMaxRecentAdaptiveCompactions()
     {
         return maxAdaptiveCompactions;
     }
@@ -492,10 +506,10 @@ public class AdaptiveController extends Controller
             }
         }
 
-        logger.debug("Min cost: {}, min scaling parameter: {}, min sstable size: {}\nread costs: {}\nwrite costs: {}\ntot costs: {}\nAverages: {}",
+        logger.debug("Min cost: {}, min scaling parameter: {}, target sstable size: {}\nread costs: {}\nwrite costs: {}\ntot costs: {}\nAverages: {}",
                      candCost,
                      candScalingParameter,
-                     FBUtilities.prettyPrintMemory(getMinSstableSizeBytes()),
+                     FBUtilities.prettyPrintMemory(getTargetSSTableSize()),
                      Arrays.toString(readCosts),
                      Arrays.toString(writeCosts),
                      Arrays.toString(totCosts),
@@ -560,6 +574,6 @@ public class AdaptiveController extends Controller
     @Override
     public String toString()
     {
-        return String.format("m: %d, o: %s, scalingParameter: %s - %s", minSstableSizeMB, Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
+        return String.format("t: %s, o: %s, scalingParameters: %s - %s", FBUtilities.prettyPrintMemory(targetSSTableSize), Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
     }
 }
