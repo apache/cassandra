@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.memory;
 
-import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.lucene.store.DataInput;
@@ -116,7 +115,7 @@ final class ByteSliceReader extends DataInput
     }
 
     @Override
-    public void skipBytes(long l) throws IOException
+    public void skipBytes(long l)
     {
         throw new UnsupportedOperationException("skipBytes is not supported by ByteSliceReader");
     }

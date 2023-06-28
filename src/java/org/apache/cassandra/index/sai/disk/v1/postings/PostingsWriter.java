@@ -99,7 +99,7 @@ public class PostingsWriter implements Closeable
     private final long[] deltaBuffer;
     private final LongArrayList blockOffsets = new LongArrayList();
     private final LongArrayList blockMaximumPostings = new LongArrayList();
-    private final ResettableByteBuffersIndexOutput inMemoryOutput = new ResettableByteBuffersIndexOutput(1024, "blockOffsets");
+    private final ResettableByteBuffersIndexOutput inMemoryOutput = new ResettableByteBuffersIndexOutput("blockOffsets");
 
     private final long startOffset;
 

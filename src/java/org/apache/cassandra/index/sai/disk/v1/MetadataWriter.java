@@ -47,7 +47,7 @@ public class MetadataWriter implements Closeable
     {
         private Builder(String name)
         {
-            super(1024, name);
+            super(name);
         }
 
         @Override

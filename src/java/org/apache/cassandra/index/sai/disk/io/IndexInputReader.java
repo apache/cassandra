@@ -33,9 +33,11 @@ import org.apache.lucene.store.IndexInput;
  */
 public class IndexInputReader extends IndexInput
 {
-    // the byte order of `input`'s native readX operations doesn't matter,
-    // because we only use `readFully` and `readByte` methods. IndexInput calls these
-    // (via DataInput) with methods that enforce LittleEndian-ness.
+    /**
+     * the byte order of `input`'s native readX operations doesn't matter,
+     * because we only use `readFully` and `readByte` methods. IndexInput calls these
+     * (via DataInput) with methods that enforce LittleEndian-ness.
+    */
     private final RandomAccessReader input;
     private final Runnable doOnClose;
 

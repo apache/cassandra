@@ -36,6 +36,12 @@ public class ResettableByteBuffersIndexOutput extends IndexOutput
     private final ByteBuffersIndexOutput bbio;
     private final ByteBuffersDataOutput delegate;
 
+    public ResettableByteBuffersIndexOutput(String name)
+    {
+        //TODO CASSANDRA-18280 to investigate the initial size allocation
+        this(128, name);
+    }
+
     public ResettableByteBuffersIndexOutput(int expectedSize, String name)
     {
         super("", name);
@@ -61,6 +67,7 @@ public class ResettableByteBuffersIndexOutput extends IndexOutput
         delegate.reset();
     }
 
+    @Override
     public String toString()
     {
         return "Resettable" + bbio.toString();

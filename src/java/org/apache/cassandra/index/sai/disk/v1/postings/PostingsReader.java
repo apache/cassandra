@@ -306,17 +306,9 @@ public class PostingsReader implements OrdinalPostingList
 
     private int nextFoRValue()
     {
-        // currentFoRValues is null when the all the values in the block are the same
-        if (currentFoRValues == null)
-        {
-            return 0;
-        }
-        else
-        {
-            long id = currentFoRValues.get(postingIndex);
-            postingsDecoded++;
-            return Math.toIntExact(id);
-        }
+        long id = currentFoRValues.get(postingIndex);
+        postingsDecoded++;
+        return Math.toIntExact(id);
     }
 
     private void advanceOnePosition(long nextPosting)
@@ -329,7 +321,8 @@ public class PostingsReader implements OrdinalPostingList
     private void reBuffer() throws IOException
     {
         long pointer = summary.offsets.get(blockIndex);
-        if (pointer < 4) {
+        if (pointer < 4)
+        {
             // the first 4 bytes must be CODEC_MAGIC
             throw new CorruptIndexException(String.format("Invalid block offset %d for postings block idx %d", pointer, blockIndex), input);
         }
