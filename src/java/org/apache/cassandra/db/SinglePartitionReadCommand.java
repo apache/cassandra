@@ -571,7 +571,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public UnfilteredRowIterator queryMemtableAndDisk(ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         assert executionController != null && executionController.validForReadOn(cfs);
-        Tracing.trace("Executing single-partition query on {}", cfs.name);
+        if (Tracing.traceSinglePartitions())
+            Tracing.trace("Executing single-partition query on {}", cfs.name);
 
         return queryMemtableAndDiskInternal(cfs, executionController, System.nanoTime());
     }
@@ -603,7 +604,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter(), controller, startTimeNanos);
         }
 
-        Tracing.trace("Acquiring sstable references");
+        if (Tracing.traceSinglePartitions())
+            Tracing.trace("Acquiring sstable references");
+
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
         view.sstables.sort(SSTableReader.maxTimestampDescending);
         ClusteringIndexFilter filter = clusteringIndexFilter();
@@ -826,12 +829,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     private UnfilteredRowIterator queryMemtableAndSSTablesInTimestampOrder(ColumnFamilyStore cfs, ClusteringIndexNamesFilter filter, ReadExecutionController controller, long startTimeNanos)
     {
-        Tracing.trace("Acquiring sstable references");
+        if (Tracing.traceSinglePartitions())
+            Tracing.trace("Acquiring sstable references");
+
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
         ImmutableBTreePartition result = null;
 
-        Tracing.trace("Merging memtable contents");
+        if (Tracing.traceSinglePartitions())
+            Tracing.trace("Merging memtable contents");
+
         for (Memtable memtable : view.memtables)
         {
             Partition partition = memtable.getPartition(partitionKey());

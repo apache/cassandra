@@ -107,8 +107,12 @@ public class QueryViewBuilder
         {
             if (Tracing.isTracing())
             {
-                var indexNames = referencedIndexes.stream().map(i -> i.getIndexContext().getIndexName()).collect(Collectors.toList());
-                Tracing.trace("Querying storage-attached indexes {}", indexNames);
+                var groupedIndexes = referencedIndexes.stream().collect(
+                    Collectors.groupingBy(i -> i.getIndexContext().getIndexName(), Collectors.counting()));
+                var summary = groupedIndexes.entrySet().stream()
+                                            .map(e -> String.format("%s (%s sstables)", e.getKey(), e.getValue()))
+                                            .collect(Collectors.joining(", "));
+                Tracing.trace("Querying storage-attached indexes {}", summary);
             }
         }
     }

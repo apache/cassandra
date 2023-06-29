@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -79,6 +80,14 @@ public class ReadExecutionController implements AutoCloseable
         {
             repairedDataInfo = RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
         }
+
+        if (Tracing.isTracing())
+            Tracing.instance.setRangeQuery(isRangeCommand());
+    }
+
+    public boolean isRangeCommand()
+    {
+        return command.isRangeRequest();
     }
 
     public ReadExecutionController indexReadController()
