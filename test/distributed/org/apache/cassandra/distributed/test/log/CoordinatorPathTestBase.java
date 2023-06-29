@@ -211,7 +211,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
     public static final Map<Class<?>, Verb> classToVerb = new HashMap<>();
     static
     {
-        classToVerb.put(Replay.class, Verb.TCM_REPLAY_REQ);
+        classToVerb.put(FetchCMSLog.class, Verb.TCM_FETCH_CMS_LOG_REQ);
         classToVerb.put(Commit.class, Verb.TCM_COMMIT_REQ);
     }
 
@@ -686,9 +686,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                 commitRequestHandler.doVerb((Message<Commit>) message);
                                 return;
                             }
-                            case TCM_REPLAY_REQ:
+                            case TCM_FETCH_CMS_LOG_REQ:
                             {
-                                Replay request = (Replay) message.payload;
+                                FetchCMSLog request = (FetchCMSLog) message.payload;
                                 LogState logState = logStorage.getLogState(request.start);
                                 realCluster.deliverMessage(message.from(),
                                                            Instance.serializeMessage(cms.addr(), message.from(), message.responseWith(logState)));
@@ -737,10 +737,10 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                return result;
                                            }
 
-                                           public ClusterMetadata replayAndWait()
+                                           public ClusterMetadata fetchLogAndWait()
                                            {
                                                Epoch since = log.waitForHighestConsecutive().epoch;
-                                               LogState logState = driver.requestResponse(new Replay(since, true));
+                                               LogState logState = driver.requestResponse(new FetchCMSLog(since, true));
                                                log.append(logState);
                                                return log.waitForHighestConsecutive();
                                            }

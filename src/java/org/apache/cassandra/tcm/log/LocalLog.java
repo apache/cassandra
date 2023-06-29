@@ -389,9 +389,9 @@ public abstract class LocalLog implements Closeable
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         for (ChangeListener listener : cmListeners)
-            listener.notifyPreCommit(emptyFromSystemTables, metadata, true);
+            listener.notifyPreCommit(emptyFromSystemTables, metadata);
         for (ChangeListener listener : cmListeners)
-            listener.notifyPostCommit(emptyFromSystemTables, metadata, true);
+            listener.notifyPostCommit(emptyFromSystemTables, metadata);
 
     }
 

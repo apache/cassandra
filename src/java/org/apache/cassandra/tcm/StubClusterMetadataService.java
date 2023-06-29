@@ -70,7 +70,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
     }
 
     @Override
-    public ClusterMetadata replayAndWait()
+    public ClusterMetadata fetchLogFromCMS()
     {
         return metadata;
     }
@@ -98,7 +98,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
         }
 
         @Override
-        public ClusterMetadata replayAndWait()
+        public ClusterMetadata fetchLogAndWait()
         {
             throw new UnsupportedOperationException();
         }

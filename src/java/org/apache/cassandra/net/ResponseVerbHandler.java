@@ -30,6 +30,8 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
+import static org.apache.cassandra.exceptions.RequestFailureReason.INVALID_ROUTING;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 class ResponseVerbHandler implements IVerbHandler
@@ -37,7 +39,8 @@ class ResponseVerbHandler implements IVerbHandler
     public static final ResponseVerbHandler instance = new ResponseVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(ResponseVerbHandler.class);
-    private static final Set<Verb> SKIP_CATCHUP_FOR = EnumSet.of(Verb.TCM_REPLAY_RSP,
+    private static final Set<Verb> SKIP_CATCHUP_FOR = EnumSet.of(Verb.TCM_FETCH_CMS_LOG_RSP,
+                                                                 Verb.TCM_FETCH_PEER_LOG_RSP,
                                                                  Verb.TCM_COMMIT_RSP,
                                                                  Verb.TCM_REPLICATION,
                                                                  Verb.TCM_NOTIFY_RSP,
@@ -47,18 +50,6 @@ class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
-
-        if (message.epoch().isAfter(ClusterMetadata.current().epoch) &&
-            !SKIP_CATCHUP_FOR.contains(message.verb()) &&
-            // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
-            // that executes something on the gossip stage as well.
-            !Stage.GOSSIP.executor().inExecutor())
-        {
-            boolean caughtUp = ClusterMetadataService.instance().maybeCatchup(message.epoch());
-            if (caughtUp)
-                logger.debug("Learned about next epoch {} from {} in {}", message.epoch(), message.from(), message.verb());
-        }
-
         RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
         if (callbackInfo == null)
         {
@@ -70,7 +61,7 @@ class ResponseVerbHandler implements IVerbHandler
 
         long latencyNanos = approxTime.now() - callbackInfo.createdAtNanos;
         Tracing.trace("Processing response from {}", message.from());
-
+        maybeFetchLogs(message);
         RequestCallback cb = callbackInfo.callback;
         if (message.isFailureResponse())
         {
@@ -80,6 +71,29 @@ class ResponseVerbHandler implements IVerbHandler
         {
             MessagingService.instance().latencySubscribers.maybeAdd(cb, message.from(), latencyNanos, NANOSECONDS);
             cb.onResponse(message);
+        }
+    }
+
+    private void maybeFetchLogs(Message<?> message)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (!SKIP_CATCHUP_FOR.contains(message.verb()) && message.epoch().isAfter(metadata.epoch))
+        {
+            if (message.isFailureResponse() &&
+                (message.payload == COORDINATOR_BEHIND || message.payload == INVALID_ROUTING) &&
+                // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
+                // that executes something on the gossip stage as well.
+                !Stage.GOSSIP.executor().inExecutor())
+            {
+                metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+
+                if (metadata.epoch.isEqualOrAfter(message.epoch()))
+                    logger.debug("Learned about next epoch {} from {} in {}", message.epoch(), message.from(), message.verb());
+            }
+            else
+            {
+                ClusterMetadataService.instance().fetchLogFromPeerAsync(message.from(), message.epoch());
+            }
         }
     }
 }

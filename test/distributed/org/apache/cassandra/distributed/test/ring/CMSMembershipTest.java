@@ -76,7 +76,7 @@ public class CMSMembershipTest extends FuzzTestBase
             for (int idx : new int[]{ 1, 2, 3 })
             {
                 cluster.get(idx).runOnInstance(() -> {
-                    ClusterMetadataService.instance().replayAndWait();
+                    ClusterMetadataService.instance().fetchLogFromCMS();
                     ClusterMetadata metadata = ClusterMetadata.current();
                     Assert.assertTrue(metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));
                 });
@@ -126,7 +126,7 @@ public class CMSMembershipTest extends FuzzTestBase
             for (int idx : new int[]{ 1, 2, 3 })
             {
                 cluster.get(idx).runOnInstance(() -> {
-                    ClusterMetadataService.instance().replayAndWait();
+                    ClusterMetadataService.instance().fetchLogFromCMS();
                     ClusterMetadata metadata = ClusterMetadata.current();
                     Assert.assertEquals(idx != 3, metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));
                 });

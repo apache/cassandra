@@ -37,6 +37,7 @@ import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.ResourceLimits.Limit;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -172,6 +173,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         {
             callbacks.onFailedDeserialize(size, header, e);
             noSpamLogger.info("{} incompatible schema encountered while deserializing a message", this, e);
+            ClusterMetadataService.instance().fetchLogFromPeerAsync(header.from, header.epoch);
         }
         catch (Throwable t)
         {

@@ -60,6 +60,17 @@ public class LogState
         return new LogState(baseState, increments);
     }
 
+    public Epoch latestEpoch()
+    {
+        if (transformations.isEmpty())
+        {
+            if (baseState == null)
+                return Epoch.EMPTY;
+            return baseState.epoch;
+        }
+        return transformations.latestEpoch();
+    }
+
     public static LogState make(Replication increments)
     {
         return new LogState(null, increments);

@@ -63,9 +63,9 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public ClusterMetadata replayAndWait()
+    public ClusterMetadata fetchLogAndWait()
     {
-        return delegate.replayAndWait();
+        return delegate.fetchLogAndWait();
     }
 
     protected void waitIfPaused()

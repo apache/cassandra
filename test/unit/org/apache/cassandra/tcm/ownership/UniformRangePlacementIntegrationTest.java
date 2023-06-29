@@ -85,7 +85,7 @@ public class UniformRangePlacementIntegrationTest
         }
         nodes.sort(PlacementSimulator.Node::compareTo);
 
-        ClusterMetadataService.instance().replayAndWait();
+        ClusterMetadataService.instance().fetchLogFromCMS();
         DataPlacements placements = rangePlacement.calculatePlacements(ClusterMetadata.current(),
                                                                        Keyspaces.of(ClusterMetadata.current().schema.getKeyspaces().get("test").get()));
 

@@ -179,7 +179,7 @@ public class SnapshotTest extends TestBaseImpl
             cluster.get(3).runOnInstance(() -> {
                 long beforeCatchup = ClusterMetadata.current().epoch.getEpoch();
                 assertEquals(epochBefore, beforeCatchup);
-                long afterCatchup = ClusterMetadataService.instance().replayAndWait().epoch.getEpoch();
+                long afterCatchup = ClusterMetadataService.instance().fetchLogFromCMS().epoch.getEpoch();
                 assertEquals(epochAfter, afterCatchup);
             });
 
@@ -226,7 +226,7 @@ public class SnapshotTest extends TestBaseImpl
                 assertEquals(epochBefore, beforeCatchup);
                 // TODO assert that this is a no-op and that the CMS doesn't actually send a snapshot
                 //      just for the requester to drop it as the entry is already in the log
-                long afterCatchup = ClusterMetadataService.instance().replayAndWait().epoch.getEpoch();
+                long afterCatchup = ClusterMetadataService.instance().fetchLogFromCMS().epoch.getEpoch();
                 assertEquals(epochBefore, afterCatchup);
             });
 

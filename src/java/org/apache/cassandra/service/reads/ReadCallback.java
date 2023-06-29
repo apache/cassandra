@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
@@ -180,7 +179,6 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             }
         }
         resolver.preprocess(message);
-        ClusterMetadataService.instance().maybeCatchup(message.epoch());
         replicaPlan().collectSuccess(message.from());
 
         /*

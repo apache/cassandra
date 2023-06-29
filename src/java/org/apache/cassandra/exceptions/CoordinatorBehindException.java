@@ -16,22 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm;
+package org.apache.cassandra.exceptions;
 
-import org.apache.cassandra.tcm.log.Entry;
-
-public interface Processor
+public class CoordinatorBehindException extends RuntimeException
 {
-    /**
-     * Method is _only_ responsible to commit the transformation to the cluster metadata. Implementers _have to ensure_
-     * local visibility and enactment of the metadata!
-     */
-    Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown);
+    public CoordinatorBehindException(String msg)
+    {
+        super(msg);
+    }
 
-    /**
-     * Fetches log from CMS up to the highest currently known epoch.
-     * <p>
-     * After fetching, all items _at least_ up to returned epoch will be visible.
-     */
-    ClusterMetadata fetchLogAndWait();
+    public CoordinatorBehindException(String msg, UnknownTableException cause)
+    {
+        super(msg, cause);
+    }
 }

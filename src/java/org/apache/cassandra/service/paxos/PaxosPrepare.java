@@ -1007,7 +1007,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().maybeCatchup(message.epoch());
+            ClusterMetadataService.instance().fetchLogWithFallback(ClusterMetadata.current(), message.from(), message.epoch());
 
             Response response = execute(message.payload, message.from());
             if (response == null)

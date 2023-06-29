@@ -34,7 +34,7 @@ public class GossipProcessor implements Processor
     }
 
     @Override
-    public ClusterMetadata replayAndWait()
+    public ClusterMetadata fetchLogAndWait()
     {
         return ClusterMetadata.current();
     }

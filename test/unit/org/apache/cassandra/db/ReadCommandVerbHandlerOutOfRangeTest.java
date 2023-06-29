@@ -36,6 +36,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
@@ -128,16 +129,15 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         getAndVerifyResponse(messageSink, messageId, false);
     }
 
-    @Test
-    public void rejectPartitionReadForTokenOutOfRange() throws Exception
+    @Test(expected = InvalidRoutingException.class)
+    public void rejectPartitionReadForTokenOutOfRange() 
     {
         // reject a read for a key who's token the node doesn't own the range for
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int key = 200;
         ReadCommand command = partitionRead(key);
         handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, true);
+        // we automatically send a failure response if doVerb above throws
     }
 
     @Test
@@ -168,14 +168,12 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         getAndVerifyResponse(messageSink, messageId, false);
     }
 
-    @Test
+    @Test(expected = InvalidRoutingException.class)
     public void rejectRangeReadForUnownedRange() throws Exception
     {
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         ReadCommand command = rangeRead(150, 160);
         handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, true);
     }
 
     private void getAndVerifyResponse(ListenableFuture<MessageDelivery> messageSink,
@@ -210,7 +208,8 @@ public class ReadCommandVerbHandlerOutOfRangeTest
 
         StubReadCommand(int key, TableMetadata tmd)
         {
-            super(false,
+            super(tmd.epoch,
+                  false,
                   0,
                   false,
                   tmd,
@@ -243,7 +242,8 @@ public class ReadCommandVerbHandlerOutOfRangeTest
 
         StubRangeReadCommand(Range<Token> range, TableMetadata tmd)
         {
-            super(false,
+            super(tmd.epoch,
+                  false,
                   0,
                   false,
                   tmd,

@@ -91,8 +91,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Remove the partition between nodes 2 & 3 and the CMS and have them catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
-            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
 
             // Unpause the joining node and have it retry the bootstrap sequence from MidJoin, this time the
             // expectation is that it will succeed, so we can just clear out the listener.
@@ -139,8 +139,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Remove the partition between nodes 2 & 3 and the CMS and have them catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
-            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
 
             // Now re-partition nodes 2 & 3 so that the MidLeave event cannot be submitted by node 1 as 2 & 3 won't
             // receive/ack the StartLeave.
@@ -159,8 +159,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Heal the partition again and force a catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
-            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
 
             // Unpause the leaving node and have it retry the MidLeave, which will now be able to proceed as 2 & 3 will
             // ack the StartJoin. This time the expectation is that the remaining events will be successfully acked, so
@@ -222,7 +222,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Remove the partition between node 2 and the CMS and have it catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().replayAndWait());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
 
             // Unpause the joining node and have it retry the bootstrap sequence from StartReplace, this time the
             // expectation is that it will succeed, so we can just clear out the listener.

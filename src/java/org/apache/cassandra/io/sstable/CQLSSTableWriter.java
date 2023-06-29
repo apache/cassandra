@@ -585,7 +585,7 @@ public class CQLSSTableWriter implements Closeable
                                                                Tables.none(),
                                                                Views.none(),
                                                                Types.none(),
-                                                               Functions.none());
+                                                               UserFunctions.none());
 
                 TableMetadata tableMetadata = ksm.tables.getNullable(schemaStatement.table());
                 if (tableMetadata == null)

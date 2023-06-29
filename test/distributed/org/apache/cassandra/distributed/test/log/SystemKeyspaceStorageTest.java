@@ -34,7 +34,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.Replay;
+import org.apache.cassandra.tcm.FetchCMSLog;
 import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -68,7 +68,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                     if (periodSize == 0)
                     {
                         cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
-                        ClusterMetadata metadata = ClusterMetadataService.instance().replayAndWait();
+                        ClusterMetadata metadata = ClusterMetadataService.instance().fetchLogFromCMS();
                         epochToPeriod.put(metadata.epoch, metadata.period);
                         periodSize = rng.nextInt(10);
                     }
@@ -85,7 +85,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                 }
             }
 
-            ClusterMetadataService.instance().replayAndWait();
+            ClusterMetadataService.instance().fetchLogFromCMS();
 
             List<Epoch> allEpochs = new ArrayList<>(epochToPeriod.keySet());
             List<Long> allPeriods = cluster.get(1).callOnInstance(() -> getAllSnapshots());
@@ -116,7 +116,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                     Epoch since = allEpochs.get(rng.nextInt(allEpochs.size()));
                     for (boolean consistentReplay : new boolean[]{ true, false })
                     {
-                        LogState logState = simulatedCluster.node(2).requestResponse(new Replay(since, consistentReplay));
+                        LogState logState = simulatedCluster.node(2).requestResponse(new FetchCMSLog(since, consistentReplay));
                         // Either:
                         //  * we have no snapshots to catch up from which may
                         //  * we've requested an epoch that's past last sealed snapshot

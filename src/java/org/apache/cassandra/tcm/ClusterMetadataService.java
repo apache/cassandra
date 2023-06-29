@@ -41,8 +41,8 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.log.Entry;
@@ -63,11 +63,11 @@ import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
-import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
-import static org.apache.cassandra.tcm.ClusterMetadataService.State.RESET;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.*;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
@@ -78,6 +78,7 @@ public class ClusterMetadataService
 
     private static ClusterMetadataService instance;
     private static Throwable trace;
+    public static final TCMMetrics metrics = new TCMMetrics();
 
     public static void setInstance(ClusterMetadataService newInstance)
     {
@@ -108,9 +109,11 @@ public class ClusterMetadataService
 
     private final Replication.ReplicationHandler replicationHandler;
     private final Replication.LogNotifyHandler logNotifyHandler;
-    private final IVerbHandler<Replay> replayRequestHandler;
+    private final IVerbHandler<FetchCMSLog> fetchLogHandler;
     private final IVerbHandler<Commit> commitRequestHandler;
     private final IVerbHandler<NoPayload> currentEpochHandler;
+
+    private final PeerLogFetcher peerLogFetcher;
 
     private final AtomicBoolean commitsPaused = new AtomicBoolean();
 
@@ -132,7 +135,7 @@ public class ClusterMetadataService
         // the distributed metadata table.
         if (ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
             return LOCAL;
-        return State.REMOTE;
+        return REMOTE;
     }
 
     ClusterMetadataService(PlacementProvider placementProvider,
@@ -150,14 +153,14 @@ public class ClusterMetadataService
             LogStorage logStorage = LogStorage.SystemKeyspace;
             log = LocalLog.sync(initial, logStorage, true, isReset);
             localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log));
-            replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(logStorage::getLogState), cmsStateSupplier);
+            fetchLogHandler = new FetchCMSLog.Handler(logStorage::getLogState);
         }
         else
         {
 
             log = LocalLog.async(initial, isReset);
             localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
-            replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(), cmsStateSupplier);
+            fetchLogHandler = new FetchCMSLog.Handler();
         }
 
         Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.getBoolean()
@@ -168,7 +171,7 @@ public class ClusterMetadataService
         GossipProcessor gossipProcessor = new GossipProcessor();
         currentEpochHandler = new CurrentEpochRequestHandler();
 
-        commitRequestHandler = new SwitchableHandler<>(new Commit.Handler(localProcessor, replicator), cmsStateSupplier);
+        commitRequestHandler = new Commit.Handler(localProcessor, replicator, cmsStateSupplier);
         processor = new SwitchableProcessor(localProcessor,
                                             remoteProcessor,
                                             gossipProcessor,
@@ -177,9 +180,11 @@ public class ClusterMetadataService
 
         replicationHandler = new Replication.ReplicationHandler(log);
         logNotifyHandler = new Replication.LogNotifyHandler(log);
+        peerLogFetcher = new PeerLogFetcher(log);
     }
 
     @VisibleForTesting
+    // todo: convert this to a factory method with an obvious name that this is just for testing
     public ClusterMetadataService(PlacementProvider placementProvider,
                                   MetadataSnapshots snapshots,
                                   LocalLog log,
@@ -196,8 +201,10 @@ public class ClusterMetadataService
         logNotifyHandler = new Replication.LogNotifyHandler(log);
         currentEpochHandler = new CurrentEpochRequestHandler();
 
-        replayRequestHandler = isMemberOfOwnershipGroup ? new Replay.Handler() : null;
-        commitRequestHandler = isMemberOfOwnershipGroup ? new Commit.Handler(processor, replicator) : null;
+        fetchLogHandler = isMemberOfOwnershipGroup ? new FetchCMSLog.Handler() : null;
+        commitRequestHandler = isMemberOfOwnershipGroup ? new Commit.Handler(processor, replicator, () -> LOCAL) : null;
+
+        peerLogFetcher = new PeerLogFetcher(log);
     }
 
     private ClusterMetadataService(PlacementProvider placementProvider,
@@ -207,8 +214,9 @@ public class ClusterMetadataService
                                    Replication.ReplicationHandler replicationHandler,
                                    Replication.LogNotifyHandler logNotifyHandler,
                                    CurrentEpochRequestHandler currentEpochHandler,
-                                   Replay.Handler replayRequestHandler,
-                                   Commit.Handler commitRequestHandler)
+                                   FetchCMSLog.Handler fetchLogHandler,
+                                   Commit.Handler commitRequestHandler,
+                                   PeerLogFetcher peerLogFetcher)
     {
         this.placementProvider = placementProvider;
         this.snapshots = snapshots;
@@ -217,8 +225,9 @@ public class ClusterMetadataService
         this.replicationHandler = replicationHandler;
         this.logNotifyHandler = logNotifyHandler;
         this.currentEpochHandler = currentEpochHandler;
-        this.replayRequestHandler = replayRequestHandler;
+        this.fetchLogHandler = fetchLogHandler;
         this.commitRequestHandler = commitRequestHandler;
+        this.peerLogFetcher = peerLogFetcher;
     }
 
     @SuppressWarnings("resource")
@@ -238,7 +247,8 @@ public class ClusterMetadataService
                                                                 new Replication.LogNotifyHandler(log),
                                                                 new CurrentEpochRequestHandler(),
                                                                 null,
-                                                                null);
+                                                                null,
+                                                                new PeerLogFetcher(log));
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         ClusterMetadataService.setInstance(cms);
     }
@@ -468,7 +478,7 @@ public class ClusterMetadataService
             }
             else
             {
-                ClusterMetadata metadata = replayAndWait();
+                ClusterMetadata metadata = fetchLogFromCMS();
 
                 if (result.failure().rejected)
                     return onReject.accept(metadata, result.failure().code, result.failure().message);
@@ -510,13 +520,13 @@ public class ClusterMetadataService
         return instance.logNotifyHandler;
     }
 
-    public static IVerbHandler<Replay> replayRequestHandler()
+    public static IVerbHandler<FetchCMSLog> fetchLogRequestHandler()
     {
         // Make it possible to get Verb without throwing NPE during simulation
         ClusterMetadataService instance = ClusterMetadataService.instance();
         if (instance == null)
             return null;
-        return instance.replayRequestHandler;
+        return instance.fetchLogHandler;
     }
 
     public static IVerbHandler<Commit> commitRequestHandler()
@@ -559,11 +569,7 @@ public class ClusterMetadataService
         return log.metadata();
     }
 
-    /**
-     * Utility methods
-     */
-
-    public boolean maybeCatchup(Epoch theirEpoch)
+    public boolean maybeFetchLog(Epoch theirEpoch)
     {
         if (theirEpoch.isBefore(Epoch.FIRST))
             return false;
@@ -580,23 +586,114 @@ public class ClusterMetadataService
             {
                 //TODO we have seen a message with epoch > EMPTY, we are probably racing with migration,
                 //     or we missed the finish migration message, handle!
-                logger.warn("Cannot catchup while in {} mode (target epoch = {})", state, theirEpoch);
+                logger.warn("Cannot fetch log while in {} mode (target epoch = {})", state, theirEpoch);
                 return false;
             }
 
-            replayAndWait();
+            fetchLogFromCMS();
             ourEpoch = ClusterMetadata.current().epoch;
             if (ourEpoch.isEqualOrAfter(theirEpoch))
                 return true;
         }
 
-        throw new IllegalStateException(String.format("Could not catch up to epoch %s even after replay. Highest seen after replay is %s.",
+        throw new IllegalStateException(String.format("Could not catch up to epoch %s even after fetching log from CMS. Highest seen after fetching is %s.",
                                                       theirEpoch, ourEpoch));
     }
 
-    public ClusterMetadata replayAndWait()
+    /**
+     * Fetches log entries from directly from CMS, up to the highest currently known epoch.
+     * This operation is blocking and also waits for all retrieved log entries to be
+     * enacted, so on return all transformations to ClusterMetadata will be visible.
+     * @return metadata with all currently committed entries enacted.
+     */
+    public ClusterMetadata fetchLogFromCMS()
     {
-        return processor.replayAndWait();
+        return processor.fetchLogAndWait();
+    }
+
+    /**
+     * Attempts to asynchronously retrieve log entries from a non-CMS peer.
+     * Fetches and applies the log state representing the delta between the current local epoch and the one requested.
+     * This is used when a message from a peer contains an epoch higher than the current local epoch. As the sender of
+     * the message must have seen and enacted the given epoch, they must (under normal circumstances) be able to supply
+     * any entries needed to catch up this node.
+     * When the returned future completes, the metadata it provides is the current published metadata at the
+     * moment of completion. In the expected case, this will have had any fetched transformations up to the requested
+     * epoch applied. If the fetch was unsuccessful (e.g. because the peer was unavailable) it will still be whatever
+     * the currently published metadata, but which entries have been enacted cannot be guaranteed.
+     * @param from peer to request log entries from
+     * @param awaitAtLeast the upper epoch required. It's expected that the peer is able to supply log entries up to at
+     *                     least this epoch.
+     * @return A future which will supply the current ClusterMetadata at the time of completion
+     */
+    public Future<ClusterMetadata> fetchLogFromPeerAsync(InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        ClusterMetadata current = ClusterMetadata.current();
+        if (current.epoch.isEqualOrAfter(awaitAtLeast))
+            return ImmediateFuture.success(current);
+
+        logger.info("Fetching log async from {}, at least = {}", from, awaitAtLeast);
+        return peerLogFetcher.asyncFetchLog(from, awaitAtLeast);
+    }
+
+    /**
+     * Attempts to synchronously retrieve log entries from a non-CMS peer.
+     * Fetches the log state representing the delta between the current local epoch and the one supplied.
+     * This is to be used when a message from a peer contains an epoch higher than the current local epoch. As
+     * sender of the message must have seen and enacted the given epoch, they must (under normal circumstances)
+     * be able to supply any entries needed to catch up this node.
+     * The metadata returned is the current published metadata at that time. In the expected case, this will have had
+     * any fetched transformations up to the requested epoch applied. If the fetch was unsuccessful (e.g. because the
+     * peer was unavailable) it will still be whatever the currently published metadata, but which entries have been
+     * enacted cannot be guaranteed.
+     * @param from peer to request log entries from
+     * @param awaitAtLeast the upper epoch required. It's expected that the peer is able to supply log entries up to at
+     *                     least this epoch.
+     * @return The current ClusterMetadata at the time of completion
+     */
+    public ClusterMetadata fetchLogFromPeer(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        if (FBUtilities.getBroadcastAddressAndPort().equals(from) ||
+            !metadata.directory.version(metadata.directory.peerId(from)).isUpgraded())
+            return ClusterMetadata.current();
+        logger.info("Fetching log from {}, at least {}", from, awaitAtLeast);
+        Epoch before = metadata.epoch;
+        if (before.isEqualOrAfter(awaitAtLeast))
+            return metadata;
+        return peerLogFetcher.fetchLogEntriesAndWait(from, awaitAtLeast);
+    }
+
+    /**
+     * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
+     * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
+     * metadata is not caught up to at least the required epoch, a further request is made to the CMS.
+     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superceded by
+     * further updates.
+     * If the requested epoch is not reached even after fetching from the CMS, an IllegalStateException is thrown.
+     * @param metadata a starting point for the fetch. If the requested epoch is <= the epoch of this metadata, the
+     *                 call is a no-op. It's expected that this is usually the current cluster metadata at the time of
+     *                 calling.
+     * @param from Initial peer to contact. Usually this is the sender of a message containing the requested epoch,
+     *             which means it can be assumed that this peer (if available) can supply any missing log entries.
+     * @param awaitAtLeast The requested epoch.
+     * @return A published ClusterMetadata with all entries up to (at least) the requested epoch enacted.
+     * @throws IllegalStateException if the requested epoch could not be reached, even after falling back to CMS catchup
+     */
+    public ClusterMetadata fetchLogWithFallback(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        Epoch before = metadata.epoch;
+        metadata = fetchLogFromPeer(metadata, from, awaitAtLeast);
+        if (!metadata.epoch.isEqualOrAfter(awaitAtLeast))
+        {
+            logger.info("Fetching log from peer didn't reach expected epoch, falling back to CMS");
+            ClusterMetadata cmsFetchedMetadata = fetchLogFromCMS();
+            if (cmsFetchedMetadata.epoch.isBefore(awaitAtLeast))
+                throw new IllegalStateException("Still behind after fetching log from CMS");
+            logger.debug("Fetched log from CMS - caught up from epoch {} to epoch {}", before, metadata.epoch);
+            return cmsFetchedMetadata;
+        }
+        logger.debug("Fetched log from {} - caught up from epoch {} to epoch {}", from, before, metadata.epoch);
+        return metadata;
     }
 
     public ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException
@@ -649,42 +746,10 @@ public class ClusterMetadataService
         return commitsPaused.get();
     }
     /**
-     * Switchable implementations that allow us to go between local and remote implementation whenever we need it.
+     * Switchable implementation that allow us to go between local and remote implementation whenever we need it.
      * When the node becomes a member of CMS, it switches back to being a regular member of a cluster, and all
      * the CMS handlers get disabled.
      */
-
-    static class SwitchableHandler<T> implements IVerbHandler<T>
-    {
-        private final IVerbHandler<T> handler;
-        private final Supplier<State> cmsStateSupplier;
-
-        public SwitchableHandler(IVerbHandler<T> handler, Supplier<State> cmsStateSupplier)
-        {
-            this.handler = handler;
-            this.cmsStateSupplier = cmsStateSupplier;
-        }
-
-        public void doVerb(Message<T> message) throws IOException
-        {
-            switch (cmsStateSupplier.get())
-            {
-                case LOCAL:
-                case RESET:
-                    handler.doVerb(message);
-                    break;
-                case REMOTE:
-                    throw new NotCMSException("Not currently a member of the CMS");
-                case GOSSIP:
-                    String msg = "Tried to use a handler when in gossip mode: "+handler.toString();
-                    logger.error(msg);
-                    throw new IllegalStateException(msg);
-                default:
-                    throw new IllegalStateException("Illegal state: " + cmsStateSupplier.get());
-            }
-        }
-    }
-
     @VisibleForTesting
     public static class SwitchableProcessor implements Processor
     {
@@ -739,9 +804,9 @@ public class ClusterMetadataService
             return result;
         }
 
-        public ClusterMetadata replayAndWait()
+        public ClusterMetadata fetchLogAndWait()
         {
-            return delegate().replayAndWait();
+            return delegate().fetchLogAndWait();
         }
 
         public String toString()

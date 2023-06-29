@@ -24,12 +24,17 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public abstract class AbstractMutationVerbHandler<T extends IMutation> implements IVerbHandler<T>
@@ -39,36 +44,105 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
 
     public void doVerb(Message<T> message) throws IOException
     {
-        processMessage(message, message.from());
+        processMessage(message, message.respondTo());
     }
 
-    public void processMessage(Message<T> message, InetAddressAndPort respondTo)
+    protected void processMessage(Message<T> message, InetAddressAndPort respondTo)
     {
-        DecoratedKey key = message.payload.key();
-        if (isOutOfRangeMutation(message.payload.getKeyspaceName(), key))
-        {
-            StorageService.instance.incOutOfRangeOperationCount();
-            Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
-
-            // Log at most 1 message per second
-            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, respondTo, key.getToken(), message.payload.getKeyspaceName());
-            sendFailureResponse(message, respondTo);
-        }
-        else
-        {
-            applyMutation(message, respondTo);
-        }
+        ClusterMetadata metadata = ClusterMetadata.current();
+        metadata = checkTokenOwnership(metadata, message);
+        metadata = checkSchemaVersion(metadata, message);
+        applyMutation(message, respondTo);
     }
 
     abstract void applyMutation(Message<T> message, InetAddressAndPort respondToAddress);
 
-    private void sendFailureResponse(Message<T> respondTo, InetAddressAndPort respondToAddress)
+    private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message)
     {
-        MessagingService.instance().send(respondTo.failureResponse(RequestFailureReason.INVALID_ROUTING), respondToAddress);
+        String keyspace = message.payload.getKeyspaceName();
+        DecoratedKey key = message.payload.key();
+        if (StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken()))
+            return metadata;
+
+        if (message.epoch().isAfter(metadata.epoch))
+        {
+            metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+            if (StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken()))
+                return metadata;
+        }
+        StorageService.instance.incOutOfRangeOperationCount();
+        Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
+        NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), message.payload.getKeyspaceName());
+        throw InvalidRoutingException.forWrite(message.from(), key.getToken(), message.epoch(), message.payload);
     }
 
-    private static boolean isOutOfRangeMutation(String keyspace, DecoratedKey key)
+    private ClusterMetadata checkSchemaVersion(ClusterMetadata metadata, Message<T> message)
     {
-        return !StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken());
+        if (SchemaConstants.isSystemKeyspace(message.payload.getKeyspaceName()) || message.epoch().is(metadata.epoch))
+            return metadata;
+        String keyspace = message.payload.getKeyspaceName();
+        Keyspace ks = metadata.schema.getKeyspace(keyspace);
+        if (ks != null)
+        {
+            if (message.epoch().isAfter(metadata.epoch))
+            {
+                // coordinator is ahead - check each partition update if the schema is ahead of the schema we have for the table
+                for (PartitionUpdate pu : message.payload.getPartitionUpdates())
+                {
+                    Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
+                    if (remoteSchemaEpoch != null && remoteSchemaEpoch.isAfter(metadata.epoch))
+                    {
+                        // the partition update was serialized after the epoch we currently know, catch up and
+                        // make sure we've seen the epoch it has seen, otherwise fail request.
+                        metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+                        if (pu.serializedAtEpoch.isAfter(metadata.epoch))
+                            throw new IllegalStateException(String.format("Coordinator %s is still ahead after fetching log, our epoch = %s, their epoch = %s",
+                                                                          message.from(),
+                                                                          metadata.epoch, message.epoch()));
+                    }
+                }
+            }
+            else if (message.epoch().isBefore(metadata.schema.lastModified()))
+            {
+                // coordinator might not have seen the latest schema change - check each modified table individually
+                for (PartitionUpdate pu : message.payload.getPartitionUpdates())
+                {
+                    // coordinator could be behind, check local tables
+                    ColumnFamilyStore cfs = ks.getColumnFamilyStore(pu.metadata().id);
+                    if (cfs != null)
+                    {
+                        Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
+                        if (remoteSchemaEpoch != null && remoteSchemaEpoch.isBefore(cfs.metadata().epoch))
+                        {
+                            throw new CoordinatorBehindException(String.format("Coordinator %s is behind, our epoch = %s, their epoch = %s",
+                                                                               message.from(),
+                                                                               metadata.epoch, message.epoch()));
+                        }
+                    }
+                    else
+                        throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing table %s.%s, our epoch = %s, their epoch = %s",
+                                                                           message.from(),
+                                                                           pu.metadata().keyspace,
+                                                                           pu.metadata().name,
+                                                                           metadata.epoch, message.epoch()));
+                }
+            }
+        }
+        else
+        {
+            if (message.epoch().isBefore(metadata.schema.lastModified()))
+            {
+                throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing keyspace %s, our epoch = %s, their epoch = %s",
+                                                                   message.from(),
+                                                                   keyspace,
+                                                                   metadata.epoch, message.epoch()));
+            }
+            else
+            {
+                metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+            }
+        }
+
+        return metadata;
     }
 }

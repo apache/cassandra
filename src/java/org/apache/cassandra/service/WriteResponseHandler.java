@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -58,16 +57,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public void onResponse(Message<T> m)
     {
-        if (m == null)
-        {
-            replicaPlan.collectSuccess(FBUtilities.getBroadcastAddressAndPort());
-        }
-        else
-        {
-            ClusterMetadataService.instance().maybeCatchup(m.epoch());
-            replicaPlan.collectSuccess(m.from());
-        }
-
+        replicaPlan.collectSuccess(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from());
         if (responsesUpdater.decrementAndGet(this) == 0)
             signal();
         //Must be last after all subclass processing

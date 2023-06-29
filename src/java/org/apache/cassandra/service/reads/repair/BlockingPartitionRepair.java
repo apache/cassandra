@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -124,7 +123,6 @@ public class BlockingPartitionRepair
     @Override
     public void onResponse(Message<Object> msg)
     {
-        ClusterMetadataService.instance().maybeCatchup(msg.epoch());
         repairPlan.collectSuccess(msg.from());
         ack(msg.from());
     }

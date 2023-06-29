@@ -177,7 +177,7 @@ public class DistributedLogTest extends TestBaseImpl
 
             cluster.forEach(node -> {
                 Set<String> actual = node.callOnInstance(() -> {
-                    ClusterMetadataService.instance().replayAndWait();
+                    ClusterMetadataService.instance().fetchLogFromCMS();
 
                     Set<String> res = new HashSet<>();
 

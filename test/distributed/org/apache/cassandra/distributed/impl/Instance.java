@@ -787,8 +787,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
         else
         {
-            Stream peers = cluster.stream().filter(instance -> instance.isValid());
-            ClusterMetadataService.instance().replayAndWait();
+            Stream<?> peers = cluster.stream().filter(IInstance::isValid);
+            Schema.instance.saveSystemKeyspace();
+            ClusterMetadataService.instance().fetchLogFromCMS();
             NodeId self = Register.maybeRegister();
             boolean joinRing = config.get(Constants.KEY_DTEST_JOIN_RING) == null || (boolean) config.get(Constants.KEY_DTEST_JOIN_RING);
             if (ClusterMetadata.current().directory.peerState(self) != NodeState.JOINED && joinRing)
@@ -823,7 +824,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             FBUtilities.getBroadcastAddressAndPort().getPort() != broadcastAddress().getPort())
             throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
-        ClusterMetadataService.instance().replayAndWait();
+        ClusterMetadataService.instance().fetchLogFromCMS();
 
         ActiveRepairService.instance().start();
         StreamManager.instance.start();

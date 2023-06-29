@@ -222,7 +222,7 @@ public class Replication
                 Optional<Epoch> highestPending = log.highestPending();
                 if (highestPending.isPresent())
                 {
-                    ClusterMetadataService.instance().maybeCatchup(highestPending.get());
+                    ClusterMetadataService.instance().maybeFetchLog(highestPending.get());
                 }
                 else if (ClusterMetadata.current().epoch.isBefore(message.payload.transformations.latestEpoch()))
                 {

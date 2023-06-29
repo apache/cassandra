@@ -39,7 +39,8 @@ public enum RequestFailureReason
     NODE_DOWN                (5),
     INDEX_NOT_AVAILABLE      (6),
     NOT_CMS                  (7),
-    INVALID_ROUTING          (8)
+    INVALID_ROUTING          (8),
+    COORDINATOR_BEHIND       (9),
     ;
 
 
@@ -96,6 +97,9 @@ public enum RequestFailureReason
 
         if (t instanceof InvalidRoutingException)
             return INVALID_ROUTING;
+
+        if (t instanceof  CoordinatorBehindException)
+            return COORDINATOR_BEHIND;
 
         return UNKNOWN;
     }

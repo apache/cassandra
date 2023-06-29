@@ -64,11 +64,13 @@ public final class RemoteProcessor implements Processor
     private final Supplier<Collection<InetAddressAndPort>> discoveryNodes;
     private final LocalLog log;
     private final Debounce<ClusterMetadata> replayAndWaitDebounced;
+
+
     RemoteProcessor(LocalLog log, Supplier<Collection<InetAddressAndPort>> discoveryNodes)
     {
         this.log = log;
         this.discoveryNodes = discoveryNodes;
-        this.replayAndWaitDebounced = new Debounce<ClusterMetadata>(this::replayAndWaitInternal);
+        this.replayAndWaitDebounced = new Debounce<>(this::replayAndWaitInternal);
     }
 
     @Override
@@ -119,7 +121,7 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    public ClusterMetadata replayAndWait()
+    public ClusterMetadata fetchLogAndWait()
     {
         Retry.Backoff backoff = new Retry.Backoff();
 
@@ -147,14 +149,15 @@ public final class RemoteProcessor implements Processor
     {
         Epoch lastConsecutive = log.replayPersisted();
 
-        LogState replay = sendWithCallback(Verb.TCM_REPLAY_REQ,
-                                           new Replay(lastConsecutive, ClusterMetadataService.state() == REMOTE),
+        LogState replay = sendWithCallback(Verb.TCM_FETCH_CMS_LOG_REQ,
+                                           new FetchCMSLog(lastConsecutive, ClusterMetadataService.state() == REMOTE),
                                            new CandidateIterator(candidates(true), false),
                                            new Retry.Backoff());
         if (!replay.isEmpty())
         {
             logger.info("Replay request returned replay data: {}", replay);
             log.append(replay);
+            ClusterMetadataService.metrics.cmsLogEntriesFetched(lastConsecutive, replay.latestEpoch());
         }
 
         return log.waitForHighestConsecutive();
@@ -366,4 +369,5 @@ public final class RemoteProcessor implements Processor
             }
         }
     }
+
 }

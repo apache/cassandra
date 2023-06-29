@@ -134,7 +134,7 @@ public abstract class AbstractLocalProcessor implements Processor
     }
 
     @Override
-    public final ClusterMetadata replayAndWait()
+    public final ClusterMetadata fetchLogAndWait()
     {
         return replayAndWait(new Retry.Jitter());
     }
@@ -149,6 +149,7 @@ public abstract class AbstractLocalProcessor implements Processor
             }
             catch (Throwable t)
             {
+                JVMStabilityInspector.inspectThrowable(t);
                 if (retry.reachedMax())
                     throw new IllegalStateException(String.format("Could not succeed with replay after %s tries.", retry.currentTries()));
             }

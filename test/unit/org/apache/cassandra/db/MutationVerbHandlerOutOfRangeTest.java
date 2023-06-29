@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.IVerbHandler;
@@ -53,6 +54,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class MutationVerbHandlerOutOfRangeTest
 {
@@ -157,13 +159,21 @@ public class MutationVerbHandlerOutOfRangeTest
     private void rejectMutationForTokenOutOfRange(IVerbHandler<Mutation> handler) throws Exception
     {
         // reject a mutation for a token the node neither owns nor is pending
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int value = randomInt();
         int key = 200;
         Mutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
-        getAndVerifyResponse(messageSink, messageId, key, value, true);
+        try
+        {
+            // note that the failure response is now sent by the InboundSink, so we can't use getAndVerifyResponse
+            handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+            fail("mutation verb handler now throws exception");
+        }
+        catch (InvalidRoutingException ignore)
+        {
+            assertEquals(startingTotalMetricCount + 1, StorageMetrics.totalOpsForInvalidToken.getCount());
+            assertEquals(startingKeyspaceMetricCount + 1, keyspaceMetricValue(cfs));
+        }
     }
 
     static <V> int toInt(Cell<V> cell)

@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
@@ -54,6 +55,7 @@ import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelpe
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CounterMutationVerbHandlerOutOfRangeTest
 {
@@ -143,8 +145,12 @@ public class CounterMutationVerbHandlerOutOfRangeTest
         int value = randomInt();
         int key = 200;
         CounterMutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
-        verifyFailureResponse(messageSink, messageId);
+        try
+        {
+            handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+            fail("this should now throw exception");
+        }
+        catch (InvalidRoutingException ignore) {}
         assertEquals(startingTotalMetricCount + 1, StorageMetrics.totalOpsForInvalidToken.getCount());
         assertEquals(startingKeyspaceMetricCount + 1, keyspaceMetricValue());
     }

@@ -34,52 +34,53 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class Replay
+public class FetchCMSLog
 {
     public static final Serializer serializer = new Serializer();
 
     public final Epoch start;
-    public final boolean consistentReplay;
+    public final boolean consistentFetch;
 
-    public Replay(Epoch start, boolean consistentReplay)
+    public FetchCMSLog(Epoch start, boolean consistentFetch)
     {
         this.start = start;
-        this.consistentReplay = consistentReplay;
+        this.consistentFetch = consistentFetch;
     }
 
     public String toString()
     {
-        return "Replay{" +
-               "consistentReplay=" + consistentReplay +
+        return "FetchCMSLog{" +
+               "consistentFetch=" + consistentFetch +
                ", start=" + start +
                '}';
     }
 
-    static class Serializer implements IVersionedSerializer<Replay>
+    static class Serializer implements IVersionedSerializer<FetchCMSLog>
     {
 
-        public void serialize(Replay t, DataOutputPlus out, int version) throws IOException
+        public void serialize(FetchCMSLog t, DataOutputPlus out, int version) throws IOException
         {
             Epoch.serializer.serialize(t.start, out);
-            out.writeBoolean(t.consistentReplay);
+            out.writeBoolean(t.consistentFetch);
         }
 
-        public Replay deserialize(DataInputPlus in, int version) throws IOException
+        public FetchCMSLog deserialize(DataInputPlus in, int version) throws IOException
         {
             Epoch epoch = Epoch.serializer.deserialize(in);
-            boolean consistentReplay = in.readBoolean();
-            return new Replay(epoch, consistentReplay);
+            boolean consistentFetch = in.readBoolean();
+            return new FetchCMSLog(epoch, consistentFetch);
         }
 
-        public long serializedSize(Replay t, int version)
+        public long serializedSize(FetchCMSLog t, int version)
         {
             return Epoch.serializer.serializedSize(t.start)
                    + TypeSizes.BOOL_SIZE;
         }
     }
 
-    static class Handler implements IVerbHandler<Replay>
+    static class Handler implements IVerbHandler<FetchCMSLog>
     {
         private static final Logger logger = LoggerFactory.getLogger(Handler.class);
 
@@ -95,20 +96,20 @@ public class Replay
             this.logStateSupplier = logStateSupplier;
         }
 
-        public void doVerb(Message<Replay> message) throws IOException
+        public void doVerb(Message<FetchCMSLog> message) throws IOException
         {
-            Replay request = message.payload;
+            FetchCMSLog request = message.payload;
 
-            logger.info("Received replay request {} from {}", request, message.from());
-            LogState delta;
+            logger.info("Received log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.start, ClusterMetadata.current().epoch);
+            if (request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(FBUtilities.getBroadcastAddressAndPort()))
+                throw new NotCMSException("This node is not in the CMS, can't generate a consistent log fetch response to " + message.from());
+
             // If both we and the other node believe it should be caught up with a linearizable read
-            boolean consistentReplay = request.consistentReplay && !ClusterMetadataService.instance().isCurrentMember(message.from());
+            boolean consistentFetch = request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
-            if (consistentReplay)
-                delta = logStateSupplier.apply(message.payload.start);
-            else
-                delta = LogStorage.SystemKeyspace.getLogState(message.payload.start);
-
+            LogState delta = consistentFetch ? logStateSupplier.apply(message.payload.start)
+                                              : LogStorage.SystemKeyspace.getLogState(message.payload.start);
+            ClusterMetadataService.metrics.cmsLogEntriesServed(message.payload.start, delta.latestEpoch());
             logger.info("Responding with log delta: {}", delta);
             MessagingService.instance().send(message.responseWith(delta), message.from());
         }

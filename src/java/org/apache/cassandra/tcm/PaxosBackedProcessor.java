@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.tcm;
 
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -39,6 +41,7 @@ import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.tryCommit;
+import static org.apache.cassandra.tcm.ClusterMetadataService.metrics;
 
 public class PaxosBackedProcessor extends AbstractLocalProcessor
 {
@@ -69,6 +72,8 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         // of the majority of the CMS replicas.
         int blockFor = replicas.size() == 1 ? 1 : (replicas.size() / 2) + 1;
         CountDownLatch latch = CountDownLatch.newCountDownLatch(blockFor);
+        List<Epoch> fetched = new CopyOnWriteArrayList<>();
+
         for (Replica replica : replicas)
         {
             // TODO: test applying LogStates from multiple responses
@@ -79,20 +84,30 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             }
             else
             {
-                Message<Replay> request = Message.out(Verb.TCM_REPLAY_REQ,
-                                                      new Replay(metadata.epoch, false));
+                Message<FetchCMSLog> request = Message.out(Verb.TCM_FETCH_CMS_LOG_REQ,
+                                                           new FetchCMSLog(metadata.epoch, false));
 
                 MessagingService.instance().sendWithCallback(request, replica.endpoint(),
                                                              (RequestCallback<LogState>) msg -> {
+                                                                 fetched.add(msg.payload.latestEpoch());
                                                                  log.append(msg.payload);
                                                                  latch.decrement();
                                                              });
             }
         }
 
-        if (latch.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
-            return log.waitForHighestConsecutive();
-        else
-            throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - latch.count(), blockFor, false);
+        try
+        {
+            if (latch.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
+                return log.waitForHighestConsecutive();
+            else
+                throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - latch.count(), blockFor, false);
+        }
+        finally
+        {
+            fetched.stream()
+                   .max(Epoch::compareTo)
+                   .ifPresent(max -> metrics.cmsLogEntriesFetched(metadata.epoch, max));
+        }
     }
 }

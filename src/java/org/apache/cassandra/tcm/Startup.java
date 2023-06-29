@@ -160,7 +160,7 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
          {
              if (candidates.kind() == Discovery.DiscoveredNodes.Kind.CMS_ONLY)
              {
-                 ClusterMetadataService.instance().processor().replayAndWait();
+                 ClusterMetadataService.instance().processor().fetchLogAndWait();
              }
              else
              {

@@ -251,7 +251,8 @@ public class ReadResponseTest
     {
         StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
         {
-            super(isDigest,
+            super(metadata.epoch,
+                  isDigest,
                   0,
                   false,
                   metadata,

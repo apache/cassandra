@@ -41,6 +41,8 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.*;
+
 public class Commit
 {
     private static final Logger logger = LoggerFactory.getLogger(Commit.class);
@@ -249,7 +251,7 @@ public class Commit
     @VisibleForTesting
     public static IVerbHandler<Commit> handlerForTests(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
     {
-        return new Handler(processor, replicator, messagingService);
+        return new Handler(processor, replicator, messagingService, () -> LOCAL);
     }
 
     static class Handler implements IVerbHandler<Commit>
@@ -257,21 +259,24 @@ public class Commit
         private final Processor processor;
         private final Replicator replicator;
         private final BiConsumer<Message<?>, InetAddressAndPort> messagingService;
+        private final Supplier<ClusterMetadataService.State> cmsStateSupplier;
 
-        Handler(Processor processor, Replicator replicator)
+        Handler(Processor processor, Replicator replicator, Supplier<ClusterMetadataService.State> cmsStateSupplier)
         {
-            this(processor, replicator, MessagingService.instance()::send);
+            this(processor, replicator, MessagingService.instance()::send, cmsStateSupplier);
         }
 
-        Handler(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
+        Handler(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService, Supplier<ClusterMetadataService.State> cmsStateSupplier)
         {
             this.processor = processor;
             this.replicator = replicator;
             this.messagingService = messagingService;
+            this.cmsStateSupplier = cmsStateSupplier;
         }
 
         public void doVerb(Message<Commit> message) throws IOException
         {
+            checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
             Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown);
             if (result.isSuccess())
@@ -287,6 +292,24 @@ public class Commit
             {
                 Result.Failure failure = result.failure();
                 messagingService.accept(message.responseWith(failure), message.from());
+            }
+        }
+
+        private void checkCMSState()
+        {
+            switch (cmsStateSupplier.get())
+            {
+                case RESET:
+                case LOCAL:
+                    break;
+                case REMOTE:
+                    throw new NotCMSException("Not currently a member of the CMS, can't commit");
+                case GOSSIP:
+                    String msg = "Tried to commit when in gossip mode";
+                    logger.error(msg);
+                    throw new IllegalStateException(msg);
+                default:
+                    throw new IllegalStateException("Illegal state: " + cmsStateSupplier.get());
             }
         }
     }
