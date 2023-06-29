@@ -22,6 +22,7 @@ package org.apache.cassandra.locator;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Properties;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -40,11 +41,13 @@ import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GoogleCloudSnitchTest
 {
-    private static String az;
-
     @BeforeClass
     public static void setup() throws Exception
     {
@@ -58,25 +61,15 @@ public class GoogleCloudSnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestGoogleCloudSnitch extends GoogleCloudSnitch
-    {
-        public TestGoogleCloudSnitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        @Override
-        String gceApiCall(String url) throws IOException, ConfigurationException
-        {
-            return az;
-        }
-    }
-
     @Test
     public void testRac() throws IOException, ConfigurationException
     {
-        az = "us-central1-a";
-        GoogleCloudSnitch snitch = new TestGoogleCloudSnitch();
+        String az = "us-central1-a";
+
+        AbstractCloudMetadataServiceConnector mock = mock(AbstractCloudMetadataServiceConnector.class);
+        when(mock.apiCall(any(), anyMap())).thenReturn(az);
+
+        GoogleCloudSnitch snitch = new GoogleCloudSnitch(new SnitchProperties(new Properties()), mock);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -96,8 +89,11 @@ public class GoogleCloudSnitchTest
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
-        az = "asia-east1-a";
-        GoogleCloudSnitch snitch = new TestGoogleCloudSnitch();
+        String az = "asia-east1-a";
+        AbstractCloudMetadataServiceConnector mock = mock(AbstractCloudMetadataServiceConnector.class);
+        when(mock.apiCall(any(), anyMap())).thenReturn(az);
+
+        GoogleCloudSnitch snitch = new GoogleCloudSnitch(new SnitchProperties(new Properties()), mock);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("asia-east1", snitch.getDatacenter(local));
         assertEquals("a", snitch.getRack(local));

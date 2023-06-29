@@ -21,6 +21,7 @@ package org.apache.cassandra.locator;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Properties;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -39,6 +40,9 @@ import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CloudstackSnitchTest
 {
@@ -57,31 +61,14 @@ public class CloudstackSnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestCloudstackSnitch extends CloudstackSnitch
-    {
-        public TestCloudstackSnitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        @Override
-        String csMetadataEndpoint() throws ConfigurationException
-        {
-            return "";
-        }
-
-        @Override
-        String csQueryMetadata(String endpoint) throws IOException, ConfigurationException
-        {
-            return az;
-        }
-    }
-
     @Test
     public void testRacks() throws IOException, ConfigurationException
     {
         az = "ch-gva-1";
-        CloudstackSnitch snitch = new TestCloudstackSnitch();
+        CloudstackSnitch.CloudstackConnector mock = mock(CloudstackSnitch.CloudstackConnector.class);
+        when(mock.apiCall(any())).thenReturn(az);
+
+        CloudstackSnitch snitch = new CloudstackSnitch(new SnitchProperties(new Properties()), mock);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -96,14 +83,16 @@ public class CloudstackSnitchTest
 
         assertEquals("ch-gva", snitch.getDatacenter(local));
         assertEquals("1", snitch.getRack(local));
-
     }
 
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
         az = "ch-gva-1";
-        CloudstackSnitch snitch = new TestCloudstackSnitch();
+        CloudstackSnitch.CloudstackConnector mock = mock(CloudstackSnitch.CloudstackConnector.class);
+        when(mock.apiCall(any())).thenReturn(az);
+        CloudstackSnitch snitch = new CloudstackSnitch(new SnitchProperties(new Properties()), mock);
+
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
 
         assertEquals("ch-gva", snitch.getDatacenter(local));

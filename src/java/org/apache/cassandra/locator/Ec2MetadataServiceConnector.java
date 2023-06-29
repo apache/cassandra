@@ -45,7 +45,7 @@ abstract class Ec2MetadataServiceConnector extends AbstractCloudMetadataServiceC
 
     Ec2MetadataServiceConnector(SnitchProperties properties)
     {
-        super(properties.get(EC2_METADATA_URL_PROPERTY, DEFAULT_EC2_METADATA_URL));
+        super(properties.putIfAbsent(METADATA_URL_PROPERTY, properties.get(EC2_METADATA_URL_PROPERTY, DEFAULT_EC2_METADATA_URL)));
     }
 
     enum EC2MetadataType
@@ -94,7 +94,7 @@ abstract class Ec2MetadataServiceConnector extends AbstractCloudMetadataServiceC
         @Override
         public String toString()
         {
-            return String.format("%s{%s=%s}", V1Connector.class.getName(), EC2_METADATA_URL_PROPERTY, metadataServiceUrl);
+            return String.format("%s{%s=%s}", V1Connector.class.getName(), METADATA_URL_PROPERTY, metadataServiceUrl);
         }
     }
 
@@ -184,7 +184,7 @@ abstract class Ec2MetadataServiceConnector extends AbstractCloudMetadataServiceC
         {
             return String.format("%s{%s=%s,%s=%s}",
                                  V2Connector.class.getName(),
-                                 EC2_METADATA_URL_PROPERTY, metadataServiceUrl,
+                                 METADATA_URL_PROPERTY, metadataServiceUrl,
                                  AWS_EC2_METADATA_TOKEN_TTL_SECONDS_HEADER_PROPERTY,
                                  tokenTTL.getSeconds());
         }

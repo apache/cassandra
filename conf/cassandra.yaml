@@ -1298,6 +1298,17 @@ slow_query_log_timeout: 500ms
 #    Proximity is determined by rack and data center, which are
 #    explicitly configured in cassandra-topology.properties.
 #
+# AlibabaCloudSnitch:
+#    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
+#    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
+#
+# CloudstackSnitch:
+#    A snitch that assumes a Cloudstack Zone follows the typical convention 
+#    country-location-az and uses a country/location tuple as a datacenter
+#    and the availability zone as a rack.
+#    WARNING: This snitch is deprecated and it is scheduled to be removed 
+#    in the next major version of Cassandra.
+#
 # Ec2Snitch:
 #    Appropriate for EC2 deployments in a single Region. Loads Region
 #    and Availability Zone information from the EC2 API. The Region is
@@ -1312,6 +1323,10 @@ slow_query_log_timeout: 500ms
 #    ssl_storage_port on the public IP firewall.  (For intra-Region
 #    traffic, Cassandra will switch to the private IP after
 #    establishing a connection.)
+#
+# GoogleCloudSnitch:
+#    Snitch for getting dc and rack of a node from metadata service of Google cloud.
+#    This snitch that assumes an GCE region is a DC and an GCE availability_zone is a rack.
 #
 # RackInferringSnitch:
 #    Proximity is determined by rack and data center, which are
