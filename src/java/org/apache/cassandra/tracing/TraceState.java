@@ -42,7 +42,6 @@ import org.apache.cassandra.utils.progress.ProgressListener;
  */
 public abstract class TraceState implements ProgressEventNotifier
 {
-
     public final UUID sessionId;
     public final InetAddressAndPort coordinator;
     public final Stopwatch watch;
@@ -51,6 +50,7 @@ public abstract class TraceState implements ProgressEventNotifier
     public final int ttl;
     public final ClientState clientState;
 
+    private boolean rangeQuery;
     private String tracedKeyspace;
 
     private boolean notify;
@@ -109,6 +109,16 @@ public abstract class TraceState implements ProgressEventNotifier
     {
         assert traceType == Tracing.TraceType.REPAIR;
         listeners.remove(listener);
+    }
+
+    public boolean isRangeQuery()
+    {
+        return rangeQuery;
+    }
+
+    public void setRangeQuery(boolean rangeQuery)
+    {
+        this.rangeQuery = rangeQuery;
     }
 
     /**
