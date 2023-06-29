@@ -21,7 +21,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
@@ -44,23 +43,10 @@ import org.slf4j.LoggerFactory;
 public class SyncUtil
 {
     public static final boolean SKIP_SYNC;
-    private static final Field fdClosedField;
     private static final Logger logger = LoggerFactory.getLogger(SyncUtil.class);
 
     static
     {
-        //Java 11 and 17
-        Field fdClosedFieldTemp = null;
-        try
-        {
-            fdClosedFieldTemp = FileDescriptor.class.getDeclaredField("closed");
-            fdClosedFieldTemp.setAccessible(true);
-        }
-        catch (NoSuchFieldException ignored)
-        {
-        }
-        fdClosedField = fdClosedFieldTemp;
-
         //If skipping syncing is requested by any means then skip them.
         boolean skipSyncProperty = CassandraRelevantProperties.TEST_CASSANDRA_SKIP_SYNC.getBoolean();
         boolean skipSyncEnv = CassandraRelevantEnv.CASSANDRA_SKIP_SYNC.getBoolean();
@@ -89,30 +75,12 @@ public class SyncUtil
             return buf.force();
         }
     }
-
+    
     public static void sync(FileDescriptor fd) throws SyncFailedException
     {
         Preconditions.checkNotNull(fd);
-        if (SKIP_SYNC)
-        {
-            boolean closed = false;
-            try
-            {
-                if (fdClosedField != null)
-                    closed = fdClosedField.getBoolean(fd);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-
-            if (closed || !fd.valid())
-                throw new SyncFailedException("Closed " + closed + " valid " + fd.valid());
-        }
-        else
-        {
+        if (!SKIP_SYNC)
             fd.sync();
-        }
     }
 
     public static void force(FileChannel fc, boolean metaData) throws IOException
