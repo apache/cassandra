@@ -512,28 +512,35 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
-                List<SSTableReader> sstables = Lists.newArrayList(transaction.originals());
-                Iterator<SSTableReader> iter = sstables.iterator();
+                List<SSTableReader> filteredSSTables = new ArrayList<>();
                 if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
                 {
-                    while (iter.hasNext())
+                    for (SSTableReader sstable : transaction.originals())
                     {
-                        SSTableReader sstable = iter.next();
                         if (!sstable.isRepaired())
                         {
                             try
                             {
                                 transaction.cancel(sstable);
                             }
-                            finally
+                            catch (Throwable t)
                             {
-                                iter.remove();
+                                logger.warn(String.format("Unable to cancel %s from transaction %s", sstable, transaction.opId()), t);
                             }
+                        }
+                        else
+                        {
+                            filteredSSTables.add(sstable);
                         }
                     }
                 }
-                sstables.sort(SSTableReader.maxTimestampAscending);
-                return sstables;
+                else
+                {
+                    filteredSSTables.addAll(transaction.originals());
+                }
+
+                filteredSSTables.sort(SSTableReader.maxTimestampAscending);
+                return filteredSSTables;
             }
 
             @Override
