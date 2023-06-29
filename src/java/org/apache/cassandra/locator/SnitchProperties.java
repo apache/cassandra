@@ -24,6 +24,8 @@ import java.util.Properties;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,6 +71,14 @@ public class SnitchProperties
         this.properties = properties;
     }
 
+    @SafeVarargs
+    public SnitchProperties(Pair<String, String>... pairs)
+    {
+        properties = new Properties();
+        for (Pair<String, String> pair : pairs)
+            properties.setProperty(pair.left, pair.right);
+    }
+
     /**
      * Get a snitch property value or return defaultValue if not defined.
      */
@@ -77,8 +87,46 @@ public class SnitchProperties
         return properties.getProperty(propertyName, defaultValue);
     }
 
+    public SnitchProperties add(String key, String value)
+    {
+        properties.put(key, value);
+        return this;
+    }
+
+    /**
+     * Returns this instance of snitch properties if key is present
+     * otherwise create new instance of properties and put key with a give value into it
+     *
+     * @param key key to add
+     * @param value value to add
+     * @return same properties if key is present or new object with added key and value if not
+     */
+    public SnitchProperties putIfAbsent(String key, String value)
+    {
+        if (contains(key))
+            return this;
+
+        Properties p = new Properties();
+        p.putAll(this.properties);
+        p.put(key, value);
+        return new SnitchProperties(p);
+    }
+
     public boolean contains(String propertyName)
     {
         return properties.containsKey(propertyName);
+    }
+
+    public String getDcSuffix()
+    {
+        return properties.getProperty("dc_suffix", "");
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SnitchProperties{" +
+               "properties=" + (properties != null ? properties.toString() : "null") +
+               '}';
     }
 }
