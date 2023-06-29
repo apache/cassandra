@@ -58,21 +58,29 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
 
         assertEquals(1, state.numLeaves);
         assertEquals(1, state.treeDepth);
-        assertEquals(100, state.pointCount);
-        assertTrue(state.isLeafNode());
+        assertEquals(100, state.valueCount);
+        assertTrue(state.atLeafNode());
+
+        recursiveAssertTraversal(state, -1);
+
+        assertEquals(state.treeDepth, state.maxLevel + 1);
     }
 
     @Test
     public void testTreeWithSameValue() throws Exception
     {
         BlockBalancedTreeWalker.TraversalState state = generateBalancedTree(100, 4, rowID -> 1);
+
+        recursiveAssertTraversal(state, -1);
+
+        assertEquals(state.treeDepth, state.maxLevel + 1);
     }
 
     @Test
     public void testTreeDepthNeverMoreThanNumberOfLeaves() throws Exception
     {
         int leafSize = 4;
-        for (int numLeaves = 1; numLeaves < 100; numLeaves++)
+        for (int numLeaves = 1; numLeaves < 1000; numLeaves++)
         {
             int numRows = leafSize * numLeaves;
 
@@ -80,6 +88,10 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
 
             assertEquals(numLeaves, state.numLeaves);
             assertTrue(state.treeDepth <= state.numLeaves);
+
+            recursiveAssertTraversal(state, -1);
+
+            assertEquals(state.treeDepth, state.maxLevel + 1);
         }
     }
 
@@ -87,12 +99,39 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
     public void randomisedTreeTest() throws Exception
     {
         int loops = nextInt(10, 1000);
-        int leafSize = nextInt(2, 512);
-        int numRows = nextInt(1000, 10000);
 
         for (int loop = 0; loop < loops; loop++)
         {
+            int leafSize = nextInt(2, 512);
+            int numRows = nextInt(1000, 10000);
+
             BlockBalancedTreeWalker.TraversalState state = generateBalancedTree(numRows, leafSize, rowID -> nextInt(0, numRows / 2));
+
+            recursiveAssertTraversal(state, -1);
+
+            assertEquals(state.treeDepth, state.maxLevel + 1);
+        }
+    }
+
+    private long recursiveAssertTraversal(BlockBalancedTreeWalker.TraversalState state, long lastLeafBlockFP)
+    {
+        if (state.atLeafNode())
+        {
+            assertTrue(state.nodeExists());
+            assertTrue(state.getLeafBlockFP() > lastLeafBlockFP);
+            return state.getLeafBlockFP();
+        }
+        else
+        {
+            state.pushLeft();
+            lastLeafBlockFP = recursiveAssertTraversal(state, lastLeafBlockFP);
+            state.pop();
+
+            state.pushRight();
+            lastLeafBlockFP = recursiveAssertTraversal(state, lastLeafBlockFP);
+            state.pop();
+
+            return lastLeafBlockFP;
         }
     }
 

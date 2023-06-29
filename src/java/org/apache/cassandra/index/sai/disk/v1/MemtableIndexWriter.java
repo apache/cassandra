@@ -159,7 +159,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                                TypeUtil.fixedSizeOf(termComparator),
                                                                maxSSTableRowId);
             indexMetas = writer.writeCompleteSegment(ImmutableIntersectingPointValues.fromTermEnum(terms, termComparator));
-            numRows = writer.getPointCount();
+            numRows = writer.getValueCount();
         }
 
         // If no rows were written we need to delete any created column index components

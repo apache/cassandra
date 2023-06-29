@@ -88,7 +88,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
 
     public long getPointCount()
     {
-        return state.pointCount;
+        return state.valueCount;
     }
 
     @Override
@@ -214,7 +214,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
                 return;
             }
 
-            if (state.isLeafNode())
+            if (state.atLeafNode())
                 throw new CorruptIndexException(indexContext.logMessage(String.format("Leaf node %s does not have balanced tree postings.", state.nodeID)), "");
 
             // Recurse on left subtree:
@@ -274,7 +274,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
                 return;
             }
 
-            if (state.isLeafNode())
+            if (state.atLeafNode())
             {
                 if (state.nodeExists())
                     filterLeaf();
@@ -312,7 +312,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
 
         void visitNode(byte[] minPackedValue, byte[] maxPackedValue) throws IOException
         {
-            assert !state.isLeafNode() : "Cannot recurse down tree because nodeID " + state.nodeID + " is a leaf node";
+            assert !state.atLeafNode() : "Cannot recurse down tree because nodeID " + state.nodeID + " is a leaf node";
 
             byte[] splitValue = state.getSplitValue();
 

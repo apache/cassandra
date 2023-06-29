@@ -21,6 +21,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
@@ -84,7 +86,7 @@ public class BlockBalancedTreeWalker implements Closeable
 
     private void traverse(TraversalCallback callback, IntArrayList pathToRoot)
     {
-        if (state.isLeafNode())
+        if (state.atLeafNode())
         {
             // In the unbalanced case it's possible the left most node only has one child:
             if (state.nodeExists())
@@ -148,7 +150,7 @@ public class BlockBalancedTreeWalker implements Closeable
         final int treeDepth;
         final byte[] minPackedValue;
         final byte[] maxPackedValue;
-        final long pointCount;
+        final long valueCount;
         final int maxPointsInLeafNode;
         final long memoryUsage;
 
@@ -165,6 +167,8 @@ public class BlockBalancedTreeWalker implements Closeable
 
         int nodeID;
         int level;
+        @VisibleForTesting
+        int maxLevel;
 
         TraversalState(DataInput dataInput) throws IOException
         {
@@ -188,13 +192,11 @@ public class BlockBalancedTreeWalker implements Closeable
                 throw new CorruptIndexException(message, dataInput);
             }
 
-            pointCount = dataInput.readVLong();
+            valueCount = dataInput.readVLong();
 
             int numBytes = dataInput.readVInt();
             byte[] packedIndex = new byte[numBytes];
             dataInput.readBytes(packedIndex, 0, numBytes);
-
-            memoryUsage = ObjectSizes.sizeOfArray(packedIndex) + ObjectSizes.sizeOfArray(minPackedValue) + ObjectSizes.sizeOfArray(maxPackedValue);
 
             nodeID = 1;
             level = 0;
@@ -202,6 +204,15 @@ public class BlockBalancedTreeWalker implements Closeable
             leftNodePositions = new int[treeDepth];
             rightNodePositions = new int[treeDepth];
             splitValuesStack = new byte[treeDepth][];
+
+            memoryUsage = ObjectSizes.sizeOfArray(packedIndex) +
+                          ObjectSizes.sizeOfArray(minPackedValue) +
+                          ObjectSizes.sizeOfArray(maxPackedValue) +
+                          ObjectSizes.sizeOfArray(leafBlockFPStack) +
+                          ObjectSizes.sizeOfArray(leftNodePositions) +
+                          ObjectSizes.sizeOfArray(rightNodePositions) +
+                          ObjectSizes.sizeOfArray(splitValuesStack) * bytesPerValue;
+
             this.dataInput = new ByteArrayDataInput(packedIndex);
             readNodeData(false);
         }
@@ -218,6 +229,7 @@ public class BlockBalancedTreeWalker implements Closeable
             int nodePosition = leftNodePositions[level];
             nodeID *= 2;
             level++;
+            maxLevel = Math.max(maxLevel, level);
             dataInput.setPosition(nodePosition);
             readNodeData(true);
         }
@@ -227,6 +239,7 @@ public class BlockBalancedTreeWalker implements Closeable
             int nodePosition = rightNodePositions[level];
             nodeID = nodeID * 2 + 1;
             level++;
+            maxLevel = Math.max(maxLevel, level);
             dataInput.setPosition(nodePosition);
             readNodeData(false);
         }
@@ -237,7 +250,7 @@ public class BlockBalancedTreeWalker implements Closeable
             level--;
         }
 
-        public boolean isLeafNode()
+        public boolean atLeafNode()
         {
             return nodeID >= numLeaves;
         }
@@ -254,7 +267,7 @@ public class BlockBalancedTreeWalker implements Closeable
 
         public byte[] getSplitValue()
         {
-            assert !isLeafNode();
+            assert !atLeafNode();
             return splitValuesStack[level];
         }
 
@@ -266,7 +279,7 @@ public class BlockBalancedTreeWalker implements Closeable
             if (!isLeft)
                 leafBlockFPStack[level] += dataInput.readVLong();
 
-            if (!isLeafNode())
+            if (!atLeafNode())
             {
                 // read prefix, firstDiffByteDelta encoded as int:
                 int code = dataInput.readVInt();

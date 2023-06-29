@@ -141,7 +141,7 @@ public class NumericIndexWriter
             Map<String, String> attributes = new LinkedHashMap<>();
             attributes.put("max_points_in_leaf_node", Integer.toString(writer.getMaxPointsInLeafNode()));
             attributes.put("num_leaves", Integer.toString(leafCallback.numLeaves()));
-            attributes.put("num_points", Long.toString(writer.getValueCount()));
+            attributes.put("num_values", Long.toString(writer.getValueCount()));
             attributes.put("bytes_per_value", Long.toString(writer.getBytesPerValue()));
 
             components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
@@ -170,9 +170,9 @@ public class NumericIndexWriter
     }
 
     /**
-     * @return number of points added
+     * @return number of values added
      */
-    public long getPointCount()
+    public long getValueCount()
     {
         return writer.getValueCount();
     }

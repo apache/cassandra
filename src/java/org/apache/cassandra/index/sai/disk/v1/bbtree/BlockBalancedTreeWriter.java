@@ -170,7 +170,7 @@ public class BlockBalancedTreeWriter
     {
         int numInnerNodes = leafBlockStartValues.size();
         byte[] splitValues = new byte[(1 + numInnerNodes) * bytesPerValue];
-        int depth = recurseBalanceTree(1, 0, numInnerNodes, 1, splitValues, leafBlockStartValues);
+        int treeDepth = recurseBalanceTree(1, 0, numInnerNodes, 1, splitValues, leafBlockStartValues);
         long[] leafBlockFPs = leafBlockFilePointer.stream().mapToLong(l -> l).toArray();
         byte[] packedIndex = packIndex(leafBlockFPs, splitValues);
 
@@ -178,7 +178,7 @@ public class BlockBalancedTreeWriter
         out.writeVInt(bytesPerValue);
 
         out.writeVInt(leafBlockFPs.length);
-        out.writeVInt(Math.min(depth, leafBlockFPs.length));
+        out.writeVInt(Math.min(treeDepth, leafBlockFPs.length));
 
         out.writeBytes(minPackedValue, 0, bytesPerValue);
         out.writeBytes(maxPackedValue, 0, bytesPerValue);
@@ -194,14 +194,15 @@ public class BlockBalancedTreeWriter
      */
     private int recurseBalanceTree(int nodeID, int offset, int count, int treeDepth, byte[] splitValues, List<byte[]> leafBlockStartValues)
     {
-        treeDepth++;
         if (count == 1)
         {
+            treeDepth++;
             // Leaf index node
             System.arraycopy(leafBlockStartValues.get(offset), 0, splitValues, nodeID * bytesPerValue, bytesPerValue);
         }
         else if (count > 1)
         {
+            treeDepth++;
             // Internal index node: binary partition of count
             int countAtLevel = 1;
             int totalCount = 0;
@@ -323,8 +324,7 @@ public class BlockBalancedTreeWriter
             }
             else
             {
-                throw new IllegalStateException();
-//                return 0;
+                throw new IllegalStateException("Unbalanced tree");
             }
         }
         else
