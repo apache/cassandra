@@ -26,6 +26,7 @@ def get_extensions():
     from Cython.Build import cythonize
     return cythonize("cqlshlib/copyutil.py")
 
+
 setup(
     name="cassandra-pylib",
     description="Cassandra Python Libraries",
