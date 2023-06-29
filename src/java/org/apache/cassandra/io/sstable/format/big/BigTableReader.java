@@ -187,7 +187,8 @@ public class BigTableReader extends SSTableReader
             if (!bf.isPresent((DecoratedKey)key))
             {
                 listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
-                Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
+                if (Tracing.traceSinglePartitions())
+                    Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
                 getBloomFilterTracker().addTrueNegative();
                 return null;
             }
