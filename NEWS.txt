@@ -223,6 +223,8 @@ Deprecation
       for partition tombstones. That guardrail is based on the properties `partition_tombstones_warn_threshold` and
       `partition_tombstones_fail_threshold`. The warn threshold has a very similar behaviour to the old config property.
       The old property is still supported for backward compatibility, but now it is disabled by default.
+    - CloudstackSnitch is marked as deprecated and it is not actively maintained anymore. It is scheduled to be removed 
+      in the next major version of Cassandra.
 
 4.1
 ===
