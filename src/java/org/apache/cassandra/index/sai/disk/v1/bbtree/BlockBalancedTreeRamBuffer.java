@@ -17,49 +17,32 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
-import java.io.IOException;
-import java.util.stream.IntStream;
-
+import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.ByteBlockPool;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Counter;
+import org.apache.cassandra.db.memtable.TrieMemtable;
+import org.apache.cassandra.db.tries.InMemoryTrie;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 
 /**
- * On-heap buffer for point values that provides a sortable view of itself as {@link IntersectingPointValues}.
+ * On-heap buffer for values that provides a sorted view of itself as a {@link BlockBalancedTreeIterator}.
  */
 @NotThreadSafe
-public class BlockBalancedTreeRamBuffer implements Accountable
+public class BlockBalancedTreeRamBuffer
 {
-    private final Counter bytesUsed;
-    private final ByteBlockPool bytes;
-    private final byte[] packedValue;
-    private final PackedLongValues.Builder rowIDsBuilder;
-    private int numPoints;
+    private final InMemoryTrie<PackedLongValues.Builder> trieBuffer;
+    private final RowIDReducer reducer;
+    private final int bytesPerValue;
     private int numRows;
-    private int lastSegmentRowID = -1;
-    private boolean closed = false;
 
-    public BlockBalancedTreeRamBuffer(int pointNumBytes)
+    public BlockBalancedTreeRamBuffer(int bytesPerValue)
     {
-        this.bytesUsed = Counter.newCounter();
-
-        this.bytes = new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(bytesUsed));
-
-        packedValue = new byte[pointNumBytes];
-
-        rowIDsBuilder = PackedLongValues.deltaPackedBuilder(PackedInts.COMPACT);
-        bytesUsed.addAndGet(rowIDsBuilder.ramBytesUsed());
-    }
-
-    @Override
-    public long ramBytesUsed()
-    {
-        return bytesUsed.get();
+        trieBuffer = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
+        reducer = new RowIDReducer();
+        this.bytesPerValue = bytesPerValue;
     }
 
     public int numRows()
@@ -67,99 +50,55 @@ public class BlockBalancedTreeRamBuffer implements Accountable
         return numRows;
     }
 
-    public long addPackedValue(int segmentRowId, BytesRef value)
+    public long memoryUsed()
     {
-        assert !closed : "Expected open buffer.";
-        assert value.length == packedValue.length : "The value has length=" + value.length + " but should be " + packedValue.length;
-        assert segmentRowId != lastSegmentRowID : "Duplicate segment row ID";
-
-        long startingBytesUsed = bytesUsed.get();
-        long startingRowIDsBytesUsed = rowIDsBuilder.ramBytesUsed();
-
-        rowIDsBuilder.add(segmentRowId);
-        bytes.append(value);
-
-        numRows++;
-        lastSegmentRowID = segmentRowId;
-
-        numPoints++;
-
-        long rowIDsAllocatedBytes = rowIDsBuilder.ramBytesUsed() - startingRowIDsBytesUsed;
-        long endingBytesAllocated = bytesUsed.addAndGet(rowIDsAllocatedBytes);
-        
-        return endingBytesAllocated - startingBytesUsed;
+        return trieBuffer.sizeOnHeap() + reducer.heapAllocations();
     }
 
-    public IntersectingPointValues asPointValues()
+    public long add(int segmentRowId, byte[] value)
     {
-        assert !closed : "Expected open buffer.";
-        // building packed longs is destructive
-        closed = true;
-        final PackedLongValues rowIDs = rowIDsBuilder.build();
-        return new IntersectingPointValues()
+        final long initialSizeOnHeap = trieBuffer.sizeOnHeap();
+        final long reducerHeapSize = reducer.heapAllocations();
+
+        try
         {
-            final int[] ords = IntStream.range(0, numPoints).toArray();
+            trieBuffer.putRecursive(v -> ByteSource.fixedLength(value), segmentRowId, reducer);
+        }
+        catch (InMemoryTrie.SpaceExhaustedException e)
+        {
+            throw Throwables.unchecked(e);
+        }
 
-            @Override
-            public void getValue(int i, BytesRef bytesRef)
+        numRows++;
+        return (trieBuffer.sizeOnHeap() - initialSizeOnHeap) + (reducer.heapAllocations() - reducerHeapSize);
+    }
+
+    public BlockBalancedTreeIterator iterator()
+    {
+        return BlockBalancedTreeIterator.fromTrieIterator(trieBuffer.entrySet().iterator(), bytesPerValue);
+    }
+
+    private static class RowIDReducer implements InMemoryTrie.UpsertTransformer<PackedLongValues.Builder, Integer>
+    {
+        private final LongAdder heapAllocations = new LongAdder();
+
+        @Override
+        public PackedLongValues.Builder apply(PackedLongValues.Builder existing, Integer neww)
+        {
+            if (existing == null)
             {
-                final long offset = (long) packedValue.length * (long) ords[i];
-                bytesRef.length = packedValue.length;
-                bytes.setRawBytesRef(bytesRef, offset);
+                existing = PackedLongValues.deltaPackedBuilder(PackedInts.COMPACT);
+                heapAllocations.add(existing.ramBytesUsed());
             }
+            long ramBefore = existing.ramBytesUsed();
+            existing.add(neww);
+            heapAllocations.add(existing.ramBytesUsed() - ramBefore);
+            return existing;
+        }
 
-            @Override
-            public byte getByteAt(int i, int k)
-            {
-                final long offset = (long) packedValue.length * (long) ords[i] + (long) k;
-
-                return bytes.readByte(offset);
-            }
-
-            @Override
-            public int getDocID(int i)
-            {
-                return Math.toIntExact(rowIDs.get(ords[i]));
-            }
-
-            @Override
-            public void swap(int i, int j)
-            {
-                int tmp = ords[i];
-                ords[i] = ords[j];
-                ords[j] = tmp;
-            }
-
-            @Override
-            public void intersect(IntersectVisitor visitor) throws IOException
-            {
-                final BytesRef scratch = new BytesRef();
-                for (int i = 0; i < numPoints; i++)
-                {
-                    getValue(i, scratch);
-                    assert scratch.length == packedValue.length;
-                    System.arraycopy(scratch.bytes, scratch.offset, packedValue, 0, packedValue.length);
-                    visitor.visit(getDocID(i), packedValue);
-                }
-            }
-
-            @Override
-            public int getBytesPerDimension()
-            {
-                return packedValue.length;
-            }
-
-            @Override
-            public long size()
-            {
-                return numPoints;
-            }
-
-            @Override
-            public int getDocCount()
-            {
-                return numRows;
-            }
-        };
+        long heapAllocations()
+        {
+            return heapAllocations.longValue();
+        }
     }
 }

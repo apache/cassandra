@@ -17,63 +17,58 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
-import org.junit.Assert;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
+
 import org.junit.Test;
 
-import org.apache.lucene.codecs.MutablePointValues;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-public class BlockBalancedTreeRamBufferTest
+import static org.junit.Assert.assertEquals;
+
+public class BlockBalancedTreeRamBufferTest extends SAIRandomizedTester
 {
     @Test
-    public void shouldKeepInsertionOrder()
+    public void shouldReturnValuesInSortedValue()
     {
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
-        int currentValue = 202;
-        for (int i = 0; i < 100; ++i)
-        {
-            byte[] scratch = new byte[Integer.BYTES];
-            NumericUtils.intToSortableBytes(currentValue--, scratch, 0);
-            buffer.addPackedValue(i, new BytesRef(scratch));
-        }
+        int numRows = nextInt(100, 1000);
 
-        final MutablePointValues pointValues = buffer.asPointValues();
+        // Generate a random unsorted list of integers
+        List<Integer> values = IntStream.generate(() -> nextInt(0, 1000))
+                                        .distinct()
+                                        .limit(numRows)
+                                        .boxed()
+                                        .collect(Collectors.toList());
 
-        for (int i = 0; i < 100; ++i)
-        {
-            // expect insertion order
-            Assert.assertEquals(i, pointValues.getDocID(i));
-            BytesRef ref = new BytesRef();
-            pointValues.getValue(i, ref);
-            Assert.assertEquals(202 - i, NumericUtils.sortableBytesToInt(ref.bytes, ref.offset));
-        }
+        BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+
+        byte[] scratch = new byte[Integer.BYTES];
+        values.forEach(v -> {
+            TypeUtil.toComparableBytes(Int32Type.instance.decompose(v), Int32Type.instance, scratch);
+            buffer.add(0, scratch);
+        });
+
+        Iterable<Pair<byte[], PostingList>> iterable = buffer::iterator;
+
+        List<Integer> result = StreamSupport.stream(iterable.spliterator(), false).mapToInt(pair -> unpackValue(pair.left)).boxed().collect(Collectors.toList());
+
+        Collections.sort(values);
+
+        assertEquals(values, result);
     }
 
-    @Test
-    public void shouldBeSortable()
+    private static int unpackValue(byte[] value)
     {
-        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
-        int value = 301;
-        for (int i = 0; i < 100; ++i)
-        {
-            byte[] scratch = new byte[Integer.BYTES];
-            NumericUtils.intToSortableBytes(value--, scratch, 0);
-            buffer.addPackedValue(i, new BytesRef(scratch));
-        }
-
-        final MutablePointValues pointValues = buffer.asPointValues();
-
-        MutablePointsReaderUtils.sort(100, Integer.BYTES, pointValues, 0, Math.toIntExact(pointValues.size()));
-
-        for (int i = 0; i < 100; ++i)
-        {
-            // expect reverse order after sorting
-            Assert.assertEquals(99 - i, pointValues.getDocID(i));
-            BytesRef ref = new BytesRef();
-            pointValues.getValue(i, ref);
-            Assert.assertEquals(202 + i, NumericUtils.sortableBytesToInt(ref.bytes, ref.offset));
-        }
+        return Int32Type.instance.compose(Int32Type.instance.fromComparableBytes(ByteSource.peekable(ByteSource.fixedLength(value)),
+                                                                                 ByteComparable.Version.OSS50));
     }
 }

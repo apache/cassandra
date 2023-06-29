@@ -22,8 +22,8 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.lucene.index.PointValues.Relation;
-import org.apache.lucene.util.FutureArrays;
 
 public class BlockBalancedTreeQueries
 {
@@ -99,7 +99,7 @@ public class BlockBalancedTreeQueries
 
         private int compareTo(byte[] packedValue)
         {
-            return FutureArrays.compareUnsigned(bound, 0, bound.length, packedValue, 0, bound.length);
+            return ByteArrayUtil.compareUnsigned(bound, 0, packedValue, 0, bound.length);
         }
     }
 

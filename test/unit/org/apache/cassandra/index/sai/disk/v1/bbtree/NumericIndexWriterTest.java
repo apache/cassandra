@@ -42,7 +42,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.NumericUtils;
 
@@ -72,20 +71,18 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         {
             byte[] scratch = new byte[Integer.BYTES];
             NumericUtils.intToSortableBytes(currentValue--, scratch, 0);
-            ramBuffer.addPackedValue(i, new BytesRef(scratch));
+            ramBuffer.add(i, scratch);
         }
 
-        final IntersectingPointValues pointValues = ramBuffer.asPointValues();
-
-        int docCount = pointValues.getDocCount();
+        int rowCount = ramBuffer.numRows();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                            indexContext,
                                                            Integer.BYTES,
-                                                           docCount);
-        indexMetas = writer.writeCompleteSegment(pointValues);
+                                                           rowCount);
+        indexMetas = writer.writeCompleteSegment(ramBuffer.iterator());
 
         final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
         final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
@@ -125,15 +122,13 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
     {
         final int maxSegmentRowId = 100;
         final TermsIterator termEnum = buildTermEnum(0, maxSegmentRowId);
-        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues
-                                                       .fromTermEnum(termEnum, Int32Type.instance);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                            indexContext,
                                                            TypeUtil.fixedSizeOf(Int32Type.instance),
                                                            maxSegmentRowId);
-        indexMetas = writer.writeCompleteSegment(pointValues);
+        indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, Int32Type.instance));
 
         final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
         final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);

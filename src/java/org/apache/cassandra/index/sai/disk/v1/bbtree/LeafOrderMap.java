@@ -19,18 +19,11 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.packed.DirectWriter;
 
 class LeafOrderMap
 {
-    static int getValue(RandomAccessInput in, long offset, int index, DirectReaders.Reader reader)
-    {
-        return Math.toIntExact(reader.get(in, offset, index));
-    }
-
     static void write(final int[] array, int length, int maxValue, final DataOutput out) throws IOException
     {
         final int bits = DirectWriter.unsignedBitsRequired(maxValue);

@@ -37,10 +37,10 @@ import org.apache.lucene.util.packed.PackedLongValues;
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
- * Specialized writer for point values, that builds them into a {@link BlockBalancedTreeWriter} with auxiliary
+ * Specialized writer for values, that builds them into a {@link BlockBalancedTreeWriter} with auxiliary
  * posting lists on eligible tree levels.
  * <p>
- * Given a sorted input {@link IntersectingPointValues}, the flush process is optimised because we don't need to
+ * Given a sorted input {@link BlockBalancedTreeIterator}, the flush process is optimised because we don't need to
  * buffer all point values to sort them.
  */
 public class NumericIndexWriter
@@ -76,7 +76,7 @@ public class NumericIndexWriter
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
         this.bytesPerValue = bytesPerValue;
-        this.writer = new BlockBalancedTreeWriter(maxSegmentRowId + 1, bytesPerValue, maxPointsInLeafNode);
+        this.writer = new BlockBalancedTreeWriter(bytesPerValue, maxPointsInLeafNode);
     }
 
     @Override
@@ -111,13 +111,13 @@ public class NumericIndexWriter
     }
 
     /**
-     * Writes a balanced tree and posting lists from a {@link IntersectingPointValues}.
+     * Writes a balanced tree and posting lists from a {@link BlockBalancedTreeIterator}.
      *
-     * @param values points to write
+     * @param values sorted {@link BlockBalancedTreeIterator} values to write
      *
      * @return metadata describing the location and size of this balanced tree in the overall SSTable balanced tree component file
      */
-    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(IntersectingPointValues values) throws IOException
+    public SegmentMetadata.ComponentMetadataMap writeCompleteSegment(BlockBalancedTreeIterator values) throws IOException
     {
         long treePosition;
 

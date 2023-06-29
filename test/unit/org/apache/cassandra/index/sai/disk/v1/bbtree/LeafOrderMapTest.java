@@ -17,13 +17,19 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
+import java.nio.ByteBuffer;
+
+import com.google.common.collect.Lists;
 import org.junit.Test;
 
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.lucene.store.ByteArrayIndexInput;
+import org.apache.lucene.store.ByteBuffersDataInput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 
 import static org.junit.Assert.assertEquals;
@@ -40,20 +46,21 @@ public class LeafOrderMapTest extends SAIRandomizedTester
         }
         shuffle(array);
 
-        RAMIndexOutput out = new RAMIndexOutput("");
+        ResettableByteBuffersIndexOutput out = new ResettableByteBuffersIndexOutput("");
 
         LeafOrderMap.write(array, array.length, array.length - 1, out);
 
-        ByteArrayIndexInput input = new ByteArrayIndexInput("", out.getBytesRef().bytes, 0, (int)out.getFilePointer());
+        IndexInput input = new ByteBuffersIndexInput(new ByteBuffersDataInput(Lists.newArrayList(ByteBuffer.wrap(out.toArrayCopy()))), "");
 
         final byte bits = (byte) DirectWriter.unsignedBitsRequired(array.length - 1);
-        DirectReaders.Reader reader = DirectReaders.getReaderForBitsPerValue(bits);
 
-        for (int x=0; x < array.length; x++)
+        for (int index = 0; index < array.length; index++)
         {
-            int value = LeafOrderMap.getValue(new SeekingRandomAccessInput(input), 0, x, reader);
+            LongValues reader = DirectReader.getInstance(new SeekingRandomAccessInput(input), bits);
 
-            assertEquals(array[x], value);
+            int value = Math.toIntExact(reader.get(index));
+
+            assertEquals(array[index], value);
         }
     }
 }

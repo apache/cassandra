@@ -28,18 +28,21 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.base.MoreObjects;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.Pair;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.GrowableByteArrayDataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.Sorter;
 import org.apache.lucene.util.bkd.BKDWriter;
-import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
+
+import static org.apache.cassandra.index.sai.postings.PostingList.END_OF_STREAM;
 
 /**
  * This is a specialisation of the Lucene {@link BKDWriter} that only writes a single dimension
@@ -95,9 +98,8 @@ public class BlockBalancedTreeWriter
     private final byte[] minPackedValue;
     private final byte[] maxPackedValue;
     private long valueCount;
-    private final long maxRows;
 
-    public BlockBalancedTreeWriter(long maxRows, int bytesPerValue, int maxPointsInLeafNode)
+    public BlockBalancedTreeWriter(int bytesPerValue, int maxPointsInLeafNode)
     {
         if (maxPointsInLeafNode <= 0)
             throw new IllegalArgumentException("maxPointsInLeafNode must be > 0; got " + maxPointsInLeafNode);
@@ -107,7 +109,6 @@ public class BlockBalancedTreeWriter
 
         this.maxPointsInLeafNode = maxPointsInLeafNode;
         this.bytesPerValue = bytesPerValue;
-        this.maxRows = maxRows;
 
         minPackedValue = new byte[bytesPerValue];
         maxPackedValue = new byte[bytesPerValue];
@@ -129,29 +130,31 @@ public class BlockBalancedTreeWriter
     }
 
     /**
-     * Write the point values from a {@link IntersectingPointValues}. The points can be reordered before writing
-     * to disk and does not use transient disk for reordering.
+     * Write the sorted values from a {@link BlockBalancedTreeIterator}.
      * <p>
-     *
      * @param treeOutput The {@link IndexOutput} to write the balanced tree to
-     * @param reader The {@link IntersectingPointValues} containing the values and rowIDs to be written
+     * @param values The {@link BlockBalancedTreeIterator} containing the values and rowIDs to be written
      * @param callback The {@link Callback} used to record the leaf postings for each leaf
      *
      * @return The file pointer to the beginning of the balanced tree
      */
-    public long write(IndexOutput treeOutput, IntersectingPointValues reader,
-                      final Callback callback) throws IOException
+    public long write(IndexOutput treeOutput, BlockBalancedTreeIterator values, final Callback callback) throws IOException
     {
         SAICodecUtils.writeHeader(treeOutput);
 
-        // We are only ever dealing with one dimension, so we can sort the points in ascending order
-        // and write out the values
-        if (reader.needsSorting())
-            MutablePointsReaderUtils.sort(Math.toIntExact(maxRows), bytesPerValue, reader, 0, Math.toIntExact(reader.size()));
-
         LeafWriter leafWriter = new LeafWriter(treeOutput, callback);
 
-        reader.intersect((rowID, packedValue) -> leafWriter.add(packedValue, rowID));
+        while (values.hasNext())
+        {
+            Pair<byte[], PostingList> pair = values.next();
+            while (true)
+            {
+                long segmentRowId = pair.right.nextPosting();
+                if (segmentRowId == END_OF_STREAM)
+                    break;
+                leafWriter.add(pair.left, segmentRowId);
+            }
+        }
 
         valueCount = leafWriter.finish();
 
@@ -275,7 +278,7 @@ public class BlockBalancedTreeWriter
         }
 
         // Reused while packing the index
-        try (RAMIndexOutput writeBuffer = new RAMIndexOutput("PackedIndex"))
+        try (ResettableByteBuffersIndexOutput writeBuffer = new ResettableByteBuffersIndexOutput("PackedIndex"))
         {
             // This is the "file" we append the byte[] to:
             List<byte[]> blocks = new ArrayList<>();
@@ -299,8 +302,8 @@ public class BlockBalancedTreeWriter
      * lastSplitValue is the split value previously seen; we use this to prefix-code the split byte[] on each
      * inner node
      */
-    private int recursePackIndex(RAMIndexOutput writeBuffer, long[] leafBlockFPs, byte[] splitValues, long minBlockFP, List<byte[]> blocks,
-                                 int nodeID, byte[] lastSplitValue, boolean isLeft) throws IOException
+    private int recursePackIndex(ResettableByteBuffersIndexOutput writeBuffer, long[] leafBlockFPs, byte[] splitValues,
+                                 long minBlockFP, List<byte[]> blocks, int nodeID, byte[] lastSplitValue, boolean isLeft) throws IOException
     {
         if (nodeID >= leafBlockFPs.length)
         {
@@ -407,8 +410,7 @@ public class BlockBalancedTreeWriter
                 assert leftNumBytes == 0 : "leftNumBytes=" + leftNumBytes;
             }
             int numBytes2 = Math.toIntExact(writeBuffer.getFilePointer());
-            byte[] bytes2 = new byte[numBytes2];
-            writeBuffer.writeTo(bytes2);
+            byte[] bytes2 = writeBuffer.toArrayCopy();
             writeBuffer.reset();
             // replace our placeholder:
             blocks.set(idxSav, bytes2);
@@ -425,11 +427,10 @@ public class BlockBalancedTreeWriter
     }
 
     /** Appends the current contents of writeBuffer as another block on the growing in-memory file */
-    private int appendBlock(RAMIndexOutput writeBuffer, List<byte[]> blocks)
+    private int appendBlock(ResettableByteBuffersIndexOutput writeBuffer, List<byte[]> blocks)
     {
         int pos = Math.toIntExact(writeBuffer.getFilePointer());
-        byte[] bytes = new byte[pos];
-        writeBuffer.writeTo(bytes);
+        byte[] bytes = writeBuffer.toArrayCopy();
         writeBuffer.reset();
         blocks.add(bytes);
         return pos;
@@ -489,8 +490,8 @@ public class BlockBalancedTreeWriter
         private final RowIDAndIndex[] rowIDAndIndexes = new RowIDAndIndex[maxPointsInLeafNode];
         private final int[] orderIndex = new int[maxPointsInLeafNode];
         private final Callback callback;
-        private final GrowableByteArrayDataOutput leafOrderIndexOutput = new GrowableByteArrayDataOutput(2 * 1024);
-        private final GrowableByteArrayDataOutput leafBlockOutput = new GrowableByteArrayDataOutput(32 * 1024);
+        private final ByteBuffersDataOutput leafOrderIndexOutput = new ByteBuffersDataOutput(2 * 1024);
+        private final ByteBuffersDataOutput leafBlockOutput = new ByteBuffersDataOutput(32 * 1024);
         private final byte[] lastPackedValue = new byte[bytesPerValue];
 
         private long valueCount;
@@ -622,8 +623,8 @@ public class BlockBalancedTreeWriter
 
             LeafOrderMap.write(orderIndex, leafValueCount, maxPointsInLeafNode - 1, leafOrderIndexOutput);
 
-            treeOutput.writeVInt(leafOrderIndexOutput.getPosition());
-            treeOutput.writeBytes(leafOrderIndexOutput.getBytes(), 0, leafOrderIndexOutput.getPosition());
+            treeOutput.writeVInt((int) leafOrderIndexOutput.size());
+            leafOrderIndexOutput.copyTo(treeOutput);
 
             callback.writeLeafPostings(rowIDAndIndexes, 0, leafValueCount);
 
@@ -641,7 +642,7 @@ public class BlockBalancedTreeWriter
 
             writeLeafBlockPackedValues(leafBlockOutput, commonPrefixLength, leafValueCount);
 
-            treeOutput.writeBytes(leafBlockOutput.getBytes(), 0, leafBlockOutput.getPosition());
+            leafBlockOutput.copyTo(treeOutput);
         }
 
         private void checkMaxLeafNodeCount(int numLeaves)
@@ -709,22 +710,20 @@ public class BlockBalancedTreeWriter
 
         private void valueInBounds(byte[] packedValue, int packedValueOffset, byte[] minPackedValue, byte[] maxPackedValue)
         {
-            if (FutureArrays.compareUnsigned(packedValue,
-                                             packedValueOffset,
-                                             packedValueOffset + bytesPerValue,
-                                             minPackedValue,
-                                             0,
-                                             bytesPerValue) < 0)
+            if (ByteArrayUtil.compareUnsigned(packedValue,
+                                              packedValueOffset,
+                                              minPackedValue,
+                                              0,
+                                              bytesPerValue) < 0)
             {
                 throw new AssertionError("value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
                                          " is < minPackedValue=" + new BytesRef(minPackedValue));
             }
 
-            if (FutureArrays.compareUnsigned(packedValue,
-                                             packedValueOffset,
-                                             packedValueOffset + bytesPerValue,
-                                             maxPackedValue, 0,
-                                             bytesPerValue) > 0)
+            if (ByteArrayUtil.compareUnsigned(packedValue,
+                                              packedValueOffset,
+                                              maxPackedValue, 0,
+                                              bytesPerValue) > 0)
             {
                 throw new AssertionError("value=" + new BytesRef(packedValue, packedValueOffset, bytesPerValue) +
                                          " is > maxPackedValue=" + new BytesRef(maxPackedValue));
@@ -749,7 +748,7 @@ public class BlockBalancedTreeWriter
         {
             if (ord > 0)
             {
-                int cmp = FutureArrays.compareUnsigned(lastPackedValue, 0, bytesPerValue, packedValue, packedValueOffset, packedValueOffset + bytesPerValue);
+                int cmp = ByteArrayUtil.compareUnsigned(lastPackedValue, 0, packedValue, packedValueOffset, bytesPerValue);
                 if (cmp > 0)
                 {
                     throw new AssertionError("values out of order: last value=" + new BytesRef(lastPackedValue) +

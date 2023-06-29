@@ -37,7 +37,6 @@ import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
 /**
@@ -80,31 +79,29 @@ public abstract class SegmentBuilder
 
     public static class BlockBalancedTreeSegmentBuilder extends SegmentBuilder
     {
-        protected final BytesRef bytesRef;
-        private final BlockBalancedTreeRamBuffer blockBalancedTreeRamBuffer;
+        private final byte[] scratch;
+        private final BlockBalancedTreeRamBuffer trieBuffer;
 
         public BlockBalancedTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
         {
             super(termComparator, limiter);
 
-            int typeSize = TypeUtil.fixedSizeOf(termComparator);
-            blockBalancedTreeRamBuffer = new BlockBalancedTreeRamBuffer(typeSize);
-            bytesRef = new BytesRef(typeSize);
-            bytesRef.length = typeSize;
-            totalBytesAllocated = this.blockBalancedTreeRamBuffer.ramBytesUsed();
+            scratch = new byte[TypeUtil.fixedSizeOf(termComparator)];
+            trieBuffer = new BlockBalancedTreeRamBuffer(TypeUtil.fixedSizeOf(termComparator));
+            totalBytesAllocated = this.trieBuffer.memoryUsed();
         }
 
         @Override
         public boolean isEmpty()
         {
-            return blockBalancedTreeRamBuffer.numRows() == 0;
+            return trieBuffer.numRows() == 0;
         }
 
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            TypeUtil.toComparableBytes(term, termComparator, bytesRef.bytes);
-            return blockBalancedTreeRamBuffer.addPackedValue(segmentRowId, bytesRef);
+            TypeUtil.toComparableBytes(term, termComparator, scratch);
+            return trieBuffer.add(segmentRowId, scratch);
         }
 
         @Override
@@ -114,7 +111,7 @@ public abstract class SegmentBuilder
                                                                indexContext,
                                                                TypeUtil.fixedSizeOf(termComparator),
                                                                maxSegmentRowId);
-            return writer.writeCompleteSegment(blockBalancedTreeRamBuffer.asPointValues());
+            return writer.writeCompleteSegment(trieBuffer.iterator());
         }
     }
 

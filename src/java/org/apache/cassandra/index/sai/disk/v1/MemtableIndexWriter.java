@@ -35,7 +35,7 @@ import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.bbtree.ImmutableIntersectingPointValues;
+import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeIterator;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
@@ -158,7 +158,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                                indexContext,
                                                                TypeUtil.fixedSizeOf(termComparator),
                                                                maxSSTableRowId);
-            indexMetas = writer.writeCompleteSegment(ImmutableIntersectingPointValues.fromTermEnum(terms, termComparator));
+            indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(terms, termComparator));
             numRows = writer.getValueCount();
         }
 

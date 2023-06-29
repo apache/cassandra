@@ -33,7 +33,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.postings.FilteringPostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.MergePostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
@@ -42,12 +41,14 @@ import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.FutureArrays;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 
 /**
@@ -63,8 +64,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
     private final IndexContext indexContext;
     private final FileHandle postingsFile;
     private final BlockBalancedTreePostingsIndex postingsIndex;
-    private final DirectReaders.Reader leafOrderMapReader;
-
+    private final int leafOrderMapBitsRequired;
     /**
      * Performs a blocking read.
      */
@@ -78,7 +78,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
         this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, treePostingsRoot);
-        leafOrderMapReader = DirectReaders.getReaderForBitsPerValue((byte) DirectWriter.unsignedBitsRequired(state.maxPointsInLeafNode - 1));
+        leafOrderMapBitsRequired = DirectWriter.unsignedBitsRequired(state.maxPointsInLeafNode - 1);
     }
 
     public int getBytesPerValue()
@@ -293,9 +293,10 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             long orderMapPointer = treeInput.getFilePointer();
 
             SeekingRandomAccessInput randomAccessInput = new SeekingRandomAccessInput(treeInput);
-            for (int x = 0; x < count; x++)
+            LongValues leafOrderMapReader = DirectReader.getInstance(randomAccessInput, leafOrderMapBitsRequired, orderMapPointer);
+            for (int index = 0; index < count; index++)
             {
-                origIndex[x] = (short) LeafOrderMap.getValue(randomAccessInput, orderMapPointer, x, leafOrderMapReader);
+                origIndex[index] = (short) Math.toIntExact(leafOrderMapReader.get(index));
             }
 
             // seek beyond the ordermap
@@ -319,8 +320,8 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             if (BlockBalancedTreeWriter.DEBUG)
             {
                 // make sure cellMin <= splitValue <= cellMax:
-                assert FutureArrays.compareUnsigned(minPackedValue, 0, state.bytesPerValue, splitValue, 0, state.bytesPerValue) <= 0 : "bytesPerValue=" + state.bytesPerValue;
-                assert FutureArrays.compareUnsigned(maxPackedValue, 0, state.bytesPerValue, splitValue, 0, state.bytesPerValue) >= 0 : "bytesPerValue=" + state.bytesPerValue;
+                assert ByteArrayUtil.compareUnsigned(minPackedValue, 0, splitValue, 0, state.bytesPerValue) <= 0 :"bytesPerValue=" + state.bytesPerValue;
+                assert ByteArrayUtil.compareUnsigned(maxPackedValue, 0, splitValue, 0, state.bytesPerValue) >= 0 : "bytesPerValue=" + state.bytesPerValue;
             }
 
             // Recurse on left subtree:

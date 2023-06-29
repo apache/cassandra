@@ -109,8 +109,6 @@ public class BlockBalancedTreeIndexBuilder
     NumericIndexSegmentSearcher flushAndOpen() throws IOException
     {
         final TermsIterator termEnum = new MemtableTermsIterator(null, null, terms);
-        final ImmutableIntersectingPointValues pointValues = ImmutableIntersectingPointValues.fromTermEnum(termEnum, type);
-
         final SegmentMetadata metadata;
 
         IndexContext columnContext = SAITester.createIndexContext("test", Int32Type.instance);
@@ -118,7 +116,7 @@ public class BlockBalancedTreeIndexBuilder
                                                            columnContext,
                                                            TypeUtil.fixedSizeOf(type),
                                                            maxSegmentRowId);
-        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(pointValues);
+        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, type));
         metadata = new SegmentMetadata(0,
                                        size,
                                        minSegmentRowId,

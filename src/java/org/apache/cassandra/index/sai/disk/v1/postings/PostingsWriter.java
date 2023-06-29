@@ -128,7 +128,6 @@ public class PostingsWriter implements Closeable
     private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException
     {
         assert dataOutput instanceof IndexOutputWriter;
-        logger.debug("Creating postings writer for output {}", dataOutput);
         this.blockSize = blockSize;
         this.dataOutput = dataOutput;
         startOffset = dataOutput.getFilePointer();

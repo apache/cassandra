@@ -29,6 +29,7 @@ import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
@@ -36,7 +37,6 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureArrays;
 
 /**
  * Base reader for a block balanced tree previously written with {@link BlockBalancedTreeWriter}.
@@ -185,7 +185,7 @@ public class BlockBalancedTreeWalker implements Closeable
             dataInput.readBytes(minPackedValue, 0, bytesPerValue);
             dataInput.readBytes(maxPackedValue, 0, bytesPerValue);
 
-            if (FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerValue, maxPackedValue, 0, bytesPerValue) > 0)
+            if (ByteArrayUtil.compareUnsigned(minPackedValue, 0, maxPackedValue, 0, bytesPerValue) > 0)
             {
                 String message = String.format("Min packed value %s is > max packed value %s.",
                                                new BytesRef(minPackedValue), new BytesRef(maxPackedValue));

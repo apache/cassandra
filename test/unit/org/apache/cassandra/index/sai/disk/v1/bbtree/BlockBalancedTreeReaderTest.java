@@ -34,7 +34,6 @@ import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.lucene.index.PointValues.Relation;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 
 import static org.apache.lucene.index.PointValues.Relation.CELL_CROSSES_QUERY;
@@ -102,7 +101,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         for (int docID = 0; docID < numRows; docID++)
         {
             NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
 
         final BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer);
@@ -127,7 +126,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         for (int docID = 0; docID < numRows; docID++)
         {
             NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
 
         final BlockBalancedTreeReader reader = finishAndOpenReader(2, buffer);
@@ -156,7 +155,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     public void testSameValuesInLeaf() throws Exception
     {
         // While a bit synthetic this test is designed to test that the
-        // BlockBalancedTreeReader.FilteringIntersection.visitRawDocValues
+        // BlockBalancedTreeReader.FilteringIntersection.buildPostingsFilterForSingleValueLeaf
         // method is exercised in a test. To do this we need to ensure that
         // we have at least one leaf that has all the same value and that
         // all of that leaf is requested in a query.
@@ -166,19 +165,19 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         for (int docID = 0; docID < 10; docID++)
         {
             NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
 
         for (int docID = 10; docID < 20; docID++)
         {
             NumericUtils.intToSortableBytes(10, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
 
         for (int docID = 20; docID < 30; docID++)
         {
             NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
 
         final BlockBalancedTreeReader reader = finishAndOpenReader(5, buffer);
@@ -208,13 +207,13 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         for (int docID = 0; docID < 1000; docID++)
         {
             NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
         // add a gap between 1000 and 1100
         for (int docID = 1000; docID < 2000; docID++)
         {
             NumericUtils.intToSortableBytes(docID + 100, scratch, 0);
-            buffer.addPackedValue(docID, new BytesRef(scratch));
+            buffer.add(docID, scratch);
         }
 
         final BlockBalancedTreeReader reader = finishAndOpenReader(50, buffer);
@@ -273,7 +272,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(buffer.numRows()));
 
-        final SegmentMetadata.ComponentMetadataMap metadata = writer.writeCompleteSegment(buffer.asPointValues());
+        final SegmentMetadata.ComponentMetadataMap metadata = writer.writeCompleteSegment(buffer.iterator());
         final long treePosition = metadata.get(IndexComponent.BALANCED_TREE).root;
         assertThat(treePosition, is(greaterThan(0L)));
         final long postingsPosition = metadata.get(IndexComponent.POSTING_LISTS).root;

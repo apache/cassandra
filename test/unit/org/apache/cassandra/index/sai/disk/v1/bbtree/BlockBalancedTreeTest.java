@@ -27,7 +27,6 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.DataInput;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 
 import static org.junit.Assert.assertEquals;
@@ -153,11 +152,11 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
         for (int rowID = 0; rowID < numRows; rowID++)
         {
             NumericUtils.intToSortableBytes(valueProvider.apply(rowID), scratch, 0);
-            buffer.addPackedValue(rowID, new BytesRef(scratch));
+            buffer.add(rowID, scratch);
         }
 
-        BlockBalancedTreeWriter writer = new BlockBalancedTreeWriter(numRows, 4, leafSize);
+        BlockBalancedTreeWriter writer = new BlockBalancedTreeWriter(4, leafSize);
         ByteBuffersIndexOutput output = new ByteBuffersIndexOutput(dataOutput, "test", "test");
-        return writer.write(output, buffer.asPointValues(), (leafPostings, offset, count) -> {});
+        return writer.write(output, buffer.iterator(), (leafPostings, offset, count) -> {});
     }
 }
