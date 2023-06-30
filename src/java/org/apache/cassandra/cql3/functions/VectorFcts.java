@@ -43,8 +43,8 @@ public class VectorFcts
                                                        boolean supportsZeroVectors)
     {
         return new FunctionFactory(name,
-                                   FunctionParameter.sameAs(1, FunctionParameter.vector(CQL3Type.Native.FLOAT)),
-                                   FunctionParameter.sameAs(0, FunctionParameter.vector(CQL3Type.Native.FLOAT)))
+                                   FunctionParameter.sameAs(1, false, FunctionParameter.vector(CQL3Type.Native.FLOAT)),
+                                   FunctionParameter.sameAs(0, false, FunctionParameter.vector(CQL3Type.Native.FLOAT)))
         {
             @Override
             @SuppressWarnings("unchecked")

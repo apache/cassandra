@@ -192,10 +192,12 @@ public interface FunctionParameter
     }
 
     /**
-     * @return a function parameter definition that accepts values of any type, provided that it's the same type as all
-     * the other parameters
+     * @param index the index of the function argument that this parameter is associated with
+     * @param preferOther whether the parameter should prefer the type of the other parameter over its own type
+     * @param parameter the type of this parameter when the type of the associated parameter is unknown
+     * @return a function parameter definition that is expected to have the same type as another parameter
      */
-    static FunctionParameter sameAs(int index, FunctionParameter parameter)
+    static FunctionParameter sameAs(int index, boolean preferOther, FunctionParameter parameter)
     {
         return new FunctionParameter()
         {
@@ -205,8 +207,14 @@ public interface FunctionParameter
                                              @Nullable AbstractType<?> receiverType,
                                              @Nullable List<AbstractType<?>> inferredTypes)
             {
-                AbstractType<?> type = inferredTypes == null ? null : inferredTypes.get(index);
-                return type != null ? type : parameter.inferType(keyspace, arg, receiverType, inferredTypes);
+                if (preferOther)
+                {
+                    AbstractType<?> other = inferredTypes == null ? null : inferredTypes.get(index);
+                    return other == null ? parameter.inferType(keyspace, arg, receiverType, inferredTypes) : other;
+                }
+
+                AbstractType<?> inferred = parameter.inferType(keyspace, arg, receiverType, inferredTypes);
+                return inferred == null && inferredTypes != null ? inferredTypes.get(index) : inferred;
             }
 
             @Override

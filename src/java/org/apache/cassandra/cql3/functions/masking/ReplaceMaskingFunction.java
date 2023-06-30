@@ -64,7 +64,7 @@ public class ReplaceMaskingFunction extends MaskingFunction
     {
         return new MaskingFunction.Factory(NAME,
                                            FunctionParameter.anyType(true),
-                                           FunctionParameter.sameAs(0, FunctionParameter.anyType(true)))
+                                           FunctionParameter.sameAs(0, true, FunctionParameter.anyType(true)))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)

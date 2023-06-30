@@ -85,15 +85,20 @@ public class VectorFctsTest extends CQLTester
         assertRows(execute("SELECT " + function + "(?, (vector<float, 2>) ?) FROM %s", vector, vector), similarity);
         assertRows(execute("SELECT " + function + "((vector<float, 2>) ?, (vector<float, 2>) ?) FROM %s", vector, vector), similarity);
 
+        // bind markers and literals
+        assertRows(execute("SELECT " + function + "([1, 2], ?) FROM %s", vector), similarity);
+        assertRows(execute("SELECT " + function + "(?, [1, 2]) FROM %s", vector), similarity);
+        assertRows(execute("SELECT " + function + "([1, 2], ?) FROM %s", vector), similarity);
+
         // wrong column types with columns
         assertThatThrownBy(() -> execute("SELECT " + function + "(l, value) FROM %s"))
         .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument l of type list<float>");
         assertThatThrownBy(() -> execute("SELECT " + function + "(fl, value) FROM %s"))
         .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument fl of type frozen<list<float>>");
         assertThatThrownBy(() -> execute("SELECT " + function + "(value, l) FROM %s"))
-        .hasMessageContaining("Type error: l cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument l of type list<float>");
         assertThatThrownBy(() -> execute("SELECT " + function + "(value, fl) FROM %s"))
-        .hasMessageContaining("Type error: fl cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument fl of type frozen<list<float>>");
 
         // wrong column types with columns and literals
         assertThatThrownBy(() -> execute("SELECT " + function + "(l, [1, 2]) FROM %s"))
@@ -101,9 +106,9 @@ public class VectorFctsTest extends CQLTester
         assertThatThrownBy(() -> execute("SELECT " + function + "(fl, [1, 2]) FROM %s"))
         .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument fl of type frozen<list<float>>");
         assertThatThrownBy(() -> execute("SELECT " + function + "([1, 2], l) FROM %s"))
-        .hasMessageContaining("Type error: l cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument l of type list<float>");
         assertThatThrownBy(() -> execute("SELECT " + function + "([1, 2], fl) FROM %s"))
-        .hasMessageContaining("Type error: fl cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument fl of type frozen<list<float>>");
 
         // wrong column types with cast literals
         assertThatThrownBy(() -> execute("SELECT " + function + "((List<Float>)[1, 2], [3, 4]) FROM %s"))
@@ -111,7 +116,7 @@ public class VectorFctsTest extends CQLTester
         assertThatThrownBy(() -> execute("SELECT " + function + "((List<Float>)[1, 2], (List<Float>)[3, 4]) FROM %s"))
         .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument (list<float>)[1, 2] of type frozen<list<float>>");
         assertThatThrownBy(() -> execute("SELECT " + function + "([1, 2], (List<Float>)[3, 4]) FROM %s"))
-        .hasMessageContaining("Type error: (list<float>)[3, 4] cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument (list<float>)[3, 4] of type frozen<list<float>>");
 
         // wrong non-float vectors
         assertThatThrownBy(() -> execute("SELECT " + function + "(v_int, [1, 2]) FROM %s"))
@@ -119,31 +124,31 @@ public class VectorFctsTest extends CQLTester
         assertThatThrownBy(() -> execute("SELECT " + function + "(v_double, [1, 2]) FROM %s"))
         .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument v_double of type vector<double, 2>");
         assertThatThrownBy(() -> execute("SELECT " + function + "([1, 2], v_int) FROM %s"))
-        .hasMessageContaining("Type error: v_int cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument v_int of type vector<int, 2>");
         assertThatThrownBy(() -> execute("SELECT " + function + "([1, 2], v_double) FROM %s"))
-        .hasMessageContaining("Type error: v_double cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("Function " + function + " requires a float vector argument, but found argument v_double of type vector<double, 2>");
 
         // mismatching dimensions with literals
         assertThatThrownBy(() -> execute("SELECT " + function + "([1, 2], [3]) FROM %s", vector(1)))
-        .hasMessageContaining("Unable to create a vector selector of type vector<float, 2> from 1 elements");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
         assertThatThrownBy(() -> execute("SELECT " + function + "(value, [1]) FROM %s", vector(1)))
-        .hasMessageContaining("Unable to create a vector selector of type vector<float, 2> from 1 elements");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
         assertThatThrownBy(() -> execute("SELECT " + function + "([1], value) FROM %s", vector(1)))
-        .hasMessageContaining("Type error: value cannot be passed as argument 1");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
 
         // mismatching dimensions with bind markers
         assertThatThrownBy(() -> execute("SELECT " + function + "((vector<float, 1>) ?, value) FROM %s", vector(1)))
-        .hasMessageContaining("Type error: value cannot be passed as argument 1");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
         assertThatThrownBy(() -> execute("SELECT " + function + "(value, (vector<float, 1>) ?) FROM %s", vector(1)))
-        .hasMessageContaining("Type error: (vector<float, 1>)? cannot be passed as argument 1");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
         assertThatThrownBy(() -> execute("SELECT " + function + "((vector<float, 2>) ?, (vector<float, 1>) ?) FROM %s", vector(1, 2), vector(1)))
-        .hasMessageContaining("Type error: (vector<float, 1>)? cannot be passed as argument 1");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
 
         // mismatching dimensions with columns
         assertThatThrownBy(() -> execute("SELECT " + function + "(value, v1) FROM %s"))
-        .hasMessageContaining("Type error: v1 cannot be passed as argument 1 of function " + function + " of type vector<float, 2>");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
         assertThatThrownBy(() -> execute("SELECT " + function + "(v1, value) FROM %s"))
-        .hasMessageContaining("Type error: value cannot be passed as argument 1 of function " + function + " of type vector<float, 1>");
+        .hasMessageContaining("All arguments must have the same vector dimensions");
 
         // null arguments with literals
         assertRows(execute("SELECT " + function + "(value, null) FROM %s"), row((Float) null));
