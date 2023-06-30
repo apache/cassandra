@@ -115,11 +115,12 @@ public abstract class SAITester extends CQLTester
     protected static final String CREATE_KEYSPACE_TEMPLATE = "CREATE KEYSPACE IF NOT EXISTS %s WITH replication = " +
                                                              "{'class': 'SimpleStrategy', 'replication_factor': '1'}";
 
-    protected static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 TEXT) WITH compaction = " +
+    protected static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 INT, v2 TEXT) WITH compaction = " +
                                                           "{'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }";
     protected static final String CREATE_INDEX_TEMPLATE = "CREATE CUSTOM INDEX IF NOT EXISTS ON %%s(%s) USING 'StorageAttachedIndex'";
 
     protected static final ColumnIdentifier V1_COLUMN_IDENTIFIER = ColumnIdentifier.getInterned("v1", true);
+    protected static final ColumnIdentifier V2_COLUMN_IDENTIFIER = ColumnIdentifier.getInterned("v2", true);
 
     protected static final Injections.Counter indexBuildCounter = Injections.newCounter("IndexBuildCounter")
                                                                             .add(newInvokePoint().onClass(CompactionManager.class)
@@ -462,17 +463,23 @@ public abstract class SAITester extends CQLTester
         assertTrue(indexFiles().isEmpty());
     }
 
-    protected void verifyIndexFiles(IndexContext literalIndexContext, int literalFiles)
+    protected void verifyIndexFiles(IndexContext numericIndexContext, IndexContext literalIndexContext, int numericFiles, int literalFiles)
     {
-        verifyIndexFiles(literalIndexContext,
+        verifyIndexFiles(numericIndexContext,
+                         literalIndexContext,
+                         Math.max(numericFiles, literalFiles),
+                         numericFiles,
                          literalFiles,
-                         literalFiles,
+                         numericFiles,
                          literalFiles);
     }
 
-    protected void verifyIndexFiles(IndexContext literalIndexContext,
+    protected void verifyIndexFiles(IndexContext numericIndexContext,
+                                    IndexContext literalIndexContext,
                                     int perSSTableFiles,
+                                    int numericFiles,
                                     int literalFiles,
+                                    int numericCompletionMarkers,
                                     int literalCompletionMarkers)
     {
         Set<File> indexFiles = indexFiles();
@@ -494,6 +501,20 @@ public abstract class SAITester extends CQLTester
                     assertEquals(literalCompletionMarkers, stringIndexFiles.size());
                 else
                     assertEquals(stringIndexFiles.toString(), literalFiles, stringIndexFiles.size());
+            }
+        }
+
+        if (numericIndexContext != null)
+        {
+            for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perColumnIndexComponents(numericIndexContext))
+            {
+                Set<File> numericIndexFiles = componentFiles(indexFiles,
+                                                             SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent,
+                                                                                                                                                             numericIndexContext)));
+                if (isBuildCompletionMarker(indexComponent))
+                    assertEquals(numericCompletionMarkers, numericIndexFiles.size());
+                else
+                    assertEquals(numericIndexFiles.toString(), numericFiles, numericIndexFiles.size());
             }
         }
     }
