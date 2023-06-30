@@ -33,14 +33,14 @@ public class VectorFcts
 {
     public static void addFunctionsTo(NativeFunctions functions)
     {
-        functions.add(similarity_function("similarity_cosine", VectorSimilarityFunction.COSINE, false));
-        functions.add(similarity_function("similarity_euclidean", VectorSimilarityFunction.EUCLIDEAN, true));
-        functions.add(similarity_function("similarity_dot_product", VectorSimilarityFunction.DOT_PRODUCT, true));
+        functions.add(createSimilarityFunctionFactory("similarity_cosine", VectorSimilarityFunction.COSINE, false));
+        functions.add(createSimilarityFunctionFactory("similarity_euclidean", VectorSimilarityFunction.EUCLIDEAN, true));
+        functions.add(createSimilarityFunctionFactory("similarity_dot_product", VectorSimilarityFunction.DOT_PRODUCT, true));
     }
 
-    private static FunctionFactory similarity_function(String name,
-                                                       VectorSimilarityFunction luceneFunction,
-                                                       boolean supportsZeroVectors)
+    private static FunctionFactory createSimilarityFunctionFactory(String name,
+                                                                   VectorSimilarityFunction luceneFunction,
+                                                                   boolean supportsZeroVectors)
     {
         return new FunctionFactory(name,
                                    FunctionParameter.sameAs(1, false, FunctionParameter.vector(CQL3Type.Native.FLOAT)),
