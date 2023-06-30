@@ -86,7 +86,7 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> inferredTypes)
+                                             @Nullable List<AbstractType<?>> inferredTypes)
             {
                 return wrapped.inferType(keyspace, arg, receiverType, inferredTypes);
             }
@@ -133,7 +133,7 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> inferredTypes)
+                                             @Nullable List<AbstractType<?>> inferredTypes)
             {
                 AbstractType<?> inferred = arg.getCompatibleTypeIfKnown(keyspace);
                 return inferred != null ? inferred : types[0].getType();
@@ -171,7 +171,7 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> inferredTypes)
+                                             @Nullable List<AbstractType<?>> inferredTypes)
             {
                 AbstractType<?> type = arg.getCompatibleTypeIfKnown(keyspace);
                 return type == null && inferFromReceiver ? receiverType : type;
@@ -363,7 +363,7 @@ public interface FunctionParameter
             public AbstractType<?> inferType(String keyspace,
                                              AssignmentTestable arg,
                                              @Nullable AbstractType<?> receiverType,
-                                             List<AbstractType<?>> inferredTypes)
+                                             @Nullable List<AbstractType<?>> inferredTypes)
             {
                 if (arg instanceof Selectable.WithArrayLiteral)
                     return VectorType.getInstance(type.getType(), ((Selectable.WithArrayLiteral) arg).getSize());
