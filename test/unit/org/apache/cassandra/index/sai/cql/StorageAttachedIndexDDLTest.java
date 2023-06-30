@@ -37,7 +37,6 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.InvalidConfigurationInQueryException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.exceptions.ReadFailureException;
-import junit.framework.TestCase;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
@@ -80,6 +79,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 
 public class StorageAttachedIndexDDLTest extends SAITester
@@ -1051,7 +1051,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
             attempt--;
         }
         if (getCompactionTasks() > 0)
-            TestCase.fail("Compaction tasks are not interrupted.");
+            fail("Compaction tasks are not interrupted.");
 
         delayIndexBuilderCompletion.disable();
 
@@ -1168,7 +1168,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         assertEquals(Arrays.asList(2L, 1L), toSize.apply(iterator.next()));
     }
 
-    private void assertZeroSegmentBuilderUsage() throws Exception
+    private void assertZeroSegmentBuilderUsage()
     {
         assertEquals("Segment memory limiter should revert to zero.", 0L, getSegmentBufferUsedBytes());
         assertEquals("There should be no segment builders in progress.", 0, getColumnIndexBuildsInProgress());

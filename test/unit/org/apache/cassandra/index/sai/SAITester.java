@@ -410,17 +410,17 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    protected long getSegmentBufferSpaceLimit() throws Exception
+    protected long getSegmentBufferSpaceLimit()
     {
         return V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.limitBytes();
     }
 
-    protected long getSegmentBufferUsedBytes() throws Exception
+    protected long getSegmentBufferUsedBytes()
     {
         return V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.currentBytesUsed();
     }
 
-    protected int getColumnIndexBuildsInProgress() throws Exception
+    protected int getColumnIndexBuildsInProgress()
     {
         return SegmentBuilder.getActiveBuilderCount();
     }
