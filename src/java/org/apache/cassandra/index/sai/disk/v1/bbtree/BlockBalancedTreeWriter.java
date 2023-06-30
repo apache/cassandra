@@ -147,13 +147,9 @@ public class BlockBalancedTreeWriter
         while (values.hasNext())
         {
             Pair<byte[], PostingList> pair = values.next();
-            while (true)
-            {
-                long segmentRowId = pair.right.nextPosting();
-                if (segmentRowId == END_OF_STREAM)
-                    break;
+            long segmentRowId;
+            while ((segmentRowId = pair.right.nextPosting()) != END_OF_STREAM)
                 leafWriter.add(pair.left, segmentRowId);
-            }
         }
 
         valueCount = leafWriter.finish();

@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.postings.MergePostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.PackedLongsPostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
@@ -120,7 +121,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
      * After writing out the postings, it writes a map of node ID -> postings file pointer for all
      * nodes with an attached postings list. It then returns the file pointer to this map.
      */
-    public long finish(IndexOutput out, List<PackedLongValues> leafPostings, IndexContext indexContext) throws IOException
+    public long finish(IndexOutputWriter out, List<PackedLongValues> leafPostings, IndexContext indexContext) throws IOException
     {
         checkState(leafPostings.size() == leafOffsetToNodeID.size(),
                    "Expected equal number of postings lists (%s) and leaf offsets (%s).",

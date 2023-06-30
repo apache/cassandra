@@ -33,15 +33,15 @@ import org.apache.lucene.util.packed.PackedLongValues;
 @NotThreadSafe
 public class BlockBalancedTreeRamBuffer
 {
-    private final InMemoryTrie<PackedLongValues.Builder> trieBuffer;
-    private final RowIDReducer reducer;
+    private final InMemoryTrie<PackedLongValues.Builder> trie;
+    private final PostingsAccumulator postingsAccumulator;
     private final int bytesPerValue;
     private int numRows;
 
     public BlockBalancedTreeRamBuffer(int bytesPerValue)
     {
-        trieBuffer = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
-        reducer = new RowIDReducer();
+        trie = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
+        postingsAccumulator = new PostingsAccumulator();
         this.bytesPerValue = bytesPerValue;
     }
 
@@ -52,17 +52,17 @@ public class BlockBalancedTreeRamBuffer
 
     public long memoryUsed()
     {
-        return trieBuffer.sizeOnHeap() + reducer.heapAllocations();
+        return trie.sizeOnHeap() + postingsAccumulator.heapAllocations();
     }
 
     public long add(int segmentRowId, byte[] value)
     {
-        final long initialSizeOnHeap = trieBuffer.sizeOnHeap();
-        final long reducerHeapSize = reducer.heapAllocations();
+        final long initialSizeOnHeap = trie.sizeOnHeap();
+        final long reducerHeapSize = postingsAccumulator.heapAllocations();
 
         try
         {
-            trieBuffer.putRecursive(v -> ByteSource.fixedLength(value), segmentRowId, reducer);
+            trie.putRecursive(v -> ByteSource.fixedLength(value), segmentRowId, postingsAccumulator);
         }
         catch (InMemoryTrie.SpaceExhaustedException e)
         {
@@ -70,20 +70,20 @@ public class BlockBalancedTreeRamBuffer
         }
 
         numRows++;
-        return (trieBuffer.sizeOnHeap() - initialSizeOnHeap) + (reducer.heapAllocations() - reducerHeapSize);
+        return (trie.sizeOnHeap() - initialSizeOnHeap) + (postingsAccumulator.heapAllocations() - reducerHeapSize);
     }
 
     public BlockBalancedTreeIterator iterator()
     {
-        return BlockBalancedTreeIterator.fromTrieIterator(trieBuffer.entrySet().iterator(), bytesPerValue);
+        return BlockBalancedTreeIterator.fromTrieIterator(trie.entrySet().iterator(), bytesPerValue);
     }
 
-    private static class RowIDReducer implements InMemoryTrie.UpsertTransformer<PackedLongValues.Builder, Integer>
+    private static class PostingsAccumulator implements InMemoryTrie.UpsertTransformer<PackedLongValues.Builder, Integer>
     {
         private final LongAdder heapAllocations = new LongAdder();
 
         @Override
-        public PackedLongValues.Builder apply(PackedLongValues.Builder existing, Integer neww)
+        public PackedLongValues.Builder apply(PackedLongValues.Builder existing, Integer rowID)
         {
             if (existing == null)
             {
@@ -91,7 +91,7 @@ public class BlockBalancedTreeRamBuffer
                 heapAllocations.add(existing.ramBytesUsed());
             }
             long ramBefore = existing.ramBytesUsed();
-            existing.add(neww);
+            existing.add(rowID);
             heapAllocations.add(existing.ramBytesUsed() - ramBefore);
             return existing;
         }

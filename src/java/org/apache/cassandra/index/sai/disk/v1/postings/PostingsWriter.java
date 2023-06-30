@@ -114,7 +114,7 @@ public class PostingsWriter implements Closeable
         this(indexDescriptor, indexContext, BLOCK_SIZE);
     }
 
-    public PostingsWriter(IndexOutput dataOutput) throws IOException
+    public PostingsWriter(IndexOutputWriter dataOutput) throws IOException
     {
         this(dataOutput, BLOCK_SIZE);
     }
@@ -125,9 +125,8 @@ public class PostingsWriter implements Closeable
         this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true), blockSize);
     }
 
-    private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException
+    private PostingsWriter(IndexOutputWriter dataOutput, int blockSize) throws IOException
     {
-        assert dataOutput instanceof IndexOutputWriter;
         this.blockSize = blockSize;
         this.dataOutput = dataOutput;
         startOffset = dataOutput.getFilePointer();
