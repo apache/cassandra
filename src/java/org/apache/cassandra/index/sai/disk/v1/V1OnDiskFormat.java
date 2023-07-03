@@ -57,20 +57,21 @@ public class V1OnDiskFormat implements OnDiskFormat
 
     @VisibleForTesting
     public static final Set<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
-                                                                                 IndexComponent.GROUP_META,
-                                                                                 IndexComponent.TOKEN_VALUES,
-                                                                                 IndexComponent.PRIMARY_KEY_TRIE,
-                                                                                 IndexComponent.PRIMARY_KEY_BLOCKS,
-                                                                                 IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
+                                                                                IndexComponent.GROUP_META,
+                                                                                IndexComponent.TOKEN_VALUES,
+                                                                                IndexComponent.PRIMARY_KEY_TRIE,
+                                                                                IndexComponent.PRIMARY_KEY_BLOCKS,
+                                                                                IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
     @VisibleForTesting
     public static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
-                                                                             IndexComponent.META,
-                                                                             IndexComponent.TERMS_DATA,
-                                                                             IndexComponent.POSTING_LISTS);
-    private static final Set<IndexComponent> NUMERIC_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
-                                                                             IndexComponent.META,
-                                                                             IndexComponent.BALANCED_TREE,
-                                                                             IndexComponent.POSTING_LISTS);
+                                                                            IndexComponent.META,
+                                                                            IndexComponent.TERMS_DATA,
+                                                                            IndexComponent.POSTING_LISTS);
+    @VisibleForTesting
+    public static final Set<IndexComponent> NUMERIC_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                            IndexComponent.META,
+                                                                            IndexComponent.BALANCED_TREE,
+                                                                            IndexComponent.POSTING_LISTS);
 
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
