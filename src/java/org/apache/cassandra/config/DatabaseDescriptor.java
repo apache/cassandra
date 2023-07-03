@@ -4785,18 +4785,18 @@ public class DatabaseDescriptor
     {
         Property property = getPropertyAccessor(name);
         // The case when replacement property is used and match the property's name.
-        Property property0 = property instanceof Replacement.ReplacementProperty ?
+        Property unwrappedProperty = property instanceof Replacement.ReplacementProperty ?
                                          ((Replacement.ReplacementProperty) property).delegate() :
                                          property;
 
-        if (isReadOnlyProperty(property0))
-            throw new ConfigurationException("Unable to add a listener for read-only property: " + property0.getName());
+        if (isReadOnlyProperty(unwrappedProperty))
+            throw new ConfigurationException("Unable to add a listener for read-only property: " + unwrappedProperty.getName());
 
-        if (!(property0 instanceof ListenableProperty))
+        if (!(unwrappedProperty instanceof ListenableProperty))
             throw new ConfigurationException(String.format("Property '%s' is not listenable.", name));
 
-        if (clazz.equals(property0.getType()))
-            return adder.apply((ListenableProperty<Config, T>) property0);
+        if (clazz.equals(unwrappedProperty.getType()))
+            return adder.apply((ListenableProperty<Config, T>) unwrappedProperty);
         else
             throw new ConfigurationException(String.format("Listener type '%s' doesn't match the property '%s' type '%s'.",
                                                            clazz.getSimpleName(), name, clazz.getSimpleName()));

@@ -81,7 +81,7 @@ public class SettingsTableTest extends CQLTester
         for (Row r : result)
         {
             String name = r.getString("name");
-            String expectedValue = SettingsTable.getPropertyAsString(SettingsTable.getKeyAndWarn(name));
+            String expectedValue = SettingsTable.getPropertyAsString(SettingsTable.getKeyAndWarnIfObsolete(name));
             Assert.assertEquals("Unexpected result for key: " + name, expectedValue, r.getString("value"));
             unprocessedKeys.remove(name);
         }

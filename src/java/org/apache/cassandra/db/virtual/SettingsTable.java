@@ -76,10 +76,10 @@ final class SettingsTable extends AbstractMutableVirtualTable
         String name = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
         if (value == null)
-            throw new InvalidRequestException("Setting the value to null is equivalent to the deletion operation. " +
-                                              "Column deletion is not supported by table vts.settings");
+            throw new InvalidRequestException(String.format("Setting the value to null is equivalent to the deletion operation. " +
+                                              "Column deletion is not supported by the '%s.%s'", metadata().keyspace, metadata().name));
         else
-            runExceptionally(() -> setPropertyFromString(getKeyAndWarn(name), value),
+            runExceptionally(() -> setPropertyFromString(getKeyAndWarnIfObsolete(name), value),
                              t -> invalidRequest("Invalid update request '%s'. Cause: %s", name, t.getMessage()));
     }
 
@@ -90,7 +90,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         try
         {
-            Object value = getPropertyAsString(getKeyAndWarn(name));
+            Object value = getPropertyAsString(getKeyAndWarnIfObsolete(name));
             result.row(name).column(VALUE, value);
         }
         catch (PropertyNotFoundException e)
@@ -118,7 +118,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         return result;
     }
 
-    static String getKeyAndWarn(String name)
+    static String getKeyAndWarnIfObsolete(String name)
     {
         String key = BACKWARDS_COMPATABLE_NAMES.getOrDefault(name, name);
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
