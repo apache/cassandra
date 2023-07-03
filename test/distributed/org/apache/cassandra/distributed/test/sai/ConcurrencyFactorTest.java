@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -30,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.utils.TimeUUID;
@@ -42,22 +44,15 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 {
     private static final String SAI_TABLE = "sai_simple_primary_key";
 
-    private static final int nodes = 3;
+    private static final int NODES = 3;
 
     private org.apache.cassandra.distributed.Cluster cluster;
 
     @Before
     public void init() throws IOException
     {
-        cluster = init(Cluster.build(nodes).withTokenSupplier(node -> {
-            switch (node)
-            {
-                case 1: return -9223372036854775808L;
-                case 2: return -3074457345618258602L;
-                case 3: return 3074457345618258603L;
-                default: throw new IllegalArgumentException();
-            }
-        }).withConfig(config -> config.with(NETWORK).with(GOSSIP)).start());
+        cluster = init(Cluster.build(NODES).withTokenSupplier(generateTokenSupplier())
+                              .withConfig(config -> config.with(NETWORK).with(GOSSIP)).start());
     }
 
     @After
@@ -134,5 +129,14 @@ public class ConcurrencyFactorTest extends TestBaseImpl
             List<TracingUtil.TraceEntry> traceEntries = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ONE);
             return traceEntries.stream().anyMatch(entry -> entry.activity.equals(trace));
         });
+    }
+
+    private TokenSupplier generateTokenSupplier()
+    {
+        List<String>[] tokens = new List[NODES];
+        tokens[0] = Collections.singletonList("-9223372036854775808");
+        tokens[1] = Collections.singletonList("-3074457345618258602");
+        tokens[2] = Collections.singletonList("3074457345618258603");
+        return (nodeIdx) -> tokens[nodeIdx - 1];
     }
 }

@@ -82,7 +82,7 @@ public class RangeCommands
         int maxConcurrencyFactor = Math.min(replicaPlans.size(), MAX_CONCURRENT_RANGE_REQUESTS);
         int concurrencyFactor = maxConcurrencyFactor;
         Index.QueryPlan queryPlan = command.indexQueryPlan();
-        if ( queryPlan == null || queryPlan.shouldEstimateInitialConcurrency())
+        if (queryPlan == null || queryPlan.shouldEstimateInitialConcurrency())
         {
             // our estimate of how many result rows there will be per-range
             float resultsPerRange = estimateResultsPerRange(command, keyspace);
