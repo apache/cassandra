@@ -20,8 +20,6 @@ package org.apache.cassandra.tools;
 
 import java.util.Arrays;
 
-import org.apache.commons.lang3.tuple.Pair;
-
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -30,7 +28,6 @@ import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 /*
  * We are testing cmd line params here.
@@ -134,41 +131,14 @@ public class StandaloneScrubberTest extends OfflineToolUtils
     @Test
     public void testHeaderFixArg()
     {
-        Arrays.asList(Pair.of("-e", ""),
-                      Pair.of("-e", "wrong"),
-                      Pair.of("--header-fix", ""),
-                      Pair.of("--header-fix", "wrong"))
-              .forEach(arg -> {
-                  ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class,
-                                                                  arg.getLeft(),
-                                                                  arg.getRight(),
-                                                                  "system_schema",
-                                                                  "tables");
-                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-                  assertTrue("Arg: [" + arg + "]\n" + tool.getCleanedStderr(), tool.getCleanedStderr().contains("Invalid argument value"));
-                  assertEquals(1, tool.getExitCode());
-              });
-
-        Arrays.asList(Pair.of("-e", "validate-only"),
-                      Pair.of("-e", "validate"),
-                      Pair.of("-e", "fix-only"),
-                      Pair.of("-e", "fix"),
-                      Pair.of("-e", "off"),
-                      Pair.of("--header-fix", "validate-only"),
-                      Pair.of("--header-fix", "validate"),
-                      Pair.of("--header-fix", "fix-only"),
-                      Pair.of("--header-fix", "fix"),
-                      Pair.of("--header-fix", "off"))
-              .forEach(arg -> {
-                  ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class,
-                                                                  arg.getLeft(),
-                                                                  arg.getRight(),
-                                                                  "system_schema",
-                                                                  "tables");
-                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Pre-scrub sstables snapshotted into snapshot"));
-                  Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-                  tool.assertOnExitCode();
-                  assertCorrectEnvPostTest();
-              });
+        Arrays.asList("-e", "--header-fix").forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class,
+                                                     arg,
+                                                     "doesntmatter",
+                                                     "system_schema",
+                                                     "tables");
+            Assertions.assertThat(tool.getCleanedStderr().trim()).isEqualTo("Option header-fix is deprecated and no longer functional");
+            Assertions.assertThat(tool.getExitCode()).isEqualTo(0);
+        });
     }
 }

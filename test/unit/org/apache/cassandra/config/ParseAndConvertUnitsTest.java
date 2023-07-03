@@ -92,7 +92,6 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataStorageSpec.IntKibibytesBound(2), config.column_index_cache_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(5), config.batch_size_warn_threshold);
         assertEquals(new DataStorageSpec.IntKibibytesBound(50), config.batch_size_fail_threshold);
-        assertEquals(new DataStorageSpec.IntMebibytesBound(100), config.compaction_large_partition_warning_threshold);
         assertNull(config.commitlog_total_space);
         assertEquals(new DataStorageSpec.IntMebibytesBound(5), config.commitlog_segment_size);
         assertNull(config.max_mutation_size); //not set explicitly in the default yaml, check the config; not set there too

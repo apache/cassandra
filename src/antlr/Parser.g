@@ -376,7 +376,7 @@ selectionTypeHint returns [Selectable.Raw s]
 
 selectionList returns [Selectable.Raw s]
     @init { List<Selectable.Raw> l = new ArrayList<>(); }
-    @after { $s = new Selectable.WithList.Raw(l); }
+    @after { $s = new Selectable.WithArrayLiteral.Raw(l); }
     : '[' ( t1=unaliasedSelector { l.add(t1); } ( ',' tn=unaliasedSelector { l.add(tn); } )* )? ']'
     ;
 
@@ -1525,8 +1525,8 @@ collectionLiteral returns [Term.Raw value]
 
 listLiteral returns [Term.Raw value]
     @init {List<Term.Raw> l = new ArrayList<Term.Raw>();}
-    @after {$value = new Lists.Literal(l);}
-    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new Lists.Literal(l); }
+    @after {$value = new ArrayLiteral(l);}
+    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new ArrayLiteral(l); }
     ;
 
 usertypeLiteral returns [UserTypes.Literal ut]
@@ -1802,6 +1802,7 @@ comparatorType returns [CQL3Type.Raw t]
     : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
     | tt=tuple_type     { $t = tt; }
+    | vc=vector_type    { $t = vc; }
     | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
     | K_FROZEN '<' f=comparatorType '>'
       {
@@ -1864,6 +1865,11 @@ tuple_type returns [CQL3Type.Raw t]
     @init {List<CQL3Type.Raw> types = new ArrayList<>();}
     @after {$t = CQL3Type.Raw.tuple(types);}
     : K_TUPLE '<' t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })* '>'
+    ;
+
+vector_type returns [CQL3Type.Raw vt]
+    : K_VECTOR '<' t1=comparatorType ','  d=INTEGER '>'
+        { $vt = CQL3Type.Raw.vector(t1, Integer.parseInt($d.text)); }
     ;
 
 username
@@ -1959,5 +1965,6 @@ basic_unreserved_keyword returns [String str]
         | K_MASKED
         | K_UNMASK
         | K_SELECT_MASKED
+        | K_VECTOR
         ) { $str = $k.text; }
     ;

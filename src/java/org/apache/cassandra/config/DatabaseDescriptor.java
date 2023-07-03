@@ -233,7 +233,7 @@ public class DatabaseDescriptor
     private static StartupChecksOptions startupChecksOptions;
 
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
-    private static SSTableFormat<?, ?> selectedSSTableFormat;
+    private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
@@ -2152,24 +2152,6 @@ public class DatabaseDescriptor
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
         setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
-    }
-
-    @Deprecated
-    public static long getCompactionLargePartitionWarningThreshold()
-    {
-        return conf.compaction_large_partition_warning_threshold.toBytesInLong();
-    }
-
-    @Deprecated
-    public static int getCompactionTombstoneWarningThreshold()
-    {
-        return conf.compaction_tombstone_warning_threshold;
-    }
-
-    @Deprecated
-    public static void setCompactionTombstoneWarningThreshold(int count)
-    {
-        conf.compaction_tombstone_warning_threshold = count;
     }
 
     public static int getConcurrentValidations()
@@ -4721,6 +4703,12 @@ public class DatabaseDescriptor
     public static SSTableFormat<?, ?> getSelectedSSTableFormat()
     {
         return Objects.requireNonNull(selectedSSTableFormat, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    @VisibleForTesting
+    public static void setSelectedSSTableFormat(SSTableFormat<?, ?> format)
+    {
+        selectedSSTableFormat = Objects.requireNonNull(format);
     }
 
     public static boolean getDynamicDataMaskingEnabled()

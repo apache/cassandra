@@ -734,6 +734,8 @@ public class ByteBufferUtil
     // changes bb position
     public static void writeShortLength(ByteBuffer bb, int length)
     {
+        if (length > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new IllegalArgumentException(String.format("Length %d > max length %d", length, FBUtilities.MAX_UNSIGNED_SHORT));
         bb.put((byte) ((length >> 8) & 0xFF));
         bb.put((byte) (length & 0xFF));
     }

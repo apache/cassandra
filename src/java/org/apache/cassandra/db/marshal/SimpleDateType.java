@@ -44,6 +44,12 @@ public class SimpleDateType extends TemporalType<Integer>
     SimpleDateType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
+
+    @Override
     public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
     {
         // While BYTE_ORDER would still work for this type, making use of the fixed length is more efficient.

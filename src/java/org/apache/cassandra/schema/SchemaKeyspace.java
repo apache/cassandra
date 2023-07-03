@@ -47,7 +47,6 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
@@ -913,7 +912,7 @@ public final class SchemaKeyspace
                .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
                .add("initcond", aggregate.initialCondition() != null
                                 // must use the frozen state type here, as 'null' for unfrozen collections may mean 'empty'
-                                ? aggregate.stateType().freeze().asCQL3Type().toCQLLiteral(aggregate.initialCondition(), ProtocolVersion.CURRENT)
+                                ? aggregate.stateType().freeze().asCQL3Type().toCQLLiteral(aggregate.initialCondition())
                                 : null);
     }
 

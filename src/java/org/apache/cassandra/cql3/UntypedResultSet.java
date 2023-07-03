@@ -484,6 +484,12 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return getFrozenMap(column, UTF8Type.instance, UTF8Type.instance);
         }
 
+        public <T> List<T> getVector(String column, AbstractType<T> elementType, int dimension)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : VectorType.getInstance(elementType, dimension).compose(raw);
+        }
+
         public List<ColumnSpecification> getColumns()
         {
             return columns;

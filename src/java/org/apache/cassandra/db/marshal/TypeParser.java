@@ -188,6 +188,17 @@ public class TypeParser
         throw new SyntaxException("Syntax error parsing '" + str + ": for msg unexpected character '" + str.charAt(idx) + "'");
     }
 
+    public static String stringifyTKeyValueParameters(Map<String, String> map)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        for (Map.Entry<String, String> e : map.entrySet())
+            sb.append(e.getKey()).append(" = ").append(e.getValue()).append(", ");
+        if (!map.isEmpty())
+            sb.setLength(sb.length() - 2);
+        return sb.append(')').toString();
+    }
+
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         if (isEOS())
@@ -223,6 +234,32 @@ public class TypeParser
             map.put(k, v);
         }
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+    }
+
+    public static String stringifyVectorParameters(AbstractType<?> type, boolean ignoreFreezing, int dimension)
+    {
+        return "(" + type.toString(ignoreFreezing) + " , " + dimension + ")";
+    }
+
+    public Vector getVectorParameters()
+    {
+        if (isEOS())
+            return null;
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+        AbstractType<?> type = parse();
+        if (!skipBlankAndComma())
+            throw new IllegalStateException();
+        String s = readNextIdentifier();
+        if (s.isEmpty())
+            throw new IllegalStateException();
+        int dimension = Integer.parseInt(s);
+        if (str.charAt(idx) != ')')
+            throw new IllegalStateException();
+        ++idx; // skipping ')'
+        return new Vector(type, dimension);
     }
 
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
@@ -555,6 +592,12 @@ public class TypeParser
         return str.substring(i, idx);
     }
 
+    @Override
+    public String toString()
+    {
+        return "TypeParser[" + str.substring(idx) + "]";
+    }
+
     /**
      * Helper function to ease the writing of AbstractType.toString() methods.
      */
@@ -632,5 +675,17 @@ public class TypeParser
         }
         sb.append(')');
         return sb.toString();
+    }
+
+    public static class Vector
+    {
+        public final int dimension;
+        public final AbstractType<?> type;
+
+        public Vector(AbstractType<?> type, int dimension)
+        {
+            this.dimension = dimension;
+            this.type = type;
+        }
     }
 }

@@ -248,7 +248,7 @@
       <dependency>
         <groupId>org.xerial.snappy</groupId>
         <artifactId>snappy-java</artifactId>
-        <version>1.1.8.4</version>
+        <version>1.1.10.1</version>
       </dependency>
       <dependency>
         <groupId>org.lz4</groupId>
@@ -490,6 +490,12 @@
         <groupId>org.apache.cassandra</groupId>
         <artifactId>dtest-api</artifactId>
         <version>0.0.15</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.github.tomakehurst</groupId>
+        <artifactId>wiremock-jre8</artifactId>
+        <version>2.35.0</version>
         <scope>test</scope>
       </dependency>
       <dependency>

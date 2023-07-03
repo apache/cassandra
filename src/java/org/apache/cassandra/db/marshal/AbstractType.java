@@ -162,7 +162,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public String toCQLString(ByteBuffer bytes)
     {
-        return asCQL3Type().toCQLLiteral(bytes, ProtocolVersion.CURRENT);
+        return asCQL3Type().toCQLLiteral(bytes);
     }
 
     /** get a byte representation of the given string. */
@@ -303,6 +303,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public AbstractType<T> unwrap()
+    {
+        return isReversed() ? ((ReversedType<T>) this).baseType.unwrap() : this;
+    }
+
     public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws SyntaxException
     {
         Map<String, String> parameters = parser.getKeyValueParameters();
@@ -404,6 +409,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public boolean isVector()
+    {
+        return false;
+    }
+
     public boolean isMultiCell()
     {
         return false;
@@ -415,6 +425,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     public AbstractType<?> freeze()
+    {
+        return this;
+    }
+
+    public AbstractType<?> unfreeze()
     {
         return this;
     }
@@ -487,6 +502,29 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return valueLengthIfFixed() != VARIABLE_LENGTH;
     }
 
+    /**
+     * Defines if the type allows an empty set of bytes ({@code new byte[0]}) as valid input.  The {@link #validate(Object, ValueAccessor)}
+     * and {@link #compose(Object, ValueAccessor)} methods must allow empty bytes when this returns true, and must reject empty bytes
+     * when this is false.
+     * <p/>
+     * As of this writing, the main user of this API is for testing to know what types allow empty values and what types don't,
+     * so that the data that gets generated understands when {@link ByteBufferUtil#EMPTY_BYTE_BUFFER} is allowed as valid data.
+     */
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    public boolean isNull(ByteBuffer bb)
+    {
+        return isNull(bb, ByteBufferAccessor.instance);
+    }
+
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
+    {
+        return getSerializer().isNull(buffer, accessor);
+    }
+
     // This assumes that no empty values are passed
     public void writeValue(ByteBuffer value, DataOutputPlus out) throws IOException
     {
@@ -496,7 +534,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     // This assumes that no empty values are passed
     public  <V> void writeValue(V value, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
     {
-        assert !accessor.isEmpty(value) : "bytes should not be empty for type " + this;
+        assert !isNull(value, accessor) : "bytes should not be null for type " + this;
         int expectedValueLength = valueLengthIfFixed();
         if (expectedValueLength >= 0)
         {
