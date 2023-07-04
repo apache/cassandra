@@ -839,6 +839,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     // used by CNDB to deserialize aggregates
     public Level getLevel(int index, double min, double max)
     {
+        if (index == EXPIRED_TABLES_LEVEL.index)
+            return EXPIRED_TABLES_LEVEL;
         return new Level(controller, index, min, max);
     }
 

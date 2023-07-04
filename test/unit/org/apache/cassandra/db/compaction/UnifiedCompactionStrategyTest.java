@@ -1588,4 +1588,24 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         dataTracker.removeUnsafe(allSSTables);
     }
 
+    @Test
+    public void testGetLevel()
+    {
+        Controller controller = Mockito.mock(Controller.class);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
+
+        UnifiedCompactionStrategy.Level level = strategy.getLevel(1, 0.25d, 0.5d);
+        assertEquals(1, level.index);
+        assertEquals(0.25d, level.min, 0);
+        assertEquals(0.5d, level.max, 0);
+    }
+
+    @Test
+    public void testGetExpiredLevel()
+    {
+        Controller controller = Mockito.mock(Controller.class);
+        UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
+
+        assertEquals(strategy.getLevel(-1, 0, 0), UnifiedCompactionStrategy.EXPIRED_TABLES_LEVEL);
+    }
 }
