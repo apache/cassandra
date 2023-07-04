@@ -71,22 +71,28 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockBalancedTreePostingsWriter.class);
 
+    private final TreeMap<Long, Integer> leafOffsetToNodeID = new TreeMap<>(Long::compareTo);
+    private final Multimap<Integer, Integer> nodeToChildLeaves = HashMultimap.create();
+
     /**
      * Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list.
      */
-    public static final int MINIMUM_POSTINGS_LEAVES = CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.getInt();
+    private final int minimumPostingsLeaves;
     /**
      * Skip, or the sampling interval, for selecting a balanced tree level that is eligible for an auxiliary posting list.
      * Sampling starts from 0, but the balanced tree root node is at level 1. For skip = 4, eligible levels are 4, 8, 12, etc. (no
      * level 0, because there is no node at level 0).
      */
-    public static final int POSTINGS_SKIP = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
-
-    private final TreeMap<Long, Integer> leafOffsetToNodeID = new TreeMap<>(Long::compareTo);
-    private final Multimap<Integer, Integer> nodeToChildLeaves = HashMultimap.create();
+    private final int postingsSkip;
 
     int numNonLeafPostings = 0;
     int numLeafPostings = 0;
+
+    public BlockBalancedTreePostingsWriter()
+    {
+        minimumPostingsLeaves = CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.getInt();
+        postingsSkip = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
+    }
 
     /**
      * Called when a leaf node is hit as we traverse the packed index.
@@ -139,7 +145,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
 
             List<Integer> internalNodeIDs = nodeToChildLeaves.keySet()
                                                              .stream()
-                                                             .filter(i -> nodeToChildLeaves.get(i).size() >= MINIMUM_POSTINGS_LEAVES)
+                                                             .filter(i -> nodeToChildLeaves.get(i).size() >= minimumPostingsLeaves)
                                                              .collect(Collectors.toList());
 
             Collection<Integer> leafNodeIDs = leafOffsetToNodeID.values();
@@ -150,7 +156,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
             long startFP = out.getFilePointer();
             Stopwatch flushTime = Stopwatch.createStarted();
             TreeMap<Integer, Long> nodeIDToPostingsFilePointer = new TreeMap<>();
-            PriorityQueue<PeekablePostingList> postingLists = new PriorityQueue<>(MINIMUM_POSTINGS_LEAVES, Comparator.comparingLong(PeekablePostingList::peek));
+            PriorityQueue<PeekablePostingList> postingLists = new PriorityQueue<>(minimumPostingsLeaves, Comparator.comparingLong(PeekablePostingList::peek));
             for (int nodeID : Iterables.concat(internalNodeIDs, leafNodeIDs))
             {
                 Collection<Integer> leaves = nodeToChildLeaves.get(nodeID);
@@ -192,7 +198,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
 
     private boolean isLevelEligibleForPostingList(int level)
     {
-        return level > 1 && level % POSTINGS_SKIP == 0;
+        return level > 1 && level % postingsSkip == 0;
     }
 
     private void writeMap(Map<Integer, Long> map, IndexOutput out) throws IOException
