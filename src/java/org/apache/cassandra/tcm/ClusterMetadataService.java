@@ -629,7 +629,7 @@ public class ClusterMetadataService
     public Future<ClusterMetadata> fetchLogFromPeerAsync(InetAddressAndPort from, Epoch awaitAtLeast)
     {
         ClusterMetadata current = ClusterMetadata.current();
-        if (current.epoch.isEqualOrAfter(awaitAtLeast))
+        if (awaitAtLeast.isBefore(Epoch.FIRST) || current.epoch.isEqualOrAfter(awaitAtLeast))
             return ImmediateFuture.success(current);
 
         logger.info("Fetching log async from {}, at least = {}", from, awaitAtLeast);

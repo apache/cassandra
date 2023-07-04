@@ -38,7 +38,6 @@ import org.apache.cassandra.tcm.Transformation;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.LocalMetadataLog;
-import static org.apache.cassandra.tcm.Epoch.FIRST;
 
 public class SystemKeyspaceStorage implements LogStorage
 {
@@ -87,11 +86,11 @@ public class SystemKeyspaceStorage implements LogStorage
         }
     }
 
-    public synchronized static boolean hasFirstEpoch()
+    public synchronized static boolean hasAnyEpoch()
     {
-        String query = String.format("SELECT epoch FROM %s.%s WHERE period = ? and epoch > ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME);
+        String query = String.format("SELECT epoch FROM %s.%s LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME);
 
-        for (UntypedResultSet.Row row : executeInternal(query, Period.FIRST, FIRST.getEpoch()))
+        for (UntypedResultSet.Row row : executeInternal(query))
             return true;
 
         return false;

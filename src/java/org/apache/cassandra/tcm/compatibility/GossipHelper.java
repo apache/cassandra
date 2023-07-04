@@ -113,74 +113,81 @@ public class GossipHelper
 
     public static void mergeNodeToGossip(NodeId nodeId, ClusterMetadata metadata, Collection<Token> tokens)
     {
-        boolean isLocal = nodeId.equals(metadata.myNodeId());
-        IPartitioner partitioner = metadata.tokenMap.partitioner();
-        NodeAddresses addresses = metadata.directory.getNodeAddresses(nodeId);
-        Location location = metadata.directory.location(nodeId);
-        InetAddressAndPort endpoint = addresses.broadcastAddress;
-        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner,
-                                                                                                     isLocal ? VersionGenerator::getNextVersion : () -> 0);
-        Gossiper.runInGossipStageBlocking(() -> {
-            EndpointState epstate = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-            if (epstate == null)
-                epstate = new EndpointState(HeartBeatState.empty());
-            Map<ApplicationState, VersionedValue> newStates = new EnumMap<>(ApplicationState.class);
-            for (ApplicationState appState : ApplicationState.values())
-            {
-                VersionedValue oldValue = epstate.getApplicationState(appState);
-                VersionedValue newValue = null;
-                switch (appState)
+        try
+        {
+            boolean isLocal = nodeId.equals(metadata.myNodeId());
+            IPartitioner partitioner = metadata.tokenMap.partitioner();
+            NodeAddresses addresses = metadata.directory.getNodeAddresses(nodeId);
+            Location location = metadata.directory.location(nodeId);
+            InetAddressAndPort endpoint = addresses.broadcastAddress;
+            VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner,
+                                                                                                         isLocal ? VersionGenerator::getNextVersion : () -> 0);
+            Gossiper.runInGossipStageBlocking(() -> {
+                EndpointState epstate = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+                if (epstate == null)
+                    epstate = new EndpointState(HeartBeatState.empty());
+                Map<ApplicationState, VersionedValue> newStates = new EnumMap<>(ApplicationState.class);
+                for (ApplicationState appState : ApplicationState.values())
                 {
-                    case DC:
-                        newValue = valueFactory.datacenter(location.datacenter);
-                        break;
-                    case RACK:
-                        newValue = valueFactory.rack(location.rack);
-                        break;
-                    case RELEASE_VERSION:
-                        newValue = valueFactory.releaseVersion(metadata.directory.version(nodeId).cassandraVersion.toString());
-                        break;
-                    case RPC_ADDRESS:
-                        newValue = valueFactory.rpcaddress(endpoint.getAddress());
-                        break;
-                    case HOST_ID:
-                        if (getBroadcastAddressAndPort().equals(addresses.broadcastAddress))
-                            SystemKeyspace.setLocalHostId(nodeId.toUUID());
-                        newValue = valueFactory.hostId(nodeId.toUUID());
-                        break;
-                    case TOKENS:
-                        if (tokens != null)
-                            newValue = valueFactory.tokens(tokens);
-                        break;
-                    case INTERNAL_ADDRESS_AND_PORT:
-                        newValue = valueFactory.internalAddressAndPort(addresses.localAddress);
-                        break;
-                    case NATIVE_ADDRESS_AND_PORT:
-                        newValue = valueFactory.nativeaddressAndPort(addresses.nativeAddress);
-                        break;
-                    case STATUS:
-                        // only publish/add STATUS if there are non-upgraded hosts
-                        if (metadata.directory.versions.values().stream().allMatch(NodeVersion::isUpgraded))
+                    VersionedValue oldValue = epstate.getApplicationState(appState);
+                    VersionedValue newValue = null;
+                    switch (appState)
+                    {
+                        case DC:
+                            newValue = valueFactory.datacenter(location.datacenter);
                             break;
-                    case STATUS_WITH_PORT:
-                        newValue = nodeStateToStatus(nodeId, metadata, tokens, valueFactory, oldValue);
-                        break;
-                    default:
-                        newValue = oldValue;
+                        case RACK:
+                            newValue = valueFactory.rack(location.rack);
+                            break;
+                        case RELEASE_VERSION:
+                            newValue = valueFactory.releaseVersion(metadata.directory.version(nodeId).cassandraVersion.toString());
+                            break;
+                        case RPC_ADDRESS:
+                            newValue = valueFactory.rpcaddress(endpoint.getAddress());
+                            break;
+                        case HOST_ID:
+                            if (getBroadcastAddressAndPort().equals(addresses.broadcastAddress))
+                                SystemKeyspace.setLocalHostId(nodeId.toUUID());
+                            newValue = valueFactory.hostId(nodeId.toUUID());
+                            break;
+                        case TOKENS:
+                            if (tokens != null)
+                                newValue = valueFactory.tokens(tokens);
+                            break;
+                        case INTERNAL_ADDRESS_AND_PORT:
+                            newValue = valueFactory.internalAddressAndPort(addresses.localAddress);
+                            break;
+                        case NATIVE_ADDRESS_AND_PORT:
+                            newValue = valueFactory.nativeaddressAndPort(addresses.nativeAddress);
+                            break;
+                        case STATUS:
+                            // only publish/add STATUS if there are non-upgraded hosts
+                            if (metadata.directory.versions.values().stream().allMatch(NodeVersion::isUpgraded))
+                                break;
+                        case STATUS_WITH_PORT:
+                            newValue = nodeStateToStatus(nodeId, metadata, tokens, valueFactory, oldValue);
+                            break;
+                        default:
+                            newValue = oldValue;
+                    }
+                    if (newValue != null)
+                    {
+                        // note that version needs to be > -1 here, otherwise Gossiper#sendAll on generation change doesn't send it
+                        if (!isLocal)
+                            newValue = unsafeMakeVersionedValue(newValue.value, oldValue == null ? 0 : oldValue.version);
+                        newStates.put(appState, newValue);
+                    }
                 }
-                if (newValue != null)
-                {
-                    // note that version needs to be > -1 here, otherwise Gossiper#sendAll on generation change doesn't send it
-                    if (!isLocal)
-                        newValue = unsafeMakeVersionedValue(newValue.value, oldValue == null ? 0 : oldValue.version);
-                    newStates.put(appState, newValue);
-                }
-            }
-            HeartBeatState heartBeatState = new HeartBeatState(epstate.getHeartBeatState().getGeneration(), isLocal ? VersionGenerator.getNextVersion() : 0);
-            EndpointState newepstate = new EndpointState(heartBeatState, newStates);
-            Gossiper.instance.unsafeUpdateEpStates(endpoint, newepstate);
-            logger.debug("Updated epstates for {}: {}", endpoint, newepstate);
-        });
+                HeartBeatState heartBeatState = new HeartBeatState(epstate.getHeartBeatState().getGeneration(), isLocal ? VersionGenerator.getNextVersion() : 0);
+                EndpointState newepstate = new EndpointState(heartBeatState, newStates);
+                Gossiper.instance.unsafeUpdateEpStates(endpoint, newepstate);
+                logger.debug("Updated epstates for {}: {}", endpoint, newepstate);
+            });
+        }
+        catch (Exception e)
+        {
+            logger.warn("Could not merge node {} to gossip", nodeId, e);
+        }
     }
 
     public static Collection<Token> getTokensFromSequence(NodeId nodeId, ClusterMetadata metadata)

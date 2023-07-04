@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -38,7 +37,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
-
 
 public class ClusterMetadataUpgradeTest extends UpgradeTestBase
 {
@@ -67,6 +65,10 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
             cluster.get(2).nodetoolResult("addtocms").asserts().success();
             cluster.get(1).nodetoolResult("addtocms").asserts().failure();
             cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
+            cluster.forEach(i -> {
+                Object [][] res = i.executeInternal("select host_id from system.local");
+                assertTrue(NodeId.isValidNodeId(UUID.fromString(res[0][0].toString())));
+            });
         }).run();
     }
 

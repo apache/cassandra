@@ -21,7 +21,9 @@ package org.apache.cassandra.tcm;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -45,6 +47,7 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
@@ -136,6 +139,13 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
              });
          });
          ClusterMetadataService.instance().log().addListener(new SchemaListener());
+         NodeId nodeId = ClusterMetadata.current().myNodeId();
+         UUID currentHostId = SystemKeyspace.getLocalHostId();
+         if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
+         {
+             logger.info("NodeId is wrong, updating from {} to {}", currentHostId, nodeId.toUUID());
+             SystemKeyspace.setLocalHostId(nodeId.toUUID());
+         }
      }
 
      public static void initializeForDiscovery(Runnable initMessaging)
@@ -187,7 +197,6 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
                                                                        ClusterMetadataService::state,
                                                                        false));
          initMessaging.run();
-
          try
          {
              CommitLog.instance.recoverSegmentsOnDisk();
@@ -202,6 +211,7 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
          logger.debug("Got epStates {}", epStates);
          ClusterMetadata initial = fromEndpointStates(emptyFromSystemTables.schema, epStates);
          logger.debug("Created initial ClusterMetadata {}", initial);
+         SystemKeyspace.setLocalHostId(initial.myNodeId().toUUID());
          ClusterMetadataService.instance().setFromGossip(initial);
          Gossiper.instance.clearUnsafe();
          Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
@@ -271,16 +281,16 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
              if (seeds.isEmpty())
                  throw new IllegalArgumentException("Can not initialize CMS without any seeds");
 
-            boolean hasFirstEpoch = SystemKeyspaceStorage.hasFirstEpoch();
+            boolean hasAnyEpoch = SystemKeyspaceStorage.hasAnyEpoch();
             // For CCM and local dev clusters
             boolean isOnlySeed = DatabaseDescriptor.getSeeds().size() == 1
                                  && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort())
                                  && DatabaseDescriptor.getSeeds().iterator().next().getAddress().isLoopbackAddress();
             boolean hasBootedBefore = SystemKeyspace.getLocalHostId() != null;
-            logger.info("hasFirstEpoch = {}, hasBootedBefore = {}", hasFirstEpoch, hasBootedBefore);
-            if (!hasFirstEpoch && hasBootedBefore)
+            logger.info("hasAnyEpoch = {}, hasBootedBefore = {}", hasAnyEpoch, hasBootedBefore);
+            if (!hasAnyEpoch && hasBootedBefore)
                 return UPGRADE;
-            else if (hasFirstEpoch)
+            else if (hasAnyEpoch)
                 return NORMAL;
             else if (isOnlySeed)
                 return FIRST_CMS;
