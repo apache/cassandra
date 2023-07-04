@@ -74,19 +74,42 @@ public class GcCompactionTest extends CQLTester
     @Test
     public void testGcCompactionPartitions() throws Throwable
     {
+        testGcCompactionPartitions(false);
+    }
+
+    @Test
+    public void testGcCompactionPartitionsUnrepaired() throws Throwable
+    {
+        testGcCompactionPartitions(true);
+    }
+
+    public void testGcCompactionPartitions(boolean onlyPurgeRepairedTombstones) throws Throwable
+    {
         runCompactionTest("CREATE TABLE %s(" +
                           "  key int," +
                           "  column int," +
                           "  data int," +
                           "  extra text," +
                           "  PRIMARY KEY((key, column), data)" +
-                          ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', 'provide_overlapping_tombstones' : 'row'  };"
-                          );
-
+                          ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', " +
+                          "'provide_overlapping_tombstones' : 'row', " +
+                          "'only_purge_repaired_tombstones': " + onlyPurgeRepairedTombstones + " };",
+                          onlyPurgeRepairedTombstones);
     }
 
     @Test
     public void testGcCompactionRows() throws Throwable
+    {
+        testGcCompactionRows(false);
+    }
+
+    @Test
+    public void testGcCompactionRowsUnrepaired() throws Throwable
+    {
+        testGcCompactionRows(true);
+    }
+
+    public void testGcCompactionRows(boolean onlyPurgeRepairedTombstones) throws Throwable
     {
         runCompactionTest("CREATE TABLE %s(" +
                           "  key int," +
@@ -94,13 +117,27 @@ public class GcCompactionTest extends CQLTester
                           "  data int," +
                           "  extra text," +
                           "  PRIMARY KEY(key, column)" +
-                          ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', 'provide_overlapping_tombstones' : 'row'  };"
-                          );
+                          ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', " +
+                          "'provide_overlapping_tombstones' : 'row', " +
+                          "'only_purge_repaired_tombstones': " + onlyPurgeRepairedTombstones + " };",
+                          onlyPurgeRepairedTombstones
+        );
 
     }
 
     @Test
     public void testGcCompactionRanges() throws Throwable
+    {
+        testGcCompactionRanges(false);
+    }
+
+    @Test
+    public void testGcCompactionRangesUnrepaired() throws Throwable
+    {
+        testGcCompactionRanges(true);
+    }
+
+    public void testGcCompactionRanges(boolean onlyPurgeRepairedTombstones) throws Throwable
     {
 
         runCompactionTest("CREATE TABLE %s(" +
@@ -110,11 +147,14 @@ public class GcCompactionTest extends CQLTester
                           "  data int," +
                           "  extra text," +
                           "  PRIMARY KEY(key, column, data)" +
-                          ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', 'provide_overlapping_tombstones' : 'row'  };"
-                          );
+                          ") WITH compaction = { 'class' :  'SizeTieredCompactionStrategy', " +
+                          "'provide_overlapping_tombstones' : 'row', " +
+                          "'only_purge_repaired_tombstones': " + onlyPurgeRepairedTombstones + " };",
+                          onlyPurgeRepairedTombstones
+        );
     }
 
-    private void runCompactionTest(String tableDef) throws Throwable
+    private void runCompactionTest(String tableDef, boolean onlyPurgeRepairedTombstones) throws Throwable
     {
         createTable(tableDef);
 
@@ -150,7 +190,7 @@ public class GcCompactionTest extends CQLTester
         assertEquals(3, cfs.getLiveSSTables().size());
         SSTableReader table3 = getNewTable(readers);
         assertEquals(0, countTombstoneMarkers(table3));
-        assertTrue(rowCount > countRows(table3));
+        assertTrue(onlyPurgeRepairedTombstones ? rowCount == countRows(table3) : rowCount > countRows(table3));
     }
 
     @Test
