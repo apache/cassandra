@@ -788,6 +788,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             case REGISTERED:
             case LEFT:
+                if (isReplacing())
+                    maybeHandoverCMS(metadata, DatabaseDescriptor.getReplaceAddress());
+
                 ClusterMetadataService.instance().commit(getStartupSequence(finishJoiningRing),
                                                          (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                          (metadata_) -> null,
@@ -3559,7 +3562,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (cmsMembers.contains(toRemove))
         {
             if (metadata.directory.peerIds().size() == cmsMembers.size())
-                throw new IllegalStateException("Can not decomission the node as it will decrease the replication factor of CMS keyspace");
+                throw new IllegalStateException(String.format("Cannot complete operation as it will remove %1$s from the " +
+                                                              "Cluster Metadata Service, but there are no available " +
+                                                              "candidates to replace it. To continue, either expand the " +
+                                                              "cluster first or manually remove %1$s from the CMS to " +
+                                                              "temporarily reduce the replication factor of the CMS " +
+                                                              "keyspace. This operation may then be retried.",
+                                                              toRemove));
 
             boolean nominated = false;
             Set<InetAddressAndPort> tried = new HashSet<>();
@@ -3585,7 +3594,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // TODO: implement a test for unbootstrap and alternative nomination with alternatives being down
             // besides, this _still_ can easily nominate a down node.
             if (!nominated)
-                throw new IllegalStateException(String.format("Could not nominate an altenative CMS node. Tried:%s", tried));
+                throw new IllegalStateException(String.format("Could not nominate an alternative CMS node. Tried:%s", tried));
 
             Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(toRemove)).epoch;
             // Awaiting on the progress barrier will leave a log message in case it could not collect a majority. But we do not

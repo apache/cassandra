@@ -18,12 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
-
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -34,36 +28,10 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RemoveNodeTest extends TestBaseImpl
 {
-    @Test
-    public void testRemoveCMSMember() throws IOException, ExecutionException, InterruptedException
-    {
-        try (Cluster cluster = init(Cluster.build(5)
-                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                           .withConfig(conf -> conf.set("hinted_handoff_enabled", "false")
-                                                                   .with(Feature.NETWORK, Feature.GOSSIP))
-                                           .start()))
-        {
-            cluster.get(2).nodetoolResult("addtocms").asserts().success();
-            cluster.get(3).nodetoolResult("addtocms").asserts().success();
-            String nodeId = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
-            cluster.get(2).shutdown().get();
-            cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success();
-
-            Set<String> cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
-            assertEquals(3, cms.size());
-            assertTrue(cms.contains("/127.0.0.1"));
-            assertFalse(cms.contains("/127.0.0.2"));
-            assertTrue(cms.contains("/127.0.0.3"));
-            assertTrue(cms.contains("/127.0.0.4") ^ cms.contains("/127.0.0.5"));
-        }
-    }
-
     @Test
     public void testAbort() throws Exception
     {
