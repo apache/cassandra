@@ -31,7 +31,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
-import org.apache.cassandra.config.ConfigFields;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -86,7 +86,7 @@ public class UpdateSettingsTableTest extends CQLTester
     public void testUpdateRepairSessionSpaceToNull() throws Throwable
     {
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                 null, ConfigFields.REPAIR_SESSION_SPACE));
+                                 null, Config.Names.REPAIR_SESSION_SPACE));
     }
 
     @Test
@@ -96,7 +96,7 @@ public class UpdateSettingsTableTest extends CQLTester
         try
         {
             updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                        ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+                                        Config.Names.STREAM_THROUGHPUT_OUTBOUND,
                                         propertyToStringConverter()
                                         // This is the value for the property that overflows property's limit in bytes bet second.
                                         .apply(new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND)));
@@ -127,14 +127,14 @@ public class UpdateSettingsTableTest extends CQLTester
         // LOGGED BATCH statements with virtual tables are not supported.
         execute("BEGIN UNLOGGED BATCH " +
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
-                              propertyToStringConverter().apply(newCompactionThroughput), ConfigFields.COMPACTION_THROUGHPUT) +
+                              propertyToStringConverter().apply(newCompactionThroughput), Config.Names.COMPACTION_THROUGHPUT) +
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
-                              propertyToStringConverter().apply(newStreamThroughputOutbound), ConfigFields.STREAM_THROUGHPUT_OUTBOUND) +
+                              propertyToStringConverter().apply(newStreamThroughputOutbound), Config.Names.STREAM_THROUGHPUT_OUTBOUND) +
                 "APPLY BATCH ");
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.COMPACTION_THROUGHPUT),
-                      new Object[]{ ConfigFields.COMPACTION_THROUGHPUT, newCompactionThroughput.toString() });
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.STREAM_THROUGHPUT_OUTBOUND),
-                      new Object[]{ ConfigFields.STREAM_THROUGHPUT_OUTBOUND, newStreamThroughputOutbound.toString() });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), Config.Names.COMPACTION_THROUGHPUT),
+                      new Object[]{ Config.Names.COMPACTION_THROUGHPUT, newCompactionThroughput.toString() });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), Config.Names.STREAM_THROUGHPUT_OUTBOUND),
+                      new Object[]{ Config.Names.STREAM_THROUGHPUT_OUTBOUND, newStreamThroughputOutbound.toString() });
     }
 
     private void doUpdateSettingAndRevertBack(String statement, String propertyName) throws Throwable

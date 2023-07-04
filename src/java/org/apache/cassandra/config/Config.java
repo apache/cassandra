@@ -1249,4 +1249,32 @@ public class Config
     public double severity_during_decommission = 0;
 
     public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.CASSANDRA_4;
+
+    /**
+     * This class is used to store the names of the {@link Config}'s fields. It contains non-private non-static
+     * Config's fields marked with the {@link Mutable} annotation that exposes them to public APIs e.g. virtual tables.
+     *
+     * @see Mutable
+     */
+    public static class Names
+    {
+        /** String representation of the {@link Config#compaction_throughput}. */
+        public static final String COMPACTION_THROUGHPUT = "compaction_throughput";
+        /** String representation of the {@link Config#entire_sstable_inter_dc_stream_throughput_outbound}. */
+        public static final String ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_inter_dc_stream_throughput_outbound";
+        /** String representation of the {@link Config#entire_sstable_stream_throughput_outbound}. */
+        public static final String ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_stream_throughput_outbound";
+        /** String representation of the {@link Config#index_summary_resize_interval}. */
+        public static final String INDEX_SUMMARY_RESIZE_INTERVAL = "index_summary_resize_interval";
+        /** String representation of the {@link Config#inter_dc_stream_throughput_outbound}. */
+        public static final String INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "inter_dc_stream_throughput_outbound";
+        /** String representation of the {@link Config#repair_session_space}. */
+        public static final String REPAIR_SESSION_SPACE = "repair_session_space";
+        /** String representation of the {@link Config#snapshot_links_per_second}. */
+        public static final String SNAPSHOT_LINKS_PER_SECOND = "snapshot_links_per_second";
+        /** String representation of the {@link Config#stream_throughput_outbound}. */
+        public static final String STREAM_THROUGHPUT_OUTBOUND = "stream_throughput_outbound";
+
+        private Names() {}
+    }
 }

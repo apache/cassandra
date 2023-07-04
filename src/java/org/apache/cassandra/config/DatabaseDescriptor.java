@@ -2146,12 +2146,12 @@ public class DatabaseDescriptor
     @VisibleForTesting // only for testing!
     public static void setCompactionThroughputBytesPerSec(int value)
     {
-        setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value));
+        setProperty(Config.Names.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value));
     }
 
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
-        setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
+        setProperty(Config.Names.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static int getConcurrentValidations()
@@ -2244,19 +2244,19 @@ public class DatabaseDescriptor
 
     public static void setStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
-        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+        setProperty(Config.Names.STREAM_THROUGHPUT_OUTBOUND,
                     new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static void setStreamThroughputOutboundBytesPerSec(long value)
     {
-        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+        setProperty(Config.Names.STREAM_THROUGHPUT_OUTBOUND,
                     new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND));
     }
 
     public static void setStreamThroughputOutboundMegabitsPerSec(int megabitsPerSecond)
     {
-        setProperty(ConfigFields.STREAM_THROUGHPUT_OUTBOUND,
+        setProperty(Config.Names.STREAM_THROUGHPUT_OUTBOUND,
                     new DataRateSpec.LongBytesPerSecondBound(125_000L * megabitsPerSecond, BYTES_PER_SECOND));
     }
 
@@ -2272,7 +2272,7 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        setProperty(ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
+        setProperty(Config.Names.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
@@ -2302,17 +2302,17 @@ public class DatabaseDescriptor
 
     public static void setInterDCStreamThroughputOutboundMebibytesPerSecAsInt(int value)
     {
-        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
+        setProperty(Config.Names.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static void setInterDCStreamThroughputOutboundBytesPerSec(long value)
     {
-        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND));
+        setProperty(Config.Names.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND));
     }
 
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        setProperty(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value));
+        setProperty(Config.Names.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value));
     }
 
     public static double getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec()
@@ -2327,7 +2327,7 @@ public class DatabaseDescriptor
 
     public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        setProperty(ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
+        setProperty(Config.Names.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     /**
@@ -3074,7 +3074,7 @@ public class DatabaseDescriptor
 
     public static void setSnapshotLinksPerSecond(long throttle)
     {
-        setProperty(ConfigFields.SNAPSHOT_LINKS_PER_SECOND, throttle);
+        setProperty(Config.Names.SNAPSHOT_LINKS_PER_SECOND, throttle);
     }
 
     public static void validateValueIsPositive(long value)
@@ -3597,13 +3597,13 @@ public class DatabaseDescriptor
         if (value0.toMebibytes() < 1)
             throw new ConfigurationException(String.format("Cannot set to '%s' < 1 mebibyte", value0.toMebibytes()));
         else if (value0.toMebibytes() > SPACE_UPPER_BOUND_MB)
-            logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, value0.toMebibytes());
+            logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", Config.Names.REPAIR_SESSION_SPACE, value0.toMebibytes());
         return value0;
     }
 
     public static void setRepairSessionSpaceInMiB(int sizeInMiB)
     {
-        setProperty(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
+        setProperty(Config.Names.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
     }
 
     public static int getPaxosRepairParallelism()
@@ -3639,7 +3639,7 @@ public class DatabaseDescriptor
 
     public static void setIndexSummaryResizeIntervalInMinutes(int value)
     {
-        setProperty(ConfigFields.INDEX_SUMMARY_RESIZE_INTERVAL, value == -1 ? null : new DurationSpec.IntMinutesBound(value));
+        setProperty(Config.Names.INDEX_SUMMARY_RESIZE_INTERVAL, value == -1 ? null : new DurationSpec.IntMinutesBound(value));
     }
 
     public static boolean hasLargeAddressSpace()

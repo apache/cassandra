@@ -23,7 +23,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.yaml.snakeyaml.introspector.Property;
 
 /**
- *
+ * A {@code ListenableProperty} represents wrapper of a {@code Property} for single member variable of a class
+ * (or its accessor methods) that can be listened to for value updates of the property. The listeners are called
+ * before and after the value is set on the object. The before change listener can modify the value to be set on
+ * the object, which is useful for validation or transformation of the value before it is set on the object
+ * e.g. converting {@code null} to a default value or throwing an exception if the value is invalid.
  */
 public class ListenableProperty<S, T> extends ForwardingProperty
 {

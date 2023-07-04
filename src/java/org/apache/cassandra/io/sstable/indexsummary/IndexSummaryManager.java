@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.config.ConfigFields;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -105,7 +105,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
         logger.info("Initializing index summary manager with a memory pool size of {} MB and a resize interval of {} minutes",
                     indexSummarySizeInMB, interval);
 
-        shutdownTasks.add(DatabaseDescriptor.addAfterChangePropertyListener(ConfigFields.INDEX_SUMMARY_RESIZE_INTERVAL,
+        shutdownTasks.add(DatabaseDescriptor.addAfterChangePropertyListener(Config.Names.INDEX_SUMMARY_RESIZE_INTERVAL,
                                                                             DurationSpec.IntMinutesBound.class,
                                                                             this::handleResizeIntervalInMinutes));
         setMemoryPoolCapacityInMB(DatabaseDescriptor.getIndexSummaryCapacityInMiB());
