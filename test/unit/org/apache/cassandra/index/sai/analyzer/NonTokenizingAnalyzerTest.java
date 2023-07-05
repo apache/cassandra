@@ -67,7 +67,7 @@ public class NonTokenizingAnalyzerTest
     {
         NonTokenizingOptions options = NonTokenizingOptions.getDefaultOptions();
 
-        assertNotEquals("nip it in the bud", getAnalyzedString("Nip it in the bud", options));
+        assertEquals("Nip it in the bud", getAnalyzedString("Nip it in the bud", options));
     }
 
     private String getAnalyzedString(String input, NonTokenizingOptions options) throws Exception

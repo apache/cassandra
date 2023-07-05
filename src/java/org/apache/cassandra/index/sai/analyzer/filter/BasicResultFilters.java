@@ -39,6 +39,7 @@ public class BasicResultFilters
             this.locale = DEFAULT_LOCALE;
         }
 
+        @Override
         public String process(String input)
         {
             return input.toLowerCase(locale);
