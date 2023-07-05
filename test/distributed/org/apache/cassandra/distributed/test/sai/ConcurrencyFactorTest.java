@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.sai;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -61,20 +62,6 @@ public class ConcurrencyFactorTest extends TestBaseImpl
         cluster.close();
     }
 
-    private void insertRows(long startVal, long endVal, long increment)
-    {
-        String template = "INSERT INTO %s.%s (pk, state, gdp) VALUES (%s, %s)";
-        Random rnd = new Random();
-        String fakeState, rowData;
-        int i = 0;
-        for (long val = startVal; val <= endVal; val += increment)
-        {
-            fakeState = String.format("%c%c", (char)(rnd.nextInt(26) + 'A'), (char)(rnd.nextInt(26) + 'A'));
-            rowData = String.format("'%s', %s", fakeState, val);
-            cluster.coordinator(1).execute(String.format(template, KEYSPACE, SAI_TABLE, i++, rowData), ConsistencyLevel.LOCAL_ONE);
-        }
-    }
-
     @Test
     public void testInitialConcurrencySelection()
     {
@@ -82,7 +69,16 @@ public class ConcurrencyFactorTest extends TestBaseImpl
                                            " {'class' : 'SizeTieredCompactionStrategy', 'enabled' : false }", KEYSPACE, SAI_TABLE));
         cluster.schemaChange(String.format("CREATE CUSTOM INDEX ON %s.%s (gdp) USING 'StorageAttachedIndex'", KEYSPACE, SAI_TABLE));
 
-        insertRows(1_000_000_000L, 16_000_000_000L, 1_000_000_000L);
+        String template = "INSERT INTO %s.%s (pk, state, gdp) VALUES (%s, %s)";
+        Random rnd = new Random();
+        String fakeState, rowData;
+        int i = 0;
+        for (long val = 1_000_000_000L; val <= 16_000_000_000L; val += 1_000_000_000L)
+        {
+            fakeState = String.format("%c%c", (char)(rnd.nextInt(26) + 'A'), (char)(rnd.nextInt(26) + 'A'));
+            rowData = String.format("'%s', %s", fakeState, val);
+            cluster.coordinator(1).execute(String.format(template, KEYSPACE, SAI_TABLE, i++, rowData), ConsistencyLevel.LOCAL_ONE);
+        }
 
         // flush all nodes, expected row distribution by partition key value
         // node0: 9, 14, 12, 3
@@ -133,10 +129,9 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
     private TokenSupplier generateTokenSupplier()
     {
-        List<String>[] tokens = new List[NODES];
-        tokens[0] = Collections.singletonList("-9223372036854775808");
-        tokens[1] = Collections.singletonList("-3074457345618258602");
-        tokens[2] = Collections.singletonList("3074457345618258603");
-        return (nodeIdx) -> tokens[nodeIdx - 1];
+        List<List<String>> tokens = Arrays.asList(Collections.singletonList("-9223372036854775808"),
+                                                  Collections.singletonList("-3074457345618258602"),
+                                                  Collections.singletonList("3074457345618258603"));
+        return nodeIdx -> tokens.get(nodeIdx - 1);
     }
 }
