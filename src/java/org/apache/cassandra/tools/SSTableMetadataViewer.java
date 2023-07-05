@@ -71,6 +71,8 @@ import static org.apache.cassandra.tools.Util.WHITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
+import org.apache.cassandra.io.sstable.KeyIterator;
+
 /**
  * Shows the contents of sstable metadata
  */
@@ -83,7 +85,7 @@ public class SSTableMetadataViewer
     private static final String GCGS_KEY = "g";
     private static final String TIMESTAMP_UNIT = "t";
     private static final String SCAN = "s";
-    private static Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
+    private static final Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
 
     static
     {
@@ -321,6 +323,20 @@ public class SSTableMetadataViewer
         CompactionMetadata compaction = statsComponent.compactionMetadata();
         SerializationHeader.Component header = statsComponent.serializationHeader();
         Class<? extends ICompressor> compressorClass = null;
+
+        TableMetadata metadata = Util.metadataFromSSTable(descriptor);
+        SSTableReader sstable = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(metadata));
+        int count = 0;
+        
+        try (KeyIterator iter = sstable.keyIterator())
+        {
+            while (iter.hasNext()) 
+            {
+                iter.next();
+                count += 1;
+            }
+        }
+
         try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor))
         {
             compressorClass = compression != null ? compression.compressor().getClass() : null;
@@ -338,10 +354,12 @@ public class SSTableMetadataViewer
         }
         if (stats != null)
         {
-            field("Minimum timestamp", stats.minTimestamp, toDateString(stats.minTimestamp, tsUnit));
-            field("Maximum timestamp", stats.maxTimestamp, toDateString(stats.maxTimestamp, tsUnit));
-            field("SSTable min local deletion time", stats.minLocalDeletionTime, deletion(stats.minLocalDeletionTime));
-            field("SSTable max local deletion time", stats.maxLocalDeletionTime, deletion(stats.maxLocalDeletionTime));
+            TimeUnit tsUnit = TimeUnit.MICROSECONDS;
+            field("Minimum timestamp", toDateString(stats.minTimestamp, tsUnit), Long.toString(stats.minTimestamp));
+            field("Maximum timestamp", toDateString(stats.maxTimestamp, tsUnit), Long.toString(stats.maxTimestamp));
+            field("Duration", durationString(stats.maxTimestamp - stats.minTimestamp));
+            field("SSTable min local deletion time", deletion(stats.minLocalDeletionTime), Long.toString(stats.minLocalDeletionTime));
+            field("SSTable max local deletion time", deletion(stats.maxLocalDeletionTime), Long.toString(stats.maxLocalDeletionTime));
             field("Compressor", compressorClass != null ? compressorClass.getName() : "-");
             if (compressorClass != null)
                 field("Compression ratio", stats.compressionRatio);
@@ -363,8 +381,8 @@ public class SSTableMetadataViewer
             field("Originating host id", stats.originatingHostId);
             field("Pending repair", stats.pendingRepair);
             field("Replay positions covered", stats.commitLogIntervals);
-            field("totalColumnsSet", stats.totalColumnsSet);
-            field("totalRows", stats.totalRows);
+            field("Total Column Cells", stats.totalColumnsSet);
+            field("Total Rows", stats.totalRows);
             field("Estimated tombstone drop times", "");
 
             TermHistogram estDropped = new TermHistogram(stats.estimatedTombstoneDropTime,
@@ -376,6 +394,7 @@ public class SSTableMetadataViewer
                                                          String::valueOf);
             estDropped.printHistogram(out, color, unicode);
             field("Partition Size", "");
+            field("Total Partitions", count);
             TermHistogram rowSize = new TermHistogram(stats.estimatedPartitionSize,
                                                       "Size (bytes)",
                                                       offset -> String.format("%d %s",
@@ -410,15 +429,16 @@ public class SSTableMetadataViewer
 
             field("EncodingStats minTTL", encodingStats.minTTL,
                     toDurationString(encodingStats.minTTL, TimeUnit.SECONDS));
-            field("EncodingStats minLocalDeletionTime", encodingStats.minLocalDeletionTime,
-                    toDateString(encodingStats.minLocalDeletionTime, TimeUnit.SECONDS));
-            field("EncodingStats minTimestamp", encodingStats.minTimestamp,
-                    toDateString(encodingStats.minTimestamp, tsUnit));
+            field("EncodingStats minLocalDeletionTime", toDateString(encodingStats.minLocalDeletionTime,
+                    TimeUnit.SECONDS), Long.toString(encodingStats.minLocalDeletionTime));
+            field("EncodingStats minTimestamp", toDateString(encodingStats.minTimestamp, tsUnit),
+                    Long.toString(encodingStats.minTimestamp));
             field("KeyType", keyType.toString());
             field("ClusteringTypes", clusteringTypes.toString());
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
-            field("IsTransient", stats.isTransient);
+            if (stats != null)
+                field("IsTransient", stats.isTransient);
         }
     }
 
@@ -442,10 +462,20 @@ public class SSTableMetadataViewer
             if (color) sb.append(WHITE);
             sb.append(" (");
             sb.append(comment);
-            sb.append(")");
+            sb.append(')');
             if (color) sb.append(RESET);
         }
-        this.out.println(sb.toString());
+        this.out.println(sb);
+    }
+
+    public static String durationString(Long value)
+    {
+        long seconds  = TimeUnit.MICROSECONDS.toSeconds(value);
+        long day = TimeUnit.SECONDS.toDays(seconds);
+        long hours = TimeUnit.SECONDS.toHours(seconds) - (day * 24);
+        long minute = TimeUnit.SECONDS.toMinutes(seconds) - (TimeUnit.SECONDS.toHours(seconds) * 60);
+        long second = TimeUnit.SECONDS.toSeconds(seconds) - (TimeUnit.SECONDS.toMinutes(seconds) * 60);
+        return "Days: " + day + " Hours: " + hours + " Minutes: " + minute + " Seconds: " + second;
     }
 
     private static void printUsage()
