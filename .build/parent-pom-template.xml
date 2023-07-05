@@ -1044,8 +1044,8 @@
       </dependency>
       <dependency>
         <groupId>org.apache.lucene</groupId>
-        <artifactId>lucene-analyzers-common</artifactId>
-        <version>7.5.0</version>
+        <artifactId>lucene-analysis-common</artifactId>
+        <version>9.7.0</version>
       </dependency>
       <dependency>
         <groupId>com.carrotsearch.randomizedtesting</groupId>

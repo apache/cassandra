@@ -22,16 +22,29 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import org.tartarus.snowball.SnowballProgram;
-import org.tartarus.snowball.ext.*;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.tartarus.snowball.SnowballStemmer;
+import org.tartarus.snowball.ext.DanishStemmer;
+import org.tartarus.snowball.ext.DutchStemmer;
+import org.tartarus.snowball.ext.EnglishStemmer;
+import org.tartarus.snowball.ext.FinnishStemmer;
+import org.tartarus.snowball.ext.FrenchStemmer;
+import org.tartarus.snowball.ext.GermanStemmer;
+import org.tartarus.snowball.ext.HungarianStemmer;
+import org.tartarus.snowball.ext.ItalianStemmer;
+import org.tartarus.snowball.ext.NorwegianStemmer;
+import org.tartarus.snowball.ext.PortugueseStemmer;
+import org.tartarus.snowball.ext.RomanianStemmer;
+import org.tartarus.snowball.ext.RussianStemmer;
+import org.tartarus.snowball.ext.SpanishStemmer;
+import org.tartarus.snowball.ext.SwedishStemmer;
+import org.tartarus.snowball.ext.TurkishStemmer;
 
 /**
  * Returns a SnowballStemmer instance appropriate for
@@ -80,7 +93,7 @@ public class StemmerFactory
         SUPPORTED_LANGUAGES.put("tr", TurkishStemmer.class);
     }
 
-    public static SnowballProgram getStemmer(Locale locale)
+    public static SnowballStemmer getStemmer(Locale locale)
     {
         if (locale == null)
             return null;
@@ -92,7 +105,7 @@ public class StemmerFactory
             if(clazz == null)
                 return null;
             Constructor<?> ctor = STEMMER_CONSTRUCTOR_CACHE.get(clazz);
-            return (SnowballProgram) ctor.newInstance();
+            return (SnowballStemmer) ctor.newInstance();
         }
         catch (Exception e)
         {

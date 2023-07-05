@@ -265,12 +265,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldBeCaseSensitiveByDefault() throws Throwable
+    public void shouldBeCaseSensitiveByDefault()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
@@ -280,12 +279,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldEnableCaseSensitiveSearch() throws Throwable
+    public void shouldEnableCaseSensitiveSearch()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : true }");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
@@ -295,12 +293,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldEnableCaseInsensitiveSearch() throws Throwable
+    public void shouldEnableCaseInsensitiveSearch()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : false }");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
@@ -308,12 +305,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldBeNonNormalizedByDefault() throws Throwable
+    public void shouldBeNonNormalizedByDefault()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -324,12 +320,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldEnableNonNormalizedSearch() throws Throwable
+    public void shouldEnableNonNormalizedSearch()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : false }");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -340,12 +335,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldEnableNormalizedSearch() throws Throwable
+    public void shouldEnableNormalizedSearch()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : true }");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -353,12 +347,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldEnableNormalizedCaseInsensitiveSearch() throws Throwable
+    public void shouldEnableNormalizedCaseInsensitiveSearch()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : true, 'case_sensitive' : false}");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
@@ -366,12 +359,11 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldEnableAsciiSearch() throws Throwable
+    public void shouldEnableAsciiSearch()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'ascii' : true, 'case_sensitive' : false}");
-        waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Éppinger')");
 
