@@ -328,13 +328,14 @@ public class SSTableMetadataViewer
         SSTableReader sstable = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(metadata));
         int count = 0;
         KeyIterator iter = sstable.keyIterator();
-        while (iter.hasNext()) {
+        while (iter.hasNext()) 
+        {
             iter.next();
             count += 1;
         }
 
         TimeUnit tsUnit = TimeUnit.MICROSECONDS;
-        long seconds  = stats.maxTimestamp-stats.minTimestamp;
+        long seconds  = stats.maxTimestamp - stats.minTimestamp;
         String duration = durationString(seconds);
 
         try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor))
@@ -466,7 +467,7 @@ public class SSTableMetadataViewer
         this.out.println(sb.toString());
     }
     public static String durationString(Long value)
-        {
+    {
 
         TimeUnit tsUnit = TimeUnit.MICROSECONDS;
         long seconds  = TimeUnit.MICROSECONDS.toSeconds(value);
