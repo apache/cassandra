@@ -16,7 +16,11 @@ sstablemetadata <options> <sstable filename(s)>
 
 [cols=",",]
 |===
+|--colors                 |Use ANSI color sequences
 |--gc_grace_seconds <arg> |The gc_grace_seconds to use when calculating
+|--scan                   |Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false
+|--timestamp_unit <arg>   |Time unit that cell timestamps are written with
+|--unicode                |Use unicode to draw histograms and progress bars
 droppable tombstones
 |===
 
@@ -36,21 +40,26 @@ sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b683
 SSTable: /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big
 Partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 Bloom Filter FP chance: 0.010000
-Minimum timestamp: 1535025576141000
-Maximum timestamp: 1535025604309000
-SSTable min local deletion time: 2147483647
-SSTable max local deletion time: 2147483647
+Minimum timestamp: 06/28/2023 15:15:04 (1687979704767589)
+Maximum timestamp: 06/28/2023 15:15:09 (1687979709601420)
+Duration: Days: 0 Hours: 0 Minutes: 0 Seconds: 4
+SSTable min local deletion time: 08/17/292278994 02:12:55 (9223372036854775807)
+SSTable max local deletion time: 08/17/292278994 02:12:55 (9223372036854775807)
 Compressor: org.apache.cassandra.io.compress.LZ4Compressor
+Compression ratio: 0.553999337227618
 TTL min: 86400
 TTL max: 86400
 First token: -9223004712949498654 (key=39373333373831303130)
 Last token: 9222554117157811897 (key=4f3438394e39374d3730)
+Covered clusterings: ALL
 Estimated droppable tombstones: 0.9188263888888889
 SSTable Level: 0
 Repaired at: 0
+Originating host id: badfcb83-a283-402b-818e-78ede00aa3c4
+Pending repair: --
 Replay positions covered: {CommitLogPosition(segmentId=1535025390651, position=226400)=CommitLogPosition(segmentId=1535025390651, position=6849139)}
-totalColumnsSet: 100000
-totalRows: 20000
+Total Column Cells: 72918
+Total Rows: 24306
 Estimated tombstone drop times:
 1535039100:     80390
 1535039160:      5645
@@ -214,6 +223,7 @@ KeyType: org.apache.cassandra.db.marshal.BytesType
 ClusteringTypes: [org.apache.cassandra.db.marshal.UTF8Type]
 StaticColumns: {C3:org.apache.cassandra.db.marshal.BytesType, C4:org.apache.cassandra.db.marshal.BytesType, C0:org.apache.cassandra.db.marshal.BytesType, C1:org.apache.cassandra.db.marshal.BytesType, C2:org.apache.cassandra.db.marshal.BytesType}
 RegularColumns: {}
+IsTransient: false
 ....
 
 == Specify gc grace seconds
@@ -268,7 +278,9 @@ in reads; defined in the table definition
 timestamp of any entry in this sstable, in epoch microseconds 
 |Maximum
 timestamp |maximum timestamp of any entry in this sstable, in epoch
-microseconds 
+microseconds
+|Duration |Difference between Maximum timestamp
+and Minimum timestamp
 |SSTable min local deletion time |minimum timestamp of
 deletion date, based on TTL, in epoch seconds 
 |SSTable max local deletion
@@ -291,9 +303,12 @@ this sstable was marked as repaired via sstablerepairedset, in epoch
 milliseconds 
 |Replay positions covered |the interval of time and commitlog
 positions related to this sstable 
-|totalColumnsSet |number of cells in the
+|Total Columns Cells |number of cells in the
 table 
-|totalRows |number of rows in the table 
+|Total Rows |number of rows
+in the table
+|Total Partitions |Total number
+of partitions
 |Estimated tombstone drop
 times |approximate number of rows that will expire, ordered by epoch
 seconds 
