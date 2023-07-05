@@ -18,7 +18,7 @@
 #
 
 BASEDIR=`dirname $0`
-BASE_BRANCH=trunk
+BASE_BRANCH=cep-7-sai
 set -e
 
 die ()
