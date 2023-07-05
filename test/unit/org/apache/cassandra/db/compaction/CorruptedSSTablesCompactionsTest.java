@@ -44,10 +44,12 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertTrue;
 
@@ -223,16 +225,15 @@ public class CorruptedSSTablesCompactionsTest
             try
             {
                 cfs.forceMajorCompaction();
+                break;
             }
             catch (Exception e)
             {
-                // kind of a hack since we're not specifying just CorruptSSTableExceptions, or (what we actually expect)
-                // an ExecutionException wrapping a CSSTE.  This is probably Good Enough though, since if there are
-                // other errors in compaction presumably the other tests would bring that to light.
+                // This is the expected path. The SSTable should be marked corrupted, and retrying the compaction
+                // should move on to the next corruption.
+                Throwables.assertAnyCause(e, CorruptSSTableException.class);
                 failures++;
-                continue;
             }
-            break;
         }
 
         cfs.truncateBlocking();
