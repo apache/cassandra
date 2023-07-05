@@ -330,13 +330,8 @@ public class Config
     public volatile Integer concurrent_compactors;
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
     public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("64MiB/s");
-    @Deprecated
-    @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
-    public volatile DataStorageSpec.IntMebibytesBound compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound("100MiB");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
-    @Deprecated
-    public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
     // fraction of free disk space available for compaction after min free space is subtracted
     public volatile Double max_space_usable_for_compactions_in_percentage = .95;
@@ -877,8 +872,11 @@ public class Config
     public volatile boolean read_before_write_list_operations_enabled = true;
     public volatile boolean allow_filtering_enabled = true;
     public volatile boolean simplestrategy_enabled = true;
+    @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.LONG_BYTES_DATASTORAGE_MEBIBYTES_INT, deprecated = true)
+    @Replaces(oldName = "compaction_large_partition_warning_threshold", converter = Converters.LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE, deprecated = true)
     public volatile DataStorageSpec.LongBytesBound partition_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound partition_size_fail_threshold = null;
+    @Replaces(oldName = "compaction_tombstone_warning_threshold", converter = Converters.IDENTITY, deprecated = true)
     public volatile long partition_tombstones_warn_threshold = -1;
     public volatile long partition_tombstones_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound column_value_size_warn_threshold = null;

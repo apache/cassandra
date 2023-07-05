@@ -33,15 +33,18 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
 import static org.apache.cassandra.db.SchemaCQLHelper.toCqlType;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
-import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypeGen;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.tupleTypeGen;
 import static org.apache.cassandra.utils.FailingConsumer.orFail;
 import static org.apache.cassandra.utils.Generators.filter;
@@ -333,7 +336,14 @@ public class TupleTypeTest extends CQLTester
 
     private static Gen<TypeAndRows> typesAndRowsGen(int numRows)
     {
-        Gen<TupleType> typeGen = tupleTypeGen(primitiveTypeGen(), SourceDSL.integers().between(1, 10));
+        Gen<AbstractType<?>> subTypeGen = AbstractTypeGenerators.builder()
+                                                                .withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE)
+                                                                // ordering doesn't make sense for duration
+                                                                .withoutPrimitive(DurationType.instance)
+                                                                // data is "normalized" causing equality matches to fail
+                                                                .withoutPrimitive(DecimalType.instance)
+                                                                .build();
+        Gen<TupleType> typeGen = tupleTypeGen(subTypeGen, SourceDSL.integers().between(1, 10));
         Set<ByteBuffer> distinctRows = new HashSet<>(numRows); // reuse the memory
         Gen<TypeAndRows> gen = rnd -> {
             TypeAndRows c = new TypeAndRows();

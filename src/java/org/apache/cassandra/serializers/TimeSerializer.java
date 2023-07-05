@@ -74,6 +74,12 @@ public class TimeSerializer extends TypeSerializer<Long>
             throw new MarshalException(String.format("Expected 8 byte long for time (%d)", accessor.size(value)));
     }
 
+    @Override
+    public boolean shouldQuoteCQLLiterals()
+    {
+        return true;
+    }
+
     public String toString(Long value)
     {
         if (value == null)

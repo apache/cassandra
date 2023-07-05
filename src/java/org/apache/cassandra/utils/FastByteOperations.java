@@ -70,6 +70,11 @@ public class FastByteOperations
         return BestHolder.BEST.compare(b1, b2);
     }
 
+    public static int compareUnsigned(byte[] b1, byte[] b2)
+    {
+        return compareUnsigned(b1, 0, b1.length, b2, 0, b2.length);
+    }
+
     public static void copy(byte[] src, int srcPosition, byte[] trg, int trgPosition, int length)
     {
         BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);

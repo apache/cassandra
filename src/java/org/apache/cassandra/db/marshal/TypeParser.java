@@ -21,13 +21,20 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
-
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -131,6 +138,67 @@ public class TypeParser
             return getAbstractType(name);
     }
 
+    /**
+     * Parse PartitionOrdering from old version of PartitionOrdering' string format
+     */
+    private static AbstractType<?> defaultParsePartitionOrdering(TypeParser typeParser)
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Iterator<String> argIterator = typeParser.getKeyValueParameters().keySet().iterator();
+        if (argIterator.hasNext())
+        {
+            partitioner = FBUtilities.newPartitioner(argIterator.next());
+            assert !argIterator.hasNext();
+        }
+        return partitioner.partitionOrdering(null);
+    }
+
+    /**
+     * Parse and return the real {@link PartitionerDefinedOrder} from the string variable {@link #str}.
+     * The {@link #str} format can be like {@code PartitionerDefinedOrder(<partitioner>)} or
+     * {@code PartitionerDefinedOrder(<partitioner>:<baseType>)}.
+     */
+    public AbstractType<?> getPartitionerDefinedOrder()
+    {
+        int initIdx = idx;
+        skipBlank();
+        if (isEOS())
+            return defaultParsePartitionOrdering(this);
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+        skipBlank();
+
+        String k = readNextIdentifier();
+        IPartitioner partitioner = FBUtilities.newPartitioner(k);
+        skipBlank();
+        if (str.charAt(idx) == ':')
+        {
+            ++idx;
+            skipBlank();
+            // must be PartitionerDefinedOrder
+            return partitioner.partitionOrdering(parse());
+        }
+        else if (str.charAt(idx) == ')')
+        {
+            idx = initIdx;
+            return partitioner.partitionOrdering(null);
+        }
+        throw new SyntaxException("Syntax error parsing '" + str + ": for msg unexpected character '" + str.charAt(idx) + "'");
+    }
+
+    public static String stringifyTKeyValueParameters(Map<String, String> map)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        for (Map.Entry<String, String> e : map.entrySet())
+            sb.append(e.getKey()).append(" = ").append(e.getValue()).append(", ");
+        if (!map.isEmpty())
+            sb.setLength(sb.length() - 2);
+        return sb.append(')').toString();
+    }
+
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         if (isEOS())
@@ -166,6 +234,32 @@ public class TypeParser
             map.put(k, v);
         }
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+    }
+
+    public static String stringifyVectorParameters(AbstractType<?> type, boolean ignoreFreezing, int dimension)
+    {
+        return "(" + type.toString(ignoreFreezing) + " , " + dimension + ")";
+    }
+
+    public Vector getVectorParameters()
+    {
+        if (isEOS())
+            return null;
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+        AbstractType<?> type = parse();
+        if (!skipBlankAndComma())
+            throw new IllegalStateException();
+        String s = readNextIdentifier();
+        if (s.isEmpty())
+            throw new IllegalStateException();
+        int dimension = Integer.parseInt(s);
+        if (str.charAt(idx) != ')')
+            throw new IllegalStateException();
+        ++idx; // skipping ')'
+        return new Vector(type, dimension);
     }
 
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
@@ -498,6 +592,12 @@ public class TypeParser
         return str.substring(i, idx);
     }
 
+    @Override
+    public String toString()
+    {
+        return "TypeParser[" + str.substring(idx) + "]";
+    }
+
     /**
      * Helper function to ease the writing of AbstractType.toString() methods.
      */
@@ -575,5 +675,17 @@ public class TypeParser
         }
         sb.append(')');
         return sb.toString();
+    }
+
+    public static class Vector
+    {
+        public final int dimension;
+        public final AbstractType<?> type;
+
+        public Vector(AbstractType<?> type, int dimension)
+        {
+            this.dimension = dimension;
+            this.type = type;
+        }
     }
 }

@@ -22,6 +22,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.ImmutableList;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -66,6 +67,10 @@ import static org.junit.Assert.fail;
 
 public class ScrubToolTest
 {
+    private static final ImmutableList<String> CLEANERS = ImmutableList.<String>builder()
+                                                                       .addAll(ToolRunner.DEFAULT_CLEANERS)
+                                                                       .add("(?im)^.*header-fix is deprecated and no longer functional.*\\R")
+                                                                       .build();
     private static final String CF = "scrub_tool_test";
     private static final AtomicInteger seq = new AtomicInteger();
 
@@ -182,20 +187,6 @@ public class ScrubToolTest
     }
 
     @Test
-    public void testHeaderFixValidateOnlyWithTool()
-    {
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-
-        fillCF(cfs, 1);
-        assertOrderedAll(cfs, 1);
-
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate_only", ksName, CF);
-        Assertions.assertThat(tool.getStdout()).contains("Not continuing with scrub, since '--header-fix validate-only' was specified.");
-        tool.assertOnCleanExit();
-        assertOrderedAll(cfs, 1);
-    }
-
-    @Test
     public void testHeaderFixValidateWithTool()
     {
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -206,21 +197,8 @@ public class ScrubToolTest
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
-        tool.assertOnCleanExit();
-        assertOrderedAll(cfs, 1);
-    }
-
-    @Test
-    public void testHeaderFixFixOnlyWithTool()
-    {
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-
-        fillCF(cfs, 1);
-        assertOrderedAll(cfs, 1);
-
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix-only", ksName, CF);
-        Assertions.assertThat(tool.getStdout()).contains("Not continuing with scrub, since '--header-fix fix-only' was specified.");
-        tool.assertOnCleanExit();
+        // TODO cleaner that ignores
+        tool.assertOnCleanExit(CLEANERS);
         assertOrderedAll(cfs, 1);
     }
 
@@ -235,7 +213,7 @@ public class ScrubToolTest
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
-        tool.assertOnCleanExit();
+        tool.assertOnCleanExit(CLEANERS);
         assertOrderedAll(cfs, 1);
     }
 
@@ -250,7 +228,7 @@ public class ScrubToolTest
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "off", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
-        tool.assertOnCleanExit();
+        tool.assertOnCleanExit(CLEANERS);
         assertOrderedAll(cfs, 1);
     }
 }

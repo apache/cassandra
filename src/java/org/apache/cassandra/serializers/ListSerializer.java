@@ -72,6 +72,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     @Override
     public <V> void validate(V input, ValueAccessor<V> accessor)
     {
+        if (accessor.isEmpty(input))
+            throw new MarshalException("Not enough bytes to read a list");
         try
         {
             int n = readCollectionSize(input, accessor);

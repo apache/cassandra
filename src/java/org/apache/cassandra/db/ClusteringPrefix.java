@@ -30,10 +30,12 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -265,6 +267,24 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
     default String stringAt(int i, ClusteringComparator comparator)
     {
         return comparator.subtype(i).getString(get(i), accessor());
+    }
+
+    default void validate()
+    {
+        ValueAccessor<V> accessor = accessor();
+        int sum = 0;
+        for (V v : getRawValues())
+        {
+            if (v != null && accessor.size(v) > FBUtilities.MAX_UNSIGNED_SHORT)
+                throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                                dataSize(),
+                                                                FBUtilities.MAX_UNSIGNED_SHORT));
+            sum += v == null ? 0 : accessor.size(v);
+        }
+        if (sum > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                            sum,
+                                                            FBUtilities.MAX_UNSIGNED_SHORT));
     }
 
     default void validate(int i, ClusteringComparator comparator)

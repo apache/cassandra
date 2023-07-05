@@ -1591,14 +1591,6 @@ batch_size_fail_threshold: 50KiB
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
 
-# Log a warning when compacting partitions larger than this value.
-# As of Cassandra 5.0, this property is deprecated in favour of partition_size_warn_threshold.
-compaction_large_partition_warning_threshold: 100MiB
-
-# Log a warning when writing more tombstones than this value to a partition.
-# As of Cassandra 5.0, this property is deprecated in favour of partition_tombstones_warn_threshold.
-compaction_tombstone_warning_threshold: 100000
-
 # GC Pauses greater than 200 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
 # Min unit: ms

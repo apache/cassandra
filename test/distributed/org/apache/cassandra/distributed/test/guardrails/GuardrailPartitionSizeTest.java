@@ -53,7 +53,6 @@ public class GuardrailPartitionSizeTest extends GuardrailTester
         cluster = init(Cluster.build(NUM_NODES)
                               .withConfig(c -> c.set("partition_size_warn_threshold", WARN_THRESHOLD + "B")
                                                 .set("partition_size_fail_threshold", FAIL_THRESHOLD + "B")
-                                                .set("compaction_large_partition_warning_threshold", "999GiB")
                                                 .set("memtable_heap_space", "512MiB")) // avoids flushes
                               .start());
         cluster.disableAutoCompaction(KEYSPACE);

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -30,7 +31,9 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -66,9 +69,37 @@ import static com.google.common.collect.Iterables.transform;
  */
 public class CompositeType extends AbstractCompositeType
 {
+    public static class Serializer extends BytesSerializer
+    {
+        // types are held to make sure the serializer is unique for each collection of types, this is to make sure it's
+        // safe to cache in all cases
+        public final List<AbstractType<?>> types;
+
+        public Serializer(List<AbstractType<?>> types)
+        {
+            this.types = types;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Serializer that = (Serializer) o;
+            return types.equals(that.types);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(types);
+        }
+    }
+
     private static final int STATIC_MARKER = 0xFFFF;
 
     public final List<AbstractType<?>> types;
+    private final Serializer serializer;
 
     // interning instances
     private static final ConcurrentMap<List<AbstractType<?>>, CompositeType> instances = new ConcurrentHashMap<>();
@@ -140,6 +171,19 @@ public class CompositeType extends AbstractCompositeType
     protected CompositeType(List<AbstractType<?>> types)
     {
         this.types = ImmutableList.copyOf(types);
+        this.serializer = new Serializer(this.types);
+    }
+
+    @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return types;
+    }
+
+    @Override
+    public TypeSerializer<ByteBuffer> getSerializer()
+    {
+        return serializer;
     }
 
     protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> accessor, int offset)
@@ -268,7 +312,7 @@ public class CompositeType extends AbstractCompositeType
 
     public ByteBuffer decompose(Object... objects)
     {
-        assert objects.length == types.size();
+        assert objects.length == types.size() : String.format("Expected length %d but given %d", types.size(), objects.length);
 
         ByteBuffer[] serialized = new ByteBuffer[objects.length];
         for (int i = 0; i < objects.length; i++)
@@ -438,6 +482,21 @@ public class CompositeType extends AbstractCompositeType
         }
 
         public void serializeComparator(ByteBuffer bb) {}
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompositeType that = (CompositeType) o;
+        return types.equals(that.types);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(types);
     }
 
     @Override

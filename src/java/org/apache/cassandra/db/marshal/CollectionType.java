@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -93,6 +94,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
     protected abstract List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells);
 
     @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
+
+    @Override
     public abstract CollectionSerializer<T> getSerializer();
 
     public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
@@ -120,6 +127,14 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public boolean isCollection()
     {
         return true;
+    }
+
+    @Override
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
+    {
+        if (accessor.isEmpty(value))
+            throw new MarshalException("Not enough bytes to read a " + kind.name().toLowerCase());
+        super.validate(value, accessor);
     }
 
     @Override
@@ -243,6 +258,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
             return false;
 
         return nameComparator().equals(other.nameComparator()) && valueComparator().equals(other.valueComparator());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(kind, isMultiCell(), nameComparator(), valueComparator());
     }
 
     @Override
