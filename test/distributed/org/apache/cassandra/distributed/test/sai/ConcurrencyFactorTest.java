@@ -37,8 +37,6 @@ import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.awaitility.Awaitility.await;
 
 public class ConcurrencyFactorTest extends TestBaseImpl
@@ -47,13 +45,12 @@ public class ConcurrencyFactorTest extends TestBaseImpl
 
     private static final int NODES = 3;
 
-    private org.apache.cassandra.distributed.Cluster cluster;
+    private Cluster cluster;
 
     @Before
     public void init() throws IOException
     {
-        cluster = init(Cluster.build(NODES).withTokenSupplier(generateTokenSupplier())
-                              .withConfig(config -> config.with(NETWORK).with(GOSSIP)).start());
+        cluster = init(Cluster.build(NODES).withTokenSupplier(generateTokenSupplier()).start());
     }
 
     @After
@@ -127,7 +124,7 @@ public class ConcurrencyFactorTest extends TestBaseImpl
         });
     }
 
-    private TokenSupplier generateTokenSupplier()
+    private static TokenSupplier generateTokenSupplier()
     {
         List<List<String>> tokens = Arrays.asList(Collections.singletonList("-9223372036854775808"),
                                                   Collections.singletonList("-3074457345618258602"),
