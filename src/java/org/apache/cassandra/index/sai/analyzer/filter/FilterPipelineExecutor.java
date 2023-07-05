@@ -19,8 +19,7 @@
 package org.apache.cassandra.index.sai.analyzer.filter;
 
 /**
- * Executes all linked Pipeline Tasks serially and returns
- * output (if exists) from the executed logic
+ * Executes all linked Pipeline Tasks serially and returns output (if exists) from the executed logic
  */
 public class FilterPipelineExecutor
 {

@@ -49,6 +49,7 @@ public class BasicResultFilters
     {
         public Normalize() { }
 
+        @Override
         public String process(String input)
         {
             if (input == null) return null;
@@ -60,6 +61,7 @@ public class BasicResultFilters
     {
         public Ascii() { }
 
+        @Override
         public String process(String input)
         {
             if (input == null) return null;
@@ -73,6 +75,7 @@ public class BasicResultFilters
 
     public static class NoOperation extends FilterPipelineTask
     {
+        @Override
         public String process(String input)
         {
             return input;

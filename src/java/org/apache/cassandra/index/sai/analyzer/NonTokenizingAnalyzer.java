@@ -26,11 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.index.sai.analyzer.filter.BasicResultFilters;
 import org.apache.cassandra.index.sai.analyzer.filter.FilterPipelineBuilder;
 import org.apache.cassandra.index.sai.analyzer.filter.FilterPipelineExecutor;
 import org.apache.cassandra.index.sai.analyzer.filter.FilterPipelineTask;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -65,7 +65,7 @@ public class NonTokenizingAnalyzer extends AbstractAnalyzer
     public boolean hasNext()
     {
         // check that we know how to handle the input, otherwise bail
-        if (!TypeUtil.isIn(type, ANALYZABLE_TYPES)) return false;
+        if (!(type instanceof StringType)) return false;
 
         if (hasNext)
         {
