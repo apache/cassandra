@@ -83,7 +83,9 @@ public class LegacyStateListener implements ChangeListener
                 if (next.directory.peerState(change) == LEFT)
                 {
                     GossipHelper.mergeNodeToGossip(change, next, prev.tokenMap.tokens(change));
-                    Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(prev.directory.endpoint(change)));
+                    InetAddressAndPort endpoint = prev.directory.endpoint(change);
+                    if (endpoint != null)
+                        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(endpoint));
                 }
                 else
                     GossipHelper.mergeNodeToGossip(change, next);
