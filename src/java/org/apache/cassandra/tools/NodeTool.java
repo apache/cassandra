@@ -191,6 +191,7 @@ public class NodeTool
                 ReloadSslCertificates.class,
                 ReloadTriggers.class,
                 RelocateSSTables.class,
+                RemoveFromCMS.class,
                 RemoveNode.class,
                 Repair.class,
                 ReplayBatchlog.class,

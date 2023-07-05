@@ -3596,7 +3596,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!nominated)
                 throw new IllegalStateException(String.format("Could not nominate an alternative CMS node. Tried:%s", tried));
 
-            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(toRemove)).epoch;
+            // We can force removal from the CMS as it doesn't alter the size of the service
+            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(toRemove, true)).epoch;
             // Awaiting on the progress barrier will leave a log message in case it could not collect a majority. But we do not
             // want to block the operation at that point, since for the purpose of executing CMS operations, we have already
             // stopped being a CMS node, and for the purpose of either continuing or starting a leave sequence, we will not
@@ -5737,6 +5738,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void addToCms(List<String> ignoredEndpoints)
     {
         ClusterMetadataService.instance().addToCms(ignoredEndpoints);
+    }
+
+    @Override
+    public void removeFromCms(boolean force)
+    {
+        ClusterMetadataService.instance().removeFromCms(force);
     }
 
     @Override

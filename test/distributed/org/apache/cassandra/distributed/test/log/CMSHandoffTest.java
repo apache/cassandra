@@ -19,11 +19,9 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -40,6 +38,7 @@ import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_F
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_FULL_STARTUP;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getCMSMembers;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -57,7 +56,7 @@ public class CMSHandoffTest extends FuzzTestBase
         {
             cluster.get(2).nodetoolResult("addtocms").asserts().success();
             cluster.get(3).nodetoolResult("addtocms").asserts().success();
-            Set<String> cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
+            Set<String> cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));
             assertTrue(cms.contains("/127.0.0.2"));
@@ -67,7 +66,7 @@ public class CMSHandoffTest extends FuzzTestBase
             cluster.get(2).shutdown().get();
             cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success();
 
-            cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
+            cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));
             assertFalse(cms.contains("/127.0.0.2"));
@@ -87,14 +86,14 @@ public class CMSHandoffTest extends FuzzTestBase
         {
             cluster.get(2).nodetoolResult("addtocms").asserts().success();
             cluster.get(3).nodetoolResult("addtocms").asserts().success();
-            Set<String> cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
+            Set<String> cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));
             assertTrue(cms.contains("/127.0.0.2"));
             assertTrue(cms.contains("/127.0.0.3"));
 
             cluster.get(2).nodetoolResult("decommission").asserts().success();
-            cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
+            cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));
             assertFalse(cms.contains("/127.0.0.2"));
@@ -115,7 +114,7 @@ public class CMSHandoffTest extends FuzzTestBase
         {
             cluster.get(2).nodetoolResult("addtocms").asserts().success();
             cluster.get(3).nodetoolResult("addtocms").asserts().success();
-            Set<String> cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
+            Set<String> cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));
             assertTrue(cms.contains("/127.0.0.2"));
@@ -139,7 +138,7 @@ public class CMSHandoffTest extends FuzzTestBase
             Collection<String> replacementTokens = ClusterUtils.getLocalTokens(replacement);
             assertEquals(replacedTokens, replacementTokens);
 
-            cms = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().fullCMSMembers().stream().map(InetSocketAddress::getAddress).map(Object::toString).collect(Collectors.toSet()));
+            cms = getCMSMembers(cluster.get(1));
             assertEquals(3, cms.size());
             assertTrue(cms.contains("/127.0.0.1"));
             assertFalse(cms.contains("/127.0.0.2"));

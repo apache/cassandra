@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -32,6 +34,8 @@ import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getCMSMembers;
 
 public class CMSMembershipTest extends FuzzTestBase
 {
@@ -99,36 +103,69 @@ public class CMSMembershipTest extends FuzzTestBase
                 }
             });
 
-            IMessageFilters.Filter filter = cluster.filters().allVerbs().to(3).drop();
+            Set<String> initialCMS = getCMSMembers(cluster.get(1));
+            Assert.assertEquals(3, initialCMS.size());
+            for (int i=2; i<=3; i++)
+            {
+                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+                Assert.assertEquals(initialCMS, getCMSMembers(cluster.get(i)));
+            }
 
+            // Without the force option set, removing a node from the CMS should
+            // be rejected if it would cause the size to go below 3 nodes
             cluster.get(1).runOnInstance(() -> {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 for (InetAddressAndPort addr : metadata.directory.allAddresses())
                 {
                     if (addr.toString().contains("127.0.0.3"))
                     {
-                        ClusterMetadataService.instance().commit(new RemoveFromCMS(addr));
+                        try
+                        {
+                            ClusterMetadataService.instance().commit(new RemoveFromCMS(addr, false));
+                        }
+                        catch (IllegalStateException e)
+                        {
+                            if (!e.getMessage().contains("resubmit with force=true"))
+                                throw new AssertionError(e.getMessage());
+                        }
                         return;
                     }
-
                 }
             });
 
-            filter.off();
+            // expect no changes to the CMS membership yet
+            for (int i=1; i<=3; i++)
+            {
+                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+                Assert.assertEquals(initialCMS, getCMSMembers(cluster.get(i)));
+            }
 
+            // Run again, this time with the force option
+            cluster.get(1).runOnInstance(() -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                for (InetAddressAndPort addr : metadata.directory.allAddresses())
+                {
+                    if (addr.toString().contains("127.0.0.3"))
+                    {
+                        ClusterMetadataService.instance().commit(new RemoveFromCMS(addr, true));
+                        return;
+                    }
+                }
+            });
+
+            // node3 should have been removed from the CMS
+            Set<String> updatedCMS = initialCMS.stream().filter(s -> !s.contains("127.0.0.3")).collect(Collectors.toSet());
+            for (int i=1; i<=3; i++)
+            {
+                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+                Assert.assertEquals(updatedCMS, getCMSMembers(cluster.get(i)));
+            }
+
+            // Commit some transformations as a smoke test
             for (int idx : new int[]{ 1, 2, 3 })
             {
                 cluster.get(idx).runOnInstance(() -> {
                     ClusterMetadataService.instance().commit(CustomTransformation.make(idx));
-                });
-            }
-
-            for (int idx : new int[]{ 1, 2, 3 })
-            {
-                cluster.get(idx).runOnInstance(() -> {
-                    ClusterMetadataService.instance().fetchLogFromCMS();
-                    ClusterMetadata metadata = ClusterMetadata.current();
-                    Assert.assertEquals(idx != 3, metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));
                 });
             }
         }

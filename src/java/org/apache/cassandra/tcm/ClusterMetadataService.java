@@ -57,10 +57,13 @@ import org.apache.cassandra.tcm.migration.GossipProcessor;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
+import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.cms.EntireRange;
+import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -265,6 +268,33 @@ public class ClusterMetadataService
     public boolean isCurrentMember(InetAddressAndPort peer)
     {
         return ClusterMetadata.current().isCMSMember(peer);
+    }
+
+    public void removeFromCms(boolean force)
+    {
+        ClusterMetadata metadata = metadata();
+        Set<InetAddressAndPort> existingMembers = metadata.fullCMSMembers();
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        if (!existingMembers.contains(FBUtilities.getBroadcastAddressAndPort()))
+        {
+            logger.info("Not a CMS member");
+            throw new IllegalStateException("Not a CMS member");
+        }
+
+        int minSafeSize = RemoveFromCMS.MIN_SAFE_CMS_SIZE;
+        if ((existingMembers.size() <= minSafeSize) && !force)
+        {
+            String msg = String.format("Shrinking CMS size below %d requires the force option", minSafeSize);
+            logger.info(msg);
+            throw new IllegalStateException(msg);
+        }
+
+        Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(local, force)).epoch;
+        // Awaiting on the progress barrier will leave a log message in case it could not collect a majority. But we do not
+        // want to block the operation at that point, since for the purpose of executing CMS operations, we have already
+        // stopped being a CMS node, and for the purpose of either continuing or starting a leave sequence, we will not
+        // be able to collect a majority of CMS nodes during commit.
+        new ProgressBarrier(epoch, EntireRange.affectedRanges).await();
     }
 
     public void addToCms(List<String> ignoredEndpoints)

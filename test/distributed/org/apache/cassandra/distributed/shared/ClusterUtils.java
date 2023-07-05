@@ -639,6 +639,16 @@ public class ClusterUtils
                   .collect(Collectors.toMap(Map.Entry::getKey, e -> decode(e.getValue())));
     }
 
+    public static Set<String> getCMSMembers(IInvokableInstance inst)
+    {
+        return inst.callOnInstance(() -> ClusterMetadata.current()
+                                                        .fullCMSMembers()
+                                                        .stream()
+                                                        .map(InetSocketAddress::getAddress)
+                                                        .map(Object::toString)
+                                                        .collect(Collectors.toSet()));
+    }
+
     public static boolean decommission(IInvokableInstance leaving)
     {
         return leaving.callOnInstance(() -> {
