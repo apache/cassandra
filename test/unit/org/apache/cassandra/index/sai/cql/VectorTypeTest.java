@@ -103,6 +103,24 @@ public class VectorTypeTest extends VectorTester
         assertContainsInt(result, "pk", 2);
     }
 
+    @Test
+    public void createIndexAfterInsertTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', [3.0, 4.0, 5.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', [4.0, 5.0, 6.0])");
+
+        flush();
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
+        assertThat(result).hasSize(3);
+    }
+
     public static void assertContainsInt(UntypedResultSet result, String columnName, int columnValue)
     {
         for (UntypedResultSet.Row row : result)
