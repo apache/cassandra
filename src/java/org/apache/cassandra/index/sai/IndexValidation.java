@@ -36,6 +36,6 @@ public enum IndexValidation
     /**
      * Full validation with checksumming data (slow)
      */
-    CHECKSUM;
+    CHECKSUM
 
 }
