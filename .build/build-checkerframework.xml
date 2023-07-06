@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<project basedir="." name="apache-cassandra-checkerframework"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
+
+    <property name="checkerframework.version" value="3.35.0"/>
+    <property name="checkerframework.jars.dir" value="${build.dir}/checkerframework-jars"/>
+    <property name="checkerframework.output.dir" value="${build.dir}/checkerframework-output"/>
+
+    <property name="cf.check.only" value="" description="Specify a glob pattern of source files for CheckerFramework to verify"/>
+    <property name="cf.skip" value="false" description="When set to true, CheckerFramework execution is silently skipped"/>
+    <property name="cf.verbose" value="false" description="Enable verbose output from the CheckerFramework"/>
+
+    <!-- Options to be added for the processor when running with verbose output -->
+    <resources id="_cf_verbose_output_args">
+        <string>-Afilenames</string>
+        <string>-Ashowchecks</string>
+        <string>-AshowInferenceSteps</string>
+        <string>-AshowWpiFailedInferences</string>
+    </resources>
+    <pathconvert property="_cf_verbose_output_args_line" refid="_cf_verbose_output_args" pathsep=" "/>
+
+    <!-- Project-wide suppressed warnings -->
+    <resources id="_cf_suppressed_warnings">
+    </resources>
+    <pathconvert property="_cf_suppressed_warnings_line" refid="_cf_suppressed_warnings" pathsep=","/>
+
+    <resources id="_cf_args_j11plus">
+        <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</string>
+    </resources>
+    <pathconvert property="_cf_args_line_j11plus" refid="_cf_args_j11plus" pathsep=" "/>
+
+    <macrodef name="run-cf">
+        <attribute name="includes" default="**"/>
+        <attribute name="listfiles" default="false"/>
+        <attribute name="src" default="src/java"/>
+        <attribute name="outputDir" default="${build.dir}/checkerframework"/>
+
+        <sequential>
+            <delete includeemptydirs="true" quiet="true">
+                <fileset dir="@{outputDir}">
+                    <include name="**/*"/>
+                </fileset>
+            </delete>
+
+            <mkdir dir="@{outputDir}"/>
+
+            <path id="processor.classpath">
+                <fileset dir="${checkerframework.jars.dir}">
+                    <include name="*.jar"/>
+                </fileset>
+            </path>
+
+            <condition property="_cf.skip" value="true" else="false">
+                <or>
+                    <equals arg1="@{includes}" arg2=""/>
+                    <istrue value="${cf.skip}"/>
+                </or>
+            </condition>
+
+            <condition property="_cf_verbose_output_args_line_cond" value="${_cf_verbose_output_args_line}" else="">
+                <istrue value="${cf.verbose}"/>
+            </condition>
+
+            <javac debug="false" encoding="utf-8" fork="true" memoryinitialsize="4g" memorymaximumsize="4g"
+                   includeantruntime="false" includes="@{includes}"
+                   destdir="@{outputDir}" source="${ant.java.version}" target="${ant.java.version}"
+                   listfiles="@{listfiles}" unless:true="${_cf.skip}">
+
+                <src path="@{src}"/>
+
+                <!-- Bug filed to Checker Framework https://github.com/typetools/checker-framework/issues/6030 -->
+                <exclude name="org/apache/cassandra/service/reads/DataResolver.java"/>
+                <exclude name="org/apache/cassandra/io/sstable/format/SSTableScanner.java"/>
+
+                <!-- Generated sources are deliberately excluded from analysis because we cannot do anything with problems
+                     found there (also because they crash CheckerFramework). Therefore, the regular compilation must be run
+                     before the analysis so the checker-compiler can access already compiled generated classes.  -->
+
+                <compilerarg value="-XDignore.symbol.file"/>
+                <compilerarg line="-Xmaxwarns 10000"/>
+                <compilerarg line="-Xmaxerrs 10000"/>
+
+                <compilerarg line="${_cf_args_line_j11plus}"/>
+
+                <compilerarg value="-processorpath"/>
+                <compilerarg pathref="processor.classpath"/>
+
+                <compilerarg value="-processor"/>
+                <compilerarg value="org.checkerframework.checker.resourceleak.ResourceLeakChecker"/>  <!-- add more checkers if needed -->
+
+                <compilerarg value="-proc:only"/> <!-- do not compile, only run annotation processors -->
+
+                <compilerarg value="-ApermitInitializationLeak"/>
+                <compilerarg value="-ApermitStaticOwning"/>
+                <compilerarg value="-AprintAllQualifiers"/>
+                <compilerarg value="-AprintVerboseGenerics"/>
+                <compilerarg value="-AshowPrefixInWarningMessages"/>
+                <compilerarg value="-AsuppressWarnings=${_cf_suppressed_warnings_line}"/>
+
+                <compilerarg line="${_cf_verbose_output_args_line_cond}"/>
+
+                <classpath>
+                    <path refid="cassandra.classpath"/>
+                </classpath>
+            </javac>
+        </sequential>
+    </macrodef>
+
+    <macrodef name="run-cf-changed">
+        <attribute name="src"/>
+        <attribute name="outputDir"/>
+        <sequential>
+            <check-changed-files outputProperty="modified-files" paths="@{src}"/>
+            <filelist id="modified-files-list" files="${modified-files}"/>
+            <pathconvert property="modified-paths" refid="modified-files-list" pathsep=",">
+                <map from="@{src}/" to=""/>
+            </pathconvert>
+            <run-cf includes="${modified-paths}" listfiles="true" src="@{src}" outputDir="@{outputDir}"/>
+        </sequential>
+    </macrodef>
+
+    <macrodef name="run-cf-dirty">
+        <attribute name="src"/>
+        <attribute name="outputDir"/>
+        <sequential>
+            <check-dirty-files outputProperty="modified-files" paths="@{src}"/>
+            <filelist id="modified-files-list" files="${modified-files}"/>
+            <pathconvert property="modified-paths" refid="modified-files-list" pathsep=",">
+                <map from="@{src}/" to=""/>
+            </pathconvert>
+            <run-cf includes="${modified-paths}" listfiles="true" src="@{src}" outputDir="@{outputDir}"/>
+        </sequential>
+    </macrodef>
+
+</project>

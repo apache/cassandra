@@ -547,11 +547,37 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="cf-all" depends="build,fqltool-build,stress-build" description="Run CheckerFramework against all production source files. This goal is intended to be run on CI.">
+        <run-cf includes="**" listfiles="false" src="${build.src.java}" outputDir="${checkerframework.output.dir}/main"/>
+        <run-cf includes="**" listfiles="false" src="${fqltool.build.src}" outputDir="${checkerframework.output.dir}/fqltool"/>
+        <run-cf includes="**" listfiles="false" src="${stress.build.src}" outputDir="${checkerframework.output.dir}/stress"/>
+    </target>
+
+    <target name="cf" depends="-git-init,build,fqltool-build,stress-build" description="Run CheckerFramework against all changed production source files compared to the latest common ancestor between HEAD and trunk. This goal is intended to be run locally before starting CI.">
+        <run-cf-changed src="${build.src.java}" outputDir="${checkerframework.output.dir}/main"/>
+        <run-cf-changed src="${fqltool.build.src}" outputDir="${checkerframework.output.dir}/fqltool"/>
+        <run-cf-changed src="${stress.build.src}" outputDir="${checkerframework.output.dir}/stress"/>
+    </target>
+
+    <target name="cf-dirty" depends="-git-init,build,fqltool-build,stress-build" description="Run CheckerFramework against changed production source files (staged for commit). This is the default goal an engineer should execute before committing changes.">
+        <run-cf-dirty src="${build.src.java}" outputDir="${checkerframework.output.dir}/main"/>
+        <run-cf-dirty src="${fqltool.build.src}" outputDir="${checkerframework.output.dir}/fqltool"/>
+        <run-cf-dirty src="${stress.build.src}" outputDir="${checkerframework.output.dir}/stress"/>
+    </target>
+
+    <target name="cf-only" depends="build,fqltool-build,stress-build" description="Run CheckerFramework against production source files specified in cf.check.only property (comma separated file paths under src/java or glob patterns, for example -Dcf.check.only=org/apache/cassandra/utils/**)">
+        <fail if:blank="${cf.check.only}" message="cf.check.only property is not set"/>
+        <run-cf includes="${cf.check.only}" listfiles="true" src="${build.src.java}" outputDir="${checkerframework.output.dir}/main"/>
+        <run-cf includes="${cf.check.only}" listfiles="true" src="${fqltool.build.src}" outputDir="${checkerframework.output.dir}/fqltool"/>
+        <run-cf includes="${cf.check.only}" listfiles="true" src="${stress.build.src}" outputDir="${checkerframework.output.dir}/stress"/>
+    </target>
+
+    <target name="check" depends="-git-init,build,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
-        <antcall target="eclipse-warnings" inheritrefs="true"/>
+        <antcall if:true="${git.is-merge-base-supported}" target="cf" inheritrefs="true"/>
+        <antcall unless:true="${git.is-merge-base-supported}" target="cf-all" inheritrefs="true"/>
     </target>
 
     <!-- Stress build file -->
@@ -2107,4 +2133,5 @@
   <import file="${build.helpers.dir}/build-owasp.xml"/>
   <import file="${build.helpers.dir}/build-git.xml"/>
   <import file="${build.helpers.dir}/build-checkstyle.xml"/>
+  <import file="${build.helpers.dir}/build-checkerframework.xml"/>
 </project>
