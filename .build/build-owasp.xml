@@ -17,7 +17,7 @@
   ~ limitations under the License.
   -->
 <project basedir="." name="apache-cassandra-owasp-tasks">
-    <property name="dependency-check.version" value="6.3.2"/>
+    <property name="dependency-check.version" value="8.3.1"/>
     <property name="dependency-check.home" value="${build.dir}/dependency-check-ant-${dependency-check.version}"/>
 
     <condition property="is.dependency.check.jar">
