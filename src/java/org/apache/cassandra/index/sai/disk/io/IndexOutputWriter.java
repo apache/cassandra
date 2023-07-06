@@ -64,7 +64,7 @@ public class IndexOutputWriter extends IndexOutput
     @Override
     public long getChecksum() throws IOException
     {
-        return ((IndexFileUtils.ChecksumWriter)out).getChecksum();
+        return ((IndexFileUtils.ChecksummingWriter)out).getChecksum();
     }
 
     @Override

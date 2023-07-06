@@ -58,7 +58,7 @@ public class IndexFileUtils
     {
         assert writerOption.finishOnClose() : "IndexOutputWriter relies on close() to sync with disk.";
 
-        return new IndexOutputWriter(new IncrementalChecksumSequentialWriter(file, writerOption));
+        return new IndexOutputWriter(new ChecksummingWriter(file, writerOption));
     }
 
     public IndexInput openInput(FileHandle handle)
@@ -75,21 +75,15 @@ public class IndexFileUtils
         return IndexInputReader.create(randomReader, fileHandle::close);
     }
 
-    public interface ChecksumWriter
-    {
-        long getChecksum() throws IOException;
-    }
-
-    static class IncrementalChecksumSequentialWriter extends SequentialWriter implements ChecksumWriter
+    static class ChecksummingWriter extends SequentialWriter
     {
         private final CRC32 checksum = new CRC32();
 
-        IncrementalChecksumSequentialWriter(File file, SequentialWriterOption writerOption)
+        ChecksummingWriter(File file, SequentialWriterOption writerOption)
         {
             super(file, writerOption);
         }
 
-        @Override
         public long getChecksum() throws IOException
         {
             flush();
@@ -99,10 +93,8 @@ public class IndexFileUtils
         @Override
         protected void flushData()
         {
+            ByteBuffer toAppend = buffer.duplicate().flip();
             super.flushData();
-            ByteBuffer toAppend = buffer.duplicate();
-            toAppend.position(0);
-            toAppend.limit(buffer.position());
             checksum.update(toAppend);
         }
     }
