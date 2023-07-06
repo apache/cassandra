@@ -31,7 +31,7 @@ public enum IndexValidation
     /**
      * Basic header/footer validation, but no data validation (fast)
      */
-    BASIC,
+    HEADER_FOOTER,
 
     /**
      * Full validation with checksumming data (slow)
