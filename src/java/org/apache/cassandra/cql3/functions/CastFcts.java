@@ -120,7 +120,10 @@ public final class CastFcts
      */
     private static <I extends Number> java.util.function.Function<I, BigDecimal> getDecimalConversionFunction(AbstractType<? extends Number> inputType)
     {
-        if (inputType == FloatType.instance || inputType == DoubleType.instance)
+        if (inputType == FloatType.instance)
+            return p -> new BigDecimal(Float.toString(p.floatValue()));
+
+        if (inputType == DoubleType.instance)
             return p -> BigDecimal.valueOf(p.doubleValue());
 
         if (inputType == IntegerType.instance)
