@@ -327,13 +327,16 @@ public class SSTableMetadataViewer
         TableMetadata metadata = Util.metadataFromSSTable(descriptor);
         SSTableReader sstable = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(metadata));
         int count = 0;
-        KeyIterator iter = sstable.keyIterator();
-        while (iter.hasNext()) 
+        
+        try(KeyIterator iter = sstable.keyIterator())
         {
-            iter.next();
-            count += 1;
+            while (iter.hasNext()) 
+            {
+                iter.next();
+                count += 1;
+            }
+            iter.close();
         }
-        iter.close();
 
         TimeUnit tsUnit = TimeUnit.MICROSECONDS;
         long seconds  = stats.maxTimestamp - stats.minTimestamp;
