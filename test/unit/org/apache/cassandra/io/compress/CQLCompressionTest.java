@@ -24,6 +24,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -117,7 +118,7 @@ public class CQLCompressionTest extends CQLTester
         });
 
         // Should compact to LZ4 "fast"
-        compact();
+        forceCompactAll();
 
         sstables = store.getLiveSSTables();
         assertEquals(sstables.size(), 1);
@@ -142,7 +143,7 @@ public class CQLCompressionTest extends CQLTester
         });
 
         // Should compact to LZ4 "high" mode
-        compact();
+        forceCompactAll();
 
         sstables = store.getLiveSSTables();
         assertEquals(sstables.size(), 1);
@@ -165,7 +166,7 @@ public class CQLCompressionTest extends CQLTester
         });
 
         // Should compact to Zstd
-        compact();
+        forceCompactAll();
 
         sstables = store.getLiveSSTables();
         assertEquals(sstables.size(), 1);
@@ -187,7 +188,7 @@ public class CQLCompressionTest extends CQLTester
         });
 
         // Should compact to Deflate
-        compact();
+        forceCompactAll();
 
         sstables = store.getLiveSSTables();
         assertEquals(sstables.size(), 1);
@@ -210,7 +211,7 @@ public class CQLCompressionTest extends CQLTester
         });
 
         // Should compact to LZ4
-        compact();
+        forceCompactAll();
 
         sstables = store.getLiveSSTables();
         assertEquals(sstables.size(), 1);
@@ -247,7 +248,7 @@ public class CQLCompressionTest extends CQLTester
         });
 
         // Should compact to Zstd
-        compact();
+        forceCompactAll();
 
         sstables = store.getLiveSSTables();
         assertEquals(sstables.size(), 1);

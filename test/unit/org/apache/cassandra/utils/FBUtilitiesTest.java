@@ -267,8 +267,8 @@ public class FBUtilitiesTest
     {
         String[] tests = new String[]{
         "1", "", "", "1",
-        "1k", "", "", "1e3",
-        "1 kiB", " ", "B", "1024",
+        "1K", "", "", "1e3",
+        "1 KiB", " ", "B", "1024",
         "10 B/s", " ", "B/s", "10",
         "10.2 MiB/s", null, "B/s", "10695475.2",
         "10e+5", "", "", "10e5",
@@ -288,7 +288,7 @@ public class FBUtilitiesTest
         "-876ns", "", "s", "-876e-9",
         Long.toString(Long.MAX_VALUE), null, null, Long.toString(Long.MAX_VALUE),
         Long.toString(Long.MIN_VALUE), null, null, Long.toString(Long.MIN_VALUE),
-        "Infinity kg", " ", "kg", "+Infinity",
+        "Infinity Kg", " ", "Kg", "+Infinity",
         "NaN", "", "", "NaN",
         "-Infinity", "", "", "-Infinity",
         };

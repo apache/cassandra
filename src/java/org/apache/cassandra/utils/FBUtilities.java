@@ -829,14 +829,14 @@ public class FBUtilities
         return new WrappedCloseableIterator<T>(iterator);
     }
 
-    final static String UNIT_PREFIXES = "qryzafpnum kMGTPEZYRQ";
+    final static String UNIT_PREFIXES = "qryzafpnum KMGTPEZYRQ";
     final static int UNIT_PREFIXES_BASE = UNIT_PREFIXES.indexOf(' ');
     final static Pattern BASE_NUMBER_PATTERN = Pattern.compile("NaN|[+-]?Infinity|[+-]?\\d+(\\.\\d+)?([eE]([+-]?)\\d+)?");
     final static Pattern BINARY_EXPONENT = Pattern.compile("\\*2\\^([+-]?\\d+)");
 
     /**
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
-     * For example, 1.000kiB, 2.100GiB etc., up to 8.000 EiB.
+     * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
      */
     public static String prettyPrintMemory(long size)
@@ -846,7 +846,7 @@ public class FBUtilities
 
     /**
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
-     * For example, 1.000kiB, 2.100GiB etc., up to 8.000 EiB.
+     * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
      * @param separator Separator between the number and the (modified) unit.
      */
@@ -866,7 +866,7 @@ public class FBUtilities
      * Convert the given value to a human-readable string using binary (i.e. 2^10-based) modifiers.
      * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as v*2^e where e is a
      * multiple of 10 with sign.
-     * For example, 1.000kiB, 2.100 miB/s, 7.006*2^+150, -Infinity.
+     * For example, 1.000KiB, 2.100 miB/s, 7.006*2^+150, -Infinity.
      * @param value     Number to convert.
      * @param separator Separator between the number and the (modified) unit.
      */
