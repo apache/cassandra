@@ -161,6 +161,7 @@ Merged from 4.0:
  * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
 Merged from 3.11:
+ * Suppress CVE-2022-45688 (CASSANDRA-18643)
  * Remove unrepaired SSTables from garbage collection when only_purge_repaired_tombstones is true (CASSANDRA-14204)
  * Wait for live endpoints in gossip waiting to settle (CASSANDRA-18543)
  * Fix error message handling when trying to use CLUSTERING ORDER with non-clustering column (CASSANDRA-17818
