@@ -85,7 +85,7 @@ public class SSTableMetadataViewer
     private static final String GCGS_KEY = "g";
     private static final String TIMESTAMP_UNIT = "t";
     private static final String SCAN = "s";
-    private static Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
+    private static final Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
 
     static
     {
@@ -328,19 +328,14 @@ public class SSTableMetadataViewer
         SSTableReader sstable = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(metadata));
         int count = 0;
         
-        try(KeyIterator iter = sstable.keyIterator())
+        try (KeyIterator iter = sstable.keyIterator())
         {
             while (iter.hasNext()) 
             {
                 iter.next();
                 count += 1;
             }
-            iter.close();
         }
-
-        TimeUnit tsUnit = TimeUnit.MICROSECONDS;
-        long seconds  = stats.maxTimestamp - stats.minTimestamp;
-        String duration = durationString(seconds);
 
         try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor))
         {
@@ -359,9 +354,10 @@ public class SSTableMetadataViewer
         }
         if (stats != null)
         {
+            TimeUnit tsUnit = TimeUnit.MICROSECONDS;
             field("Minimum timestamp", toDateString(stats.minTimestamp, tsUnit), Long.toString(stats.minTimestamp));
             field("Maximum timestamp", toDateString(stats.maxTimestamp, tsUnit), Long.toString(stats.maxTimestamp));
-            field("Duration", duration);
+            field("Duration", durationString(stats.maxTimestamp - stats.minTimestamp));
             field("SSTable min local deletion time", deletion(stats.minLocalDeletionTime), Long.toString(stats.minLocalDeletionTime));
             field("SSTable max local deletion time", deletion(stats.maxLocalDeletionTime), Long.toString(stats.maxLocalDeletionTime));
             field("Compressor", compressorClass != null ? compressorClass.getName() : "-");
@@ -441,7 +437,8 @@ public class SSTableMetadataViewer
             field("ClusteringTypes", clusteringTypes.toString());
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
-            field("IsTransient", stats.isTransient);
+            if (stats != null)
+                field("IsTransient", stats.isTransient);
         }
     }
 
@@ -465,23 +462,20 @@ public class SSTableMetadataViewer
             if (color) sb.append(WHITE);
             sb.append(" (");
             sb.append(comment);
-            sb.append(")");
+            sb.append(')');
             if (color) sb.append(RESET);
         }
-        this.out.println(sb.toString());
+        this.out.println(sb);
     }
+
     public static String durationString(Long value)
     {
-
-        TimeUnit tsUnit = TimeUnit.MICROSECONDS;
         long seconds  = TimeUnit.MICROSECONDS.toSeconds(value);
         long day = TimeUnit.SECONDS.toDays(seconds);
         long hours = TimeUnit.SECONDS.toHours(seconds) - (day * 24);
         long minute = TimeUnit.SECONDS.toMinutes(seconds) - (TimeUnit.SECONDS.toHours(seconds) * 60);
         long second = TimeUnit.SECONDS.toSeconds(seconds) - (TimeUnit.SECONDS.toMinutes(seconds) * 60);
-        String duration = "Days: " + day + " Hours: " + hours + " Minutes: " + minute + " Seconds: " + second;
-
-        return duration;
+        return "Days: " + day + " Hours: " + hours + " Minutes: " + minute + " Seconds: " + second;
     }
 
     private static void printUsage()

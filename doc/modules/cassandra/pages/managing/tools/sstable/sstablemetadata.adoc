@@ -32,10 +32,10 @@ necessary, find the__Data.db file(s) using sstableutil.
 Example:
 
 ....
-sstableutil keyspace1 standard1 | grep Data
+$ sstableutil keyspace1 standard1 | grep Data
 /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big-Data.db
 
-sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big-Data.db
+$ sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big-Data.db
 
 SSTable: /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big
 Partitioner: org.apache.cassandra.dht.Murmur3Partitioner
@@ -241,25 +241,25 @@ ref: https://issues.apache.org/jira/browse/CASSANDRA-12208
 Example:
 
 ....
-sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated tombstone drop times" -A4
+$ sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated tombstone drop times" -A4
 Estimated tombstone drop times:
 1536599100:         1
 1536599640:         1
 1536599700:         2
 
-echo $(date +%s)
+$ echo $(date +%s)
 1536602005
 
 # if gc_grace_seconds was configured at 100, all of the tombstones would be currently droppable 
-sstablemetadata --gc_grace_seconds 100 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
+$ sstablemetadata --gc_grace_seconds 100 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 4.0E-5
 
 # if gc_grace_seconds was configured at 4700, some of the tombstones would be currently droppable 
-sstablemetadata --gc_grace_seconds 4700 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
+$ sstablemetadata --gc_grace_seconds 4700 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 9.61111111111111E-6
 
 # if gc_grace_seconds was configured at 100, none of the tombstones would be currently droppable 
-sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
+$ sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 0.0
 ....
 
@@ -303,12 +303,9 @@ this sstable was marked as repaired via sstablerepairedset, in epoch
 milliseconds 
 |Replay positions covered |the interval of time and commitlog
 positions related to this sstable 
-|Total Columns Cells |number of cells in the
-table 
-|Total Rows |number of rows
-in the table
-|Total Partitions |Total number
-of partitions
+|Total Columns Cells |number of cells in the table
+|Total Rows |number of rows in the table
+|Total Partitions |total number of partitions
 |Estimated tombstone drop
 times |approximate number of rows that will expire, ordered by epoch
 seconds 
