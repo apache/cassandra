@@ -214,7 +214,16 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         return CompactionTasks.create(tasks);
     }
 
-    private static List<Set<CompactionSSTable>> splitInNonOverlappingSets(List<CompactionSSTable> sstables)
+    /**
+     * Utility method to split a list of sstables into non-overlapping sets. Used by CNDB.
+     *
+     *
+     * @param sstables A list of items to distribute in overlap sets. This is assumed to be a transient list and the
+     *                 method may modify or consume it. It is assumed that the start and end positions of an item are
+     *                 ordered, and the items are non-empty.
+     * @return list of non-overlapping sets of sstables
+     */
+    public static List<Set<CompactionSSTable>> splitInNonOverlappingSets(List<CompactionSSTable> sstables)
     {
         List<Set<CompactionSSTable>> overlapSets = Overlaps.constructOverlapSets(sstables,
                                                                                  UnifiedCompactionStrategy::startsAfter,
