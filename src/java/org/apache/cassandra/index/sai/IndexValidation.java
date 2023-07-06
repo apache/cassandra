@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.index.sai;
 
-/**
- * Whether to validate indexes and how
- */
 public enum IndexValidation
 {
     /**
