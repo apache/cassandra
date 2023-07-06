@@ -29,7 +29,7 @@ public enum IndexValidation
     NONE,
 
     /**
-     * Basic header validation, no data validation (fast)
+     * Basic header/footer validation, but no data validation (fast)
      */
     BASIC,
 
