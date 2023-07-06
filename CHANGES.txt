@@ -13,6 +13,7 @@ Merged from 3.11:
  * Fix error message handling when trying to use CLUSTERING ORDER with non-clustering column (CASSANDRA-17818
  * Add keyspace and table name to exception message during ColumnSubselection deserialization (CASSANDRA-18346)
 Merged from 3.0:
+ * Suppress CVE-2023-34462 (CASSANDRA-18649)
  * Add support for AWS Ec2 IMDSv2 (CASSANDRA-16555)
  * Suppress CVE-2023-35116 (CASSANDRA-18630)
  * Pass taskId from CompactionTask to system.compaction_history (CASSANDRA-12183)
