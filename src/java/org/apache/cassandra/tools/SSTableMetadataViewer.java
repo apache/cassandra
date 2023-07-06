@@ -333,6 +333,7 @@ public class SSTableMetadataViewer
             iter.next();
             count += 1;
         }
+        iter.close();
 
         TimeUnit tsUnit = TimeUnit.MICROSECONDS;
         long seconds  = stats.maxTimestamp - stats.minTimestamp;
