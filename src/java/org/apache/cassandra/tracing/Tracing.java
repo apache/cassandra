@@ -134,7 +134,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
                 logger.error(String.format("Cannot use class %s for tracing, ignoring by defaulting to normal tracing", customTracingClass), e);
             }
         }
-        instance = null != tracing ? tracing : new TracingImpl();
+        instance = tracing == null ? new TracingImpl() : tracing;
     }
 
     public UUID getSessionId()
