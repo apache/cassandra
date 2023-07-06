@@ -130,6 +130,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_D
 import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYSTEM;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -2209,6 +2210,13 @@ public class DatabaseDescriptor
     public static long getMinFreeSpacePerDriveInBytes()
     {
         return conf.min_free_space_per_drive.toBytesInLong();
+    }
+
+    @VisibleForTesting
+    public static long setMinFreeSpacePerDriveInBytes(long bytes)
+    {
+        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(BYTES.toMebibytes(bytes));
+        return getMinFreeSpacePerDriveInBytes();
     }
 
     @VisibleForTesting

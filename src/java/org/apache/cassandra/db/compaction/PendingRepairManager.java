@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Companion to CompactionStrategyManager which manages the sstables marked pending repair.
- *
+ * <p>
  * SSTables are classified as pending repair by the anti-compaction performed at the beginning
  * of an incremental repair, or when they're streamed in with a pending repair id. This prevents
  * unrepaired / pending repaired sstables from being compacted together. Once the repair session
@@ -233,7 +233,7 @@ class PendingRepairManager
 
     private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy, int additionalSSTables, long additionalBytes)
     {
-        return canCleanup(sessionID) ? 0 : strategy.getEstimatedRemainingTasks();
+        return canCleanup(sessionID) ? 0 : strategy.getEstimatedRemainingTasks(additionalSSTables, additionalBytes);
     }
 
     int getEstimatedRemainingTasks()
