@@ -411,7 +411,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     {
         contextManager.clear();
         onSSTableChanged(baseCfs.getLiveSSTables(), Collections.emptySet(), indexes, IndexValidation.NONE);
-        onSSTableChanged(Collections.emptySet(), baseCfs.getLiveSSTables(), indexes, IndexValidation.BASIC);
+        onSSTableChanged(Collections.emptySet(), baseCfs.getLiveSSTables(), indexes, IndexValidation.HEADER_FOOTER);
     }
 
     /**

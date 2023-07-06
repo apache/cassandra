@@ -330,31 +330,23 @@ public class IndexDescriptor
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean validatePerIndexComponents(IndexContext indexContext, IndexValidation validation)
     {
-        if (validation != IndexValidation.NONE)
-        {
-            logger.info(indexContext.logMessage("Validating per-column index components using mode " + validation));
-            boolean checksum = validation == IndexValidation.CHECKSUM;
-            return version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, checksum);
-        }
-        else
-        {
+        if (validation == IndexValidation.NONE)
             return true;
-        }
+
+        logger.info(indexContext.logMessage("Validating per-column index components using mode " + validation));
+        boolean checksum = validation == IndexValidation.CHECKSUM;
+        return version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, checksum);
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean validatePerSSTableComponents(IndexValidation validation)
     {
-        if (validation != IndexValidation.NONE)
-        {
-            logger.info(logMessage("Validating per-sstable index components using mode " + validation));
-            boolean checksum = validation == IndexValidation.CHECKSUM;
-            return version.onDiskFormat().validatePerSSTableIndexComponents(this, checksum);
-        }
-        else
-        {
+        if (validation == IndexValidation.NONE)
             return true;
-        }
+
+        logger.info(logMessage("Validating per-sstable index components using mode " + validation));
+        boolean checksum = validation == IndexValidation.CHECKSUM;
+        return version.onDiskFormat().validatePerSSTableIndexComponents(this, checksum);
     }
 
     public void deletePerSSTableIndexComponents()

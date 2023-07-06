@@ -271,7 +271,7 @@ public class StorageAttachedIndex implements Index
         // New storage-attached indexes will be available for queries after on disk index data are built.
         // Memtable data will be indexed via flushing triggered by schema change
         // We only want to validate the index files if we are starting up
-        IndexValidation validation = StorageService.instance.isStarting() ? IndexValidation.BASIC : IndexValidation.NONE;
+        IndexValidation validation = StorageService.instance.isStarting() ? IndexValidation.HEADER_FOOTER : IndexValidation.NONE;
         return () -> startInitialBuild(baseCfs, validation).get();
     }
 
@@ -431,7 +431,7 @@ public class StorageAttachedIndex implements Index
 
             assert indexGroup != null : "Index group does not exist for table";
 
-            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, IndexValidation.BASIC);
+            Collection<SSTableReader> nonIndexed = findNonIndexedSSTables(baseCfs, indexGroup, IndexValidation.HEADER_FOOTER);
 
             if (nonIndexed.isEmpty())
             {
