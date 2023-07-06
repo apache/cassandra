@@ -48,7 +48,7 @@ import static org.apache.cassandra.simulator.asm.InterceptClasses.Cached.Kind.UN
 // WARNING: does not implement IClassTransformer directly as must be accessible to bootstrap class loader
 public class InterceptClasses implements BiFunction<String, byte[], byte[]>
 {
-    public static final int BYTECODE_VERSION = Opcodes.ASM7;
+    public static final int BYTECODE_VERSION = Opcodes.ASM9;
 
     // TODO (cleanup): use annotations
     private static final Pattern MONITORS = Pattern.compile( "org[/.]apache[/.]cassandra[/.]utils[/.]concurrent[/.].*" +
