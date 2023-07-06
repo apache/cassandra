@@ -42,7 +42,6 @@ import static org.awaitility.Awaitility.await;
 public class ConcurrencyFactorTest extends TestBaseImpl
 {
     private static final String SAI_TABLE = "sai_simple_primary_key";
-
     private static final int NODES = 3;
 
     private Cluster cluster;
