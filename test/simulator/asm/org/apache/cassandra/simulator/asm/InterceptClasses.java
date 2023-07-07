@@ -96,19 +96,24 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     class SubTransformer implements BiFunction<String, byte[], byte[]>
     {
         private final Map<String, byte[]> isolatedCache = new ConcurrentHashMap<>();
+        private final int id;
+        SubTransformer(int id)
+        {
+            this.id = id;
+        }
 
         @Override
         public byte[] apply(String name, byte[] bytes)
         {
-            return transformTransitiveClosure(name, bytes, isolatedCache);
+            return transformTransitiveClosure(name, bytes, isolatedCache, id);
         }
     }
 
     private final Map<String, Cached> cache = new ConcurrentHashMap<>();
 
     private final int api;
-    private final ChanceSupplier nemesisChance;
-    private final ChanceSupplier monitorDelayChance;
+    private final DeterministicChanceSupplier nemesisChance;
+    private final DeterministicChanceSupplier monitorDelayChance;
     private final Hashcode insertHashcode;
     private final NemesisFieldKind.Selector nemesisFieldSelector;
     private final ClassLoader prewarmClassLoader;
@@ -116,12 +121,12 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     private final byte[] bufIn = new byte[4096];
     private final ByteArrayOutputStream bufOut = new ByteArrayOutputStream();
 
-    public InterceptClasses(ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
+    public InterceptClasses(DeterministicChanceSupplier monitorDelayChance, DeterministicChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
     {
         this(BYTECODE_VERSION, monitorDelayChance, nemesisChance, nemesisFieldSelector, prewarmClassLoader, prewarm);
     }
 
-    public InterceptClasses(int api, ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
+    public InterceptClasses(int api, DeterministicChanceSupplier monitorDelayChance, DeterministicChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
     {
         this.api = api;
         this.nemesisChance = nemesisChance;
@@ -135,10 +140,10 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
     @Override
     public byte[] apply(String name, byte[] bytes)
     {
-        return transformTransitiveClosure(name, bytes, null);
+        return transformTransitiveClosure(name, bytes, null, 0);
     }
 
-    private synchronized byte[] transformTransitiveClosure(String externalName, byte[] input, Map<String, byte[]> isolatedCache)
+    private synchronized byte[] transformTransitiveClosure(String externalName, byte[] input, Map<String, byte[]> isolatedCache, int id)
     {
         if (input == null)
             return maybeSynthetic(externalName);
@@ -164,12 +169,12 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
                     case UNMODIFIED:
                         return input;
                     case UNSHAREABLE:
-                        return transform(internalName, externalName, null, input, null, null);
+                        return transform(internalName, externalName, null, input, null, id, null);
                 }
             }
 
             for (String peer : cached.uncacheablePeers)
-                transform(peer, slashesToDots(peer), null, cache.get(peer).bytes, isolatedCache, null);
+                transform(peer, slashesToDots(peer), null, cache.get(peer).bytes, isolatedCache, id, null);
 
             switch (cached.kind)
             {
@@ -192,13 +197,13 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
         };
 
         final PeerGroup peerGroup = new PeerGroup();
-        byte[] result = transform(internalName, externalName, peerGroup, input, isolatedCache, dependentTypeConsumer);
+        byte[] result = transform(internalName, externalName, peerGroup, input, isolatedCache, id, dependentTypeConsumer);
         for (String next = load.pollFirst(); next != null; next = load.pollFirst())
         {
             // TODO (now): otherwise merge peer groups
             Cached existing = cache.get(next);
             if (existing == null)
-                transform(next, slashesToDots(next), peerGroup, read(next), isolatedCache, dependentTypeConsumer);
+                transform(next, slashesToDots(next), peerGroup, read(next), isolatedCache, id, dependentTypeConsumer);
         }
 
         return result;
@@ -222,7 +227,7 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
         }
     }
 
-    private byte[] transform(String internalName, String externalName, PeerGroup peerGroup, byte[] input, Map<String, byte[]> isolatedCache, Consumer<String> dependentTypes)
+    private byte[] transform(String internalName, String externalName, PeerGroup peerGroup, byte[] input, Map<String, byte[]> isolatedCache, int id, Consumer<String> dependentTypes)
     {
         Hashcode hashcode = insertHashCode(externalName);
 
@@ -247,7 +252,8 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
             return input;
         }
 
-        ClassTransformer transformer = new ClassTransformer(api, internalName, flags, monitorDelayChance, new NemesisGenerator(api, internalName, nemesisChance), nemesisFieldSelector, hashcode, dependentTypes);
+        int chanceSeed = internalName.hashCode() * 31 + id;
+        ClassTransformer transformer = new ClassTransformer(api, internalName, flags, monitorDelayChance.apply(chanceSeed), new NemesisGenerator(api, internalName, nemesisChance.apply(chanceSeed + 1)), nemesisFieldSelector, hashcode, dependentTypes);
         transformer.setUpdateVisibility(true);
         transformer.readAndTransform(input);
 
@@ -371,13 +377,15 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
 
             EnumSet<Flag> flags = EnumSet.of(Flag.GLOBAL_METHODS, Flag.MONITORS, Flag.LOCK_SUPPORT);
             if (NEMESIS.matcher(externalName).matches()) flags.add(Flag.NEMESIS);
-            NemesisGenerator nemesis = new NemesisGenerator(api, externalName, nemesisChance);
+
+            int hashCode = externalName.hashCode();
+            NemesisGenerator nemesis = new NemesisGenerator(api, externalName, nemesisChance.apply(hashCode));
 
             ShadowingTransformer transformer;
             transformer = new ShadowingTransformer(InterceptClasses.BYTECODE_VERSION,
                                                    originalType, shadowType, originalRootType, shadowRootType,
                                                    originalOuterTypePrefix, shadowOuterTypePrefix,
-                                                   flags, monitorDelayChance, nemesis, nemesisFieldSelector, null);
+                                                   flags, monitorDelayChance.apply(hashCode), nemesis, nemesisFieldSelector, null);
             transformer.readAndTransform(Utils.readDefinition(originalType + ".class"));
             return transformer.toBytes();
         }

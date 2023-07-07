@@ -67,7 +67,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.mindrot.jbcrypt.BCrypt;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 
 /**
@@ -131,17 +130,6 @@ public class CassandraRoleManager implements IRoleManager
             throw new RuntimeException(String.format("Invalid metadata has been detected for role %s", row.getString("role")), e);
         }
     };
-
-    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
-
-    static int getGensaltLogRounds()
-    {
-        int rounds = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getInt(10);
-        if (rounds < 4 || rounds > 30)
-            throw new ConfigurationException(String.format("Bad value for system property %s." +
-                                                           "Please use a value between 4 and 30 inclusively", AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey()));
-        return rounds;
-    }
 
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
@@ -656,9 +644,11 @@ public class CassandraRoleManager implements IRoleManager
                       .collect(Collectors.joining(","));
     }
 
+
+
     private static String hashpw(String password)
     {
-        return BCrypt.hashpw(password, BCrypt.gensalt(GENSALT_LOG2_ROUNDS));
+        return BCrypt.hashpw(password, PasswordSaltSupplier.get());
     }
 
     private static String escape(String name)
