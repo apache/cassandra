@@ -662,8 +662,9 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
         if (!(anyThread instanceof InterceptibleThread))
             return;
 
-        boolean restoreInterrupt = false;
+        // save any interrupt before testing random.decide, in case we are trapping these for verification
         InterceptibleThread thread = (InterceptibleThread) anyThread;
+        boolean restoreInterrupt = Thread.interrupted();
         try
         {
             if (   !thread.isEvaluationDeterministic()
@@ -674,8 +675,6 @@ public abstract class InterceptingMonitors implements InterceptorOfGlobalMethods
                 InterceptedConditionWait signal = new InterceptedConditionWait(NEMESIS, 0L, thread, captureWaitSite(thread), null);
                 thread.interceptWait(signal);
 
-                // save interrupt state to restore afterwards - new ones only arrive if terminating simulation
-                restoreInterrupt = Thread.interrupted();
                 while (true)
                 {
                     try

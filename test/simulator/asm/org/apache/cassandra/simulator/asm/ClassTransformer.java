@@ -300,6 +300,7 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
         {
             case FIELD_NEMESIS:
             case SIGNAL_NEMESIS:
+                // TODO: this isn't correct: we will share any class we choose not to insert nemesis points into on first transformation
                 isCacheablyTransformed = false;
         }
         methodLogger.witness(kind);
