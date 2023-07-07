@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 
+import org.apache.cassandra.auth.PasswordSaltSupplier;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
@@ -61,6 +62,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
+import org.apache.cassandra.simulator.asm.DeterministicChanceSupplier;
 import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
@@ -702,7 +704,24 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         });
 
         Predicate<String> sharedClassPredicate = getSharedClassPredicate(ISOLATE, SHARE, ANY, SIMULATION);
-        InterceptAsClassTransformer interceptClasses = new InterceptAsClassTransformer(builder.monitorDelayChance.asSupplier(random), builder.nemesisChance.asSupplier(random), NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate());
+        DeterministicChanceSupplier monitorDelayChance; {
+            long monitorDelayChanceSeed = random.uniform(0, Long.MAX_VALUE);
+            monitorDelayChance = hash -> {
+                RandomSource subRandom = new RandomSource.Default();
+                subRandom.reset(monitorDelayChanceSeed * 31 + hash);
+                return builder.monitorDelayChance.asSupplier(subRandom);
+            };
+        }
+        DeterministicChanceSupplier nemesisChance; {
+            long nemesisChanceSeed = random.uniform(0, Long.MAX_VALUE);
+            nemesisChance = hash -> {
+                RandomSource subRandom = new RandomSource.Default();
+                subRandom.reset(nemesisChanceSeed * 31 + hash);
+                return builder.nemesisChance.asSupplier(subRandom);
+            };
+        }
+
+        InterceptAsClassTransformer interceptClasses = new InterceptAsClassTransformer(monitorDelayChance, nemesisChance, NemesisFieldSelectors.get(), ClassLoader.getSystemClassLoader(), sharedClassPredicate.negate());
         threadLocalRandomCheck = new ThreadLocalRandomCheck(builder.onThreadLocalRandomCheck);
 
         Failures failures = builder.failures;
@@ -760,7 +779,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void beforeStartup(IInstance i)
                              {
+                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread(PasswordSaltSupplier::unsafeSet, () -> "$2a$05$rT01y27MnvpE7NgzwvYNFe");
                                  ((IInvokableInstance) i).unsafeAcceptOnThisThread(IfInterceptibleThread::setThreadLocalRandomCheck, (LongConsumer) threadLocalRandomCheck);
+
 
                                  int num = i.config().num();
                                  if (builder.memoryListener != null)
