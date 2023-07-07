@@ -25,12 +25,13 @@ import org.apache.cassandra.distributed.api.IClassTransformer;
 // an adapter to IClassTransformer that is loaded by the system classloader
 public class InterceptAsClassTransformer extends InterceptClasses implements IClassTransformer
 {
-    public InterceptAsClassTransformer(ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
+    private int subTransformerCount = 0;
+    public InterceptAsClassTransformer(DeterministicChanceSupplier monitorDelayChance, DeterministicChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
     {
         super(monitorDelayChance, nemesisChance, nemesisFieldSelector, prewarmClassLoader, prewarm);
     }
 
-    public InterceptAsClassTransformer(int api, ChanceSupplier monitorDelayChance, ChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
+    public InterceptAsClassTransformer(int api, DeterministicChanceSupplier monitorDelayChance, DeterministicChanceSupplier nemesisChance, NemesisFieldKind.Selector nemesisFieldSelector, ClassLoader prewarmClassLoader, Predicate<String> prewarm)
     {
         super(api, monitorDelayChance, nemesisChance, nemesisFieldSelector, prewarmClassLoader, prewarm);
     }
@@ -44,6 +45,6 @@ public class InterceptAsClassTransformer extends InterceptClasses implements ICl
     @Override
     public IClassTransformer initialise()
     {
-        return new SubTransformer()::apply;
+        return new SubTransformer(++subTransformerCount)::apply;
     }
 }

@@ -18,7 +18,15 @@
 package org.apache.cassandra.auth;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -36,22 +44,28 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.mindrot.jbcrypt.BCrypt;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -116,17 +130,6 @@ public class CassandraRoleManager implements IRoleManager
             throw new RuntimeException(String.format("Invalid metadata has been detected for role %s", row.getString("role")), e);
         }
     };
-
-    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
-
-    static int getGensaltLogRounds()
-    {
-        int rounds = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getInt(10);
-        if (rounds < 4 || rounds > 30)
-            throw new ConfigurationException(String.format("Bad value for system property %s." +
-                                                           "Please use a value between 4 and 30 inclusively", AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey()));
-        return rounds;
-    }
 
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
@@ -635,9 +638,11 @@ public class CassandraRoleManager implements IRoleManager
                       .collect(Collectors.joining(","));
     }
 
+
+
     private static String hashpw(String password)
     {
-        return BCrypt.hashpw(password, BCrypt.gensalt(GENSALT_LOG2_ROUNDS));
+        return BCrypt.hashpw(password, PasswordSaltSupplier.get());
     }
 
     private static String escape(String name)
