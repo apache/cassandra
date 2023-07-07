@@ -123,17 +123,26 @@ public class SelfReconcile
 
             if (events.size() == 1)
             {
-                int cur = counter;
-                while (cur == counter)
+                boolean restoreInterrupt = Thread.interrupted();
+                try
                 {
-                    try
+                    int cur = counter;
+                    while (cur == counter)
                     {
-                        wait();
+                        try
+                        {
+                            wait();
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new UncheckedInterruptedException(e);
+                        }
                     }
-                    catch (InterruptedException e)
-                    {
-                        throw new UncheckedInterruptedException(e);
-                    }
+                }
+                finally
+                {
+                    if (restoreInterrupt)
+                        Thread.currentThread().interrupt();
                 }
             }
             else

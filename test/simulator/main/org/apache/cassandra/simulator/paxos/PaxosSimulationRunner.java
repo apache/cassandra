@@ -22,15 +22,21 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.SimulationRunner;
+import org.apache.cassandra.simulator.SimulatorUtils;
 
 public class PaxosSimulationRunner extends SimulationRunner
 {
+    private static Logger logger = LoggerFactory.getLogger(PaxosSimulationRunner.class);
+
     @Command(name = "run")
     public static class Run extends SimulationRunner.Run<PaxosClusterSimulation.Builder>
     {
@@ -134,6 +140,7 @@ public class PaxosSimulationRunner extends SimulationRunner
      */
     public static void main(String[] args) throws IOException
     {
+        SimulatorUtils.verifyAndlogSimulatorArgs(logger, args);
         PaxosClusterSimulation.Builder builder = new PaxosClusterSimulation.Builder();
         builder.unique(uniqueNum.getAndIncrement());
 
