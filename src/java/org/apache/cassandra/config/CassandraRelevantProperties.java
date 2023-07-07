@@ -21,14 +21,12 @@ package org.apache.cassandra.config;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.service.FileSystemOwnershipCheck;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
@@ -52,7 +50,7 @@ public enum CassandraRelevantProperties
     ALLOW_UNSAFE_TRANSIENT_CHANGES("cassandra.allow_unsafe_transient_changes"),
     APPROXIMATE_TIME_PRECISION_MS("cassandra.approximate_time_precision_ms", "2"),
     /** 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed. */
-    AUTH_BCRYPT_GENSALT_LOG2_ROUNDS("cassandra.auth_bcrypt_gensalt_log2_rounds"),
+    AUTH_BCRYPT_GENSALT_LOG2_ROUNDS("cassandra.auth_bcrypt_gensalt_log2_rounds", "4"),
     /** We expect default values on cache retries and interval to be sufficient for everyone but have this escape hatch just in case. */
     AUTH_CACHE_WARMING_MAX_RETRIES("cassandra.auth_cache.warming.max_retries"),
     AUTH_CACHE_WARMING_RETRY_INTERVAL_MS("cassandra.auth_cache.warming.retry_interval_ms"),
@@ -222,10 +220,10 @@ public enum CassandraRelevantProperties
     FILE_SYSTEM_CHECK_ENABLE("cassandra.enable_fs_ownership_check"),
     /** @deprecated should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck) */
     @Deprecated
-    FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME("cassandra.fs_ownership_filename", FileSystemOwnershipCheck.DEFAULT_FS_OWNERSHIP_FILENAME),
+    FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME("cassandra.fs_ownership_filename", ".cassandra_fs_ownership"),
     /** @deprecated should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck) */
     @Deprecated
-    FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
+    FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN("CassandraOwnershipToken"),
     FORCE_DEFAULT_INDEXING_PAGE_SIZE("cassandra.force_default_indexing_page_size"),
     /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
     FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
@@ -309,8 +307,8 @@ public enum CassandraRelevantProperties
     JAVA_VM_NAME("java.vm.name"),
     JOIN_RING("cassandra.join_ring", "true"),
     /**
-     * {@link StorageCompatibilityMode} mode sets how the node will behave, sstable or messaging versions to use etc according to a yaml setting. 
-     * But many tests don't load the config hence we need to force it otherwise they would run always under the default. Config is null for junits 
+     * {@link StorageCompatibilityMode} mode sets how the node will behave, sstable or messaging versions to use etc according to a yaml setting.
+     * But many tests don't load the config hence we need to force it otherwise they would run always under the default. Config is null for junits
      * that don't load the config. Get from env var that CI/build.xml sets.
      *
      * This is a dev/CI only property. Do not use otherwise.
