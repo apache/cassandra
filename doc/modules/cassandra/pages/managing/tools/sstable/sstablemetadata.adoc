@@ -40,11 +40,11 @@ $ sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6
 SSTable: /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big
 Partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 Bloom Filter FP chance: 0.010000
-Minimum timestamp: 06/28/2023 15:15:04 (1687979704767589)
-Maximum timestamp: 06/28/2023 15:15:09 (1687979709601420)
-Duration: Days: 0 Hours: 0 Minutes: 0 Seconds: 4
-SSTable min local deletion time: 08/17/292278994 02:12:55 (9223372036854775807)
-SSTable max local deletion time: 08/17/292278994 02:12:55 (9223372036854775807)
+Minimum timestamp: 07/08/2023 09:11:52 (1688800312685792)
+Maximum timestamp: 07/08/2023 09:12:03 (1688800323542149)
+Duration: Days: 0 Hours: 0 Minutes: 0 Seconds: 10
+SSTable min local deletion time: 07/08/2023 09:11:52 (1688800312)
+SSTable max local deletion time: 07/08/2023 09:12:03 (1688800323)
 Compressor: org.apache.cassandra.io.compress.LZ4Compressor
 Compression ratio: 0.553999337227618
 TTL min: 86400
@@ -263,6 +263,32 @@ $ sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/stan
 Estimated droppable tombstones: 0.0
 ....
 
+== Scanning of a table
+
+It is possible to specify `--scan` option to get additional statistics about a table which might be time-consuming.
+
+Example
+
+....
+sstablemetadata -s /var/lib/cassandra/data/data/ks/tb-dbead8501c9511ee805bb3deafc4499b/nc-1-big-Data.db
+....
+
+This gives you statistics such as:
+
+....
+Size: 120
+Partitions: 2
+Rows: 5
+Tombstones: 0
+Cells: 5
+Widest Partitions:
+  [2] 3
+  [1] 2
+Largest Partitions:
+  [2] 147 (147 B)
+  [1] 98 (98 B)
+....
+
 == Explanation of each value printed above
 
 |===
@@ -279,8 +305,7 @@ timestamp of any entry in this sstable, in epoch microseconds
 |Maximum
 timestamp |maximum timestamp of any entry in this sstable, in epoch
 microseconds
-|Duration |Difference between Maximum timestamp
-and Minimum timestamp
+|Duration |Difference between Maximum timestamp and Minimum timestamp
 |SSTable min local deletion time |minimum timestamp of
 deletion date, based on TTL, in epoch seconds 
 |SSTable max local deletion
@@ -302,10 +327,9 @@ sstable, if leveled compaction (LCS) is used
 this sstable was marked as repaired via sstablerepairedset, in epoch
 milliseconds 
 |Replay positions covered |the interval of time and commitlog
-positions related to this sstable 
-|Total Columns Cells |number of cells in the table
-|Total Rows |number of rows in the table
-|Total Partitions |total number of partitions
+positions related to this sstable
+|totalColumnsSet |number of cells in the table
+|totalRows |number of rows in the table
 |Estimated tombstone drop
 times |approximate number of rows that will expire, ordered by epoch
 seconds 

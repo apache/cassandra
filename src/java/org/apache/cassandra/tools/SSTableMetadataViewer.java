@@ -71,8 +71,6 @@ import static org.apache.cassandra.tools.Util.WHITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
-import org.apache.cassandra.io.sstable.KeyIterator;
-
 /**
  * Shows the contents of sstable metadata
  */
@@ -115,7 +113,7 @@ public class SSTableMetadataViewer
 
     public static String deletion(long time)
     {
-        if (time == 0 || time == Integer.MAX_VALUE)
+        if (time == 0 || time == Long.MAX_VALUE)
         {
             return "no tombstones";
         }
@@ -323,20 +321,6 @@ public class SSTableMetadataViewer
         CompactionMetadata compaction = statsComponent.compactionMetadata();
         SerializationHeader.Component header = statsComponent.serializationHeader();
         Class<? extends ICompressor> compressorClass = null;
-
-        TableMetadata metadata = Util.metadataFromSSTable(descriptor);
-        SSTableReader sstable = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(metadata));
-        int count = 0;
-        
-        try (KeyIterator iter = sstable.keyIterator())
-        {
-            while (iter.hasNext()) 
-            {
-                iter.next();
-                count += 1;
-            }
-        }
-
         try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor))
         {
             compressorClass = compression != null ? compression.compressor().getClass() : null;
@@ -381,8 +365,8 @@ public class SSTableMetadataViewer
             field("Originating host id", stats.originatingHostId);
             field("Pending repair", stats.pendingRepair);
             field("Replay positions covered", stats.commitLogIntervals);
-            field("Total Column Cells", stats.totalColumnsSet);
-            field("Total Rows", stats.totalRows);
+            field("totalColumnsSet", stats.totalColumnsSet);
+            field("totalRows", stats.totalRows);
             field("Estimated tombstone drop times", "");
 
             TermHistogram estDropped = new TermHistogram(stats.estimatedTombstoneDropTime,
@@ -394,7 +378,6 @@ public class SSTableMetadataViewer
                                                          String::valueOf);
             estDropped.printHistogram(out, color, unicode);
             field("Partition Size", "");
-            field("Total Partitions", count);
             TermHistogram rowSize = new TermHistogram(stats.estimatedPartitionSize,
                                                       "Size (bytes)",
                                                       offset -> String.format("%d %s",
