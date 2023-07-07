@@ -117,6 +117,14 @@
         <cve>CVE-2018-11798</cve>
         <cve>CVE-2019-0205</cve>
     </suppress>
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/com\.thinkaurelius\.thrift/thrift-server@.*$</packageUrl>
+        <cve>CVE-2015-3254</cve>
+        <cve>CVE-2016-5397</cve>
+        <cve>CVE-2018-1320</cve>
+        <cve>CVE-2018-11798</cve>
+        <cve>CVE-2019-0205</cve>
+    </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
     <suppress>
@@ -124,6 +132,8 @@
         <cve>CVE-2022-42003</cve>
         <cve>CVE-2022-42004</cve>
         <cve>CVE-2023-35116</cve>
+	<cve>CVE-2022-42003</cve>
+	<cve>CVE-2022-42004</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-18643 -->
