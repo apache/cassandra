@@ -30,6 +30,7 @@ import org.junit.Test;
 import harry.core.Configuration;
 import harry.ddl.SchemaSpec;
 import harry.visitors.MutatingVisitor;
+import harry.visitors.QueryLogger;
 import harry.visitors.RandomPartitionValidator;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
@@ -89,7 +90,7 @@ public class BounceGossipTest extends TestBaseImpl
                     new FlaggedRunner(config.createRun(),
                                       config,
                                       asList(pool("Writer", 1, MutatingVisitor::new),
-                                             pool("Reader", 1, RandomPartitionValidator::new)),
+                                             pool("Reader", 1, (run) -> new RandomPartitionValidator(run, new Configuration.QuiescentCheckerConfig(), QueryLogger.NO_OP))),
                                       stopLatch).run();
                 }
                 catch (Throwable e)

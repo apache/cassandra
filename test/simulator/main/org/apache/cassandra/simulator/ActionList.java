@@ -123,6 +123,13 @@ public class ActionList extends AbstractCollection<Action>
         return this;
     }
 
+    public ActionList orderOn(OrderOn orderOn)
+    {
+        if (isEmpty()) return this;
+        forEach(a -> a.orderOn(orderOn));
+        return this;
+    }
+
     public Throwable safeForEach(Consumer<Action> forEach)
     {
         Throwable result = null;

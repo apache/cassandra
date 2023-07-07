@@ -118,7 +118,8 @@ public class Move extends InProgressSequence<Move>
     {
         if (next == Transformation.Kind.START_MOVE)
             return ProgressBarrier.immediate();
-        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey));
+        ClusterMetadata metadata = ClusterMetadata.current();
+        return new ProgressBarrier(latestModification, metadata.directory.location(nodeId()), metadata.current().lockedRanges.locked.get(lockKey));
     }
 
     @Override

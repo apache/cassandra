@@ -146,4 +146,16 @@ public class HarryHelper
                                         .addWeight(OpSelectors.OperationKind.UPDATE, 20)
                                         .build());
     }
+
+    public static Configuration.CDSelectorConfigurationBuilder singleRowPerModification()
+    {
+        return new Configuration.CDSelectorConfigurationBuilder()
+               .setNumberOfModificationsDistribution(new Configuration.ConstantDistributionConfig(1))
+               .setRowsPerModificationDistribution(new Configuration.ConstantDistributionConfig(1))
+               .setMaxPartitionSize(100)
+               .setOperationKindWeights(new Configuration.OperationKindSelectorBuilder()
+                                        .addWeight(OpSelectors.OperationKind.INSERT_WITH_STATICS, 100)
+                                        .build());
+    }
 }
+

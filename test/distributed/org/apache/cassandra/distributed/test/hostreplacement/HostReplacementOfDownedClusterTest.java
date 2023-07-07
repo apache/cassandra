@@ -36,6 +36,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
+
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertNotInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingHealthy;
@@ -69,7 +70,9 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         // start with 2 nodes, stop both nodes, start the seed, host replace the down node)
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                                        .set("progress_barrier_timeout", "1000ms")
+                                                        .set("progress_barrier_backoff", "100ms"))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
@@ -119,7 +122,10 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         int numStartNodes = 3;
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
-                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                                       .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE)
+                                                        .set("progress_barrier_timeout", "1000ms")
+                                                        .set("progress_barrier_backoff", "100ms"))
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {

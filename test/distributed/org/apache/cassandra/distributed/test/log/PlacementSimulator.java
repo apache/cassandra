@@ -1778,5 +1778,12 @@ public class PlacementSimulator
 
             return new ReplicatedRanges(ranges, Collections.unmodifiableNavigableMap(replication));
         }
+
+        public String toString()
+        {
+            return "SimpleReplicationFactor{" +
+                   "rf=" + total() +
+                   '}';
+        }
     }
 }

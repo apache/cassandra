@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -41,7 +40,6 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.DistributedSchema;
@@ -74,14 +72,12 @@ import static org.apache.cassandra.tcm.ClusterMetadataService.State.*;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
-
 public class ClusterMetadataService
 {
     private static final Logger logger = LoggerFactory.getLogger(ClusterMetadataService.class);
 
     private static ClusterMetadataService instance;
     private static Throwable trace;
-    public static final TCMMetrics metrics = new TCMMetrics();
 
     public static void setInstance(ClusterMetadataService newInstance)
     {
@@ -294,7 +290,7 @@ public class ClusterMetadataService
         // want to block the operation at that point, since for the purpose of executing CMS operations, we have already
         // stopped being a CMS node, and for the purpose of either continuing or starting a leave sequence, we will not
         // be able to collect a majority of CMS nodes during commit.
-        new ProgressBarrier(epoch, EntireRange.affectedRanges).await();
+        new ProgressBarrier(epoch, metadata.directory.location(metadata.myNodeId()), EntireRange.affectedRanges).await();
     }
 
     public void addToCms(List<String> ignoredEndpoints)
@@ -461,7 +457,6 @@ public class ClusterMetadataService
     public ClusterMetadata commit(Transformation transform)
     {
         return commit(transform,
-                      (metadata) -> false,
                       (metadata) -> metadata,
                       (metadata, code, reason) -> {
                           throw new IllegalStateException(reason);
@@ -478,7 +473,7 @@ public class ClusterMetadataService
         T accept(ClusterMetadata latest, ExceptionCode code, String message);
     }
 
-    public <T1> T1 commit(Transformation transform, Predicate<ClusterMetadata> retry, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
+    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
     {
         if (commitsPaused.get())
             throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
@@ -510,11 +505,10 @@ public class ClusterMetadataService
             {
                 ClusterMetadata metadata = fetchLogFromCMS();
 
+                // For now, we retry unconditionally on non-rejection cases. We might need a better solution (for example, using EntryId).
+                // If we have decided _not_ to retry, there is a chance we got a rejection, in which case we need to find if we have discovered commit of the current transformation.
                 if (result.failure().rejected)
                     return onReject.accept(metadata, result.failure().code, result.failure().message);
-
-                if (!retry.test(metadata))
-                    throw new IllegalStateException(String.format("Committing transformation %s failed and retry criteria was not satisfied. Current tries: %s", transform, backoff.tries + 1));
 
                 logger.info("Couldn't commit the transformation due to \"{}\". Retrying again in {}ms.", result.failure().message, backoff.backoffMs);
                 // Back-off and retry
@@ -739,7 +733,6 @@ public class ClusterMetadataService
     public ClusterMetadata sealPeriod()
     {
         return ClusterMetadataService.instance.commit(SealPeriod.instance,
-                                                      (ClusterMetadata metadata) -> metadata.lastInPeriod,
                                                       (ClusterMetadata metadata) -> metadata,
                                                       (metadata, code, reason) -> {
                                                           // If the transformation got rejected, someone else has beat us to seal this period

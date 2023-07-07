@@ -53,6 +53,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -726,7 +727,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new RuntimeException("Could not finish waiting until listening", e);
         }
-        boolean finishJoiningRing = !isSurveyMode;
 
         if (ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
         {
@@ -775,7 +775,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     // todo: move somewhere to sequences?
-    public void startup(boolean finishJoiningRing)
+    @VisibleForTesting
+    public void startup(Supplier<Transformation> startupSequence, boolean finishJoiningRing)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId self = metadata.myNodeId();
@@ -791,8 +792,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (isReplacing())
                     maybeHandoverCMS(metadata, DatabaseDescriptor.getReplaceAddress());
 
-                ClusterMetadataService.instance().commit(getStartupSequence(finishJoiningRing),
-                                                         (metadata_) -> !metadata_.inProgressSequences.contains(self),
+                ClusterMetadataService.instance().commit(startupSequence.get(),
                                                          (metadata_) -> null,
                                                          (metadata_, code, reason) -> {
                                                              InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
@@ -875,7 +875,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean cancelInProgressSequences(NodeId sequenceOwner)
     {
         return ClusterMetadataService.instance().commit(new CancelInProgressSequence(sequenceOwner),
-                                                        (ClusterMetadata metadata) -> metadata.inProgressSequences.contains(sequenceOwner),
                                                         metadata -> true,
                                                         (metadata, code, message) -> {
                                                             // Succeeded following rejection; possibly we raced with another cancellation request
@@ -902,7 +901,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         servicesInitialized = true;
     }
 
-    private Transformation getStartupSequence(boolean finishJoiningRing)
+    private Transformation getStartupSequence(boolean finishJoiningRing, boolean shouldBootstrap)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         if (isReplacing())
@@ -926,9 +925,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                       metadata.myNodeId(),
                                       ClusterMetadataService.instance().placementProvider(),
                                       finishJoiningRing,
-                                      shouldBootstrap());
+                                      shouldBootstrap);
         }
-        else if (finishJoiningRing && !shouldBootstrap())
+        else if (finishJoiningRing && !shouldBootstrap)
         {
             return new UnsafeJoin(metadata.myNodeId(),
                                   new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), getBroadcastAddressAndPort())),
@@ -941,7 +940,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                    new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), getBroadcastAddressAndPort())),
                                    ClusterMetadataService.instance().placementProvider(),
                                    finishJoiningRing,
-                                   shouldBootstrap());
+                                   shouldBootstrap);
         }
     }
 
@@ -998,7 +997,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Joining ring by operator request");
             try
             {
-                startup(!isSurveyMode);
+                boolean finishJoiningRing = !isSurveyMode;
+                startup(() -> getStartupSequence(finishJoiningRing, shouldBootstrap()), finishJoiningRing);
             }
             catch (ConfigurationException e)
             {
@@ -3605,7 +3605,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // want to block the operation at that point, since for the purpose of executing CMS operations, we have already
             // stopped being a CMS node, and for the purpose of either continuing or starting a leave sequence, we will not
             // be able to collect a majority of CMS nodes during commit.
-            new ProgressBarrier(epoch, EntireRange.affectedRanges).await();
+            new ProgressBarrier(epoch, metadata.directory.location(metadata.myNodeId()), EntireRange.affectedRanges).await();
         }
     }
 
@@ -3632,7 +3632,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                       force,
                                                                       ClusterMetadataService.instance().placementProvider(),
                                                                       LeaveStreams.Kind.UNBOOTSTRAP),
-                                                     (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                      (metadata_) -> null,
                                                      (metadata_, code, reason) -> {
                                                          InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
@@ -3760,7 +3759,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                  Collections.singleton(newToken),
                                                                  ClusterMetadataService.instance().placementProvider(),
                                                                  true),
-                                                 (metadata_) -> !metadata_.inProgressSequences.contains(self),
                                                  (metadata_) -> null,
                                                  (metadata_, code, reason) -> {
                                                      InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
@@ -3873,7 +3871,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                   force,
                                                                   ClusterMetadataService.instance().placementProvider(),
                                                                   LeaveStreams.Kind.REMOVENODE),
-                                                 (metadata_) -> !metadata_.inProgressSequences.contains(toRemove),
                                                  (metadata_) -> null,
                                                  (metadata_, code, reason) -> {
                                                      InProgressSequence<?> sequence = metadata_.inProgressSequences.get(toRemove);
@@ -3896,11 +3893,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             NodeId nodeId = ClusterMetadata.current().directory.peerId(endpoint);
             ClusterMetadataService.instance().commit(new Assassinate(nodeId,
                                                                      ClusterMetadataService.instance().placementProvider()),
-                                                     (metadata) -> !metadata.directory.peerIds().contains(nodeId),
-                                                     (metadata) -> null,
-                                                     (metadata, code, reason) -> {
-                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
-                                                                                                       reason));
+                                                     (metadata_) -> null,
+                                                     (metadata_, code, reason) -> {
+                                                         if (metadata_.directory.peerIds().contains(nodeId))
+                                                         {
+                                                             throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting assassinate node.",
+                                                                                                           reason));
+                                                         }
+                                                         return null;
                                                      });
         }
         catch (UnknownHostException e)
@@ -5803,7 +5803,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String dumpClusterMetadata() throws IOException
     {
-        return dumpClusterMetadata(Epoch.EMPTY.getEpoch(), ClusterMetadata.current().epoch.getEpoch() + 1000, Version.V0.toString());
+        return dumpClusterMetadata(Epoch.EMPTY.getEpoch(), ClusterMetadata.current().epoch.getEpoch() + 1000, org.apache.cassandra.tcm.serialization.Version.V0.toString());
     }
 
     @Override

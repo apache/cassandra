@@ -45,6 +45,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
+import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -79,7 +80,6 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
     {
         InProgressSequence<?> sequence = ClusterMetadataService.instance()
                                                                .commit(new StartAddToCMS(addr),
-                                                                       (metadata) -> !metadata.inProgressSequences.contains(nodeId),
                                                                        (metadata) -> metadata.inProgressSequences.get(nodeId),
                                                                        (metadata, code, reason) -> {
                                                                            InProgressSequence<?> sequence_ = metadata.inProgressSequences.get(nodeId);
@@ -182,7 +182,6 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
         {
             streamRanges();
             commit(finishJoin);
-            repairPaxosTopology();
         }
         catch (Throwable t)
         {

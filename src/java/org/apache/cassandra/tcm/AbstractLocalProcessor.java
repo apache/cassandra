@@ -86,6 +86,7 @@ public abstract class AbstractLocalProcessor implements Processor
      */
     private Transformation.Result commitLocally(Entry.Id entryId, Transformation transform) throws InterruptedException, TimeoutException
     {
+        // TODO: we need to add deadlines to CMS-local tasks, so that their retries would not exacerbate remote CMS ones
         Retry.Jitter jitter = new Retry.Jitter();
         while (true)
         {
@@ -96,7 +97,7 @@ public abstract class AbstractLocalProcessor implements Processor
             // if we're rejected, just try to catch up to the latest distributed state
             if (result.isRejected())
             {
-                Epoch replayed = replayAndWait(jitter).epoch;
+                Epoch replayed = fetchLogAndWait(jitter).epoch;
 
                 // Retry if replay has changed the epoch, return rejection otherwise.
                 if (!replayed.isAfter(previous.epoch))
@@ -127,7 +128,7 @@ public abstract class AbstractLocalProcessor implements Processor
             else
             {
                 // It may happen that we have raced with a different processor, in which case we need to catch up and retry.
-                replayAndWait(jitter);
+                fetchLogAndWait(jitter);
                 jitter.maybeSleep();
             }
         }
@@ -136,12 +137,12 @@ public abstract class AbstractLocalProcessor implements Processor
     @Override
     public final ClusterMetadata fetchLogAndWait()
     {
-        return replayAndWait(new Retry.Jitter());
+        return fetchLogAndWait(new Retry.Jitter());
     }
 
-    protected final ClusterMetadata replayAndWait(Retry retry)
+    protected final ClusterMetadata fetchLogAndWait(Retry.Jitter retry)
     {
-        while (true)
+        while (!retry.reachedMax())
         {
             try
             {
@@ -150,10 +151,10 @@ public abstract class AbstractLocalProcessor implements Processor
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                if (retry.reachedMax())
-                    throw new IllegalStateException(String.format("Could not succeed with replay after %s tries.", retry.currentTries()));
             }
         }
+
+        throw new IllegalStateException(String.format("Could not succeed with replay after %s tries.", retry.currentTries()));
     }
 
     protected abstract ClusterMetadata tryReplayAndWait();

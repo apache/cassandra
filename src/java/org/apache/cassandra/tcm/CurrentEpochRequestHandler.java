@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -34,5 +35,7 @@ public class CurrentEpochRequestHandler implements IVerbHandler<NoPayload>
         // TODO maintain a cache of peers' watermarks.
         Message<NoPayload> response = message.emptyResponse();
         MessagingService.instance().send(response, message.from());
+        // We try to catch up after responding, as watermark request is going to get retried
+        ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().maybeFetchLog(message.epoch()));
     }
 }

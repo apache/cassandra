@@ -115,7 +115,6 @@ public class Register implements Transformation
                 ClusterMetadataService.instance().commit(new Unregister(nodeId));
             nodeId = ClusterMetadataService.instance()
                                            .commit(new Register(nodeAddresses, location, nodeVersion),
-                                                   (metadata_) -> !metadata_.directory.isRegistered(nodeAddresses.broadcastAddress),
                                                    (metadata_) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress),
                                                    (metadata_, code, reason) -> metadata_.directory.peerId(nodeAddresses.broadcastAddress));
         }

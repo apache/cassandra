@@ -36,6 +36,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
+import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogReader;
@@ -175,7 +176,20 @@ public final class DistributedMetadataLogKeyspace
     @VisibleForTesting
     public static LogState getLogState(Epoch since, MetadataSnapshots snapshots)
     {
-        return LogState.getLogState(since, snapshots, logReader);
+        Retry retry = new Retry.Jitter();
+        while (!retry.reachedMax())
+        {
+            try
+            {
+                return LogState.getLogState(since, snapshots, logReader);
+            }
+            catch (Throwable t)
+            {
+                retry.maybeSleep();
+            }
+        }
+
+        throw new IllegalStateException(String.format("Could not suceed retrieving log state after %s tries.", retry.currentTries()));
     }
 
     private static class DistributedLogReader implements LogReader

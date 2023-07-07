@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,6 +40,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
@@ -63,14 +64,13 @@ public final class RemoteProcessor implements Processor
     private static final Logger logger = LoggerFactory.getLogger(RemoteProcessor.class);
     private final Supplier<Collection<InetAddressAndPort>> discoveryNodes;
     private final LocalLog log;
-    private final Debounce<ClusterMetadata> replayAndWaitDebounced;
-
+    private final Debounce<ClusterMetadata> fetchLogAndWaitDebounced;
 
     RemoteProcessor(LocalLog log, Supplier<Collection<InetAddressAndPort>> discoveryNodes)
     {
         this.log = log;
         this.discoveryNodes = discoveryNodes;
-        this.replayAndWaitDebounced = new Debounce<>(this::replayAndWaitInternal);
+        this.fetchLogAndWaitDebounced = new Debounce<>(this::replayAndWaitInternal);
     }
 
     @Override
@@ -123,32 +123,25 @@ public final class RemoteProcessor implements Processor
     @Override
     public ClusterMetadata fetchLogAndWait()
     {
-        Retry.Backoff backoff = new Retry.Backoff();
-
-        while (!backoff.reachedMax())
+        try
         {
-            try
-            {
-                return replayAndWaitDebounced.getAsync().get(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException("Can not replay during shutdown", e);
-            }
-            catch (ExecutionException | TimeoutException e)
-            {
-                backoff.maybeSleep();
-            }
+            return fetchLogAndWaitDebounced.getAsync().get();
         }
-
-        throw new IllegalStateException(String.format("Could not succeed replaying after %d tries", backoff.maxTries));
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Can not replay during shutdown", e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException("Could not replay", e);
+        }
     }
 
-    @SuppressWarnings("resource")
     private ClusterMetadata replayAndWaitInternal()
     {
         Epoch lastConsecutive = log.replayPersisted();
 
+        // TODO: make sure we do not exacerbate client-driven retries
         LogState replay = sendWithCallback(Verb.TCM_FETCH_CMS_LOG_REQ,
                                            new FetchCMSLog(lastConsecutive, ClusterMetadataService.state() == REMOTE),
                                            new CandidateIterator(candidates(true), false),
@@ -157,7 +150,7 @@ public final class RemoteProcessor implements Processor
         {
             logger.info("Replay request returned replay data: {}", replay);
             log.append(replay);
-            ClusterMetadataService.metrics.cmsLogEntriesFetched(lastConsecutive, replay.latestEpoch());
+            TCMMetrics.instance.cmsLogEntriesFetched(lastConsecutive, replay.latestEpoch());
         }
 
         return log.waitForHighestConsecutive();
@@ -165,51 +158,59 @@ public final class RemoteProcessor implements Processor
 
     public static <REQ, RSP> RSP sendWithCallback(Verb verb, REQ request, CandidateIterator candidates, Retry.Backoff backoff)
     {
-        if (!candidates.hasNext())
-            throw new IllegalStateException("Could not find a CMS instance " + candidates);
-
         while (!backoff.reachedMax())
         {
+            if (!candidates.hasNext())
+                throw new IllegalStateException("Could not find a CMS instance " + candidates);
+
             AsyncPromise<RSP> promise = new AsyncPromise<>();
-
+            InetAddressAndPort currentCandidate = candidates.next();
             MessagingService.instance().sendWithCallback(Message.out(verb, request),
-                                                         candidates.next(),
+                                                         currentCandidate,
                                                          new RequestCallbackWithFailure<RSP>()
-            {
-                @Override
-                public void onResponse(Message<RSP> msg)
-                {
-                    promise.trySuccess(msg.payload);
-                }
+                                                         {
+                                                             @Override
+                                                             public void onResponse(Message<RSP> msg)
+                                                             {
+                                                                 promise.trySuccess(msg.payload);
+                                                             }
 
-                @Override
-                public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
-                {
-                    if (reason == RequestFailureReason.NOT_CMS)
-                    {
-                        logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
-                        candidates.notCms(from);
-                        DiscoveredNodes cms = tryDiscover(from);
-                        candidates.addCandidates(cms);
-                        logger.debug("Got CMS from {}: {}, retrying on: {}", from, cms, candidates);
-                    }
-                    else
-                    {
-                        candidates.timeout(from);
-                        logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, reason, verb, candidates);
-                    }
+                                                             @Override
+                                                             public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+                                                             {
+                                                                 if (reason == RequestFailureReason.NOT_CMS)
+                                                                 {
+                                                                     logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
+                                                                     DiscoveredNodes cms = tryDiscover(from);
+                                                                     candidates.addCandidates(cms);
+                                                                     candidates.timeout(currentCandidate);
+                                                                     logger.debug("Got CMS from {}: {}, retrying on: {}", from, cms, candidates);
+                                                                 }
+                                                                 else
+                                                                 {
+                                                                     candidates.timeout(currentCandidate);
+                                                                     logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, reason, verb, candidates);
+                                                                 }
 
-                    promise.tryFailure(null);
-                }
-            });
+                                                                 promise.tryFailure(null);
+                                                             }
+                                                         });
 
             try
             {
-                return promise.get(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                return promise.get(DatabaseDescriptor.getRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             }
-            catch (InterruptedException | ExecutionException | TimeoutException e)
+            catch (InterruptedException e)
             {
-                // retry
+                throw new IllegalStateException("Got interrupted, maybe the system is shutting down.");
+            }
+            catch (ExecutionException e)
+            {
+                backoff.maybeSleep();
+            }
+            catch (TimeoutException e)
+            {
+                candidates.timeout(currentCandidate);
                 backoff.maybeSleep();
             }
         }
@@ -236,7 +237,7 @@ public final class RemoteProcessor implements Processor
         });
         try
         {
-            return promise.get(10, TimeUnit.SECONDS);
+            return promise.get(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
         }
         catch (Exception e)
         {
@@ -259,7 +260,7 @@ public final class RemoteProcessor implements Processor
         @SuppressWarnings("resource")
         public CandidateIterator(Collection<InetAddressAndPort> initialContacts, boolean checkLive)
         {
-            this.candidates = new ArrayDeque<>(initialContacts);
+            this.candidates = new ConcurrentLinkedDeque<>(initialContacts);
             this.checkLive = checkLive;
         }
 
@@ -348,7 +349,6 @@ public final class RemoteProcessor implements Processor
             while (true)
             {
                 Future<T> running = currentFuture.get();
-                // Anything that is done, however recent, is considered stale
                 if (running != null && !running.isDone())
                     return running;
 
@@ -365,6 +365,11 @@ public final class RemoteProcessor implements Processor
                             promise.setFailure(t);
                         }
                     });
+                    return promise;
+                }
+                else
+                {
+                    promise.cancel(true);
                 }
             }
         }

@@ -23,12 +23,13 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.Clock;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 
 public abstract class Retry
 {
-    protected static final int MAX_TRIES = DatabaseDescriptor.getDefaultRetryMaxTries();
+    protected static final int MAX_TRIES = DatabaseDescriptor.getCmsDefaultRetryMaxTries();
     protected final int maxTries;
     protected int tries;
 
@@ -121,4 +122,40 @@ public abstract class Retry
                    '}';
         }
     }
+
+    public static class Deadline extends Retry
+    {
+        protected final long backoffMs;
+        protected final long deadlineNanos;
+
+        public Deadline(long backoffMs, long deadlineNanos)
+        {
+            super(Integer.MAX_VALUE);
+            this.backoffMs = backoffMs;
+            this.deadlineNanos = deadlineNanos;
+        }
+
+        @Override
+        public boolean reachedMax()
+        {
+            return Clock.Global.nanoTime() > deadlineNanos;
+        }
+
+        @Override
+        public long sleepFor()
+        {
+            return backoffMs;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Backoff{" +
+                   "backoffMs=" + backoffMs +
+                   ", maxTries=" + maxTries +
+                   ", tries=" + tries +
+                   '}';
+        }
+    }
+
 }

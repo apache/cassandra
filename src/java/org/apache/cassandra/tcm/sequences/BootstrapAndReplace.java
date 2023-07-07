@@ -112,8 +112,11 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
 
     public ProgressBarrier barrier()
     {
-        InetAddressAndPort replaced = ClusterMetadata.current().directory.getNodeAddresses(startReplace.replaced()).broadcastAddress;
-        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey), e -> !e.equals(replaced));
+        if (next == Transformation.Kind.START_REPLACE)
+            return ProgressBarrier.immediate();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        InetAddressAndPort replaced = metadata.directory.getNodeAddresses(startReplace.replaced()).broadcastAddress;
+        return new ProgressBarrier(latestModification, metadata.directory.location(nodeId()), metadata.lockedRanges.locked.get(lockKey), e -> !e.equals(replaced));
     }
 
     public Transformation.Kind nextStep()

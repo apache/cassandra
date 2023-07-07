@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -109,7 +110,7 @@ public class FetchCMSLog
 
             LogState delta = consistentFetch ? logStateSupplier.apply(message.payload.start)
                                               : LogStorage.SystemKeyspace.getLogState(message.payload.start);
-            ClusterMetadataService.metrics.cmsLogEntriesServed(message.payload.start, delta.latestEpoch());
+            TCMMetrics.instance.cmsLogEntriesServed(message.payload.start, delta.latestEpoch());
             logger.info("Responding with log delta: {}", delta);
             MessagingService.instance().send(message.responseWith(delta), message.from());
         }

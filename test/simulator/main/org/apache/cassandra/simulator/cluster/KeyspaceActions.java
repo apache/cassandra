@@ -53,7 +53,6 @@ import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.CHANGE_RF;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
-import static org.apache.cassandra.simulator.cluster.ClusterReliableQueryAction.schemaChange;
 
 public class KeyspaceActions extends ClusterActions
 {
@@ -159,8 +158,8 @@ public class KeyspaceActions extends ClusterActions
         return Actions.StrictAction.of("Initialize", () -> {
             List<Action> actions = new ArrayList<>();
             actions.add(initializeCluster(joined, prejoin));
-            actions.add(schemaChange("Create Keyspace", KeyspaceActions.this, 1, createKeyspaceCql));
-            actions.add(schemaChange("Create Table", KeyspaceActions.this, 1, createTableCql));
+            actions.add(schemaChange(1, createKeyspaceCql));
+            actions.add(schemaChange(1, createTableCql));
             cluster.stream().forEach(i -> actions.add(invoke("Quiesce " + i.broadcastAddress(), RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS,
                                                              new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) i.executor(),
                                                                                                                    () -> i.runOnInstance(() -> ClusterMetadataService.instance().log().waitForHighestConsecutive())))));

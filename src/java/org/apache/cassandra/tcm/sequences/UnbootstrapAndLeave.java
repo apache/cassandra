@@ -34,6 +34,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -106,10 +107,11 @@ public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         LockedRanges.AffectedRanges affectedRanges = metadata.lockedRanges.locked.get(lockKey);
+        Location location = metadata.directory.location(startLeave.nodeId());
         if (kind() == InProgressSequences.Kind.REMOVE)
-            return new ProgressBarrier(latestModification, affectedRanges, (e) -> !e.equals(metadata.directory.endpoint(startLeave.nodeId())));
+            return new ProgressBarrier(latestModification, location, affectedRanges, (e) -> !e.equals(metadata.directory.endpoint(startLeave.nodeId())));
         else
-            return new ProgressBarrier(latestModification, affectedRanges);
+            return new ProgressBarrier(latestModification, location, affectedRanges);
     }
 
     @Override

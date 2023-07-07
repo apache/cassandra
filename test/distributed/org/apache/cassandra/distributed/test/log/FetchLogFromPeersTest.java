@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -94,7 +95,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
         }
         int coordinator = coordinator(clusterState);
         long mark = cluster.get(2).logs().mark();
-        long metricsBefore = cluster.get(2).callOnInstance(() -> ClusterMetadataService.metrics.fetchedPeerLogEntries.getCount());
+        long metricsBefore = cluster.get(2).callOnInstance(() -> TCMMetrics.instance.fetchedPeerLogEntries.getCount());
         if (clusterState == ClusterState.COORDINATOR_BEHIND)
         {
             try
@@ -106,7 +107,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
         }
         cluster.coordinator(coordinator).execute(withKeyspace(query), ConsistencyLevel.QUORUM);
         assertTrue(cluster.get(2).logs().grep(mark, "Fetching log from /127.0.0.3:7012").getResult().size() > 0);
-        long metricsAfter = cluster.get(2).callOnInstance(() -> ClusterMetadataService.metrics.fetchedPeerLogEntries.getCount());
+        long metricsAfter = cluster.get(2).callOnInstance(() -> TCMMetrics.instance.fetchedPeerLogEntries.getCount());
         assertTrue(metricsAfter > metricsBefore);
 
         cluster.get(1).startup();

@@ -166,19 +166,19 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
              }
          }
 
-         while (!ClusterMetadata.current().epoch.isAfter(Epoch.FIRST))
-         {
-             if (candidates.kind() == Discovery.DiscoveredNodes.Kind.CMS_ONLY)
-             {
-                 ClusterMetadataService.instance().processor().fetchLogAndWait();
-             }
-             else
-             {
-                 Election.Initiator initiator = Election.instance.initiator();
-                 candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.initiator);
-             }
-             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-         }
+        while (!ClusterMetadata.current().epoch.isAfter(Epoch.FIRST))
+        {
+            if (candidates.kind() == Discovery.DiscoveredNodes.Kind.CMS_ONLY)
+            {
+                ClusterMetadataService.instance().fetchLogFromCMS();
+            }
+            else
+            {
+                Election.Initiator initiator = Election.instance.initiator();
+                candidates = Discovery.instance.discoverOnce(initiator == null ? null : initiator.initiator);
+            }
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
 
          assert ClusterMetadata.current().epoch.isAfter(Epoch.FIRST);
          Election.instance.migrated();

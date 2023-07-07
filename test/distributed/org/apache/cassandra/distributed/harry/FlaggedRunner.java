@@ -74,7 +74,7 @@ public class FlaggedRunner extends Runner
         shutdown(threads::stream);
         System.out.println("counters = " + counters);
         if (!errors.isEmpty())
-            throw merge(errors);
+            mergeAndThrow(errors);
     }
 
     @Override

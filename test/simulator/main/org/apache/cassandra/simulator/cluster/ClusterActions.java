@@ -39,6 +39,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.gms.Gossiper;
@@ -47,6 +48,7 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
+import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.Actions.StrictAction;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RandomSource.Choices;
@@ -56,17 +58,18 @@ import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.REPLACE;
-import static org.apache.cassandra.simulator.systems.InterceptedExecution.*;
+import static org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedRunnableExecution;
 import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 // TODO (feature): add Gossip failures (up to some acceptable number)
 // TODO (feature): add node down/up (need to coordinate bootstrap/repair execution around this)
@@ -210,14 +213,37 @@ public class ClusterActions extends SimulatedSystems
         });
     }
 
+
+    public Action schemaChange(int node, String query)
+    {
+        String caption = String.format("Schema change: %s", query);
+        return new Actions.ReliableAction(caption, () -> {
+            List<Action> actions = new ArrayList<>();
+            actions.add(new ClusterReliableQueryAction(caption,
+                                                       ClusterActions.this,
+                                                       node,
+                                                       query,
+                                                       ClusterActions.this.time.nextGlobalMonotonicMicros(),
+                                                       ConsistencyLevel.ALL));
+            actions.addAll(Quiesce.all(this));
+            return ActionList.of(actions).setStrictlySequential();
+        }, true);
+    }
+
     Action unsafeJoin(IInvokableInstance i)
     {
         return invoke("Initial cluster participant " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
                       new InterceptedRunnableExecution((InterceptingExecutor) i.executor(),
                                                        () -> i.runOnInstance(() -> {
                                                            ClusterMetadataService.instance().commit(new UnsafeJoin(ClusterMetadata.current().myNodeId(),
-                                                                                                                   new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), FBUtilities.getBroadcastAddressAndPort())),
-                                                                                                                   ClusterMetadataService.instance().placementProvider()));
+                                                                                                                   new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), getBroadcastAddressAndPort())),
+                                                                                                                   ClusterMetadataService.instance().placementProvider()),
+                                                                                                    (metadata) -> null,
+                                                                                                    (metadata, code, msg) -> {
+                                                                                                        if (metadata.directory.peerState(metadata.current().myNodeId()) == NodeState.JOINED)
+                                                                                                            return metadata;
+                                                                                                        throw new IllegalStateException(msg);
+                                                                                                    });
                                                        })));
     }
 

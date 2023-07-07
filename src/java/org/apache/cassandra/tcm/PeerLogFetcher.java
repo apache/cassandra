@@ -32,6 +32,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
@@ -116,7 +117,7 @@ public class PeerLogFetcher
             ClusterMetadata fetched = log.waitForHighestConsecutive();
             if (fetched.epoch.isEqualOrAfter(awaitAtleast))
             {
-                ClusterMetadataService.metrics.peerLogEntriesFetched(before, logState.latestEpoch());
+                TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
                 return fetched;
             }
         }
@@ -150,9 +151,8 @@ public class PeerLogFetcher
             {
                 EpochAwareAsyncPromise<T> running = currentFuture.get();
                 if (running != null && !running.isDone() && running.epoch.isEqualOrAfter(epoch))
-                {
                     return running;
-                }
+
                 EpochAwareAsyncPromise<T> promise = new EpochAwareAsyncPromise<>(epoch);
                 if (currentFuture.compareAndSet(running, promise))
                 {
@@ -166,6 +166,7 @@ public class PeerLogFetcher
                             promise.setFailure(t);
                         }
                     });
+                    return promise;
                 }
             }
         }

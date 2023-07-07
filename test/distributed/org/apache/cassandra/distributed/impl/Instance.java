@@ -888,7 +888,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 // this is to allow shutdown in the case hints were halted already
                 try
                 {
-                    HintsService.instance.shutdownBlocking();
+                    hints.shutdownBlocking();
                 }
                 catch (IllegalStateException e)
                 {
@@ -896,8 +896,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                 }
             };
+
+            CompactionManager.instance.forceShutdown();
+
             error = parallelRun(error, executor,
-                                CompactionManager.instance::forceShutdown,
                                 () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
                                 shutdownHints,
                                 () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),

@@ -564,10 +564,10 @@ public class UncommittedTableData
 
     synchronized void maybeScheduleMerge()
     {
-        logger.info("Scheduling uncommitted paxos data merge task for {}.{}", keyspace(), table());
         if (data.files.size() < 2 || merge != null)
             return;
 
+        logger.info("Scheduling uncommitted paxos data merge task for {}.{}", keyspace(), table());
         createMergeTask().maybeSchedule();
     }
 

@@ -288,7 +288,6 @@ public final class Schema implements SchemaProvider
         // TODO perhaps we should change the retry predicate to be a bit smarter and examine the state of metadata
         //      when retrying.
         return ClusterMetadataService.instance().commit(new AlterSchema(transformation, this),
-                                                        (metadata) -> true,
                                                         (metadata) -> metadata,
                                                         (metadata, code, reason) -> {
                                                             switch (code)

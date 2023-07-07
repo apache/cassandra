@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.function.Predicate;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -58,7 +56,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
     }
 
     @Override
-    public <T1> T1 commit(Transformation transform, Predicate<ClusterMetadata> retry, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
+    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
     {
         Transformation.Result result = transform.execute(metadata);
         if (result.isSuccess())

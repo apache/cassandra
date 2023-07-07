@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -222,7 +223,8 @@ public class Replication
                 Optional<Epoch> highestPending = log.highestPending();
                 if (highestPending.isPresent())
                 {
-                    ClusterMetadataService.instance().maybeFetchLog(highestPending.get());
+                    // We should not call maybeCatchup fom this stage
+                    ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().maybeFetchLog(highestPending.get()));
                 }
                 else if (ClusterMetadata.current().epoch.isBefore(message.payload.transformations.latestEpoch()))
                 {

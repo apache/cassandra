@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.awaitility.Awaitility;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.setProgressBarrierMinConsistencyLevel;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.TWO;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -53,8 +54,10 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
     public void shouldAvoidHintTransferOnDecommission() throws Exception
     {
         try (Cluster cluster = init(builder().withNodes(3)
-                                             .withConfig(config -> config.set("transfer_hints_on_decommission", false).with(GOSSIP))
-                                             .withoutVNodes()
+                                             .withConfig(config -> config.set("transfer_hints_on_decommission", false)
+                                                                         .set("progress_barrier_timeout", "1000ms")
+                                                                         .set("progress_barrier_backoff", "100ms")
+                                                                         .with(GOSSIP))
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.decom_no_hints_test (key int PRIMARY KEY, value int)"));
@@ -73,9 +76,10 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
             long hintsAfterShutdown = countTotalHints(cluster.get(1));
             assertThat(hintsAfterShutdown).isEqualTo(1);
 
-            cluster.get(1).nodetoolResult("decommission", "--force").asserts().success();
-            long hintsDeliveredByDecom = countHintsDelivered(cluster.get(1));
-            String mode = cluster.get(1).callOnInstance(() -> StorageService.instance.getOperationMode());
+            cluster.get(2).runOnInstance(() -> setProgressBarrierMinConsistencyLevel(org.apache.cassandra.db.ConsistencyLevel.ONE));
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+            long hintsDeliveredByDecom = countHintsDelivered(cluster.get(2));
+            String mode = cluster.get(2).callOnInstance(() -> StorageService.instance.getOperationMode());
             assertEquals(StorageService.Mode.DECOMMISSIONED.toString(), mode);
             assertThat(hintsDeliveredByDecom).isEqualTo(0);
         }

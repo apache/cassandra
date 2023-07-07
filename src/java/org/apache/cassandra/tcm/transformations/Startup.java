@@ -84,25 +84,14 @@ public class Startup implements Transformation
                '}';
     }
 
-    public static void maybeExecuteStartupTransformation()
+    public static void maybeExecuteStartupTransformation(NodeId localNodeId)
     {
-        Directory dir = ClusterMetadata.current().directory;
-        NodeId localNodeId = dir.peerId(FBUtilities.getBroadcastAddressAndPort());
-        if (!Objects.equals(dir.addresses.get(localNodeId), NodeAddresses.current()) ||
-            !Objects.equals(dir.versions.get(localNodeId), NodeVersion.CURRENT))
+        Directory directory = ClusterMetadata.current().directory;
+
+        if (!Objects.equals(directory.addresses.get(localNodeId), NodeAddresses.current()) ||
+            !Objects.equals(directory.versions.get(localNodeId), NodeVersion.CURRENT))
         {
             ClusterMetadataService.instance().commit(new Startup(localNodeId, NodeVersion.CURRENT, NodeAddresses.current()),
-                                                     (metadata) -> {
-                                                         // Retry on version mismatch
-                                                         if (!NodeVersion.CURRENT.equals(metadata.directory.version(localNodeId)))
-                                                             return true;
-
-                                                         // Retry on address mismatch
-                                                         if (!NodeAddresses.current().equals(metadata.directory.getNodeAddresses(localNodeId)))
-                                                             return true;
-
-                                                         return false;
-                                                     } ,
                                                      (metadata) -> null,
                                                      (metadata, code, reason) -> {
                                                          throw new IllegalStateException(String.format("Startup transformations should be executed unconditionally, " +

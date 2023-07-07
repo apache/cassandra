@@ -30,6 +30,8 @@ public class TCMMetrics
 {
     private static final MetricNameFactory factory = new DefaultNameFactory("TCM");
 
+    public static final TCMMetrics instance = new TCMMetrics();
+
     public final Gauge<Long> currentEpochGauge;
     public final Histogram fetchedPeerLogEntries;
     public final Histogram fetchedCMSLogEntries;
@@ -37,7 +39,7 @@ public class TCMMetrics
     public final Histogram servedCMSLogEntries;
     public final Meter logEntryFetchRate;
 
-    public TCMMetrics()
+    private TCMMetrics()
     {
         currentEpochGauge = Metrics.register(factory.createMetricName("Epoch"), () -> {
             ClusterMetadata metadata =  ClusterMetadata.currentNullable();

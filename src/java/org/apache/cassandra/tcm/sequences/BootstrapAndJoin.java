@@ -140,7 +140,8 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
     {
         if (next == Transformation.Kind.START_JOIN)
             return ProgressBarrier.immediate();
-        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey));
+        ClusterMetadata metadata = ClusterMetadata.current();
+        return new ProgressBarrier(latestModification, metadata.directory.location(nodeId()), metadata.lockedRanges.locked.get(lockKey));
     }
 
     @Override

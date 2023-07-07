@@ -42,8 +42,6 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_PROGRESS_BARRIER_BACKOFF_MILLIS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS;
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN;
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_FULL_STARTUP;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
@@ -57,9 +55,10 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     @Test
     public void bootstrapProgressTest() throws Throwable
     {
-        try (WithProperties properties = new WithProperties().with(TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS.getKey(), "1000",
-                                                                   TCM_PROGRESS_BARRIER_BACKOFF_MILLIS.getKey(), "100");
-             Cluster cluster = builder().withNodes(3)
+        try (Cluster cluster = builder().withNodes(3)
+                                        .appendConfig(cfg -> cfg.set("progress_barrier_timeout", "5000ms")
+                                                                .set("request_timeout", "1000ms")
+                                                                .set("progress_barrier_backoff", "100ms"))
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
@@ -111,10 +110,11 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     @Test
     public void decommissionProgressTest() throws Throwable
     {
-        try (WithProperties properties = new WithProperties().with(TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS.getKey(), "1000",
-                                                                   TCM_PROGRESS_BARRIER_BACKOFF_MILLIS.getKey(), "100");
-             Cluster cluster = builder().withNodes(4)
+        try (Cluster cluster = builder().withNodes(4)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
+                                        .appendConfig(cfg -> cfg.set("progress_barrier_timeout", "5000ms")
+                                                                .set("request_timeout", "1000ms")
+                                                                .set("progress_barrier_backoff", "100ms"))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
         {
@@ -180,9 +180,10 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     @Test
     public void replacementProgressTest() throws Throwable
     {
-        try (WithProperties properties = new WithProperties().with(TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS.getKey(), "1000",
-                                                                   TCM_PROGRESS_BARRIER_BACKOFF_MILLIS.getKey(), "100");
-             Cluster cluster = builder().withNodes(3)
+        try (Cluster cluster = builder().withNodes(3)
+                                        .appendConfig(cfg -> cfg.set("progress_barrier_timeout", "5000ms")
+                                                                .set("request_timeout", "1000ms")
+                                                                .set("progress_barrier_backoff", "100ms"))
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())

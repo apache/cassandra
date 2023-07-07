@@ -18,22 +18,21 @@
 
 package org.apache.cassandra.tcm.sequences;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
@@ -46,16 +45,16 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 /**
  * ProgressBarrier is responsible for ensuring that epoch visibility plays together with quorum consistency.
@@ -72,41 +71,46 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 public class ProgressBarrier
 {
     private static final Logger logger = LoggerFactory.getLogger(ProgressBarrier.class);
-    private static final long TIMEOUT_MILLIS = CassandraRelevantProperties.TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS.getLong();
-    private static final long BACKOFF_MILLIS = CassandraRelevantProperties.TCM_PROGRESS_BARRIER_BACKOFF_MILLIS.getLong();
+    private static final ConsistencyLevel MIN_CL = DatabaseDescriptor.getProgressBarrierMinConsistencyLevel();
+    private static final ConsistencyLevel DEFAULT_CL = DatabaseDescriptor.getProgressBarrierDefaultConsistencyLevel();
+    private static final long TIMEOUT_MILLIS = DatabaseDescriptor.getProgressBarrierTimeout(TimeUnit.MILLISECONDS);
+    private static final long BACKOFF_MILLIS = DatabaseDescriptor.getProgressBarrierBackoff(TimeUnit.MILLISECONDS);
 
     public final Epoch waitFor;
+    // Location of the affected node; used for LOCAL_QUORUM
+    public final Location location;
     public final LockedRanges.AffectedRanges affectedRanges;
     public final MessageDelivery messagingService;
     public final Predicate<InetAddressAndPort> filter;
 
-    public ProgressBarrier(Epoch waitFor, LockedRanges.AffectedRanges affectedRanges)
+    public ProgressBarrier(Epoch waitFor, Location location, LockedRanges.AffectedRanges affectedRanges)
     {
-        this(waitFor, affectedRanges, MessagingService.instance(), (t) -> true);
+        this(waitFor, location, affectedRanges, MessagingService.instance(), (t) -> true);
     }
 
-    public ProgressBarrier(Epoch waitFor, LockedRanges.AffectedRanges affectedRanges, Predicate<InetAddressAndPort> filter)
+    public ProgressBarrier(Epoch waitFor, Location location, LockedRanges.AffectedRanges affectedRanges, Predicate<InetAddressAndPort> filter)
     {
-        this(waitFor, affectedRanges, MessagingService.instance(), filter);
+        this(waitFor, location, affectedRanges, MessagingService.instance(), filter);
     }
 
-    private ProgressBarrier(Epoch waitFor, LockedRanges.AffectedRanges affectedRanges, MessageDelivery messagingService, Predicate<InetAddressAndPort> filter)
+    private ProgressBarrier(Epoch waitFor, Location location, LockedRanges.AffectedRanges affectedRanges, MessageDelivery messagingService, Predicate<InetAddressAndPort> filter)
     {
         this.waitFor = waitFor;
         this.affectedRanges = affectedRanges;
+        this.location = location;
         this.messagingService = messagingService;
         this.filter = filter;
     }
 
     public static ProgressBarrier immediate()
     {
-        return new ProgressBarrier(Epoch.EMPTY, LockedRanges.AffectedRanges.EMPTY);
+        return new ProgressBarrier(Epoch.EMPTY, null, LockedRanges.AffectedRanges.EMPTY);
     }
 
     @VisibleForTesting
     public ProgressBarrier withMessagingService(MessageDelivery messagingService)
     {
-        return new ProgressBarrier(waitFor, affectedRanges, messagingService, filter);
+        return new ProgressBarrier(waitFor, location, affectedRanges, messagingService, filter);
     }
 
     public boolean await()
@@ -114,17 +118,15 @@ public class ProgressBarrier
         if (waitFor.is(Epoch.EMPTY))
             return true;
 
-        ConsistencyLevel currentCL = ConsistencyLevel.EACH_QUORUM;
+        ConsistencyLevel currentCL = DEFAULT_CL;
         while (!await(currentCL, ClusterMetadata.current()))
         {
-            if (currentCL != DatabaseDescriptor.getProgressBarrierLowestAcceptableConsistencyLevel())
-            {
-                ConsistencyLevel prev = currentCL;
-                currentCL = relaxConsistency(prev);
-                logger.info(String.format("Could not collect epoch acknowlegements within %dms for %s. Falling back to %s.", TIMEOUT_MILLIS, prev, currentCL));
-            }
-            else
+            if (currentCL == MIN_CL)
                 return false;
+
+            ConsistencyLevel prev = currentCL;
+            currentCL = relaxConsistency(prev);
+            logger.info(String.format("Could not collect epoch acknowledgements within %dms for %s. Falling back to %s.", TIMEOUT_MILLIS, prev, currentCL));
         }
         return true;
     }
@@ -136,31 +138,33 @@ public class ProgressBarrier
             return true;
 
         int maxWaitFor = 0;
-        long deadline = Clock.Global.nanoTime() + TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS);
-
         Map<ReplicationParams, Set<Range<Token>>> affectedRangesMap = affectedRanges.asMap();
-        Map<ReplicationParams, WaitFor> waiters = Maps.newHashMapWithExpectedSize(affectedRangesMap.size());
+        List<WaitFor> waiters = new ArrayList<>(affectedRangesMap.size());
 
         Set<InetAddressAndPort> superset = new HashSet<>();
+
         for (Map.Entry<ReplicationParams, Set<Range<Token>>> e : affectedRangesMap.entrySet())
         {
             ReplicationParams params = e.getKey();
             Set<Range<Token>> ranges = e.getValue();
             for (Range<Token> range : ranges)
             {
-                EndpointsForRange writes = metadata.placements.get(params).writes.forRange(range).filter(r -> filter.test(r.endpoint()));
-                EndpointsForRange reads = metadata.placements.get(params).reads.forRange(range).filter(r -> filter.test(r.endpoint()));
+                EndpointsForRange writes = metadata.placements.get(params).writes.matchRange(range).filter(r -> filter.test(r.endpoint()));
+                EndpointsForRange reads = metadata.placements.get(params).reads.matchRange(range).filter(r -> filter.test(r.endpoint()));
                 reads.stream().map(Replica::endpoint).forEach(superset::add);
                 writes.stream().map(Replica::endpoint).forEach(superset::add);
 
                 WaitFor waitFor;
                 switch (cl)
                 {
+                    case ALL:
+                        waitFor = new WaitForAll(writes, reads);
+                        break;
                     case EACH_QUORUM:
                         waitFor = new WaitForEachQuorum(writes, reads, metadata.directory);
                         break;
                     case LOCAL_QUORUM:
-                        waitFor = new WaitForLocalQuorum(writes, reads, metadata.directory);
+                        waitFor = new WaitForLocalQuorum(writes, reads, metadata.directory, location);
                         break;
                     case QUORUM:
                         waitFor = new WaitForQuorum(writes, reads);
@@ -172,64 +176,68 @@ public class ProgressBarrier
                         waitFor = new WaitForNone();
                         break;
                     default:
-                        throw new IllegalArgumentException("Progress barrier only supports EACH_QUORUM, LOCAL_QUORUM, QUORUM, ONE and NODE_LOCAL, but not " + cl);
+                        throw new IllegalArgumentException("Progress barrier only supports ALL, EACH_QUORUM, LOCAL_QUORUM, QUORUM, ONE and NODE_LOCAL, but not " + cl);
                 }
 
                 maxWaitFor = Math.max(waitFor.waitFor(), maxWaitFor);
-                waiters.put(params, waitFor);
+                waiters.add(waitFor);
             }
         }
 
-        AtomicBoolean active = new AtomicBoolean(true);
-        Set<InetAddressAndPort> collected = new ConcurrentSkipListSet<>();
-        CountDownLatch latch = CountDownLatch.newCountDownLatch(maxWaitFor);
+        Set<InetAddressAndPort> collected = new HashSet<>();
+        Set<WatermarkRequest> requests = new HashSet<>();
         for (InetAddressAndPort peer : superset)
-        {
-            sendRequest(peer, active, () -> {
-                collected.add(peer);
-                latch.decrement();
-            });
-        }
+            requests.add(new WatermarkRequest(peer, messagingService, waitFor));
 
-        boolean signalled = latch.awaitUninterruptibly(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        int lastCheckedSize = -1;
-        if (signalled)
+        long start = Clock.Global.nanoTime();
+        long deadline = start + TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS);
+        Retry.Deadline backoff = new Retry.Deadline(BACKOFF_MILLIS, deadline);
+        while (!backoff.reachedMax())
         {
-            while (Clock.Global.nanoTime() < deadline)
+            for (WatermarkRequest request : requests)
+                request.retry();
+
+            long nextTimeout = Clock.Global.nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS);
+            Iterator<WatermarkRequest> iter = requests.iterator();
+            while (iter.hasNext())
             {
-                int currentSize = collected.size();
-                if (lastCheckedSize != currentSize)
+                WatermarkRequest request = iter.next();
+                if (request.condition.isSignalled() ||
+                    request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS))
                 {
-                    boolean match = true;
-                    for (WaitFor waiter : waiters.values())
-                    {
-                        if (!waiter.satisfiedBy(collected))
-                        {
-                            match = false;
-                            break;
-                        }
-                    }
-                    if (match)
-                    {
-                        active.set(false);
-                        return true;
-                    }
-                    // It could happen that the size have changed between we have called size()
-                    // and started iteration, but this is fine, since in this case we will just
-                    // come around once again.
-                    lastCheckedSize = currentSize;
+                    collected.add(request.to);
+                    iter.remove();
                 }
+            }
 
-                Uninterruptibles.sleepUninterruptibly(BACKOFF_MILLIS, TimeUnit.MILLISECONDS);
+            // No need to try processing until we collect enough nodes to pass all conditions
+            if (collected.size() < maxWaitFor)
+            {
+                backoff.maybeSleep();
+                continue;
+            }
+
+            boolean match = true;
+            for (WaitFor waiter : waiters)
+            {
+                if (!waiter.satisfiedBy(collected))
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match)
+            {
+                logger.info("Collected acknowledgements from {} of nodes for a progress barrier for epoch {} at {}",
+                            collected, waitFor, cl);
+                return true;
             }
         }
 
         Set<InetAddressAndPort> remaining = new HashSet<>(superset);
         remaining.removeAll(collected);
         logger.warn("Could not collect {} of nodes for a progress barrier for epoch {} to finish within {}ms. Nodes that have not responded: {}",
-                    cl, waitFor, TIMEOUT_MILLIS, remaining);
-
-        active.set(false);
+                    cl, waitFor, TimeUnit.NANOSECONDS.toMillis(Clock.Global.nanoTime() - start), remaining);
         return false;
     }
 
@@ -238,6 +246,8 @@ public class ProgressBarrier
         logger.debug("Relaxing ProgressBarrier consistency level {}", cl);
         switch (cl)
         {
+            case ALL:
+                return ConsistencyLevel.EACH_QUORUM;
             case EACH_QUORUM:
                 return ConsistencyLevel.QUORUM;
             case QUORUM:
@@ -293,7 +303,7 @@ public class ProgressBarrier
 
         public String toString()
         {
-            return "WaitForAny{" +
+            return "WaitForOne{" +
                    "nodes=" + nodes +
                    '}';
         }
@@ -340,26 +350,68 @@ public class ProgressBarrier
 
     public static class WaitForLocalQuorum implements WaitFor
     {
-        final Set<InetAddressAndPort> nodes;
+        final Set<InetAddressAndPort> nodesInOurDc;
         final int waitFor;
 
-        public WaitForLocalQuorum(EndpointsForRange writes, EndpointsForRange reads, Directory directory)
+        public WaitForLocalQuorum(EndpointsForRange writes, EndpointsForRange reads, Directory directory, Location local)
         {
-            this.nodes = Sets.newHashSetWithExpectedSize(reads.size() + 1);
-            writes.forEach(r -> addNode(r, directory));
-            reads.forEach(r -> addNode(r, directory));
-            this.waitFor = nodes.size() / 2 + 1;
+            this.nodesInOurDc = Sets.newHashSetWithExpectedSize(reads.size() + 1);
+            writes.forEach(r -> addNode(r, directory, local));
+            reads.forEach(r -> addNode(r, directory, local));
+            this.waitFor = nodesInOurDc.size() / 2 + 1;
         }
 
-        private void addNode(Replica r, Directory directory)
+        private void addNode(Replica r, Directory directory, Location local)
         {
             InetAddressAndPort endpoint = r.endpoint();
             String dc = directory.location(directory.peerId(endpoint)).datacenter;
-            String localDc = DatabaseDescriptor.getLocalDataCenter();
-            if (dc.equals(localDc))
-                this.nodes.add(endpoint);
+            if (dc.equals(local.datacenter))
+                this.nodesInOurDc.add(endpoint);
         }
 
+        public boolean satisfiedBy(Set<InetAddressAndPort> responded)
+        {
+            int collected = 0;
+            for (InetAddressAndPort addr : responded)
+            {
+                if (nodesInOurDc.contains(addr))
+                    collected++;
+            }
+
+            return collected >= waitFor;
+        }
+
+        public int waitFor()
+        {
+            return waitFor;
+        }
+
+        public String toString()
+        {
+            return "WaitForLocalQuorum{" +
+                   "nodes=" + nodesInOurDc +
+                   ", waitFor=" + waitFor +
+                   '}';
+        }
+    }
+
+    /**
+     * Probably you do not want to use this in production, but this is still quite useful for testing purposes,
+     * when you also use a CL ALL in combination with this, and make sure writes propagate where they're
+     * supposed to propagate, alongside with streaming.
+     */
+    public static class WaitForAll implements WaitFor
+    {
+        final Set<InetAddressAndPort> nodes;
+        final int waitFor;
+
+        public WaitForAll(EndpointsForRange writes, EndpointsForRange reads)
+        {
+            this.nodes = Sets.newHashSetWithExpectedSize(reads.size() + 1);
+            writes.forEach(r -> nodes.add(r.endpoint()));
+            reads.forEach(r -> nodes.add(r.endpoint()));
+            this.waitFor = nodes.size();
+        }
 
         public boolean satisfiedBy(Set<InetAddressAndPort> responded)
         {
@@ -455,40 +507,47 @@ public class ProgressBarrier
         int waitFor();
     }
 
-    private void sendRequest(InetAddressAndPort to, AtomicBoolean active, Runnable collected)
+    private static class WatermarkRequest implements RequestCallbackWithFailure<NoPayload>
     {
-        logger.debug("Sending watermark request to {}, expecting at least {}", to, waitFor);
-        RequestCallback<NoPayload> callback = new RequestCallbackWithFailure<NoPayload>()
+        private final Condition condition = Condition.newOneTimeCondition();
+        private final InetAddressAndPort to;
+        private final MessageDelivery messagingService;
+        private final Epoch waitFor;
+
+        public WatermarkRequest(InetAddressAndPort to, MessageDelivery messagingService, Epoch waitFor)
         {
-            @Override
-            public void onResponse(Message<NoPayload> msg)
+
+            this.to = to;
+            this.messagingService = messagingService;
+            this.waitFor = waitFor;
+        }
+
+        @Override
+        public void onResponse(Message<NoPayload> msg)
+        {
+            Epoch remote = msg.epoch();
+            if (remote.isEqualOrAfter(waitFor))
             {
-                Epoch remote = msg.epoch();
                 logger.debug("Received watermark response from {} with epoch {}", msg.from(), remote);
-                if (remote.isEqualOrAfter(waitFor))
-                    collected.run();
-                else
-                    retry(to, active);
+                condition.signalAll();
+                return;
             }
 
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                logger.debug("Watermark failure from {} with reason {}", from, failureReason);
-                retry(to, active);
-            }
+            retry();
+        }
 
-            private void retry(InetAddressAndPort to, AtomicBoolean active)
-            {
-                logger.info("Retrying watermark request from {}, sleeping {}ms", to, BACKOFF_MILLIS);
-                FBUtilities.sleepQuietly(BACKOFF_MILLIS);
-                sendRequest(to, active, collected);
-            }
-        };
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        {
+            logger.debug("Error response from {} with {}", from, failureReason);
+        }
 
-        if (active.get())
-            messagingService.sendWithCallback(Message.out(Verb.TCM_CURRENT_EPOCH_REQ, NoPayload.noPayload), to, callback);
+        public void retry()
+        {
+            messagingService.sendWithCallback(Message.out(Verb.TCM_CURRENT_EPOCH_REQ, NoPayload.noPayload), to, this);
+        }
     }
+
 
     @Override
     public String toString()

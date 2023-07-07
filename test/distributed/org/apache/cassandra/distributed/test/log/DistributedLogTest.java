@@ -117,7 +117,7 @@ public class DistributedLogTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(3)
                                         // test assumes that all nodes have all events, that is not true if snapshotting
                                         .withConfig(config -> config.set("metadata_snapshot_frequency", Integer.MAX_VALUE)
-                                                                    .set("default_retry_max_tries", 100))
+                                                                    .set("cms_default_max_retries", 100))
                                         // todo; add config param to disable snapshotting
                                         .start())
         {

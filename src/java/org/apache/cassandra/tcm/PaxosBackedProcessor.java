@@ -30,6 +30,7 @@ import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.exceptions.ReadTimeoutException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
@@ -41,7 +42,6 @@ import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.tryCommit;
-import static org.apache.cassandra.tcm.ClusterMetadataService.metrics;
 
 public class PaxosBackedProcessor extends AbstractLocalProcessor
 {
@@ -107,7 +107,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         {
             fetched.stream()
                    .max(Epoch::compareTo)
-                   .ifPresent(max -> metrics.cmsLogEntriesFetched(metadata.epoch, max));
+                   .ifPresent(max -> TCMMetrics.instance.cmsLogEntriesFetched(metadata.epoch, max));
         }
     }
 }

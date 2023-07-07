@@ -69,22 +69,17 @@ public abstract class InProgressSequence<T extends InProgressSequence<T>>
         NodeId targetNode = nodeId();
         assert nextStep() == transform.kind() : String.format(String.format("Expected %s to be next step, but got %s.", nextStep(), transform.kind()));
         return ClusterMetadataService.instance().commit(transform,
-                      (metadata) -> {
-                          InProgressSequence<?> seq = metadata.inProgressSequences.get(targetNode);
-                          Transformation.Kind actual = seq == null ? null : seq.nextStep();
-
-                          Transformation.Kind nextOp = stepFollowing(transform.kind());
-                          // Haven't committed current operation yet, retry
-                          return actual == nextOp;
-                      },
                       (metadata) -> metadata,
                       (metadata, code, reason) -> {
                           InProgressSequence<?> seq = metadata.inProgressSequences.get(targetNode);
                           Transformation.Kind actual = seq == null ? null : seq.nextStep();
 
-                          Transformation.Kind nextOp = stepFollowing(transform.kind());
-                          Transformation.Kind nextNextOp = stepFollowing(nextOp);
-                          if (nextNextOp != actual)
+                          Transformation.Kind expectedNextOp = stepFollowing(transform.kind());
+                          // It is possible that we have committed this transformation in our attempt to retry
+                          // after a timeout. For example, if we commit START_JOIN, we would get MID_JOIN as
+                          // an actual op. Since MID_JOIN is also what we expect after committing START_JOIN,
+                          // we assume that we have successfully committed it.
+                          if (expectedNextOp != actual)
                               throw new IllegalStateException(reason);
 
                           // Suceeded after retry

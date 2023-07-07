@@ -172,9 +172,8 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
-    // TODO rename to indicate CMS related
-    public volatile int default_retry_max_tries = 10;
-    public volatile DurationSpec.IntMillisecondsBound default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
+    public volatile int cms_default_max_retries = 10;
+    public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
     /**
      * How often we should snapshot the cluster metadata.
      */
@@ -1258,7 +1257,7 @@ public class Config
     public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.NONE;
 
     /**
-     * For the purposes of progress barrier we only support EACH_QUORUM, QUORUM, LOCAL_QUORUM, ANY, and ONE.
+     * For the purposes of progress barrier we only support ALL, EACH_QUORUM, QUORUM, LOCAL_QUORUM, ANY, and ONE.
      *
      * We will still try all consistency levels above the lowest acceptable, and only fall back to it if we can not
      * collect enough nodes.
@@ -1266,5 +1265,9 @@ public class Config
     public volatile ConsistencyLevel progress_barrier_min_consistency_level = ConsistencyLevel.EACH_QUORUM;
     public volatile boolean log_out_of_token_range_requests = true;
     public volatile boolean reject_out_of_token_range_requests = true;
+    public volatile ConsistencyLevel progress_barrier_default_consistency_level = ConsistencyLevel.EACH_QUORUM;
+
+    public volatile DurationSpec.LongMillisecondsBound progress_barrier_timeout = new DurationSpec.LongMillisecondsBound("3600000ms");
+    public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
     public boolean unsafe_tcm_mode = false;
 }

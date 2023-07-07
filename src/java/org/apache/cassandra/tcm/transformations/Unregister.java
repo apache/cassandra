@@ -70,7 +70,6 @@ public class Unregister implements Transformation
     {
         ClusterMetadataService.instance()
                               .commit(new Unregister(nodeId),
-                                      (metadata) -> metadata.directory.peerIds().contains(nodeId),
                                       (metadata) -> metadata,
                                       (metadata, code, reason) -> {
                                           if (metadata.directory.peerIds().contains(nodeId))

@@ -38,6 +38,11 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public interface InterceptorOfSystemMethods
 {
     void waitUntil(long deadlineNanos) throws InterruptedException;
+    default void sleep(long period) throws InterruptedException
+    {
+        sleepUninterriptibly(period, MILLISECONDS);
+    }
+
     default void sleep(Object unit, long period) throws InterruptedException
     {
         sleepUninterriptibly(period, (TimeUnit) unit);
@@ -87,9 +92,9 @@ public interface InterceptorOfSystemMethods
         }
 
         // slipped param order to replace instance method call without other ASM modification
-        public static void sleep(TimeUnit units, long period) throws InterruptedException
+        public static void sleep(Object units, long period) throws InterruptedException
         {
-            methods.sleep(period, units);
+            methods.sleep(period, (TimeUnit) units);
         }
 
         // to match Guava Uninterruptibles
