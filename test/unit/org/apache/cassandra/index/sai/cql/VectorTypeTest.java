@@ -131,7 +131,9 @@ public class VectorTypeTest extends VectorTester
 
         Tracing.instance.newSession(ClientState.forInternalCalls(), Tracing.TraceType.QUERY);
         execute("SELECT * FROM %s ORDER BY val ann of [9.5, 5.5, 6.5] LIMIT 5");
-        // checking this is by manual inspection
+        for (String trace : ((TracingTestImpl) Tracing.instance).getTraces())
+            assertThat(trace).doesNotContain("Executing single-partition query");
+        // manual inspection to verify that no extra traces were included
         logger.info(((TracingTestImpl) Tracing.instance).getTraces().toString());
     }
 
