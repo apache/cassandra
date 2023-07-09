@@ -196,6 +196,28 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void testTwoPredicatesManyRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        for (int i = 0; i < 100; i++)
+            execute("INSERT INTO %s (pk, b, v) VALUES (?, true, ?)",
+                    i, vector((float) i, (float) (i + 1), (float) (i + 2)));
+
+        var result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        assertThat(result).hasSize(2);
+
+        flush();
+        compact();
+
+        result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
     public void testThreePredicates() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, str text, PRIMARY KEY(pk))");
