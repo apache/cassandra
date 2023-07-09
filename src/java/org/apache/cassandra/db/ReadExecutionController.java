@@ -87,7 +87,7 @@ public class ReadExecutionController implements AutoCloseable
 
     public boolean isRangeCommand()
     {
-        return command.isRangeRequest();
+        return command != null && command.isRangeRequest();
     }
 
     public ReadExecutionController indexReadController()
