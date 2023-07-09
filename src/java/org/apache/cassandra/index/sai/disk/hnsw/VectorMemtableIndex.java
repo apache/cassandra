@@ -207,7 +207,7 @@ public class VectorMemtableIndex implements MemtableIndex
         }
 
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] qv = ((VectorType<?>.VectorSerializer)indexContext.getValidator().getSerializer()).deserializeFloatArray(buffer.duplicate());
+        float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
         if (keyQueue.isEmpty())
