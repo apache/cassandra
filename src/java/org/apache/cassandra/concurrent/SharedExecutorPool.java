@@ -181,4 +181,16 @@ public class SharedExecutorPool
         while (null != (e = spinning.pollFirstEntry()))
             LockSupport.unpark(e.getValue().thread);
     }
+
+    public SEPExecutor getExecutor(String executorName)
+    {
+        for (SEPExecutor executor : executors)
+        {
+            if (executor.name.equalsIgnoreCase(executorName))
+            {
+                return executor;
+            }
+        }
+        return null;
+    }
 }
