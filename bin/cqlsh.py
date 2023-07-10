@@ -822,7 +822,7 @@ class Shell(cmd.Cmd):
                                       "parallel = true\n"]
                                      )
                 # start coverage
-                import Coverage
+                import coverage
                 self.cov = coverage.Coverage(config_file=self.coveragerc_path)
                 self.cov.start()
         try:
