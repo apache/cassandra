@@ -2141,7 +2141,6 @@ def read_options(cmdlineargs, environment):
     argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     argvalues.execute = None
 
-
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
 
     # Credentials from cqlshrc will be expanded,
@@ -2153,14 +2152,14 @@ def read_options(cmdlineargs, environment):
 
     if options.credentials is not None:
         if not is_file_secure(options.credentials):
-              print("\nWarning: Credentials file '{0}' exists but is not used, because:"
-              "\n  a. the file owner is not the current user; or"
-              "\n  b. the file is readable by group or other."
-              "\nPlease ensure the file is owned by the current user and is not readable by group or other."
-              "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
-              "\n  chown YOUR_USERNAME credentials"
-              "\n  chmod 600 credentials\n".format(options.credentials),
-              file=sys.stderr)
+            print("\nWarning: Credentials file '{0}' exists but is not used, because:"
+                  "\n  a. the file owner is not the current user; or"
+                  "\n  b. the file is readable by group or other."
+                  "\nPlease ensure the file is owned by the current user and is not readable by group or other."
+                  "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
+                  "\n  chown YOUR_USERNAME credentials"
+                  "\n  chmod 600 credentials\n".format(options.credentials),
+                  file=sys.stderr)
         options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
     if not options.username:
