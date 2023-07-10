@@ -75,7 +75,11 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator writes.
 
+|cql_metrics |Metrics specific to CQL prepared statement caching.
+
 |disk_usage |Records disk usage including disk_space, keyspace_name, and table_name, sorted by system keyspaces.
+
+|gossip_info |Lists the gossip information for the cluster.
 
 |internode_inbound |Lists information about the inbound internode messaging.
 
@@ -103,9 +107,6 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |tombstones_per_read |Records counts, keyspace_name, tablek_name, max, and median for tombstones.
 |===
-
-For improved usability, from https://issues.apache.org/jira/browse/CASSANDRA-18238[CASSANDRA-18238],
-all tables except `system_logs` have `ALLOW FILTERING` implicitly added to a query when required by CQL specification.
 
 We shall discuss some of the virtual tables in more detail next.
 
@@ -195,6 +196,7 @@ upgrading and with `nodetool enableoldprotocolversions` and
 `nodetool disableoldprotocolversions` during upgrades.
 * To identify clients sending too many requests.
 * To find if SSL is enabled during the migration to and from ssl.
+* To identify all options the client is sending, e.g. APPLICATION_NAME and APPLICATION_VERSION
 
 The virtual tables may be described with `DESCRIBE` statement. The DDL
 listed however cannot be run to create a virtual table. As an example
@@ -244,6 +246,21 @@ counters |       26214400 |           0 |         0 |       NaN |               
 (4 rows)
 ....
 
+=== CQL metrics Virtual Table
+The `cql_metrics` virtual table lists metrics specific to CQL prepared statement caching. A query on `cql_metrics` virtual table lists below metrics.
+
+....
+cqlsh> select * from system_views.cql_metrics ;
+
+ name                         | value
+------------------------------+-------
+    prepared_statements_count |     0
+  prepared_statements_evicted |     0
+ prepared_statements_executed |     0
+    prepared_statements_ratio |     0
+  regular_statements_executed |    17
+....
+
 === Settings Virtual Table
 
 The `settings` table is rather useful and lists all the current
@@ -279,7 +296,7 @@ name                                 | value
 ....
 
 The `settings` table can be really useful if yaml file has been changed
-since startup and dont know running configuration, or to find if they
+since startup and do not know running configuration, or to find if they
 have been modified via jmx/nodetool or virtual tables.
 
 === Thread Pools Virtual Table
@@ -362,6 +379,24 @@ tasks, use the following query:
 ....
 SELECT total - progress AS remaining
 FROM system_views.sstable_tasks;
+....
+
+=== Gossip Information Virtual Table
+
+The `gossip_info` virtual table lists the Gossip information for the cluster. An example query is as follows:
+
+....
+cqlsh> select address, port, generation, heartbeat, load, dc, rack from system_views.gossip_info;
+
+ address   | port | generation | heartbeat | load    | dc          | rack
+-----------+------+------------+-----------+---------+-------------+-------
+ 127.0.0.1 | 7000 | 1645575140 |       312 | 70542.0 | datacenter1 | rack1
+ 127.0.0.2 | 7000 | 1645575135 |       318 | 70499.0 | datacenter1 | rack1
+ 127.0.0.3 | 7000 | 1645575140 |       312 | 70504.0 | datacenter1 | rack1
+ 127.0.0.4 | 7000 | 1645575141 |       311 | 70502.0 | datacenter1 | rack1
+ 127.0.0.5 | 7000 | 1645575136 |       315 | 70500.0 | datacenter1 | rack1
+
+(5 rows)
 ....
 
 === Other Virtual Tables
