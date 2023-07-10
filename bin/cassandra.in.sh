@@ -84,6 +84,12 @@ JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
 # Added sigar-bin to the java.library.path CASSANDRA-7838
 JAVA_OPTS="$JAVA_OPTS:-Djava.library.path=$CASSANDRA_HOME/lib/sigar-bin"
 
+platform=$(uname -m)
+if [ -d "$CASSANDRA_HOME"/lib/"$platform" ]; then
+    for jar in "$CASSANDRA_HOME"/lib/"$platform"/*.jar ; do
+        CLASSPATH="$CLASSPATH:${jar}"
+    done
+fi
 
 #
 # Java executable and per-Java version JVM settings

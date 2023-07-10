@@ -87,6 +87,7 @@ import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -699,6 +700,26 @@ public class FBUtilities
         catch (Exception ex)
         {
             throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
+        }
+    }
+
+    public static AbstractCryptoProvider newCryptoProvider(String className, Map<String, String> parameters) throws ConfigurationException
+    {
+        try
+        {
+            if (!className.contains("."))
+                className = "org.apache.cassandra.security." + className;
+
+            Class<?> cryptoProviderClass = FBUtilities.classForName(className, "crypto provider class");
+            return (AbstractCryptoProvider) cryptoProviderClass.getConstructor(Map.class).newInstance(Collections.unmodifiableMap(parameters));
+        }
+        catch (Exception e)
+        {
+            // no need to wrap it in another ConfgurationException if FBUtilities.classForName might throw it
+            if (e instanceof ConfigurationException)
+                throw (ConfigurationException) e;
+            else
+                throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
         }
     }
 

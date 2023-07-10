@@ -233,12 +233,53 @@
       <id>zznate</id>
       <name>Nate McCall</name>
     </developer>
+    <developer>
+      <id>smiklosovic</id>
+      <name>Stefan Miklosovic</name>
+    </developer>
   </developers>
   <scm>
     <connection>scm:https://gitbox.apache.org/repos/asf/cassandra.git</connection>
     <developerConnection>scm:https://gitbox.apache.org/repos/asf/cassandra.git</developerConnection>
     <url>https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree</url>
   </scm>
+
+  <profiles>
+    <profile>
+      <id>x86_64</id>
+      <activation>
+        <os>
+          <!-- we need something as a default even if it doesn't successfully load the .so files. -->
+          <arch>!aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>software.amazon.cryptools</groupId>
+          <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+          <classifier>linux-x86_64</classifier>
+          <version>2.2.0</version>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>aarch_64</id>
+      <activation>
+        <os>
+          <arch>aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>software.amazon.cryptools</groupId>
+          <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+          <classifier>linux-aarch_64</classifier>
+          <version>2.2.0</version>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+
   <dependencyManagement>
     <!--
     Dependency metadata is specified here (version, scope, exclusions, etc.), then referenced in child POMs by groupId and
