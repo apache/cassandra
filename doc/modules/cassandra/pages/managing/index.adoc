@@ -1,0 +1,5 @@
+= Managing
+
+* xref:managing/configuration/index.adoc[]
+* xref:managing/operating/index.adoc[]
+* xref:managing/tools/index.adoc[]
