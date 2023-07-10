@@ -194,9 +194,9 @@ parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                  prog='cqlsh')
 parser.add_argument('-v', '--version', action='version', version='cqlsh ' + version)
 parser.add_argument("-C", "--color", action='store_true', dest='color',
-                  help='Always use color output')
+                    help='Always use color output')
 parser.add_argument("--no-color", action='store_false', dest='color',
-                  help='Never use color output')
+                    help='Never use color output')
 parser.add_argument("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
                                                     - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
                                                     - browser path followed by %s, example: /usr/bin/google-chrome-stable %s""")
@@ -206,26 +206,26 @@ parser.add_argument("-p", "--password", help="Authenticate using password.")
 parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
 parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
 parser.add_argument('--debug', action='store_true',
-                  help='Show additional debugging information')
+                    help='Show additional debugging information')
 parser.add_argument('--coverage', action='store_true',
-                  help='Collect coverage data')
+                    help='Collect coverage data')
 parser.add_argument("--encoding", help="Specify a non-default encoding for output."
-                  + " (Default: %s)" % (UTF8,))
+                    + " (Default: %s)" % (UTF8,))
 parser.add_argument("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_argument('--cqlversion', default=None,
-                  help='Specify a particular CQL version, '
-                       'by default the highest version supported by the server will be used.'
-                       ' Examples: "3.0.3", "3.1.0"')
+                    help='Specify a particular CQL version, '
+                    'by default the highest version supported by the server will be used.'
+                    ' Examples: "3.0.3", "3.1.0"')
 parser.add_argument("--protocol-version", type=int, default=None,
-                  help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+                    help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
 
 parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
 parser.add_argument("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
-                  help='Specify the connection timeout in seconds (default: %default seconds).')
+                    help='Specify the connection timeout in seconds (default: %default seconds).')
 parser.add_argument("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
-                  help='Specify the default request timeout in seconds (default: %default seconds).')
+                    help='Specify the default request timeout in seconds (default: %default seconds).')
 parser.add_argument("-t", "--tty", action='store_true', dest='tty',
-                  help='Force tty mode (command prompt).')
+                    help='Force tty mode (command prompt).')
 
 cfarguments, args = parser.parse_known_args()
 
@@ -2155,7 +2155,6 @@ def read_options(cmdlineargs, environment):
     argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     argvalues.execute = None
-
 
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
     # Make sure some user values read from the command line are in unicode
