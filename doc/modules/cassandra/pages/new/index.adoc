@@ -1,8 +1,5 @@
 = New Features
-
-== New Features in Apache Cassandra 5.0
-
-This section covers the new features in Apache Cassandra 5.0.
+:navtitle: What's new
 
 * https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
 * https://issues.apache.org/jira/browse/CASSANDRA-16052[Storage Attached Indexes]
