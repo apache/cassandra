@@ -1316,6 +1316,11 @@ slow_query_log_timeout: 500ms
 #    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
 #    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
 #
+# AzureSnitch:
+#    Gets datacenter from 'location' and rack from 'zone' fields of 'compute' object
+#    from instance metadata service. If the availability zone is not enabled, it will use the fault
+#    domain and get its respective value.
+#
 # CloudstackSnitch:
 #    A snitch that assumes a Cloudstack Zone follows the typical convention 
 #    country-location-az and uses a country/location tuple as a datacenter

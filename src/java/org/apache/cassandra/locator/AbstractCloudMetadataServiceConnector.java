@@ -45,8 +45,11 @@ abstract class AbstractCloudMetadataServiceConnector
     protected final String metadataServiceUrl;
     protected final int requestTimeoutMs;
 
-    public AbstractCloudMetadataServiceConnector(SnitchProperties properties)
+    private final SnitchProperties properties;
+
+    public AbstractCloudMetadataServiceConnector(SnitchProperties snitchProperties)
     {
+        this.properties = snitchProperties;
         String parsedMetadataServiceUrl = properties.get(METADATA_URL_PROPERTY, null);
 
         try
@@ -65,7 +68,6 @@ abstract class AbstractCloudMetadataServiceConnector
                                              ex);
         }
 
-
         String metadataRequestTimeout = properties.get(METADATA_REQUEST_TIMEOUT_PROPERTY, DEFAULT_METADATA_REQUEST_TIMEOUT);
 
         try
@@ -78,6 +80,11 @@ abstract class AbstractCloudMetadataServiceConnector
                                                     metadataRequestTimeout,
                                                     METADATA_REQUEST_TIMEOUT_PROPERTY));
         }
+    }
+
+    public SnitchProperties getProperties()
+    {
+        return properties;
     }
 
     public final String apiCall(String query) throws IOException

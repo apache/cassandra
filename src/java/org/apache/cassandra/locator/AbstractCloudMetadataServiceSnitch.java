@@ -40,24 +40,20 @@ abstract class AbstractCloudMetadataServiceSnitch extends AbstractNetworkTopolog
     static final String DEFAULT_RACK = "UNKNOWN-RACK";
 
     protected final AbstractCloudMetadataServiceConnector connector;
-    protected final SnitchProperties snitchProperties;
 
     private final String localRack;
     private final String localDc;
 
     private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
 
-    public AbstractCloudMetadataServiceSnitch(AbstractCloudMetadataServiceConnector connector,
-                                              SnitchProperties snitchProperties,
-                                              Pair<String, String> dcAndRack)
+    public AbstractCloudMetadataServiceSnitch(AbstractCloudMetadataServiceConnector connector, Pair<String, String> dcAndRack)
     {
         this.connector = connector;
-        this.snitchProperties = snitchProperties;
         this.localDc = dcAndRack.left;
         this.localRack = dcAndRack.right;
 
         logger.info(format("%s using datacenter: %s, rack: %s, connector: %s, properties: %s",
-                           getClass().getName(), getLocalDatacenter(), getLocalRack(), connector, snitchProperties));
+                           getClass().getName(), getLocalDatacenter(), getLocalRack(), connector, connector.getProperties()));
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.apache.cassandra.locator;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Properties;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,15 +33,18 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 public class CloudstackSnitchTest
 {
@@ -65,10 +67,13 @@ public class CloudstackSnitchTest
     public void testRacks() throws IOException, ConfigurationException
     {
         az = "ch-gva-1";
-        CloudstackSnitch.CloudstackConnector mock = mock(CloudstackSnitch.CloudstackConnector.class);
-        when(mock.apiCall(any())).thenReturn(az);
 
-        CloudstackSnitch snitch = new CloudstackSnitch(new SnitchProperties(new Properties()), mock);
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, "http://127.0.0.1"))));
+
+        doReturn(az).when(spiedConnector).apiCall(any());
+
+        CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -88,15 +93,19 @@ public class CloudstackSnitchTest
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
-        az = "ch-gva-1";
-        CloudstackSnitch.CloudstackConnector mock = mock(CloudstackSnitch.CloudstackConnector.class);
-        when(mock.apiCall(any())).thenReturn(az);
-        CloudstackSnitch snitch = new CloudstackSnitch(new SnitchProperties(new Properties()), mock);
+        az = "us-east-1a";
+
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, "http://127.0.0.1"))));
+
+        doReturn(az).when(spiedConnector).apiCall(any());
+
+        CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
 
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
 
-        assertEquals("ch-gva", snitch.getDatacenter(local));
-        assertEquals("1", snitch.getRack(local));
+        assertEquals("us-east", snitch.getDatacenter(local));
+        assertEquals("1a", snitch.getRack(local));
     }
 
     @AfterClass
