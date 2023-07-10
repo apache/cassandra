@@ -224,7 +224,7 @@ parser.add_argument("-t", "--tty", action='store_true', dest='tty',
 # Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
 # The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
 parser.add_argument("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
-                    help=argparse.SUPPRESS)
+                    help=argparse.SUPPRESS_HELP)
 
 cfarguments, args = parser.parse_known_args()
 
