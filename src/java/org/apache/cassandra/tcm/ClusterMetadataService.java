@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.DistributedSchema;
@@ -67,9 +68,11 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.*;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
 public class ClusterMetadataService
@@ -477,7 +480,8 @@ public class ClusterMetadataService
     {
         if (commitsPaused.get())
             throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
-        Retry.Backoff backoff = new Retry.Backoff();
+        long startTime = nanoTime();
+        Retry.Backoff backoff = new Retry.Backoff(TCMMetrics.instance.commitRetries);
         while (!backoff.reachedMax())
         {
             Commit.Result result = processor.commit(entryIdGen.get(), transform, null);
@@ -488,7 +492,9 @@ public class ClusterMetadataService
                 {
                     try
                     {
-                        return onSuccess.accept(awaitAtLeast(result.success().epoch));
+                        T1 res = onSuccess.accept(awaitAtLeast(result.success().epoch));
+                        TCMMetrics.instance.commitSuccessLatency.update(nanoTime() - startTime, NANOSECONDS);
+                        return res;
                     }
                     catch (TimeoutException t)
                     {
@@ -497,6 +503,7 @@ public class ClusterMetadataService
                     }
                     catch (InterruptedException e)
                     {
+                        TCMMetrics.instance.commitFailureLatency.update(nanoTime() - startTime, NANOSECONDS);
                         throw new IllegalStateException("Couldn't commit the transformation. Is the node shutting down?", e);
                     }
                 }
@@ -508,14 +515,17 @@ public class ClusterMetadataService
                 // For now, we retry unconditionally on non-rejection cases. We might need a better solution (for example, using EntryId).
                 // If we have decided _not_ to retry, there is a chance we got a rejection, in which case we need to find if we have discovered commit of the current transformation.
                 if (result.failure().rejected)
+                {
+                    TCMMetrics.instance.commitRejectionLatency.update(nanoTime() - startTime, NANOSECONDS);
                     return onReject.accept(metadata, result.failure().code, result.failure().message);
+                }
 
                 logger.info("Couldn't commit the transformation due to \"{}\". Retrying again in {}ms.", result.failure().message, backoff.backoffMs);
                 // Back-off and retry
                 backoff.maybeSleep();
             }
         }
-
+        TCMMetrics.instance.commitFailureLatency.update(nanoTime() - startTime, NANOSECONDS);
         if (backoff.reachedMax())
             throw new IllegalStateException(String.format("Couldn't commit the transformation %s after %d tries", transform, backoff.maxTries()));
 

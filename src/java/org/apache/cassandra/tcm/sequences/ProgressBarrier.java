@@ -33,6 +33,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
@@ -41,6 +42,7 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
@@ -115,20 +117,23 @@ public class ProgressBarrier
 
     public boolean await()
     {
-        if (waitFor.is(Epoch.EMPTY))
-            return true;
-
-        ConsistencyLevel currentCL = DEFAULT_CL;
-        while (!await(currentCL, ClusterMetadata.current()))
+        try (Timer.Context ctx = TCMMetrics.instance.progressBarrierLatency.time())
         {
-            if (currentCL == MIN_CL)
-                return false;
+            if (waitFor.is(Epoch.EMPTY))
+                return true;
 
-            ConsistencyLevel prev = currentCL;
-            currentCL = relaxConsistency(prev);
-            logger.info(String.format("Could not collect epoch acknowledgements within %dms for %s. Falling back to %s.", TIMEOUT_MILLIS, prev, currentCL));
+            ConsistencyLevel currentCL = DEFAULT_CL;
+            while (!await(currentCL, ClusterMetadata.current()))
+            {
+                if (currentCL == MIN_CL)
+                    return false;
+
+                ConsistencyLevel prev = currentCL;
+                currentCL = relaxConsistency(prev);
+                logger.info(String.format("Could not collect epoch acknowledgements within %dms for %s. Falling back to %s.", TIMEOUT_MILLIS, prev, currentCL));
+            }
+            return true;
         }
-        return true;
     }
 
     @VisibleForTesting
@@ -191,7 +196,7 @@ public class ProgressBarrier
 
         long start = Clock.Global.nanoTime();
         long deadline = start + TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS);
-        Retry.Deadline backoff = new Retry.Deadline(BACKOFF_MILLIS, deadline);
+        Retry.Deadline backoff = new Retry.Deadline(BACKOFF_MILLIS, deadline, TCMMetrics.instance.progressBarrierRetries);
         while (!backoff.reachedMax())
         {
             for (WatermarkRequest request : requests)
@@ -244,6 +249,7 @@ public class ProgressBarrier
     public static ConsistencyLevel relaxConsistency(ConsistencyLevel cl)
     {
         logger.debug("Relaxing ProgressBarrier consistency level {}", cl);
+        TCMMetrics.instance.progressBarrierCLRelax.mark();
         switch (cl)
         {
             case ALL:

@@ -34,6 +34,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -85,7 +86,7 @@ public final class RemoteProcessor implements Processor
             Commit.Result result = sendWithCallback(Verb.TCM_COMMIT_REQ,
                                                     new Commit(entryId, transform, highestConsecutive),
                                                     new CandidateIterator(candidates(false)),
-                                                    new Retry.Backoff());
+                                                    new Retry.Backoff(TCMMetrics.instance.commitRetries));
 
             if (result.isSuccess())
                 log.append(result.success().replication.entries());
@@ -139,21 +140,23 @@ public final class RemoteProcessor implements Processor
 
     private ClusterMetadata replayAndWaitInternal()
     {
-        Epoch lastConsecutive = log.replayPersisted();
-
-        // TODO: make sure we do not exacerbate client-driven retries
-        LogState replay = sendWithCallback(Verb.TCM_FETCH_CMS_LOG_REQ,
-                                           new FetchCMSLog(lastConsecutive, ClusterMetadataService.state() == REMOTE),
-                                           new CandidateIterator(candidates(true), false),
-                                           new Retry.Backoff());
-        if (!replay.isEmpty())
+        try (Timer.Context ctx = TCMMetrics.instance.fetchCMSLogLatency.time())
         {
-            logger.info("Replay request returned replay data: {}", replay);
-            log.append(replay);
-            TCMMetrics.instance.cmsLogEntriesFetched(lastConsecutive, replay.latestEpoch());
-        }
+            Epoch lastConsecutive = log.replayPersisted();
+            // TODO: make sure we do not exacerbate client-driven retries
+            LogState replay = sendWithCallback(Verb.TCM_FETCH_CMS_LOG_REQ,
+                                               new FetchCMSLog(lastConsecutive, ClusterMetadataService.state() == REMOTE),
+                                               new CandidateIterator(candidates(true), false),
+                                               new Retry.Backoff(TCMMetrics.instance.fetchLogRetries));
+            if (!replay.isEmpty())
+            {
+                logger.info("Replay request returned replay data: {}", replay);
+                log.append(replay);
+                TCMMetrics.instance.cmsLogEntriesFetched(lastConsecutive, replay.latestEpoch());
+            }
 
-        return log.waitForHighestConsecutive();
+            return log.waitForHighestConsecutive();
+        }
     }
 
     public static <REQ, RSP> RSP sendWithCallback(Verb verb, REQ request, CandidateIterator candidates, Retry.Backoff backoff)

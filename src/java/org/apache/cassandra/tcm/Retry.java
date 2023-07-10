@@ -22,6 +22,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Clock;
 
@@ -32,15 +33,17 @@ public abstract class Retry
     protected static final int MAX_TRIES = DatabaseDescriptor.getCmsDefaultRetryMaxTries();
     protected final int maxTries;
     protected int tries;
+    protected Meter retryMeter;
 
-    public Retry()
+    public Retry(Meter retryMeter)
     {
-        this(MAX_TRIES);
+        this(MAX_TRIES, retryMeter);
     }
 
-    public Retry(int maxTries)
+    public Retry(int maxTries, Meter retryMeter)
     {
         this.maxTries = maxTries;
+        this.retryMeter = retryMeter;
     }
 
     public int maxTries()
@@ -61,6 +64,7 @@ public abstract class Retry
     public void maybeSleep()
     {
         tries++;
+        retryMeter.mark();
         sleepUninterruptibly(sleepFor(), TimeUnit.MILLISECONDS);
     }
 
@@ -72,14 +76,14 @@ public abstract class Retry
         private final Random random;
         private final int maxJitterMs;
 
-        public Jitter()
+        public Jitter(Meter retryMeter)
         {
-            this(MAX_TRIES, MAX_JITTER_MS, new Random());
+            this(MAX_TRIES, MAX_JITTER_MS, new Random(), retryMeter);
         }
 
-        public Jitter(int maxTries, int maxJitterMs, Random random)
+        private Jitter(int maxTries, int maxJitterMs, Random random, Meter retryMeter)
         {
-            super(maxTries);
+            super(maxTries, retryMeter);
             this.random = random;
             this.maxJitterMs = maxJitterMs;
         }
@@ -96,14 +100,14 @@ public abstract class Retry
         private static final int RETRY_BACKOFF_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
         protected final int backoffMs;
 
-        public Backoff()
+        public Backoff(Meter retryMeter)
         {
-            this(MAX_TRIES, RETRY_BACKOFF_MS);
+            this(MAX_TRIES, RETRY_BACKOFF_MS, retryMeter);
         }
 
-        public Backoff(int maxTries, int backoffMs)
+        private Backoff(int maxTries, int backoffMs, Meter retryMeter)
         {
-            super(maxTries);
+            super(maxTries, retryMeter);
             this.backoffMs = backoffMs;
         }
 
@@ -128,9 +132,9 @@ public abstract class Retry
         protected final long backoffMs;
         protected final long deadlineNanos;
 
-        public Deadline(long backoffMs, long deadlineNanos)
+        public Deadline(long backoffMs, long deadlineNanos, Meter retryMeter)
         {
-            super(Integer.MAX_VALUE);
+            super(Integer.MAX_VALUE, retryMeter);
             this.backoffMs = backoffMs;
             this.deadlineNanos = deadlineNanos;
         }

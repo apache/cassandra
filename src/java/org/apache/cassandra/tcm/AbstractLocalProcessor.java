@@ -23,6 +23,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.Replication;
@@ -87,7 +88,7 @@ public abstract class AbstractLocalProcessor implements Processor
     private Transformation.Result commitLocally(Entry.Id entryId, Transformation transform) throws InterruptedException, TimeoutException
     {
         // TODO: we need to add deadlines to CMS-local tasks, so that their retries would not exacerbate remote CMS ones
-        Retry.Jitter jitter = new Retry.Jitter();
+        Retry.Jitter jitter = new Retry.Jitter(TCMMetrics.instance.commitRetries);
         while (true)
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
@@ -137,7 +138,7 @@ public abstract class AbstractLocalProcessor implements Processor
     @Override
     public final ClusterMetadata fetchLogAndWait()
     {
-        return fetchLogAndWait(new Retry.Jitter());
+        return fetchLogAndWait(new Retry.Jitter(TCMMetrics.instance.fetchLogRetries));
     }
 
     protected final ClusterMetadata fetchLogAndWait(Retry.Jitter retry)

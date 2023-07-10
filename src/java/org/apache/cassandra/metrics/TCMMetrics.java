@@ -21,6 +21,8 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
@@ -33,27 +35,65 @@ public class TCMMetrics
     public static final TCMMetrics instance = new TCMMetrics();
 
     public final Gauge<Long> currentEpochGauge;
+    public final Gauge<Long> currentCMSSize;
+    public final Gauge<Long> unreachableCMSMembers;
     public final Histogram fetchedPeerLogEntries;
     public final Histogram fetchedCMSLogEntries;
+    public final Timer fetchPeerLogLatency;
+    public final Timer fetchCMSLogLatency;
     public final Histogram servedPeerLogEntries;
     public final Histogram servedCMSLogEntries;
     public final Meter logEntryFetchRate;
+    public final Timer commitRejectionLatency;
+    public final Timer commitFailureLatency;
+    public final Timer commitSuccessLatency;
+    public final Meter commitRetries;
+    public final Meter fetchLogRetries;
+    public final Meter progressBarrierRetries;
+    public final Timer progressBarrierLatency;
+    public final Meter progressBarrierCLRelax;
 
     private TCMMetrics()
     {
-        currentEpochGauge = Metrics.register(factory.createMetricName("Epoch"), () -> {
+       currentEpochGauge = Metrics.register(factory.createMetricName("Epoch"), () -> {
             ClusterMetadata metadata =  ClusterMetadata.currentNullable();
             if (metadata == null)
                 return Epoch.EMPTY.getEpoch();
             return metadata.epoch.getEpoch();
         });
 
+        currentCMSSize = Metrics.register(factory.createMetricName("CMSSize"), () -> {
+            ClusterMetadata metadata =  ClusterMetadata.currentNullable();
+            if (metadata == null)
+                return 0L;
+            return (long)metadata.fullCMSMembers().size();
+        });
+
+        unreachableCMSMembers = Metrics.register(factory.createMetricName("UnreachableCMSMembers"), () -> {
+            ClusterMetadata metadata =  ClusterMetadata.currentNullable();
+            if (metadata == null)
+                return 0L;
+            return metadata.fullCMSMembers().stream().filter(FailureDetector.isEndpointAlive.negate()).count();
+        });
+
         fetchedPeerLogEntries = Metrics.histogram(factory.createMetricName("FetchedPeerLogEntries"), false);
+        fetchPeerLogLatency = Metrics.timer(factory.createMetricName("FetchPeerLogLatency"));
         fetchedCMSLogEntries = Metrics.histogram(factory.createMetricName("FetchedCMSLogEntries"), false);
+        fetchCMSLogLatency = Metrics.timer(factory.createMetricName("FetchCMSLogLatency"));
         servedPeerLogEntries = Metrics.histogram(factory.createMetricName("ServedPeerLogEntries"), false);
         servedCMSLogEntries = Metrics.histogram(factory.createMetricName("ServedCMSLogEntries"), false);
-
+        fetchLogRetries = Metrics.meter(factory.createMetricName("FetchLogRetries"));
         logEntryFetchRate = Metrics.meter(factory.createMetricName("LogEntryFetchRate"));
+
+        commitRejectionLatency = Metrics.timer(factory.createMetricName("CommitRejectionLatency"));
+        commitFailureLatency = Metrics.timer(factory.createMetricName("CommitFailureLatency"));
+        commitSuccessLatency = Metrics.timer(factory.createMetricName("CommitSuccessLatency"));
+        commitRetries = Metrics.meter(factory.createMetricName("CommitRetries"));
+
+        progressBarrierRetries = Metrics.meter(factory.createMetricName("ProgressBarrierRetries"));
+        progressBarrierLatency = Metrics.timer(factory.createMetricName("ProgressBarrierLatency"));
+        progressBarrierCLRelax = Metrics.meter(factory.createMetricName("ProgressBarrierCLRelaxed"));
+
     }
 
     public void peerLogEntriesFetched(Epoch before, Epoch after)

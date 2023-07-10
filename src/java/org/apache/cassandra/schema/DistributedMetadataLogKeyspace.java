@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
@@ -176,7 +177,7 @@ public final class DistributedMetadataLogKeyspace
     @VisibleForTesting
     public static LogState getLogState(Epoch since, MetadataSnapshots snapshots)
     {
-        Retry retry = new Retry.Jitter();
+        Retry retry = new Retry.Jitter(TCMMetrics.instance.fetchLogRetries);
         while (!retry.reachedMax())
         {
             try

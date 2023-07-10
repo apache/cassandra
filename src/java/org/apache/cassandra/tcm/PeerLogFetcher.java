@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -89,43 +90,46 @@ public class PeerLogFetcher
 
     private ClusterMetadata fetchLogEntriesAndWaitInternal(InetAddressAndPort remote, Epoch awaitAtleast)
     {
-        Epoch before = ClusterMetadata.current().epoch;
-        if (before.isEqualOrAfter(awaitAtleast))
+        try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
+        {
+            Epoch before = ClusterMetadata.current().epoch;
+            if (before.isEqualOrAfter(awaitAtleast))
+                return ClusterMetadata.current();
+            FetchPeerLog fetchLogReq = new FetchPeerLog(before);
+            AsyncPromise<LogState> promise = new AsyncPromise<>();
+            MessagingService.instance().sendWithCallback(Message.out(Verb.TCM_FETCH_PEER_LOG_REQ, fetchLogReq), remote, new RequestCallbackWithFailure<LogState>()
+            {
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                {
+                    promise.setFailure(new RuntimeException(String.format("Unable to fetch log entries from %s: %s", from, failureReason)));
+                }
+
+                @Override
+                public void onResponse(Message<LogState> msg)
+                {
+                    logger.debug("Fetched log entries up to {} from {}", msg.payload.latestEpoch(), remote);
+                    promise.setSuccess(msg.payload);
+                }
+            });
+
+            try
+            {
+                LogState logState = promise.get(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+                log.append(logState);
+                ClusterMetadata fetched = log.waitForHighestConsecutive();
+                if (fetched.epoch.isEqualOrAfter(awaitAtleast))
+                {
+                    TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
+                    return fetched;
+                }
+            }
+            catch (InterruptedException | ExecutionException | TimeoutException e)
+            {
+                logger.warn("Unable to fetch log entries from " + remote, e);
+            }
             return ClusterMetadata.current();
-        FetchPeerLog fetchLogReq = new FetchPeerLog(before);
-        AsyncPromise<LogState> promise = new AsyncPromise<>();
-        MessagingService.instance().sendWithCallback(Message.out(Verb.TCM_FETCH_PEER_LOG_REQ, fetchLogReq), remote, new RequestCallbackWithFailure<LogState>()
-        {
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                promise.setFailure(new RuntimeException(String.format("Unable to fetch log entries from %s: %s", from, failureReason)));
-            }
-
-            @Override
-            public void onResponse(Message<LogState> msg)
-            {
-                logger.debug("Fetched log entries up to {} from {}", msg.payload.latestEpoch(), remote);
-                promise.setSuccess(msg.payload);
-            }
-        });
-
-        try
-        {
-            LogState logState = promise.get(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            log.append(logState);
-            ClusterMetadata fetched = log.waitForHighestConsecutive();
-            if (fetched.epoch.isEqualOrAfter(awaitAtleast))
-            {
-                TCMMetrics.instance.peerLogEntriesFetched(before, logState.latestEpoch());
-                return fetched;
-            }
         }
-        catch (InterruptedException | ExecutionException | TimeoutException e)
-        {
-            logger.warn("Unable to fetch log entries from " + remote, e);
-        }
-        return ClusterMetadata.current();
     }
 
     /**

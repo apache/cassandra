@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -151,7 +152,7 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
 
     private static void repairPaxosTopology()
     {
-        Retry.Backoff retry = new Retry.Backoff();
+        Retry.Backoff retry = new Retry.Backoff(PaxosMetrics.repairPaxosTopologyRetries);
         while (!retry.reachedMax())
         {
             try
