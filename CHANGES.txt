@@ -1,4 +1,5 @@
 5.0
+ * CEP-33: CIDR filtering authorizer (CASSANDRA-18592)
  * Improve vector value validation errors (CASSANDRA-18652)
  * Upgrade Guava to 32.0.1 (CASSANDRA-18645)
  * Add duration and count of partition keys to sstablemetadata (CASSANDRA-18639)

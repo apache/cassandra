@@ -19,6 +19,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -50,10 +51,18 @@ public interface CIDRGroupsMappingManagerMBean
     public void updateCidrGroup(String cidrGroupName, List<String> cidrs);
 
     /**
-     * Delete a CIDR group an associated mapping from the table {@link AuthKeyspace#CIDR_GROUPS}
+     * Delete a CIDR group and associated mapping from the table {@link AuthKeyspace#CIDR_GROUPS}
+     * throws exception if input cidr group name doesn't exist in the table before deletion
      * @param cidrGroupName CIDR group name
      */
     public void dropCidrGroup(String cidrGroupName);
+
+    /**
+     * Update {@link AuthKeyspace#CIDR_GROUPS} table with completly new mappings. Insert nonexisting CIDR groups,
+     * update existing CIDR groups with given set of CIDRs and delete nolonger valid CIDR groups.
+     * @param cidrGroupsMapping CIDR group mappings
+     */
+    public void recreateCidrGroupsMapping(Map<String, List<String>> cidrGroupsMapping);
 
     /**
      * Get CIDR groups of a given IP, when CIDR authorizer is enabled.

@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -192,18 +193,43 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
         process(query, CassandraAuthorizer.authWriteConsistencyLevel());
     }
 
-    public void dropCidrGroup(String cidrGroupName)
+    @VisibleForTesting
+    void dropCidrGroupIfExists(String cidrGroupName)
     {
-        Set<String> cidrs = getCidrsOfCidrGroupAsStrings(cidrGroupName);
-        if (cidrs.isEmpty())
-            throw new RuntimeException("CIDR group '" + cidrGroupName + "' doesn't exists");
-
         String query = String.format("DELETE FROM %s.%s WHERE cidr_group = '%s'",
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.CIDR_GROUPS,
                                      cidrGroupName);
 
         process(query, CassandraAuthorizer.authWriteConsistencyLevel());
+    }
+
+    public void dropCidrGroup(String cidrGroupName)
+    {
+        Set<String> cidrs = getCidrsOfCidrGroupAsStrings(cidrGroupName);
+        if (cidrs.isEmpty())
+            throw new RuntimeException("CIDR group '" + cidrGroupName + "' doesn't exists");
+
+        dropCidrGroupIfExists(cidrGroupName);
+    }
+
+    public void recreateCidrGroupsMapping(Map<String, List<String>> cidrGroupsMapping)
+    {
+        Set<String> existingMappings = getAvailableCidrGroups();
+
+        // Overwrites mappings of existing cidr groups and inserts new cidr groups
+        for (Map.Entry<String, List<String>> cidrGroupMapping : cidrGroupsMapping.entrySet())
+        {
+            String cidrGroupName = cidrGroupMapping.getKey();
+            updateCidrGroup(cidrGroupName, cidrGroupMapping.getValue());
+            existingMappings.remove(cidrGroupName);
+        }
+
+        // Delete old CIDR groups which do not exist in new mappings
+        for (String cidrGroupName : existingMappings)
+        {
+            dropCidrGroupIfExists(cidrGroupName);
+        }
     }
 
     public Set<String> getCidrGroupsOfIP(String ipStr)
