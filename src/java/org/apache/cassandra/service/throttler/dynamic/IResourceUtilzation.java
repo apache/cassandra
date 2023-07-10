@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * IResourceUtil defines an interface to get the current utilzation of the current JVM.
  */
-public interface IResourceUtil
+public interface IResourceUtilzation
 {
     /**
      * Called once in the lifetime of the daemon to set up the necessary one-time initialization parameters.

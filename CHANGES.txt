@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-21943] Default implementation to track CPU util
  * [SO-21943] Add an interface to track resource utilization
  * [SO-28726] Nodetool to get and modify Guardrails setting
  * [SO-28512] Skip large MV tables + Change newly added metrics to Gauge
