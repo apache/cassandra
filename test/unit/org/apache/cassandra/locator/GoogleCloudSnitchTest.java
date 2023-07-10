@@ -22,7 +22,6 @@ package org.apache.cassandra.locator;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Properties;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -35,16 +34,20 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
+import static org.apache.cassandra.locator.AlibabaCloudSnitch.DEFAULT_METADATA_SERVICE_URL;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 public class GoogleCloudSnitchTest
 {
@@ -66,10 +69,12 @@ public class GoogleCloudSnitchTest
     {
         String az = "us-central1-a";
 
-        AbstractCloudMetadataServiceConnector mock = mock(AbstractCloudMetadataServiceConnector.class);
-        when(mock.apiCall(any(), anyMap())).thenReturn(az);
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, DEFAULT_METADATA_SERVICE_URL))));
 
-        GoogleCloudSnitch snitch = new GoogleCloudSnitch(new SnitchProperties(new Properties()), mock);
+        doReturn(az).when(spiedConnector).apiCall(any(), anyMap());
+
+        GoogleCloudSnitch snitch = new GoogleCloudSnitch(spiedConnector);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -85,15 +90,18 @@ public class GoogleCloudSnitchTest
         assertEquals("us-central1", snitch.getDatacenter(local));
         assertEquals("a", snitch.getRack(local));
     }
-    
+
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
         String az = "asia-east1-a";
-        AbstractCloudMetadataServiceConnector mock = mock(AbstractCloudMetadataServiceConnector.class);
-        when(mock.apiCall(any(), anyMap())).thenReturn(az);
 
-        GoogleCloudSnitch snitch = new GoogleCloudSnitch(new SnitchProperties(new Properties()), mock);
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, DEFAULT_METADATA_SERVICE_URL))));
+
+        doReturn(az).when(spiedConnector).apiCall(any(), anyMap());
+
+        GoogleCloudSnitch snitch = new GoogleCloudSnitch(spiedConnector);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("asia-east1", snitch.getDatacenter(local));
         assertEquals("a", snitch.getRack(local));
