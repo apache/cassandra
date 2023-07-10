@@ -2117,8 +2117,8 @@ def read_options(cmdlineargs, environment):
 
     argvalues = argparse.Namespace()
 
-    argvalues.username = None
-    argvalues.password = None
+    argvalues.username = option_with_default(configs.get, 'authentication', 'username')
+    argvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
     argvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     argvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
     argvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
@@ -2143,7 +2143,7 @@ def read_options(cmdlineargs, environment):
 
     argvalues.coverage = False
     if 'CQLSH_COVERAGE' in environment.keys():
-        argvalues.coverage = True
+        optvalues.coverage = True
 
     argvalues.file = None
     argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
