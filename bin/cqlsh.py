@@ -2140,6 +2140,7 @@ def read_options(cmdlineargs, environment):
     argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     argvalues.execute = None
+    argvalues.insecure_password_without_warning = False
 
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
 
