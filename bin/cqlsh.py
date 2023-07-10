@@ -2143,7 +2143,7 @@ def read_options(cmdlineargs, environment):
 
     argvalues.coverage = False
     if 'CQLSH_COVERAGE' in environment.keys():
-        optvalues.coverage = True
+        argvalues.coverage = True
 
     argvalues.file = None
     argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
