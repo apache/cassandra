@@ -71,6 +71,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
+      Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
+      Please consult upgrade section to know more details when upgrading from older Cassandra versions.
     - Added a new secondary index implementation, Storage-Attached Indexes (SAI). Overview documentation and a basic
       tutorial can be found at src/java/org/apache/cassandra/index/sai/README.md.
     - *Experimental* support for Java 17 has been added. JVM options that differ between or are
@@ -210,6 +213,10 @@ Upgrading
      Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
     - JMX MBean `org.apache.cassandra.metrics:type=BufferPool` without scope has been removed.
       Use instead `org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache`.  (CASSANDRA-17668)
+    - Upon upgrade, when cassandra.yaml does not contain `crypto_provider` configuration section, crypto providers from JRE installation will be used
+      and no installation of DefaultCryptoProvider installing Amazon Corretto Crypto Provider will be conducted. 
+      You need to explicitly add this section to the old yaml if it does not contain it yet to enable Amazon Corretto Crypto Provider for such node. 
+      New deployments have `crypto_provider` uncommented with DefaultCryptoProvider hence Corretto provider will be installed automatically for corresponding architecture.
 
 
 Deprecation
