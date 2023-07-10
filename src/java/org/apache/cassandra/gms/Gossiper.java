@@ -1219,23 +1219,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
     }
 
-    public InetAddressAndPort getInternalAddressAndPort(InetAddressAndPort endpoint)
-    {
-        try
-        {
-            String internal = getApplicationState(endpoint, ApplicationState.INTERNAL_ADDRESS_AND_PORT);
-            if (internal == null)
-                internal = getApplicationState(endpoint, ApplicationState.INTERNAL_IP);
-            if (internal == null)
-                return endpoint;
-            return InetAddressAndPort.getByName(internal);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     /**
      * The value for the provided application state for the provided endpoint as currently known by this Gossip instance.
      *
