@@ -144,6 +144,7 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
                                                                       checkRack,
+                                                                      checkCryptoProvider,
                                                                       checkLegacyAuthTables,
                                                                       new DataResurrectionCheck());
 
@@ -742,6 +743,22 @@ public class StartupChecks
         public StartupCheckType getStartupCheckType()
         {
             return StartupCheckType.check_rack;
+        }
+    };
+
+    public static final StartupCheck checkCryptoProvider = new StartupCheck()
+    {
+        @Override
+        public void execute(StartupChecksOptions options) throws StartupException
+        {
+            try
+            {
+                DatabaseDescriptor.getCryptoProvider().checkProvider();
+            }
+            catch (Exception e)
+            {
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG, e.getMessage());
+            }
         }
     };
 

@@ -100,7 +100,9 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.service.AmazonCorrettoCryptoProviderImpl;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.ICryptoProvider;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -174,6 +176,7 @@ public class DatabaseDescriptor
 
     private static Config.DiskAccessMode indexAccessMode;
 
+    private static ICryptoProvider cryptoProvider = new AmazonCorrettoCryptoProviderImpl();
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
@@ -877,6 +880,9 @@ public class DatabaseDescriptor
         else if (conf.commitlog_segment_size.toKibibytes() < 2 * conf.max_mutation_size.toKibibytes())
             throw new ConfigurationException("commitlog_segment_size must be at least twice the size of max_mutation_size / 1024", false);
 
+        if (conf.crypto_provider != null)
+            cryptoProvider = FBUtilities.newCryptoProvider(conf.crypto_provider);
+
         // native transport encryption options
         if (conf.client_encryption_options != null)
         {
@@ -1500,6 +1506,11 @@ public class DatabaseDescriptor
         return detector;
     }
 
+    public static ICryptoProvider getCryptoProvider() {return cryptoProvider;}
+
+    public void setCryptoProvider(ICryptoProvider cryptoProvider) {
+        DatabaseDescriptor.cryptoProvider = cryptoProvider;
+    }
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;

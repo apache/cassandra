@@ -775,6 +775,13 @@
       <!-- end of chronicle-queue -->
 
       <dependency>
+        <groupId>software.amazon.cryptools</groupId>
+        <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+        <version>[2.0, 3.0)</version>
+        <classifier>linux-x86_64</classifier>
+      </dependency>
+
+      <dependency>
         <groupId>com.google.code.findbugs</groupId>
         <artifactId>jsr305</artifactId>
         <version>2.0.2</version>
