@@ -46,6 +46,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
+    private static final String MUTABLE = "is_mutable";
     static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
 
     SettingsTable(String keyspace)
@@ -56,6 +57,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
+                           .addRegularColumn(MUTABLE, UTF8Type.instance)
                            .build());
         for (String name : BACKWARDS_COMPATABLE_NAMES.keySet())
         {
@@ -91,7 +93,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         try
         {
             Object value = getPropertyAsString(getKeyAndWarnIfObsolete(name));
-            result.row(name).column(VALUE, value);
+            result.row(name).column(VALUE, value).column(MUTABLE, isMutablePropertyAsString(name));
         }
         catch (PropertyNotFoundException e)
         {
@@ -108,12 +110,16 @@ final class SettingsTable extends AbstractMutableVirtualTable
         {
             if (BACKWARDS_COMPATABLE_NAMES.containsKey(key))
                 continue;
-            runExceptionally(() -> result.row(key).column(VALUE, getPropertyAsString(key)),
+            runExceptionally(() -> result.row(key)
+                                         .column(VALUE, getPropertyAsString(key))
+                                         .column(MUTABLE, isMutablePropertyAsString(key)),
                              t -> new ConfigurationException(t.getMessage(), false));
         }
 
         runExceptionally(() -> BACKWARDS_COMPATABLE_NAMES.forEach((oldName, newName) ->
-                                           result.row(oldName).column(VALUE, getPropertyAsString(newName))),
+                                           result.row(oldName)
+                                                 .column(VALUE, getPropertyAsString(newName))
+                                                 .column(MUTABLE, isMutablePropertyAsString(newName))),
                          t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
@@ -131,6 +137,11 @@ final class SettingsTable extends AbstractMutableVirtualTable
         return getPropertyType(name).equals(String.class) ?
                (String) getPropertyValue(name) :
                propertyToStringConverter().apply(getPropertyValue(name));
+    }
+
+    public static String isMutablePropertyAsString(String name)
+    {
+        return propertyToStringConverter().apply(DatabaseDescriptor.isMutableProperty(name));
     }
 
     public static void setPropertyFromString(String name, String value)

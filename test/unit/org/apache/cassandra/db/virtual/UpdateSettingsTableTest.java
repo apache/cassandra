@@ -20,8 +20,10 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
@@ -51,7 +53,7 @@ import static org.junit.Assert.fail;
  */
 public class UpdateSettingsTableTest extends CQLTester
 {
-    private static final List<String> updatableProperties = new ArrayList<>();
+    private static final Set<String> updatableProperties = new HashSet<>();
     private static final Map<String, Class<?>> propertyTypes = new HashMap<>();
     private static final Map<Class<?>, Object[]> defaultTestValues = registerTestConfigurationValues();
 
@@ -62,7 +64,7 @@ public class UpdateSettingsTableTest extends CQLTester
         for (String key : DatabaseDescriptor.getAllProperties())
         {
             propertyTypes.put(key, DatabaseDescriptor.getPropertyType(key));
-            if (!DatabaseDescriptor.isReadOnlyProperty(key))
+            if (DatabaseDescriptor.isMutableProperty(key))
                 updatableProperties.add(key);
         }
     }
@@ -131,9 +133,9 @@ public class UpdateSettingsTableTest extends CQLTester
                 String.format("UPDATE vts.settings SET value='%s' WHERE name = '%s'; ",
                               propertyToStringConverter().apply(newStreamThroughputOutbound), Config.Names.STREAM_THROUGHPUT_OUTBOUND) +
                 "APPLY BATCH ");
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), Config.Names.COMPACTION_THROUGHPUT),
+        assertRowsNet(executeNet(String.format("SELECT name, value FROM %s.settings WHERE name = ?;", KS_NAME), Config.Names.COMPACTION_THROUGHPUT),
                       new Object[]{ Config.Names.COMPACTION_THROUGHPUT, newCompactionThroughput.toString() });
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), Config.Names.STREAM_THROUGHPUT_OUTBOUND),
+        assertRowsNet(executeNet(String.format("SELECT name, value FROM %s.settings WHERE name = ?;", KS_NAME), Config.Names.STREAM_THROUGHPUT_OUTBOUND),
                       new Object[]{ Config.Names.STREAM_THROUGHPUT_OUTBOUND, newStreamThroughputOutbound.toString() });
     }
 
@@ -153,7 +155,10 @@ public class UpdateSettingsTableTest extends CQLTester
         String valueStr = propertyToStringConverter().apply(value);
         assertRowsNet(executeNet(statement, valueStr, propertyName));
         assertEquals(value, DatabaseDescriptor.getPropertyValue(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, propertyToStringConverter().apply(value) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName),
+                      new Object[]{ propertyName,
+                                    propertyToStringConverter().apply(updatableProperties.contains(propertyName)),
+                                    propertyToStringConverter().apply(value) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)

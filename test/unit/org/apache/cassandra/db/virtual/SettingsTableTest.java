@@ -94,7 +94,10 @@ public class SettingsTableTest extends CQLTester
         for (String key : DatabaseDescriptor.getAllProperties())
         {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
-            assertRowsNet(executeNet(q), new Object[]{ key, SettingsTable.getPropertyAsString(key) });
+            assertRowsNet(executeNet(q),
+                          new Object[]{ key,
+                                        SettingsTable.isMutablePropertyAsString(SettingsTable.getKeyAndWarnIfObsolete(key)),
+                                        SettingsTable.getPropertyAsString(key) });
         }
     }
 
@@ -108,7 +111,7 @@ public class SettingsTableTest extends CQLTester
     @Test
     public void testSelectOverride() throws Throwable
     {
-        String q = "SELECT * FROM vts.settings WHERE name = 'server_encryption_options_enabled'";
+        String q = "SELECT name, value FROM vts.settings WHERE name = 'server_encryption_options_enabled'";
         assertRowsNet(executeNet(q), new Object[] {"server_encryption_options_enabled", "false"});
         q = "SELECT * FROM vts.settings WHERE name = 'server_encryption_options_XYZ'";
         assertRowsNet(executeNet(q));
@@ -118,39 +121,39 @@ public class SettingsTableTest extends CQLTester
     public void virtualTableBackwardCompatibility() throws Throwable
     {
         // test NEGATIVE_MEBIBYTES_DATA_STORAGE_INT converter
-        String q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval';";
+        String q = "SELECT name, value FROM vts.settings WHERE name = 'sstable_preemptive_open_interval';";
         assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval", null});
-        q = "SELECT * FROM vts.settings WHERE name = 'sstable_preemptive_open_interval_in_mb';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'sstable_preemptive_open_interval_in_mb';";
         assertRowsNet(executeNet(q), new Object[] {"sstable_preemptive_open_interval_in_mb", "-1"});
 
         // test MINUTES_CUSTOM_DURATION converter
-        q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'index_summary_resize_interval';";
         assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval", null});
-        q = "SELECT * FROM vts.settings WHERE name = 'index_summary_resize_interval_in_minutes';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'index_summary_resize_interval_in_minutes';";
         assertRowsNet(executeNet(q), new Object[] {"index_summary_resize_interval_in_minutes", "-1"});
 
         // test NEGATIVE_SECONDS_DURATION converter
-        q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'cache_load_timeout';";
         assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout", "0s"});
-        q = "SELECT * FROM vts.settings WHERE name = 'cache_load_timeout_seconds';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'cache_load_timeout_seconds';";
         assertRowsNet(executeNet(q), new Object[] {"cache_load_timeout_seconds", "0"});
 
         // test MILLIS_DURATION_DOUBLE converter
-        q = "SELECT * FROM vts.settings WHERE name = 'commitlog_sync_group_window';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'commitlog_sync_group_window';";
         assertRowsNet(executeNet(q), new Object[] {"commitlog_sync_group_window", "0ms"});
-        q = "SELECT * FROM vts.settings WHERE name = 'commitlog_sync_group_window_in_ms';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'commitlog_sync_group_window_in_ms';";
         assertRowsNet(executeNet(q), new Object[] {"commitlog_sync_group_window_in_ms", "0.0"});
 
         //test MILLIS_CUSTOM_DURATION converter
-        q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'credentials_update_interval';";
         assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval", null});
-        q = "SELECT * FROM vts.settings WHERE name = 'credentials_update_interval_in_ms';";
+        q = "SELECT name, value FROM vts.settings WHERE name = 'credentials_update_interval_in_ms';";
         assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval_in_ms", "-1"});
     }
 
     private void check(String setting, String expected) throws Throwable
     {
-        String q = "SELECT * FROM vts.settings WHERE name = '"+setting+'\'';
+        String q = "SELECT name, value FROM vts.settings WHERE name = '"+setting+'\'';
         try
         {
             assertRowsNet(executeNet(q), new Object[] {setting, expected});
@@ -166,7 +169,7 @@ public class SettingsTableTest extends CQLTester
     {
         String pre = "server_encryption_options_";
         check(pre + "enabled", "false");
-        String all = "SELECT * FROM vts.settings WHERE " +
+        String all = "SELECT name, value FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
         Set<String> expectedNames = settingsTableKeys.stream().filter(k -> k.startsWith("server_encryption")).collect(Collectors.toSet());
@@ -226,7 +229,7 @@ public class SettingsTableTest extends CQLTester
     {
         String pre = "audit_logging_options_";
         check(pre + "enabled", "false");
-        String all = "SELECT * FROM vts.settings WHERE " +
+        String all = "SELECT name, value FROM vts.settings WHERE " +
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
         config.audit_logging_options.enabled = true;
@@ -272,7 +275,7 @@ public class SettingsTableTest extends CQLTester
     {
         String pre = "transparent_data_encryption_options_";
         check(pre + "enabled", "false");
-        String all = "SELECT * FROM vts.settings WHERE " +
+        String all = "SELECT name, value FROM vts.settings WHERE " +
                      "name > 'transparent_data_encryption_options' AND " +
                      "name < 'transparent_data_encryption_optionsz' ALLOW FILTERING";
 

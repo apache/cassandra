@@ -4777,7 +4777,7 @@ public class DatabaseDescriptor
                                          ((Replacement.ReplacementProperty) property).delegate() :
                                          property;
 
-        if (isReadOnlyProperty(unwrappedProperty))
+        if (!isMutableProperty(unwrappedProperty))
             throw new ConfigurationException("Unable to add a listener for read-only property: " + unwrappedProperty.getName());
 
         if (!(unwrappedProperty instanceof ListenableProperty))
@@ -4808,7 +4808,7 @@ public class DatabaseDescriptor
         try
         {
             Property property = getPropertyAccessor(name);
-            if (isReadOnlyProperty(property))
+            if (!isMutableProperty(property))
                 throw new ConfigurationException("Property is read-only: " + property.getName());
 
             if (value == null)
@@ -4839,14 +4839,14 @@ public class DatabaseDescriptor
         return confValueAccessors.keySet();
     }
 
-    public static boolean isReadOnlyProperty(String name)
+    public static boolean isMutableProperty(String name)
     {
-        return isReadOnlyProperty(getPropertyAccessor(name));
+        return isMutableProperty(getPropertyAccessor(name));
     }
 
-    private static boolean isReadOnlyProperty(Property property)
+    private static boolean isMutableProperty(Property property)
     {
-        return property.getAnnotation(Mutable.class) == null;
+        return property.getAnnotation(Mutable.class) != null;
     }
 
     public static Class<?> getPropertyType(String name)
