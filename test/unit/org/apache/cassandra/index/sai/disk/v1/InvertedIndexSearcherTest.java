@@ -30,14 +30,13 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.KDTreeIndexBuilder;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.cassandra.service.StorageService;
@@ -74,8 +73,8 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
         {
             for (int t = 0; t < numTerms; ++t)
             {
-                try (RangeIterator<PrimaryKey> results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, SSTableQueryContext.forTest(), false, LIMIT))
+                try (RangeIterator<Long> results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, new QueryContext(), false, LIMIT))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -84,14 +83,14 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
                     {
                         final long expectedToken = termsEnum.get(t).right.get(p);
                         assertTrue(results.hasNext());
-                        final long actualToken = results.next().token().getLongValue();
+                        final long actualToken = results.next();
                         assertEquals(expectedToken, actualToken);
                     }
                     assertFalse(results.hasNext());
                 }
 
-                try (RangeIterator<PrimaryKey> results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, SSTableQueryContext.forTest(), false, LIMIT))
+                try (RangeIterator<Long> results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, new QueryContext(), false, LIMIT))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -100,12 +99,12 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
                     final int idxToSkip = numPostings - 7;
                     // tokens are equal to their corresponding row IDs
                     final long tokenToSkip = termsEnum.get(t).right.get(idxToSkip);
-                    results.skipTo(SAITester.TEST_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(tokenToSkip)));
+                    results.skipTo(tokenToSkip);
 
                     for (int p = idxToSkip; p < numPostings; ++p)
                     {
                         final long expectedToken = termsEnum.get(t).right.get(p);
-                        final long actualToken = results.next().token().getLongValue();
+                        final long actualToken = results.next();
                         assertEquals(expectedToken, actualToken);
                     }
                 }
@@ -114,12 +113,12 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
             // try searching for terms that weren't indexed
             final String tooLongTerm = randomSimpleString(10, 12);
             RangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), null, SSTableQueryContext.forTest(), false, LIMIT);
+                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), null, new QueryContext(), false, LIMIT);
             assertFalse(results.hasNext());
 
             final String tooShortTerm = randomSimpleString(1, 2);
             results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), null, SSTableQueryContext.forTest(), false, LIMIT);
+                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), null, new QueryContext(), false, LIMIT);
             assertFalse(results.hasNext());
         }
     }
@@ -133,7 +132,7 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
         try (IndexSearcher searcher = buildIndexAndOpenSearcher(numTerms, numPostings, termsEnum))
         {
             searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                            .add(Operator.GT, UTF8Type.instance.decompose("a")), null, SSTableQueryContext.forTest(), false, LIMIT);
+                            .add(Operator.GT, UTF8Type.instance.decompose("a")), null, new QueryContext(), false, LIMIT);
 
             fail("Expect IllegalArgumentException thrown, but didn't");
         }

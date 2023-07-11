@@ -24,8 +24,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -34,11 +32,10 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.NumberType;
 import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.KDTreeIndexBuilder;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 
@@ -152,7 +149,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             {{
                 operation = Op.NOT_EQ;
                 lower = upper = new Bound(ShortType.instance.decompose((short) 0), Int32Type.instance, true);
-            }}, null, SSTableQueryContext.forTest(), false, LIMIT);
+            }}, null, new QueryContext(), false, LIMIT);
 
             fail("Expect IllegalArgumentException thrown, but didn't");
         }
@@ -166,23 +163,23 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
                                                   final NumberType<T> rawType, final NumberType<?> encodedType,
                                                   final Function<Short, T> rawValueProducer) throws Exception
     {
-        try (RangeIterator<PrimaryKey> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (RangeIterator<Long> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
-        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
+        }}, null, new QueryContext(), false, LIMIT))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            assertEquals(0L, results.next().token().getLongValue());
+            assertEquals(Long.valueOf(0), results.next());
         }
 
         try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
+        }}, null, new QueryContext(), false, LIMIT))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();
@@ -202,26 +199,25 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer, List<Long> expectedTokenList) throws Exception
     {
-        try (RangeIterator<PrimaryKey> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (RangeIterator<Long> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.RANGE;
 
             lower = new Bound(rawType.decompose(rawValueProducer.apply((short)2)), encodedType, false);
             upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
-        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
+        }}, null, new QueryContext(), false, LIMIT))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key.token().getLongValue()));
-            assertEquals(expectedTokenList, actualTokenList);
+            assertEquals(expectedTokenList, results);
         }
 
         try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.RANGE;
             lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
+        }}, null, new QueryContext(), false, LIMIT))
         {
             assertFalse(results.hasNext());
         }
@@ -230,7 +226,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
         {{
             operation = Op.RANGE;
             upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, false);
-        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
+        }}, null, new QueryContext(), false, LIMIT))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();
