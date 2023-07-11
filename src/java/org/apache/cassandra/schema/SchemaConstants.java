@@ -145,7 +145,12 @@ public final class SchemaConstants
      */
     public static Set<String> getLocalAndReplicatedSystemTableNames()
     {
-        return Sets.union(Sets.union(SystemKeyspace.TABLE_NAMES, ImmutableSet.copyOf(SchemaKeyspaceTables.ALL)),
-                          Sets.union(Sets.union(TraceKeyspace.TABLE_NAMES, AuthKeyspace.TABLE_NAMES), SystemDistributedKeyspace.TABLE_NAMES));
+        return ImmutableSet.<String>builder()
+                           .addAll(SystemKeyspace.TABLE_NAMES)
+                           .addAll(SchemaKeyspaceTables.ALL)
+                           .addAll(TraceKeyspace.TABLE_NAMES)
+                           .addAll(AuthKeyspace.TABLE_NAMES)
+                           .addAll(SystemDistributedKeyspace.TABLE_NAMES)
+                           .build();
     }
 }
