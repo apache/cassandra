@@ -96,7 +96,7 @@ public class SettingsTableTest extends CQLTester
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
             assertRowsNet(executeNet(q),
                           new Object[]{ key,
-                                        SettingsTable.isMutablePropertyAsString(SettingsTable.getKeyAndWarnIfObsolete(key)),
+                                        DatabaseDescriptor.isMutableProperty(key),
                                         SettingsTable.getPropertyAsString(key) });
         }
     }

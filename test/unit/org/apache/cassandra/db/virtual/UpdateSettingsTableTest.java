@@ -157,7 +157,7 @@ public class UpdateSettingsTableTest extends CQLTester
         assertEquals(value, DatabaseDescriptor.getPropertyValue(propertyName));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName),
                       new Object[]{ propertyName,
-                                    propertyToStringConverter().apply(updatableProperties.contains(propertyName)),
+                                    updatableProperties.contains(propertyName),
                                     propertyToStringConverter().apply(value) });
     }
 

@@ -28,6 +28,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -57,7 +58,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .partitioner(new LocalPartitioner(UTF8Type.instance))
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
-                           .addRegularColumn(MUTABLE, UTF8Type.instance)
+                           .addRegularColumn(MUTABLE, BooleanType.instance)
                            .build());
         for (String name : BACKWARDS_COMPATABLE_NAMES.keySet())
         {
@@ -93,7 +94,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         try
         {
             Object value = getPropertyAsString(getKeyAndWarnIfObsolete(name));
-            result.row(name).column(VALUE, value).column(MUTABLE, isMutablePropertyAsString(name));
+            result.row(name).column(VALUE, value).column(MUTABLE, DatabaseDescriptor.isMutableProperty(name));
         }
         catch (PropertyNotFoundException e)
         {
@@ -112,14 +113,14 @@ final class SettingsTable extends AbstractMutableVirtualTable
                 continue;
             runExceptionally(() -> result.row(key)
                                          .column(VALUE, getPropertyAsString(key))
-                                         .column(MUTABLE, isMutablePropertyAsString(key)),
+                                         .column(MUTABLE, DatabaseDescriptor.isMutableProperty(key)),
                              t -> new ConfigurationException(t.getMessage(), false));
         }
 
         runExceptionally(() -> BACKWARDS_COMPATABLE_NAMES.forEach((oldName, newName) ->
                                            result.row(oldName)
                                                  .column(VALUE, getPropertyAsString(newName))
-                                                 .column(MUTABLE, isMutablePropertyAsString(newName))),
+                                                 .column(MUTABLE, DatabaseDescriptor.isMutableProperty(newName))),
                          t -> new ConfigurationException(t.getMessage(), false));
         return result;
     }
@@ -137,11 +138,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
         return getPropertyType(name).equals(String.class) ?
                (String) getPropertyValue(name) :
                propertyToStringConverter().apply(getPropertyValue(name));
-    }
-
-    public static String isMutablePropertyAsString(String name)
-    {
-        return propertyToStringConverter().apply(DatabaseDescriptor.isMutableProperty(name));
     }
 
     public static void setPropertyFromString(String name, String value)
