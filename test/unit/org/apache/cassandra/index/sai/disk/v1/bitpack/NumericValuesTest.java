@@ -18,12 +18,10 @@
 package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 
-import java.util.Arrays;
 import java.util.function.LongFunction;
 
 import org.junit.Test;
 
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;

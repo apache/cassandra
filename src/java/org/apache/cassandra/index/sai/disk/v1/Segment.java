@@ -29,8 +29,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -134,26 +134,11 @@ public class Segment implements Closeable, SegmentOrdering
      * @param context    to track per sstable cache and per query metrics
      * @param defer      create the iterator in a deferred state
      * @param limit      the num of rows to returned, used by ANN index
-     * @return range iterator of primary keys that matches given expression
-     */
-    public RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
-    {
-        return index.search(expression, keyRange, context, defer, limit);
-    }
-
-    /**
-     * Search on-disk index synchronously
-     *
-     * @param expression to filter on disk index
-     * @param keyRange   key range specific in read command, used by ANN index
-     * @param context    to track per sstable cache and per query metrics
-     * @param defer      create the iterator in a deferred state
-     * @param limit      the num of rows to returned, used by ANN index
      * @return range iterator of sstable row ids that matches given expression
      */
-    public RangeIterator<Long> searchSSTableRowIds(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator<Long> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context, boolean defer, int limit) throws IOException
     {
-        return index.searchSSTableRowIds(expression, keyRange, context, defer, limit);
+        return index.search(expression, keyRange, context, defer, limit);
     }
 
     @Override
@@ -172,7 +157,7 @@ public class Segment implements Closeable, SegmentOrdering
     }
 
     @Override
-    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
     {
         return index.limitToTopResults(context, iterator, exp, limit);
     }
