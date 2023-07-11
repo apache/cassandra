@@ -28,12 +28,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tracing.TraceKeyspace;
 
+import static java.lang.String.format;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceTablesNamesTest extends CQLTester
@@ -48,65 +51,58 @@ public class SystemKeyspaceTablesNamesTest extends CQLTester
     @Test
     public void testSystemKeyspaceTableNames()
     {
-        Set<String> tables = Schema.instance.getKeyspaceMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME).tables
-                             .stream().map(t -> t.name).collect(Collectors.toSet());
-
-        Sets.SetView<String> diff = Sets.difference(tables, SystemKeyspace.TABLE_NAMES);
-        assertTrue("The following tables are missing from SystemKeyspace.TABLE_NAMES: " + diff, diff.isEmpty());
-
-        diff = Sets.difference(SystemKeyspace.TABLE_NAMES, tables);
-        assertTrue("The following tables are in SystemKeyspace.TABLE_NAMES but should not be: " + diff, diff.isEmpty());
+        assertExpectedTablesInKeyspace(SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                       "SystemKeyspace.TABLE_NAMES",
+                                       SystemKeyspace.TABLE_NAMES);
     }
 
     @Test
     public void testSystemSchemaKeyspaceTableNames()
     {
-        Set<String> tables = Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME).tables
-                             .stream().map(t -> t.name).collect(Collectors.toSet());
-
-        Sets.SetView<String> diff = Sets.difference(tables, ImmutableSet.copyOf(SchemaKeyspaceTables.ALL));
-        assertTrue("The following tables are missing from SchemaKeyspaceTables.ALL: " + diff, diff.isEmpty());
-
-        diff = Sets.difference(ImmutableSet.copyOf(SchemaKeyspaceTables.ALL), tables);
-        assertTrue("The following tables are in SchemaKeyspaceTables.ALL but should not be: " + diff, diff.isEmpty());
+        assertExpectedTablesInKeyspace(SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                       "SchemaKeyspaceTables.ALL",
+                                       ImmutableSet.copyOf(SchemaKeyspaceTables.ALL));
     }
 
     @Test
     public void testSystemTraceKeyspaceTableNames()
     {
-        Set<String> keyspaceTableNames = Schema.instance.getKeyspaceMetadata(SchemaConstants.TRACE_KEYSPACE_NAME).tables
-                                         .stream().map(t -> t.name).collect(Collectors.toSet());
-
-        Sets.SetView<String> diff = Sets.difference(keyspaceTableNames, TraceKeyspace.TABLE_NAMES);
-        assertTrue("The following tables are missing from TraceKeyspace.TABLE_NAMES: " + diff, diff.isEmpty());
-
-        diff = Sets.difference(TraceKeyspace.TABLE_NAMES, keyspaceTableNames);
-        assertTrue("The following tables are in TraceKeyspace.TABLE_NAMES but should not be: " + diff, diff.isEmpty());
+        assertExpectedTablesInKeyspace(SchemaConstants.TRACE_KEYSPACE_NAME,
+                                       "TraceKeyspace.TABLE_NAMES",
+                                       TraceKeyspace.TABLE_NAMES);
     }
 
     @Test
     public void testSystemAuthKeyspaceTableNames()
     {
-        Set<String> keyspaceTableNames = Schema.instance.getKeyspaceMetadata(SchemaConstants.AUTH_KEYSPACE_NAME).tables
-                                         .stream().map(t -> t.name).collect(Collectors.toSet());
-
-        Sets.SetView<String> diff = Sets.difference(keyspaceTableNames, AuthKeyspace.TABLE_NAMES);
-        assertTrue("The following tables are missing from AuthKeyspace.TABLE_NAMES: " + diff, diff.isEmpty());
-
-        diff = Sets.difference(AuthKeyspace.TABLE_NAMES, keyspaceTableNames);
-        assertTrue("The following tables are in AuthKeyspace.TABLE_NAMES but should not be: " + diff, diff.isEmpty());
+        assertExpectedTablesInKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                       "AuthKeyspace.TABLE_NAMES",
+                                       AuthKeyspace.TABLE_NAMES);
     }
 
     @Test
     public void testSystemDistributedKeyspaceTableNames()
     {
-        Set<String> keyspaceTableNames = Schema.instance.getKeyspaceMetadata(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).tables
-                                         .stream().map(t -> t.name).collect(Collectors.toSet());
+        assertExpectedTablesInKeyspace(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                       "SystemDistributedKeyspace.TABLE_NAMES",
+                                       SystemDistributedKeyspace.TABLE_NAMES);
+    }
+    
+    private void assertExpectedTablesInKeyspace(String keyspaceName, String expectedTableSource, Set<String> expectedTables)
+    {
+        Set<String> actualKeyspaceTables = tablesFromSchema(keyspaceName);
 
-        Sets.SetView<String> diff = Sets.difference(keyspaceTableNames, SystemDistributedKeyspace.TABLE_NAMES);
-        assertTrue("The following tables are missing from SystemDistributedKeyspace.TABLE_NAMES: " + diff, diff.isEmpty());
+        Sets.SetView<String> diff = Sets.difference(actualKeyspaceTables, expectedTables);
+        assertTrue(format("The following tables are missing from %s: %s", expectedTableSource, diff), diff.isEmpty());
 
-        diff = Sets.difference(SystemDistributedKeyspace.TABLE_NAMES, keyspaceTableNames);
-        assertTrue("The following tables are in SystemDistributedKeyspace.TABLE_NAMES but should not be: " + diff, diff.isEmpty());
+        diff = Sets.difference(expectedTables, actualKeyspaceTables);
+        assertTrue(format("The following tables are in %s but should not be: %s", expectedTableSource,  diff), diff.isEmpty());
+    }
+
+    private Set<String> tablesFromSchema(String keyspaceName)
+    {
+        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        assertNotNull(keyspace);
+        return keyspace.tables.stream().map(t -> t.name).collect(Collectors.toSet());
     }
 }
