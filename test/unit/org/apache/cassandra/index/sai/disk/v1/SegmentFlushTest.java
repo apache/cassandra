@@ -220,7 +220,7 @@ public class SegmentFlushTest
 
     private void verifySegmentMetadata(SegmentMetadata segmentMetadata)
     {
-        assertEquals(segmentRowIdOffset, segmentMetadata.segmentRowIdOffset);
+        assertEquals(segmentRowIdOffset, segmentMetadata.minSSTableRowId);
         assertEquals(minKey, segmentMetadata.minKey);
         assertEquals(maxKey, segmentMetadata.maxKey);
         assertEquals(minTerm, segmentMetadata.minTerm);

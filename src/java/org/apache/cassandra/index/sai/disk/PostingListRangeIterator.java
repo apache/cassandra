@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -56,7 +56,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private final Stopwatch timeToExhaust = Stopwatch.createStarted();
-    private final SSTableQueryContext queryContext;
+    private final QueryContext queryContext;
 
     private final PostingList postingList;
     private final IndexContext indexContext;
@@ -99,7 +99,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
     {
         try
         {
-            queryContext.queryContext.checkpoint();
+            queryContext.checkpoint();
 
             // just end the iterator if we don't have a postingList or current segment is skipped
             if (exhausted())

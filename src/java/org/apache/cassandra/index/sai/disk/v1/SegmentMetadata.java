@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -215,20 +216,14 @@ public class SegmentMetadata implements Comparable<SegmentMetadata>
         return componentMetadatas.get(indexComponent).root;
     }
 
-    public long getIndexOffset(IndexComponent indexComponent)
+    public int toSegmentRowId(long sstableRowId)
     {
-        return componentMetadatas.get(indexComponent).offset;
-    }
+        int segmentRowId = Math.toIntExact(sstableRowId - segmentRowIdOffset);
 
-    public long getIndexLength(IndexComponent indexComponent)
-    {
-        return componentMetadatas.get(indexComponent).length;
-    }
+        if (segmentRowId == PostingList.END_OF_STREAM)
+            throw new IllegalArgumentException("Illegal segment row id: END_OF_STREAM found");
 
-    // REVIEWME is this already implemented somewhere else?
-    public int segmentedRowId(long sstableRowId)
-    {
-        return Math.toIntExact(sstableRowId - minSSTableRowId);
+        return segmentRowId;
     }
 
     public static class ComponentMetadataMap

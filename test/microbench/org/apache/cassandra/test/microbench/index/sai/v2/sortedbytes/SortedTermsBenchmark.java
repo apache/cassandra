@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;

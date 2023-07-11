@@ -306,10 +306,9 @@ public class QueryController
         assert annIndexExpressions.size() == 1 : "only one index is expected in ANN expression, found " + annIndexExpressions.size() + " in " + annIndexExpressions;
         QueryViewBuilder.IndexExpression annIndexExpression = annIndexExpressions.get(0);
 
-        var sstContext = queryContext.getSSTableQueryContext(sstable);
         try
         {
-            return annIndexExpression.index.limitToTopResults(sstContext, original, annIndexExpression.expression, getLimit());
+            return annIndexExpression.index.limitToTopResults(queryContext, original, annIndexExpression.expression, getLimit());
         }
         catch (IOException e)
         {
@@ -342,8 +341,7 @@ public class QueryController
                                     {
                                         try
                                         {
-                                            var sstContext = queryContext.getSSTableQueryContext(ie.index.getSSTable());
-                                            List<RangeIterator<Long>> iterators = ie.index.searchSSTableRowIds(ie.expression, mergeRange, sstContext, defer, getLimit());
+                                            List<RangeIterator<Long>> iterators = ie.index.searchSSTableRowIds(ie.expression, mergeRange, queryContext, defer, getLimit());
                                             // concat the result from multiple segments for the same index
                                             return RangeConcatIterator.build(iterators);
                                         }

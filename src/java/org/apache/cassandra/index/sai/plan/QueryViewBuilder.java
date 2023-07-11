@@ -157,12 +157,10 @@ public class QueryViewBuilder
         return queryView;
     }
 
-    // REVIEWME:
     // I've removed the concept of "most selective index" since we don't actually have per-sstable
     // statistics on that; it looks like it was only used to check bounds overlap, so computing
     // an actual global bounds should be an improvement.  But computing global bounds as an intersection
     // of individual bounds is messy because you can end up with more than one range.
-
     private boolean indexInRange(SSTableIndex index)
     {
         SSTableReader sstable = index.getSSTable();

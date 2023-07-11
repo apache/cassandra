@@ -20,12 +20,12 @@ package org.apache.cassandra.index.sai.disk;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 public class IndexSearcherContext
 {
-    final SSTableQueryContext context;
+    final QueryContext context;
     final PostingList.PeekablePostingList postingList;
 
     final PrimaryKey minimumKey;
@@ -40,7 +40,7 @@ public class IndexSearcherContext
                                 long minSSTableRowId,
                                 long maxSSTableRowId,
                                 long segmentRowIdOffset,
-                                SSTableQueryContext context,
+                                QueryContext context,
                                 PostingList.PeekablePostingList postingList) throws IOException
     {
         this.context = context;
