@@ -19,6 +19,7 @@
 
 package org.apache.cassandra.utils;
 
+import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.Set;
 
@@ -41,6 +42,9 @@ public final class Architecture
     ));
 
     public static final boolean IS_UNALIGNED = UNALIGNED_ARCH.contains(OS_ARCH.getString());
+
+    // Note that s390x (and all unaligned, see UNALIGNED_ARCH above) architectures are not officially supported, ref #17723
+    public static final boolean BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
 
     private Architecture()
     {

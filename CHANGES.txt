@@ -1,4 +1,5 @@
 5.0
+ * Fix for (unsupported) big endian unaligned architecture, eg s390x (CASSANDRA-17723)
  * CIDR filtering authorizer (CASSANDRA-18592)
  * Remove 3.x from the versions checked for prepared statement behaviour (CASSANDRA-18695)
  * Add vector similarity functions (CASSANDRA-18640)
