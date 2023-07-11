@@ -5750,9 +5750,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public List<String> describeCMS()
+    public Map<String, String> describeCMS()
     {
-        return ClusterMetadata.current().fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.toList());
+        Map<String, String> info = new HashMap<>();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        ClusterMetadataService service = ClusterMetadataService.instance();
+        String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
+        info.put("MEMBERS", members);
+        info.put("IS_MEMBER", Boolean.toString(service.isCurrentMember(FBUtilities.getBroadcastAddressAndPort())));
+        info.put("SERVICE_STATE", ClusterMetadataService.state(metadata).toString());
+        info.put("IS_MIGRATING", Boolean.toString(service.isMigrating()));
+        info.put("EPOCH", Long.toString(metadata.epoch.getEpoch()));
+        info.put("LOCAL_PENDING", Integer.toString(ClusterMetadataService.instance().log().pendingBufferSize()));
+        info.put("COMMITS_PAUSED", Boolean.toString(service.commitsPaused()));
+        return info;
     }
 
     @Override

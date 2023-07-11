@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.Map;
+
 import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
@@ -28,7 +30,14 @@ public class DescribeCMS extends NodeTool.NodeToolCmd
     @Override
     protected void execute(NodeProbe probe)
     {
-        System.out.println("ClusterMetadataService:");
-        System.out.println(probe.getStorageService().describeCMS());
+        Map<String, String> info = probe.getStorageService().describeCMS();
+        System.out.printf("Cluster Metadata Service:%n");
+        System.out.printf("Members: %s%n", info.get("MEMBERS"));
+        System.out.printf("Is Member: %s%n", info.get("IS_MEMBER"));
+        System.out.printf("Service State: %s%n", info.get("SERVICE_STATE"));
+        System.out.printf("Is Migrating: %s%n", info.get("IS_MIGRATING"));
+        System.out.printf("Epoch: %s%n", info.get("EPOCH"));
+        System.out.printf("Local Pending Count: %s%n", info.get("LOCAL_PENDING"));
+        System.out.printf("Commits Paused: %s%n", info.get("COMMITS_PAUSED"));
     }
 }
