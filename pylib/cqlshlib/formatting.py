@@ -180,7 +180,7 @@ class CqlType(object):
                     # Vector types are parameterized as name<type,size> so add custom handling for that here
                     vector_size = int(m.group(2).split(',')[1])
                     return name, [CqlType('float') for i in range(vector_size)], self._get_formatter(name)
-                except ValueError:
+                except (ValueError, IndexError):
                     return name, self.parse_sub_types(m.group(2), ksmeta), self._get_formatter(name)
 
     @staticmethod
