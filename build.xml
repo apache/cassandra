@@ -876,7 +876,6 @@
         <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
 
         <!-- sasi deps -->
-        <dependency groupId="de.jflex" artifactId="jflex" />
         <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />
         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" />
 
