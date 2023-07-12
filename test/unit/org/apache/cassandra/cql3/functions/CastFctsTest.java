@@ -160,7 +160,7 @@ public class CastFctsTest extends CQLTester
                        BigDecimal.valueOf(2),
                        BigDecimal.valueOf(3),
                        BigDecimal.valueOf(4),
-                       BigDecimal.valueOf(5.2F),
+                       new BigDecimal("5.2"),
                        BigDecimal.valueOf(6.3),
                        BigDecimal.valueOf(6.3),
                        BigDecimal.valueOf(4),
