@@ -64,6 +64,8 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
 
     public void build()
     {
+        stop(); // TODO: remove when we have a proper injection
+
         try
         {
             int pageSize = cfs.indexManager.calculateIndexingPageSize();
