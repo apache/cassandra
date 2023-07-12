@@ -178,6 +178,7 @@ public class SSTableImporter
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
+            cfs.indexManager.buildIndexesBlocking(newSSTables);
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {

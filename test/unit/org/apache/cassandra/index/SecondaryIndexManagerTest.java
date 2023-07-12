@@ -114,7 +114,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
-            cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
+            cfs.indexManager.buildIndexesBlocking(sstables);
             assertMarkedAsBuilt(indexName);
         }
     }
@@ -229,7 +229,7 @@ public class SecondaryIndexManagerTest extends CQLTester
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
             try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
             {
-                cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
+                cfs.indexManager.buildIndexesBlocking(sstables);
             }
             catch (Throwable ex)
             {
@@ -293,7 +293,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
-            cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
+            cfs.indexManager.buildIndexesBlocking(sstables);
             assertNotMarkedAsBuilt(indexName);
         }
 
@@ -342,7 +342,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
-            cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null), cfs.getTracker());
+            cfs.indexManager.buildIndexesBlocking(sstables);
             fail("Should have failed!");
         }
         catch (Throwable ex)
@@ -438,7 +438,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         try
         {
-            cfs.indexManager.handleNotification(new SSTableAddedNotification(cfs.getLiveSSTables(), null), this);
+            cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables());
             fail("Should have failed!");
         }
         catch (Throwable ex)
@@ -454,7 +454,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // a successful partial build doesn't set the index as queryable nor writable
         TestingIndex.shouldFailBuild = false;
-        cfs.indexManager.handleNotification(new SSTableAddedNotification(cfs.getLiveSSTables(), null), this);
+        cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables());
         assertFalse(isQueryable(defaultIndexName));
         assertFalse(isQueryable(readOnlyIndexName));
         assertFalse(isQueryable(writeOnlyIndexName));
@@ -524,7 +524,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // a successful partial build doesn't set the index as queryable nor writable
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        cfs.indexManager.handleNotification(new SSTableAddedNotification(cfs.getLiveSSTables(), null), this);
+        cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables());
         assertTrue(waitForIndexBuilds(KEYSPACE, defaultIndexName));
         assertTrue(waitForIndexBuilds(KEYSPACE, readOnlyIndexName));
         assertTrue(waitForIndexBuilds(KEYSPACE, writeOnlyIndexName));

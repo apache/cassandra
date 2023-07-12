@@ -56,7 +56,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -64,9 +63,6 @@ import org.apache.cassandra.index.Index.IndexBuildingSupport;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.notifications.INotification;
-import org.apache.cassandra.notifications.INotificationConsumer;
-import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -125,7 +121,7 @@ import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
  * <li>SSTable builds can always be run concurrently with any other builds.</li>
  * </ul>
  */
-public class SecondaryIndexManager implements IndexRegistry, INotificationConsumer
+public class SecondaryIndexManager implements IndexRegistry
 {
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndexManager.class);
 
@@ -179,7 +175,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         this.baseCfs = baseCfs;
         this.keyspace = baseCfs.keyspace;
-        baseCfs.getTracker().subscribe(this);
     }
 
     /**
@@ -1539,20 +1534,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         FBUtilities.waitOnFutures(waitFor);
     }
 
-    public void handleNotification(INotification notification, Object sender)
+    public void buildIndexesBlocking(Collection<SSTableReader> sstables)
     {
-        if (!indexes.isEmpty() && notification instanceof SSTableAddedNotification)
+        if (!indexes.isEmpty())
         {
-            SSTableAddedNotification notice = (SSTableAddedNotification) notification;
-
-            // SSTables asociated to a memtable come from a flush, so their contents have already been indexed
-            if (!notice.memtable().isPresent())
-                buildIndexesBlocking(Lists.newArrayList(notice.added),
-                                     indexes.values()
-                                            .stream()
-                                            .filter(Index::shouldBuildBlocking)
-                                            .collect(Collectors.toSet()),
-                                     false);
+            // TODO: This is called on streaming and import. In both cases, we need to avoid changing index
+            // build status/queryability. If the build fails, the backing data isn't queryable either.
+            buildIndexesBlocking(Lists.newArrayList(sstables),
+                                 indexes.values().stream().filter(Index::shouldBuildBlocking).collect(Collectors.toSet()),
+                                 false);
         }
     }
 
