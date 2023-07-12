@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.SEPExecutor;
@@ -51,16 +52,20 @@ public class CassandraResourceUtilization
 
     public static final String READ_THREAD_POOL = "ReadStage";
     public static final String MUTATION_THREAD_POOL = "MutationStage";
-    public static volatile Map<String, CpuUtilMetrics> cpuMetrics = new HashMap<>();
 
     // Maintain 1 minute, 5 minutes, and 15 minutes history
+    public static volatile Map<String, CpuUtilMetrics> cpuMetrics = new HashMap<>();
     public static volatile Meter pendingReadsHistory = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingReads"));
     public static volatile Meter pendingMutationsHistory = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingMutations"));
+    public static volatile Meter nrThrottledHistory = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("NRThrottled"));
     public static Gauge<Integer> pendingReadsCur;
     public static Gauge<Integer> pendingMutationsCur;
+    public static volatile Gauge<Long> nrThrottledCur;
 
-    private volatile int pendingReadTaskCount = 0;
-    private volatile int pendingMutationTaskCount = 0;
+    private volatile int pendingReadTaskCount;
+    private volatile int pendingMutationTaskCount;
+    private volatile long nrThrottledDelta;
+    private long nrThrottledPrev = Long.MAX_VALUE;
 
     public void setup()
     {
@@ -78,12 +83,20 @@ public class CassandraResourceUtilization
                 return pendingMutationTaskCount;
             }
         });
+        nrThrottledCur = Metrics.register(factory.createMetricName("NRThrottledCur"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return nrThrottledDelta;
+            }
+        });
+
 
         resourceUtilzation.setup();
         // TODO: make this configurable
         reportThread.scheduleAtFixedRate(() -> getCurrentUtilization(), 10, 1, TimeUnit.SECONDS);
 
-        for (String cpuUtilType : resourceUtilzation.getCurrentCPUUtil().keySet())
+        for (String cpuUtilType : resourceUtilzation.getCurrentCpuUtil().keySet())
         {
             cpuMetrics.putIfAbsent(cpuUtilType, new CpuUtilMetrics(cpuUtilType, factory));
         }
@@ -92,7 +105,7 @@ public class CassandraResourceUtilization
     public void getCurrentUtilization()
     {
         StringBuilder sb = new StringBuilder();
-        Map<String, Double> cpuUtil = resourceUtilzation.getCurrentCPUUtil();
+        Map<String, Double> cpuUtil = resourceUtilzation.getCurrentCpuUtil();
         for (Map.Entry<String, Double> cpuUtilEntry : cpuUtil.entrySet())
         {
             CpuUtilMetrics oneCpuMetric = cpuMetrics.get(cpuUtilEntry.getKey());
@@ -119,6 +132,15 @@ public class CassandraResourceUtilization
         pendingReadsHistory.mark(pendingReadTaskCount);
         pendingMutationsHistory.mark(pendingMutationTaskCount);
 
+
+        long nrThrottledNow = resourceUtilzation.getCpuNRThrottled();
+        if (nrThrottledPrev != Long.MAX_VALUE )
+        {
+            nrThrottledDelta = nrThrottledNow - nrThrottledPrev;
+        }
+        nrThrottledPrev = nrThrottledNow;
+        nrThrottledHistory.mark(nrThrottledDelta);
+
         sb.append("PendingReads").append(": ").append(pendingReadTaskCount).
           append("-").append(df.format(pendingReadsHistory.getOneMinuteRate())).
           append("-").append(df.format(pendingReadsHistory.getFiveMinuteRate())).
@@ -127,6 +149,10 @@ public class CassandraResourceUtilization
           append("-").append(df.format(pendingMutationsHistory.getOneMinuteRate())).
           append("-").append(df.format(pendingMutationsHistory.getFiveMinuteRate())).
           append("-").append(df.format(pendingMutationsHistory.getFifteenMinuteRate()));
+        sb.append("NRThrottled").append(": ").append(nrThrottledDelta).
+          append("-").append(df.format(nrThrottledHistory.getOneMinuteRate())).
+          append("-").append(df.format(nrThrottledHistory.getFiveMinuteRate())).
+          append("-").append(df.format(nrThrottledHistory.getFifteenMinuteRate()));
 
         // TODO: Eventually, change this to Debug to avoid log flooding
         logger.info("CassandraResourceUtilization {}", sb);

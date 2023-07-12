@@ -18,18 +18,34 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.util.HashMap;
 import java.util.Map;
 import java.lang.management.ManagementFactory;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.codahale.metrics.Counter;
 import com.sun.management.OperatingSystemMXBean;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.metrics.MetricNameFactory;
 
 
 public class NativeResourceUtilization implements IResourceUtilzation
 {
+    private static final Logger logger = LoggerFactory.getLogger(NativeResourceUtilization.class);
+
     public static final String JVM_CPU_UTIL = "JVM";
     public static final String CONTAINER_CPU_UTIL = "Container";
     private static final OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+    private static final String NR_THROTTLED_KEY = "nr_throttled";
+    private static final MetricNameFactory factory = new DefaultNameFactory("NativeResourceUtilization");
+
+    public String cpuStatFilePath = "/sys/fs/cgroup/cpu,cpuacct/cpu.stat";
+    public final Counter readFailures = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ReadFailures"));
 
     @Override
     public void setup()
@@ -37,7 +53,7 @@ public class NativeResourceUtilization implements IResourceUtilzation
     }
 
     @Override
-    public Map<String, Double> getCurrentCPUUtil()
+    public Map<String, Double> getCurrentCpuUtil()
     {
         return new HashMap<>()
         {
@@ -47,5 +63,42 @@ public class NativeResourceUtilization implements IResourceUtilzation
                 put(CONTAINER_CPU_UTIL, osBean.getSystemCpuLoad() * 100d);
             }
         };
+    }
+
+    @Override
+    public Long getCpuNRThrottled()
+    {
+        //BufferedReader reader;
+        long nrThrottled = Long.MAX_VALUE;
+        try(BufferedReader reader = new BufferedReader(new FileReader(cpuStatFilePath)))
+        {
+            /** Usually, it is in the following format:
+             * $> cat /sys/fs/cgroup/cpu,cpuacct/cpu.stat
+             * nr_periods 53857
+             * nr_throttled 1636
+             * throttled_time 1182781210
+             * nr_bursts 0
+             * burst_time 0
+             *
+             */
+            //reader = new BufferedReader(new FileReader(cpuStatFilePath));
+            String line = reader.readLine();
+            while (line != null)
+            {
+                if (line.startsWith(NR_THROTTLED_KEY))
+                {
+                    String[] split = line.split("\\s+");
+                    nrThrottled = Long.parseLong(split[1]);
+                    break;
+                }
+                line = reader.readLine();
+            }
+        }
+        catch (Exception e)
+        {
+            readFailures.inc();
+            logger.error("Exception while reading {}, error: {}", cpuStatFilePath, e);
+        }
+        return nrThrottled;
     }
 }

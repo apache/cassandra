@@ -41,9 +41,16 @@ public interface IResourceUtilzation
      * @return Returns a Map containing one or more CPU utilization signals and each entry with the following details:
      * key: Type of CPU signal, Value: actual CPU utilization between [0-100].
      * For example,
-     *      "JVM"-75.24
-     *      "Container"-74.12
-     *      "Vmstats"-73.19
+     * "JVM"-75.24
+     * "Container"-74.12
+     * "Vmstats"-73.19
      */
-    public Map<String, Double> getCurrentCPUUtil();
+    public Map<String, Double> getCurrentCpuUtil();
+
+    /**
+     * Represents the number of runnable periods in which the application used its entire quota and was throttled.
+     * It is one of the CPU metrics (nr_throttled) for a cgroup located in /sys/fs/cgroup/cpu,cpuacct/<container>
+     * @return the value of nr_throttled
+     **/
+    public Long getCpuNRThrottled();
 }

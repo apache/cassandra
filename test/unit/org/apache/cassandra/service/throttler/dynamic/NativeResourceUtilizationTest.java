@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
+import java.io.IOException;
 import java.util.Map;
 
 import org.junit.Assert;
@@ -25,12 +26,35 @@ import org.junit.Test;
 
 public class NativeResourceUtilizationTest
 {
+    private static final String TEST_CPU_STAT_FILE_PATH = "throttling/test_cpu.stat";
+    private static final String TEST_CPU_STAT_INVALID_FILE_PATH = "throttling/invalid_file.stat";
+
     @Test
     public void testGetCurCPUUtil()
     {
-        Map<String, Double> cpuUtilization = new NativeResourceUtilization().getCurrentCPUUtil();
+        Map<String, Double> cpuUtilization = new NativeResourceUtilization().getCurrentCpuUtil();
         Assert.assertEquals(2, cpuUtilization.size());
         Assert.assertTrue(NativeResourceUtilization.JVM_CPU_UTIL + ":" + cpuUtilization.get(NativeResourceUtilization.JVM_CPU_UTIL), cpuUtilization.get(NativeResourceUtilization.JVM_CPU_UTIL) >= 0.0 && cpuUtilization.get(NativeResourceUtilization.JVM_CPU_UTIL) <= 100.0);
         Assert.assertTrue(NativeResourceUtilization.CONTAINER_CPU_UTIL + ":" + cpuUtilization.get(NativeResourceUtilization.CONTAINER_CPU_UTIL), cpuUtilization.get(NativeResourceUtilization.CONTAINER_CPU_UTIL) >= 0.0 && cpuUtilization.get(NativeResourceUtilization.CONTAINER_CPU_UTIL) <= 100.0);
+    }
+
+    @Test
+    public void testNRThrottledReadFailure()
+    {
+        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
+        nativeResourceUtilization.cpuStatFilePath = TEST_CPU_STAT_INVALID_FILE_PATH;
+        long nrThrottled = nativeResourceUtilization.getCpuNRThrottled();
+        Assert.assertEquals(Long.MAX_VALUE, nrThrottled);
+        Assert.assertEquals(1, nativeResourceUtilization.readFailures.getCount());
+    }
+
+    @Test
+    public void testNRThrottledReadSuccess()
+    {
+        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
+        nativeResourceUtilization.cpuStatFilePath = getClass().getClassLoader().getResource(TEST_CPU_STAT_FILE_PATH).getFile();
+        long nrThrottled = nativeResourceUtilization.getCpuNRThrottled();
+        Assert.assertEquals(5468, nrThrottled);
+        Assert.assertEquals(0, nativeResourceUtilization.readFailures.getCount());
     }
 }
