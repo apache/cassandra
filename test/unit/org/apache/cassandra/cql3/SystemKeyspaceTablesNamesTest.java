@@ -88,21 +88,16 @@ public class SystemKeyspaceTablesNamesTest extends CQLTester
                                        SystemDistributedKeyspace.TABLE_NAMES);
     }
     
-    private void assertExpectedTablesInKeyspace(String keyspaceName, String expectedTableSource, Set<String> expectedTables)
+    private static void assertExpectedTablesInKeyspace(String keyspaceName, String expectedTableSource, Set<String> expectedTables)
     {
-        Set<String> actualKeyspaceTables = tablesFromSchema(keyspaceName);
+        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
+        assertNotNull(keyspace);
+        Set<String> actualKeyspaceTables = keyspace.tables.stream().map(t -> t.name).collect(Collectors.toSet());
 
         Sets.SetView<String> diff = Sets.difference(actualKeyspaceTables, expectedTables);
         assertTrue(format("The following tables are missing from %s: %s", expectedTableSource, diff), diff.isEmpty());
 
         diff = Sets.difference(expectedTables, actualKeyspaceTables);
         assertTrue(format("The following tables are in %s but should not be: %s", expectedTableSource,  diff), diff.isEmpty());
-    }
-
-    private Set<String> tablesFromSchema(String keyspaceName)
-    {
-        KeyspaceMetadata keyspace = Schema.instance.getKeyspaceMetadata(keyspaceName);
-        assertNotNull(keyspace);
-        return keyspace.tables.stream().map(t -> t.name).collect(Collectors.toSet());
     }
 }
