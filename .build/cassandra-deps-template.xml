@@ -325,10 +325,6 @@
       <artifactId>HdrHistogram</artifactId>
     </dependency>
     <dependency>
-      <groupId>de.jflex</groupId>
-      <artifactId>jflex</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.github.rholder</groupId>
       <artifactId>snowball-stemmer</artifactId>
     </dependency>
