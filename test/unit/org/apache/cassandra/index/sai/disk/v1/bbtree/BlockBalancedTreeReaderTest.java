@@ -17,6 +17,13 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,6 +40,8 @@ import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.util.NumericUtils;
 
@@ -221,6 +230,55 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final PostingList intersection = performIntersection(reader, buildQuery(1017, 1096));
         assertNull(intersection);
     }
+
+    @Test
+    public void testConcurrentIntersectionsOnSameReader() throws Exception
+    {
+        int numRows = 1000;
+
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+
+        byte[] scratch = new byte[4];
+        for (int docID = 0; docID < numRows; docID++)
+        {
+            NumericUtils.intToSortableBytes(docID, scratch, 0);
+            buffer.add(docID, scratch);
+        }
+
+        final BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer);
+
+        Expression expression = new Expression(indexContext);
+        expression.add(Operator.GT, Int32Type.instance.decompose(444));
+        expression.add(Operator.LT, Int32Type.instance.decompose(555));
+
+        int concurrency = 100;
+
+        ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+        List<Future<?>> results = new ArrayList<>();
+        for (int thread = 0; thread < concurrency; thread++)
+        {
+            results.add(executor.submit(() -> assertIntersection(reader, expression)));
+        }
+        FBUtilities.waitOnFutures(results);
+        executor.shutdown();
+    }
+
+    private void assertIntersection(BlockBalancedTreeReader reader, Expression expression)
+    {
+        try
+        {
+            PostingList intersection = performIntersection(reader, BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4));
+            assertNotNull(intersection);
+            assertEquals(110, intersection.size());
+            for (long posting = 445; posting < 555; posting++)
+                assertEquals(posting, intersection.nextPosting());
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
+    }
+
 
     private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
     {
