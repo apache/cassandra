@@ -592,8 +592,8 @@
     <target name="stress-test-some" depends="maybe-build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}"
                        timeout="${test.timeout}">
-          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="${build.test.dir}/output/TEST-${test.name}-${test.methods}"/>
-          <test if:blank="${test.methods}" name="${test.name}" outfile="${build.test.dir}/output/TEST-${test.name}"/>
+          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+          <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
         </testmacro>
     </target>
 
@@ -1188,7 +1188,7 @@
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{testtag}">
+        <batchtest todir="build/test/output/@{testtag}">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
@@ -1371,8 +1371,8 @@
       </and>
     </condition>
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test if="withMethods" name="${test.name}" methods="${test.methods}" outfile="${build.test.dir}/output/TEST-${test.name}-${test.methods}"/>
-      <test if="withoutMethods" name="${test.name}" outfile="${build.test.dir}/output/TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
@@ -1791,8 +1791,8 @@
     -->
   <target name="test-jvm-dtest-some" depends="maybe-build-test" description="Execute some in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="${build.test.dir}/output/TEST-${test.name}-${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}" outfile="${build.test.dir}/output/TEST-${test.name}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
