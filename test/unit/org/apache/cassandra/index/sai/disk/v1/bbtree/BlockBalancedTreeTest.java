@@ -53,26 +53,33 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
     @Test
     public void testSingleLeaf() throws Exception
     {
-        BlockBalancedTreeWalker.TraversalState state = generateBalancedTree(100, 100, rowID -> rowID);
+        try (BlockBalancedTreeWalker walker = generateBalancedTree(100, 100, rowID -> rowID))
+        {
+            assertEquals(1, walker.numLeaves);
+            assertEquals(1, walker.treeDepth);
+            assertEquals(100, walker.valueCount);
 
-        assertEquals(1, state.numLeaves);
-        assertEquals(1, state.treeDepth);
-        assertEquals(100, state.valueCount);
-        assertTrue(state.atLeafNode());
+            BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
-        recursiveAssertTraversal(state, -1);
+            assertTrue(state.atLeafNode());
 
-        assertEquals(state.treeDepth, state.maxLevel + 1);
+            recursiveAssertTraversal(state, -1);
+
+            assertEquals(walker.treeDepth, state.maxLevel + 1);
+        }
     }
 
     @Test
     public void testTreeWithSameValue() throws Exception
     {
-        BlockBalancedTreeWalker.TraversalState state = generateBalancedTree(100, 4, rowID -> 1);
+        try (BlockBalancedTreeWalker walker = generateBalancedTree(100, 4, rowID -> 1))
+        {
+            BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
-        recursiveAssertTraversal(state, -1);
+            recursiveAssertTraversal(state, -1);
 
-        assertEquals(state.treeDepth, state.maxLevel + 1);
+            assertEquals(walker.treeDepth, state.maxLevel + 1);
+        }
     }
 
     @Test
@@ -83,14 +90,17 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
         {
             int numRows = leafSize * numLeaves;
 
-            BlockBalancedTreeWalker.TraversalState state = generateBalancedTree(numRows, leafSize, rowID -> rowID);
+            try (BlockBalancedTreeWalker walker = generateBalancedTree(numRows, leafSize, rowID -> rowID))
+            {
+                assertEquals(numLeaves, walker.numLeaves);
+                assertTrue(walker.treeDepth <= walker.numLeaves);
 
-            assertEquals(numLeaves, state.numLeaves);
-            assertTrue(state.treeDepth <= state.numLeaves);
+                BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
-            recursiveAssertTraversal(state, -1);
+                recursiveAssertTraversal(state, -1);
 
-            assertEquals(state.treeDepth, state.maxLevel + 1);
+                assertEquals(walker.treeDepth, state.maxLevel + 1);
+            }
         }
     }
 
@@ -104,11 +114,14 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
             int leafSize = nextInt(2, 512);
             int numRows = nextInt(1000, 10000);
 
-            BlockBalancedTreeWalker.TraversalState state = generateBalancedTree(numRows, leafSize, rowID -> nextInt(0, numRows / 2));
+            try (BlockBalancedTreeWalker walker = generateBalancedTree(numRows, leafSize, rowID -> nextInt(0, numRows / 2)))
+            {
+                BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
-            recursiveAssertTraversal(state, -1);
+                recursiveAssertTraversal(state, -1);
 
-            assertEquals(state.treeDepth, state.maxLevel + 1);
+                assertEquals(walker.treeDepth, state.maxLevel + 1);
+            }
         }
     }
 
@@ -134,14 +147,13 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
         }
     }
 
-    private BlockBalancedTreeWalker.TraversalState generateBalancedTree(int numRows, int leafSize, IntFunction<Integer> valueProvider) throws Exception
+    private BlockBalancedTreeWalker generateBalancedTree(int numRows, int leafSize, IntFunction<Integer> valueProvider) throws Exception
     {
         long treeOffset = writeBalancedTree(numRows, leafSize, valueProvider);
 
         DataInput input = dataOutput.toDataInput();
 
-        input.skipBytes(treeOffset);
-        return new BlockBalancedTreeWalker.TraversalState(input);
+        return new BlockBalancedTreeWalker(input, treeOffset);
     }
 
     private long writeBalancedTree(int numRows, int leafSize, IntFunction<Integer> valueProvider) throws Exception
