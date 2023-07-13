@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
@@ -28,6 +29,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -35,6 +37,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.ResultMessage.Rows;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -86,7 +89,7 @@ public class ByteBuddyExamplesTest extends TestBaseImpl
                                           .withInstanceInitializer(BBCountHelper::install)
                                           .start()))
         {
-            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
+            cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, bytebuddy_test_column int)");
             cluster.coordinator(1).execute("select * from " + KEYSPACE + ".tbl;", ConsistencyLevel.ALL);
             cluster.coordinator(2).execute("select * from " + KEYSPACE + ".tbl;", ConsistencyLevel.ALL);
             cluster.get(1).runOnInstance(() -> {
@@ -115,8 +118,12 @@ public class ByteBuddyExamplesTest extends TestBaseImpl
 
         public static ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime, @SuperCall Callable<ResultMessage.Rows> r) throws Exception
         {
-            count.incrementAndGet();
-            return r.call();
+            Rows res = r.call();
+
+            if (res.result.metadata.names.stream().map(ColumnSpecification::toString).collect(Collectors.toList()).contains("bytebuddy_test_column"))
+                count.incrementAndGet();
+
+            return res;
         }
     }
 
