@@ -17,6 +17,13 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,6 +40,8 @@ import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.util.NumericUtils;
 
@@ -98,22 +107,16 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
 
         byte[] scratch = new byte[4];
-        for (int docID = 0; docID < numRows; docID++)
+        for (int rowID = 0; rowID < numRows; rowID++)
         {
-            NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.add(docID, scratch);
+            NumericUtils.intToSortableBytes(rowID, scratch, 0);
+            buffer.add(rowID, scratch);
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer);
-
-        Expression expression = new Expression(indexContext);
-        expression.add(Operator.GT, Int32Type.instance.decompose(444));
-        expression.add(Operator.LT, Int32Type.instance.decompose(555));
-        PostingList intersection = performIntersection(reader, BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4));
-        assertNotNull(intersection);
-        assertEquals(110, intersection.size());
-        for (long posting = 445; posting < 555; posting++)
-            assertEquals(posting, intersection.nextPosting());
+        try (BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer))
+        {
+            assertRange(reader, 445, 555);
+        }
     }
 
     @Test
@@ -123,32 +126,33 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
 
         byte[] scratch = new byte[4];
-        for (int docID = 0; docID < numRows; docID++)
+        for (int rowID = 0; rowID < numRows; rowID++)
         {
-            NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.add(docID, scratch);
+            NumericUtils.intToSortableBytes(rowID, scratch, 0);
+            buffer.add(rowID, scratch);
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReader(2, buffer);
-
-        PostingList intersection = performIntersection(reader, NONE_MATCH);
-        assertNull(intersection);
-
-        intersection = performIntersection(reader, ALL_MATCH);
-        assertEquals(numRows, intersection.size());
-        assertEquals(100, intersection.advance(100));
-        assertEquals(200, intersection.advance(200));
-        assertEquals(300, intersection.advance(300));
-        assertEquals(400, intersection.advance(400));
-        assertEquals(401, intersection.advance(401));
-        long expectedRowID = 402;
-        for (long id = intersection.nextPosting(); expectedRowID < 500; id = intersection.nextPosting())
+        try (BlockBalancedTreeReader reader = finishAndOpenReader(2, buffer))
         {
-            assertEquals(expectedRowID++, id);
-        }
-        assertEquals(PostingList.END_OF_STREAM, intersection.advance(numRows + 1));
+            PostingList intersection = performIntersection(reader, NONE_MATCH);
+            assertNull(intersection);
 
-        intersection.close();
+            intersection = performIntersection(reader, ALL_MATCH);
+            assertEquals(numRows, intersection.size());
+            assertEquals(100, intersection.advance(100));
+            assertEquals(200, intersection.advance(200));
+            assertEquals(300, intersection.advance(300));
+            assertEquals(400, intersection.advance(400));
+            assertEquals(401, intersection.advance(401));
+            long expectedRowID = 402;
+            for (long id = intersection.nextPosting(); expectedRowID < 500; id = intersection.nextPosting())
+            {
+                assertEquals(expectedRowID++, id);
+            }
+            assertEquals(PostingList.END_OF_STREAM, intersection.advance(numRows + 1));
+
+            intersection.close();
+        }
     }
 
     @Test
@@ -162,41 +166,42 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         byte[] scratch = new byte[4];
 
-        for (int docID = 0; docID < 10; docID++)
+        for (int rowID = 0; rowID < 10; rowID++)
         {
-            NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.add(docID, scratch);
+            NumericUtils.intToSortableBytes(rowID, scratch, 0);
+            buffer.add(rowID, scratch);
         }
 
-        for (int docID = 10; docID < 20; docID++)
+        for (int rowID = 10; rowID < 20; rowID++)
         {
             NumericUtils.intToSortableBytes(10, scratch, 0);
-            buffer.add(docID, scratch);
+            buffer.add(rowID, scratch);
         }
 
-        for (int docID = 20; docID < 30; docID++)
+        for (int rowID = 20; rowID < 30; rowID++)
         {
-            NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.add(docID, scratch);
+            NumericUtils.intToSortableBytes(rowID, scratch, 0);
+            buffer.add(rowID, scratch);
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReader(5, buffer);
+        try (BlockBalancedTreeReader reader = finishAndOpenReader(5, buffer))
+        {
+            PostingList postingList = performIntersection(reader, buildQuery(8, 15));
 
-        PostingList postingList = performIntersection(reader, buildQuery(8, 15));
-
-        assertEquals(8, postingList.nextPosting());
-        assertEquals(9, postingList.nextPosting());
-        assertEquals(10, postingList.nextPosting());
-        assertEquals(11, postingList.nextPosting());
-        assertEquals(12, postingList.nextPosting());
-        assertEquals(13, postingList.nextPosting());
-        assertEquals(14, postingList.nextPosting());
-        assertEquals(15, postingList.nextPosting());
-        assertEquals(16, postingList.nextPosting());
-        assertEquals(17, postingList.nextPosting());
-        assertEquals(18, postingList.nextPosting());
-        assertEquals(19, postingList.nextPosting());
-        assertEquals(PostingList.END_OF_STREAM, postingList.nextPosting());
+            assertEquals(8, postingList.nextPosting());
+            assertEquals(9, postingList.nextPosting());
+            assertEquals(10, postingList.nextPosting());
+            assertEquals(11, postingList.nextPosting());
+            assertEquals(12, postingList.nextPosting());
+            assertEquals(13, postingList.nextPosting());
+            assertEquals(14, postingList.nextPosting());
+            assertEquals(15, postingList.nextPosting());
+            assertEquals(16, postingList.nextPosting());
+            assertEquals(17, postingList.nextPosting());
+            assertEquals(18, postingList.nextPosting());
+            assertEquals(19, postingList.nextPosting());
+            assertEquals(PostingList.END_OF_STREAM, postingList.nextPosting());
+        }
     }
 
     @Test
@@ -204,22 +209,73 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     {
         final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
         byte[] scratch = new byte[4];
-        for (int docID = 0; docID < 1000; docID++)
+        for (int rowID = 0; rowID < 1000; rowID++)
         {
-            NumericUtils.intToSortableBytes(docID, scratch, 0);
-            buffer.add(docID, scratch);
+            NumericUtils.intToSortableBytes(rowID, scratch, 0);
+            buffer.add(rowID, scratch);
         }
         // add a gap between 1000 and 1100
-        for (int docID = 1000; docID < 2000; docID++)
+        for (int rowID = 1000; rowID < 2000; rowID++)
         {
-            NumericUtils.intToSortableBytes(docID + 100, scratch, 0);
-            buffer.add(docID, scratch);
+            NumericUtils.intToSortableBytes(rowID + 100, scratch, 0);
+            buffer.add(rowID, scratch);
         }
 
-        final BlockBalancedTreeReader reader = finishAndOpenReader(50, buffer);
+        try (BlockBalancedTreeReader reader = finishAndOpenReader(50, buffer))
+        {
+            final PostingList intersection = performIntersection(reader, buildQuery(1017, 1096));
+            assertNull(intersection);
+        }
+    }
 
-        final PostingList intersection = performIntersection(reader, buildQuery(1017, 1096));
-        assertNull(intersection);
+    @Test
+    public void testConcurrentIntersectionsOnSameReader() throws Exception
+    {
+        int numRows = 1000;
+
+        final BlockBalancedTreeRamBuffer buffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+
+        byte[] scratch = new byte[4];
+        for (int rowID = 0; rowID < numRows; rowID++)
+        {
+            NumericUtils.intToSortableBytes(rowID, scratch, 0);
+            buffer.add(rowID, scratch);
+        }
+
+        try (BlockBalancedTreeReader reader = finishAndOpenReader(4, buffer))
+        {
+            int concurrency = 100;
+
+            ExecutorService executor = Executors.newFixedThreadPool(concurrency);
+            List<Future<?>> results = new ArrayList<>();
+            for (int thread = 0; thread < concurrency; thread++)
+            {
+                results.add(executor.submit(() -> assertRange(reader, 445, 555)));
+            }
+            FBUtilities.waitOnFutures(results);
+            executor.shutdown();
+        }
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private void assertRange(BlockBalancedTreeReader reader, long lowerBound, long upperBound)
+    {
+        Expression expression = new Expression(indexContext);
+        expression.add(Operator.GT, Int32Type.instance.decompose(444));
+        expression.add(Operator.LT, Int32Type.instance.decompose(555));
+
+        try
+        {
+            PostingList intersection = performIntersection(reader, BlockBalancedTreeQueries.balancedTreeQueryFrom(expression, 4));
+            assertNotNull(intersection);
+            assertEquals(upperBound - lowerBound, intersection.size());
+            for (long posting = lowerBound; posting < upperBound; posting++)
+                assertEquals(posting, intersection.nextPosting());
+        }
+        catch (IOException e)
+        {
+            throw Throwables.unchecked(e);
+        }
     }
 
     private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
