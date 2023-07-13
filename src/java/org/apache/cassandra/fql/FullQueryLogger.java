@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
-import org.github.jamm.MemoryLayoutSpecification;
+import org.github.jamm.Unmetered;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -84,9 +84,6 @@ public class FullQueryLogger implements QueryEvents.Listener
 
     private static final int EMPTY_LIST_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ArrayList<>(0)));
     private static final int EMPTY_BYTEBUF_SIZE;
-
-    private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
-    private static final int OBJECT_REFERENCE_SIZE = MemoryLayoutSpecification.SPEC.getReferenceSize();
 
     public static final FullQueryLogger instance = new FullQueryLogger();
 
@@ -332,12 +329,25 @@ public class FullQueryLogger implements QueryEvents.Listener
 
     public static class Query extends AbstractLogEntry
     {
+        /**
+         * The shallow size of a {@code Query} object.
+         */
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new Query());
+
         private final String query;
 
         public Query(String query, QueryOptions queryOptions, QueryState queryState, long queryStartTime)
         {
             super(queryOptions, queryState, queryStartTime);
             this.query = query;
+        }
+
+        /**
+         * Constructor only use to compute this class shallow size.
+         */
+        private Query()
+        {
+            this.query = null;
         }
 
         @Override
@@ -356,12 +366,17 @@ public class FullQueryLogger implements QueryEvents.Listener
         @Override
         public int weight()
         {
-            return Ints.checkedCast(ObjectSizes.sizeOf(query)) + super.weight();
+            return Ints.checkedCast(EMPTY_SIZE + ObjectSizes.sizeOf(query) + super.fielsdSize());
         }
     }
 
     public static class Batch extends AbstractLogEntry
     {
+        /**
+         * The shallow size of a {@code Batch} object.
+         */
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new Batch());
+
         private final int weight;
         private final BatchStatement.Type batchType;
         private final List<String> queries;
@@ -380,25 +395,33 @@ public class FullQueryLogger implements QueryEvents.Listener
             this.values = values;
             this.batchType = batchType;
 
-            int weight = super.weight();
-
-            // weight, queries, values, batch type
-            weight += Integer.BYTES +            // cached weight
-                      2 * EMPTY_LIST_SIZE +      // queries + values lists
-                      3 * OBJECT_REFERENCE_SIZE; // batchType and two lists references
-
+            // We assume that all the lists are ArrayLists and that the size of each underlying array is the one of the list 
+            // (which is obviously wrong but not worst than the previous computation that was ignoring part of the arrays size in the computation).
+            long queriesSize = EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(queries.size());
             for (String query : queries)
-                weight += ObjectSizes.sizeOf(checkNotNull(query)) + OBJECT_REFERENCE_SIZE;
+                queriesSize += ObjectSizes.sizeOf(checkNotNull(query));
 
+            long valuesSize = EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(values.size());
             for (List<ByteBuffer> subValues : values)
             {
-                weight += EMPTY_LIST_SIZE + OBJECT_REFERENCE_SIZE;
-
-                for (ByteBuffer value : subValues)
-                    weight += ObjectSizes.sizeOnHeapOf(value) + OBJECT_REFERENCE_SIZE;
+                valuesSize += EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(subValues.size());
+                for (ByteBuffer subValue : subValues)
+                    valuesSize += ObjectSizes.sizeOnHeapOf(subValue);
             }
 
-            this.weight = weight;
+            // No need to add the batch type which is an enum. 
+            this.weight = Ints.checkedCast(EMPTY_SIZE + super.fielsdSize() + queriesSize + valuesSize);
+        }
+
+        /**
+         * Constructor only use to compute this class shallow size.
+         */
+        private Batch()
+        {
+            this.weight = 0;
+            this.batchType = null;
+            this.queries = null;
+            this.values = null;
         }
 
         @Override
@@ -441,6 +464,7 @@ public class FullQueryLogger implements QueryEvents.Listener
     {
         private final long queryStartTime;
         private final int protocolVersion;
+        @Unmetered
         private final ByteBuf queryOptionsBuffer;
 
         private final long generatedTimestamp;
@@ -483,6 +507,19 @@ public class FullQueryLogger implements QueryEvents.Listener
             }
         }
 
+        /**
+         * Constructor only use to compute sub-classes shallow size.
+         */
+        private AbstractLogEntry()
+        {
+            this.queryStartTime = 0;
+            this.protocolVersion = 0;
+            this.queryOptionsBuffer = null;
+            this.generatedTimestamp = 0;
+            this.generatedNowInSeconds = 0;
+            this.keyspace = null;
+        }
+
         @Override
         protected long version()
         {
@@ -508,16 +545,14 @@ public class FullQueryLogger implements QueryEvents.Listener
             queryOptionsBuffer.release();
         }
 
-        @Override
-        public int weight()
+        /**
+         * Returns the sum of the non primitive fields sizes.
+         * @return the sum of the non primitive fields sizes.
+         */
+        protected long fielsdSize()
         {
-            return OBJECT_HEADER_SIZE
-                 + Long.BYTES                                                                 // queryStartTime
-                 + Integer.BYTES                                                              // protocolVersion
-                 + OBJECT_REFERENCE_SIZE + EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
-                 + Long.BYTES                                                                 // generatedTimestamp
-                 + Long.BYTES                                                                 // generatedNowInSeconds
-                 + OBJECT_REFERENCE_SIZE + Ints.checkedCast(ObjectSizes.sizeOf(keyspace));    // keyspace
+            return EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
+                   + ObjectSizes.sizeOf(keyspace);                    // keyspace
         }
     }
 

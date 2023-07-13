@@ -24,23 +24,25 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
-import org.github.jamm.MemoryLayoutSpecification;
 import org.github.jamm.MemoryMeter;
+import org.github.jamm.MemoryMeter.ByteBufferMode;
+import org.github.jamm.MemoryMeter.Guess;
+
+import static org.github.jamm.MemoryMeterStrategy.MEMORY_LAYOUT;
+import static org.github.jamm.utils.ArrayMeasurementUtils.computeArraySize;
 
 /**
  * A convenience class for wrapping access to MemoryMeter
  */
 public class ObjectSizes
 {
-    private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE)
-                                                              .ignoreKnownSingletons();
-    private static final MemoryMeter omitSharedMeter = meter.omitSharedBufferOverhead();
+    private static final MemoryMeter meter = MemoryMeter.builder().withGuessing(Guess.INSTRUMENTATION_AND_SPECIFICATION,
+                                                                                Guess.UNSAFE)
+                                                                  .build();
 
-    private static final long EMPTY_HEAP_BUFFER_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-    private static final long EMPTY_BYTE_ARRAY_SIZE = measure(new byte[0]);
-    private static final long EMPTY_STRING_SIZE = measure("");
-
-    private static final long DIRECT_BUFFER_HEAP_SIZE = measure(ByteBuffer.allocateDirect(0));
+    private static final long HEAP_BUFFER_SHALLOW_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    private static final long DIRECT_BUFFER_SHALLOW_SIZE = measure(ByteBuffer.allocateDirect(0));
+    private static final long DIRECT_BUFFER_DEEP_SIZE = measureDeep(ByteBuffer.allocateDirect(0));
 
     public static final long IPV6_SOCKET_ADDRESS_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
@@ -52,10 +54,7 @@ public class ObjectSizes
      */
     public static long sizeOfArray(byte[] bytes)
     {
-        if (bytes == null)
-            return 0;
-
-        return sizeOfArray(bytes.length, 1);
+        return meter.measureArray(bytes);
     }
 
     /**
@@ -66,10 +65,7 @@ public class ObjectSizes
      */
     public static long sizeOfArray(long[] longs)
     {
-        if (longs == null)
-            return 0;
-
-        return sizeOfArray(longs.length, 8);
+        return meter.measureArray(longs);
     }
 
     /**
@@ -80,10 +76,7 @@ public class ObjectSizes
      */
     public static long sizeOfArray(int[] ints)
     {
-        if (ints == null)
-            return 0;
-
-        return sizeOfArray(ints.length, 4);
+        return meter.measureArray(ints);
     }
 
     /**
@@ -94,7 +87,7 @@ public class ObjectSizes
      */
     public static long sizeOfReferenceArray(int length)
     {
-        return sizeOfArray(length, MemoryLayoutSpecification.SPEC.getReferenceSize());
+        return sizeOfArray(length, MEMORY_LAYOUT.getReferenceSize());
     }
 
     /**
@@ -105,15 +98,12 @@ public class ObjectSizes
      */
     public static long sizeOfArray(Object[] objects)
     {
-        if (objects == null)
-            return 0;
-
-        return sizeOfReferenceArray(objects.length);
+        return meter.measureArray(objects);
     }
 
-    private static long sizeOfArray(int length, long elementSize)
+    private static long sizeOfArray(int length, int elementSize)
     {
-        return MemoryLayoutSpecification.sizeOfArray(length, elementSize);
+        return computeArraySize(MEMORY_LAYOUT.getArrayHeaderSize(), length, elementSize, MEMORY_LAYOUT.getObjectAlignment());
     }
 
     /**
@@ -134,65 +124,89 @@ public class ObjectSizes
 
     /**
      * Amount of non-data heap memory consumed by the array of byte buffers. It sums memory consumed
-     * by the array itself and for each included byte buffer using {@link #sizeOnHeapExcludingData(ByteBuffer)}.
+     * by the array itself and for each included byte buffer using {@link #sizeOnHeapExcludingDataOf(ByteBuffer)}.
      */
-    public static long sizeOnHeapExcludingData(ByteBuffer[] array)
+    public static long sizeOnHeapExcludingDataOf(ByteBuffer[] array)
     {
         if (array == null)
             return 0;
 
         long sum = sizeOfArray(array);
         for (ByteBuffer b : array)
-            sum += sizeOnHeapExcludingData(b);
+            sum += sizeOnHeapExcludingDataOf(b);
 
         return sum;
     }
 
     /**
-     * @return heap memory consumed by the byte buffer. If it is a slice, it counts the data size, but it does not
-     * include the internal array overhead.
+     * Measures the heap memory used by the specified byte buffer. If the buffer is a slab only the data size will be
+     * counted but not the internal overhead. A SLAB is assumed to be created by: {@code buffer.duplicate().position(start).limit(end)} without the use of {@code slice()}.
+     * <p>This method makes a certain amount of assumptions:
+     *   <ul>
+     *       <li>That slabs are always created using: {@code buffer.duplicate().position(start).limit(end)} and not through slice</li>
+     *       <li>That the input buffers are not read-only buffers</li>
+     *       <li>That the direct buffers that are not slab are not duplicates</li>  
+     *   </ul>
+     *  Non-respect of those assumptions can lead to an invalid value being returned.
+     * @param buffer the buffer to measure
+     * @return the heap memory used by the specified byte buffer.
      */
     public static long sizeOnHeapOf(ByteBuffer buffer)
     {
         if (buffer == null)
             return 0;
 
+        assert !buffer.isReadOnly();
+
+        // We assume here that slabs are always created using: buffer.duplicate().position(start).limit(end) and not through slice
+        if (ByteBufferMode.SLAB_ALLOCATION_NO_SLICE.isSlab(buffer))
+        {
+            if (buffer.isDirect())
+                return DIRECT_BUFFER_SHALLOW_SIZE; // We ignore the underlying buffer
+
+            return HEAP_BUFFER_SHALLOW_SIZE + buffer.remaining(); // We ignore the array overhead
+        }
+
         if (buffer.isDirect())
-            return DIRECT_BUFFER_HEAP_SIZE;
+            return DIRECT_BUFFER_DEEP_SIZE; // That might not be true if the buffer is a view of another buffer so we could undercount
 
-        int arrayLen = buffer.array().length;
-        int bufLen = buffer.remaining();
-
-        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it is SLAB
-        // allocated - the overhead amortized over all the allocations is negligible and better to undercount than over)
-        if (arrayLen > bufLen)
-            return EMPTY_HEAP_BUFFER_SIZE + bufLen;
-
-        return EMPTY_HEAP_BUFFER_SIZE + (arrayLen == 0 ? EMPTY_BYTE_ARRAY_SIZE : sizeOfArray(arrayLen, 1));
+        return HEAP_BUFFER_SHALLOW_SIZE + meter.measureArray(buffer.array());
     }
 
     /**
-     * @return non-data heap memory consumed by the byte buffer. If it is a slice, it does not include the internal
-     * array overhead.
+     * Measures the heap memory used by the specified byte buffer excluding the data. If the buffer shallow size will be counted.
+     * A SLAB is assumed to be created by: {@code buffer.duplicate().position(start).limit(end)} without the use of {@code slice()}.
+     * <p>This method makes a certain amount of assumptions:
+     *   <ul>
+     *       <li>That slabs are always created using: {@code buffer.duplicate().position(start).limit(end)} and not through slice</li>
+     *       <li>That the input buffers are not read-only buffers</li>
+     *       <li>That the direct buffers that are not slab are not duplicates</li>  
+     *   </ul>
+     *  Non-respect of those assumptions can lead to an invalid value being returned. T 
+     * @param buffer the buffer to measure
+     * @return the heap memory used by the specified byte buffer excluding the data..
      */
-    public static long sizeOnHeapExcludingData(ByteBuffer buffer)
+    public static long sizeOnHeapExcludingDataOf(ByteBuffer buffer)
     {
         if (buffer == null)
             return 0;
 
+        assert !buffer.isReadOnly();
+
+        // We assume here that slabs are always created using: buffer.duplicate().position(start).limit(end) and not through slice
+        if (ByteBufferMode.SLAB_ALLOCATION_NO_SLICE.isSlab(buffer))
+        {
+            if (buffer.isDirect())
+                return DIRECT_BUFFER_SHALLOW_SIZE; // We ignore the underlying buffer
+
+            return HEAP_BUFFER_SHALLOW_SIZE; // We ignore the array overhead
+        }
+
         if (buffer.isDirect())
-            return DIRECT_BUFFER_HEAP_SIZE;
+            return DIRECT_BUFFER_DEEP_SIZE; // That might not be true if the buffer is a view of another buffer so we could undercount
 
-        int arrayLen = buffer.array().length;
-        int bufLen = buffer.remaining();
-
-        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it is SLAB
-        // allocated - the overhead amortized over all the allocations is negligible and better to undercount than over)
-        if (arrayLen > bufLen)
-            return EMPTY_HEAP_BUFFER_SIZE;
-
-        // If buffers are dedicated, account for byte array size and any padding overhead
-        return EMPTY_HEAP_BUFFER_SIZE + (arrayLen == 0 ? EMPTY_BYTE_ARRAY_SIZE : (sizeOfArray(arrayLen, 1) - arrayLen));
+        byte[] bytes = buffer.array();
+        return HEAP_BUFFER_SHALLOW_SIZE + meter.measureArray(bytes) - bytes.length;
     }
 
     /**
@@ -201,13 +215,9 @@ public class ObjectSizes
      * @param str String to calculate memory size of
      * @return Total in-memory size of the String
      */
-    // TODO hard coding this to 2 isn't necessarily correct in Java 11
     public static long sizeOf(String str)
     {
-        if (str == null)
-            return 0;
-
-        return EMPTY_STRING_SIZE + sizeOfArray(str.length(), Character.BYTES);
+        return meter.measureStringDeep(str);
     }
 
     /**
@@ -230,7 +240,7 @@ public class ObjectSizes
      */
     public static long measureDeepOmitShared(Object pojo)
     {
-        return omitSharedMeter.measureDeep(pojo);
+        return meter.measureDeep(pojo, ByteBufferMode.SLAB_ALLOCATION_NO_SLICE);
     }
 
     /**
