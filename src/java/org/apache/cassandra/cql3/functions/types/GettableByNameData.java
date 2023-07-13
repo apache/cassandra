@@ -465,6 +465,50 @@ public interface GettableByNameData
     public <K, V> Map<K, V> getMap(String name, TypeToken<K> keysType, TypeToken<V> valuesType);
 
     /**
+     * Returns the value for {@code name} as a vector, represented as a Java list.
+     *
+     * <p>This method uses the {@link CodecRegistry} to find a codec to convert the underlying CQL
+     * type to a vector of the specified type.
+     *
+     * <p>If the type of the elements is generic, use {@link #getVector(String, TypeToken)}.
+     *
+     * <p>Implementation note: the actual {@link List} implementation representing the vector will depend on the {@link
+     * TypeCodec codec} being used; therefore, callers should make no assumptions concerning its mutability nor its
+     * thread-safety.
+     *
+     * @param name          the name to retrieve.
+     * @param elementsClass the class for the elements of the vector to retrieve.
+     * @return the value of the {@code i}th element as a vector of {@code T} objects.
+     * @throws IllegalArgumentException if {@code name} is not valid name for this object.
+     * @throws CodecNotFoundException   if there is no registered codec to convert the underlying CQL type to a vector.
+     */
+    public <T> List<T> getVector(String name, Class<T> elementsClass);
+
+    /**
+     * Returns the value for {@code name} as a vector, represented as a Java list.
+     *
+     * <p>This method uses the {@link CodecRegistry} to find a codec to convert the underlying CQL
+     * type to a vector of the specified type.
+     *
+     * <p>Use this variant with nested types, which produce a generic element type:
+     *
+     * <pre>
+     * {@code List<List<String>> l = row.getVector("theColumn", new TypeToken<List<String>>() {});}
+     * </pre>
+     *
+     * <p>Implementation note: the actual {@link List} implementation representing the vector will depend on the {@link
+     * TypeCodec codec} being used; therefore, callers should make no assumptions concerning its mutability nor its
+     * thread-safety.
+     *
+     * @param name         the name to retrieve.
+     * @param elementsType the type for the elements of the vector to retrieve.
+     * @return the value of the {@code i}th element as a vector of {@code T} objects.
+     * @throws IllegalArgumentException if {@code name} is not valid name for this object.
+     * @throws CodecNotFoundException   if there is no registered codec to convert the underlying CQL type to a vector.
+     */
+    public <T> List<T> getVector(String name, TypeToken<T> elementsType);
+
+    /**
      * Return the value for {@code name} as a UDT value.
      *
      * <p>This method uses the {@link CodecRegistry} to find a codec to convert the underlying CQL
