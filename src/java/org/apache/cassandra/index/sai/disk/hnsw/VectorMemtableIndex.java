@@ -154,8 +154,7 @@ public class VectorMemtableIndex implements MemtableIndex
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
-        var buffer = expr.lower.value.raw;
-        float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
+        float[] qv = expr.lower.value.vector;
 
         Bits bits = null;
         if (!RangeUtil.coversFullRing(keyRange))
@@ -214,8 +213,7 @@ public class VectorMemtableIndex implements MemtableIndex
             return new ReorderingRangeIterator(new PriorityQueue<>(results));
         }
 
-        ByteBuffer buffer = exp.lower.value.raw;
-        float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
+        float[] qv = exp.lower.value.vector;
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits, Integer.MAX_VALUE);
         if (keyQueue.isEmpty())
