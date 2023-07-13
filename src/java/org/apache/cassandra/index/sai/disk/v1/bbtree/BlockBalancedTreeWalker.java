@@ -21,6 +21,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.IntArrayList;
@@ -46,7 +48,15 @@ import org.apache.lucene.util.BytesRef;
 public class BlockBalancedTreeWalker implements Closeable
 {
     final FileHandle treeIndexFile;
-    final TraversalState state;
+    final int bytesPerValue;
+    final int numLeaves;
+    final int treeDepth;
+    final byte[] minPackedValue;
+    final byte[] maxPackedValue;
+    final long valueCount;
+    final int maxValuesInLeafNode;
+    final byte[] packedIndex;
+    final long memoryUsage;
 
     BlockBalancedTreeWalker(FileHandle treeIndexFile, long treeIndexRoot)
     {
@@ -58,7 +68,35 @@ public class BlockBalancedTreeWalker implements Closeable
             SAICodecUtils.validate(indexInput);
             indexInput.seek(treeIndexRoot);
 
-            state = new TraversalState(indexInput);
+            maxValuesInLeafNode = indexInput.readVInt();
+            bytesPerValue = indexInput.readVInt();
+
+            // Read index:
+            numLeaves = indexInput.readVInt();
+            assert numLeaves > 0;
+            treeDepth = indexInput.readVInt();
+            minPackedValue = new byte[bytesPerValue];
+            maxPackedValue = new byte[bytesPerValue];
+
+            indexInput.readBytes(minPackedValue, 0, bytesPerValue);
+            indexInput.readBytes(maxPackedValue, 0, bytesPerValue);
+
+            if (ByteArrayUtil.compareUnsigned(minPackedValue, 0, maxPackedValue, 0, bytesPerValue) > 0)
+            {
+                String message = String.format("Min packed value %s is > max packed value %s.",
+                                               new BytesRef(minPackedValue), new BytesRef(maxPackedValue));
+                throw new CorruptIndexException(message, indexInput);
+            }
+
+            valueCount = indexInput.readVLong();
+
+            int numBytes = indexInput.readVInt();
+            packedIndex = new byte[numBytes];
+            indexInput.readBytes(packedIndex, 0, numBytes);
+
+            memoryUsage = ObjectSizes.sizeOfArray(packedIndex) +
+                          ObjectSizes.sizeOfArray(minPackedValue) +
+                          ObjectSizes.sizeOfArray(maxPackedValue);
         }
         catch (Throwable t)
         {
@@ -67,9 +105,52 @@ public class BlockBalancedTreeWalker implements Closeable
         }
     }
 
+    @VisibleForTesting
+    public BlockBalancedTreeWalker(DataInput indexInput, long treeIndexRoot) throws IOException
+    {
+        treeIndexFile = null;
+
+        indexInput.skipBytes(treeIndexRoot);
+
+        maxValuesInLeafNode = indexInput.readVInt();
+        bytesPerValue = indexInput.readVInt();
+
+        // Read index:
+        numLeaves = indexInput.readVInt();
+        assert numLeaves > 0;
+        treeDepth = indexInput.readVInt();
+        minPackedValue = new byte[bytesPerValue];
+        maxPackedValue = new byte[bytesPerValue];
+
+        indexInput.readBytes(minPackedValue, 0, bytesPerValue);
+        indexInput.readBytes(maxPackedValue, 0, bytesPerValue);
+
+        if (ByteArrayUtil.compareUnsigned(minPackedValue, 0, maxPackedValue, 0, bytesPerValue) > 0)
+        {
+            String message = String.format("Min packed value %s is > max packed value %s.",
+                                           new BytesRef(minPackedValue), new BytesRef(maxPackedValue));
+            throw new CorruptIndexException(message, indexInput);
+        }
+
+        valueCount = indexInput.readVLong();
+
+        int numBytes = indexInput.readVInt();
+        packedIndex = new byte[numBytes];
+        indexInput.readBytes(packedIndex, 0, numBytes);
+
+        memoryUsage = ObjectSizes.sizeOfArray(packedIndex) +
+                      ObjectSizes.sizeOfArray(minPackedValue) +
+                      ObjectSizes.sizeOfArray(maxPackedValue);
+    }
+
     public long memoryUsage()
     {
-        return state.memoryUsage;
+        return memoryUsage;
+    }
+
+    public TraversalState newTraversalState()
+    {
+        return new TraversalState();
     }
 
     @Override
@@ -80,11 +161,10 @@ public class BlockBalancedTreeWalker implements Closeable
 
     void traverse(TraversalCallback callback)
     {
-        state.reset();
-        traverse(callback, new IntArrayList());
+        traverse(newTraversalState(), callback, new IntArrayList());
     }
 
-    private void traverse(TraversalCallback callback, IntArrayList pathToRoot)
+    private void traverse(TraversalState state, TraversalCallback callback, IntArrayList pathToRoot)
     {
         if (state.atLeafNode())
         {
@@ -101,11 +181,11 @@ public class BlockBalancedTreeWalker implements Closeable
             currentPath.add(state.nodeID);
 
             state.pushLeft();
-            traverse(callback, currentPath);
+            traverse(state, callback, currentPath);
             state.pop();
 
             state.pushRight();
-            traverse(callback, currentPath);
+            traverse(state, callback, currentPath);
             state.pop();
         }
     }
@@ -143,17 +223,9 @@ public class BlockBalancedTreeWalker implements Closeable
      *    2[0-16]   3[16-32]
      * </pre>
      */
-    final static class TraversalState
+    @NotThreadSafe
+    final class TraversalState
     {
-        final int bytesPerValue;
-        final int numLeaves;
-        final int treeDepth;
-        final byte[] minPackedValue;
-        final byte[] maxPackedValue;
-        final long valueCount;
-        final int maxPointsInLeafNode;
-        final long memoryUsage;
-
         // used to read the packed index byte[]
         final ByteArrayDataInput dataInput;
         // holds the minimum (left most) leaf block file pointer for each level we've recursed to:
@@ -170,58 +242,16 @@ public class BlockBalancedTreeWalker implements Closeable
         @VisibleForTesting
         int maxLevel;
 
-        TraversalState(DataInput dataInput) throws IOException
+        private TraversalState()
         {
-            maxPointsInLeafNode = dataInput.readVInt();
-            bytesPerValue = dataInput.readVInt();
-
-            // Read index:
-            numLeaves = dataInput.readVInt();
-            assert numLeaves > 0;
-            treeDepth = dataInput.readVInt();
-            minPackedValue = new byte[bytesPerValue];
-            maxPackedValue = new byte[bytesPerValue];
-
-            dataInput.readBytes(minPackedValue, 0, bytesPerValue);
-            dataInput.readBytes(maxPackedValue, 0, bytesPerValue);
-
-            if (ByteArrayUtil.compareUnsigned(minPackedValue, 0, maxPackedValue, 0, bytesPerValue) > 0)
-            {
-                String message = String.format("Min packed value %s is > max packed value %s.",
-                                               new BytesRef(minPackedValue), new BytesRef(maxPackedValue));
-                throw new CorruptIndexException(message, dataInput);
-            }
-
-            valueCount = dataInput.readVLong();
-
-            int numBytes = dataInput.readVInt();
-            byte[] packedIndex = new byte[numBytes];
-            dataInput.readBytes(packedIndex, 0, numBytes);
-
             nodeID = 1;
             level = 0;
             leafBlockFPStack = new long[treeDepth];
             leftNodePositions = new int[treeDepth];
             rightNodePositions = new int[treeDepth];
             splitValuesStack = new byte[treeDepth][];
-
-            memoryUsage = ObjectSizes.sizeOfArray(packedIndex) +
-                          ObjectSizes.sizeOfArray(minPackedValue) +
-                          ObjectSizes.sizeOfArray(maxPackedValue) +
-                          ObjectSizes.sizeOfArray(leafBlockFPStack) +
-                          ObjectSizes.sizeOfArray(leftNodePositions) +
-                          ObjectSizes.sizeOfArray(rightNodePositions) +
-                          ObjectSizes.sizeOfArray(splitValuesStack) * bytesPerValue;
-
             this.dataInput = new ByteArrayDataInput(packedIndex);
             readNodeData(false);
-        }
-
-        public void reset()
-        {
-            nodeID = 1;
-            level = 0;
-            dataInput.setPosition(0);
         }
 
         public void pushLeft()

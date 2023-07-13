@@ -78,17 +78,17 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
         this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, treePostingsRoot);
-        leafOrderMapBitsRequired = DirectWriter.unsignedBitsRequired(state.maxPointsInLeafNode - 1);
+        leafOrderMapBitsRequired = DirectWriter.unsignedBitsRequired(maxValuesInLeafNode - 1);
     }
 
     public int getBytesPerValue()
     {
-        return state.bytesPerValue;
+        return bytesPerValue;
     }
 
     public long getPointCount()
     {
-        return state.valueCount;
+        return valueCount;
     }
 
     @Override
@@ -101,7 +101,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
     @SuppressWarnings({"resource", "RedundantSuppression"})
     public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
     {
-        Relation relation = visitor.compare(state.minPackedValue, state.maxPackedValue);
+        Relation relation = visitor.compare(minPackedValue, maxPackedValue);
 
         if (relation == Relation.CELL_OUTSIDE_QUERY)
         {
@@ -113,7 +113,6 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         IndexInput treeInput = IndexFileUtils.instance.openInput(treeIndexFile);
         IndexInput postingsInput = IndexFileUtils.instance.openInput(postingsFile);
         IndexInput postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
-        state.reset();
 
         Intersection intersection = relation == Relation.CELL_INSIDE_QUERY
                                     ? new Intersection(treeInput, postingsInput, postingsSummaryInput, listener, context)
@@ -131,6 +130,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         private final Stopwatch queryExecutionTimer = Stopwatch.createStarted();
         final QueryContext context;
 
+        final TraversalState state;
         final IndexInput treeInput;
         final IndexInput postingsInput;
         final IndexInput postingsSummaryInput;
@@ -140,12 +140,13 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         Intersection(IndexInput treeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
                      QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
         {
+            this.state = newTraversalState();
             this.treeInput = treeInput;
             this.postingsInput = postingsInput;
             this.postingsSummaryInput = postingsSummaryInput;
             this.listener = listener;
             this.context = context;
-            postingLists = new PriorityQueue<>(state.numLeaves, COMPARATOR);
+            postingLists = new PriorityQueue<>(numLeaves, COMPARATOR);
         }
 
         public PostingList execute()
@@ -247,14 +248,14 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         {
             super(treeInput, postingsInput, postingsSummaryInput, listener, context);
             this.visitor = visitor;
-            this.packedValue = new byte[state.bytesPerValue];
-            this.origIndex = new short[state.maxPointsInLeafNode];
+            this.packedValue = new byte[bytesPerValue];
+            this.origIndex = new short[maxValuesInLeafNode];
         }
 
         @Override
         public void executeInternal() throws IOException
         {
-            collectPostingLists(state.minPackedValue, state.maxPackedValue);
+            collectPostingLists(minPackedValue, maxPackedValue);
         }
 
         private void collectPostingLists(byte[] minPackedValue, byte[] maxPackedValue) throws IOException
@@ -320,8 +321,8 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             if (BlockBalancedTreeWriter.DEBUG)
             {
                 // make sure cellMin <= splitValue <= cellMax:
-                assert ByteArrayUtil.compareUnsigned(minPackedValue, 0, splitValue, 0, state.bytesPerValue) <= 0 :"bytesPerValue=" + state.bytesPerValue;
-                assert ByteArrayUtil.compareUnsigned(maxPackedValue, 0, splitValue, 0, state.bytesPerValue) >= 0 : "bytesPerValue=" + state.bytesPerValue;
+                assert ByteArrayUtil.compareUnsigned(minPackedValue, 0, splitValue, 0, bytesPerValue) <= 0 :"bytesPerValue=" + bytesPerValue;
+                assert ByteArrayUtil.compareUnsigned(maxPackedValue, 0, splitValue, 0, bytesPerValue) >= 0 : "bytesPerValue=" + bytesPerValue;
             }
 
             // Recurse on left subtree:
@@ -346,8 +347,8 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         private FixedBitSet buildPostingsFilter(IndexInput in, int count, IntersectVisitor visitor, short[] origIndex) throws IOException
         {
             int commonPrefixLength = readCommonPrefixLength(in);
-            return commonPrefixLength == state.bytesPerValue ? buildPostingsFilterForSingleValueLeaf(count, visitor, origIndex)
-                                                             : buildPostingsFilterForMultiValueLeaf(commonPrefixLength, in, count, visitor, origIndex);
+            return commonPrefixLength == bytesPerValue ? buildPostingsFilterForSingleValueLeaf(count, visitor, origIndex)
+                                                       : buildPostingsFilterForMultiValueLeaf(commonPrefixLength, in, count, visitor, origIndex);
         }
 
         private FixedBitSet buildPostingsFilterForMultiValueLeaf(int commonPrefixLength,
@@ -362,7 +363,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             commonPrefixLength++;
             int i;
 
-            FixedBitSet fixedBitSet = new FixedBitSet(state.maxPointsInLeafNode);
+            FixedBitSet fixedBitSet = new FixedBitSet(maxValuesInLeafNode);
 
             for (i = 0; i < count; )
             {
@@ -370,7 +371,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
                 final int runLen = Byte.toUnsignedInt(in.readByte());
                 for (int j = 0; j < runLen; ++j)
                 {
-                    in.readBytes(packedValue, commonPrefixLength, state.bytesPerValue - commonPrefixLength);
+                    in.readBytes(packedValue, commonPrefixLength, bytesPerValue - commonPrefixLength);
                     final int rowIDIndex = origIndex[i + j];
                     if (visitor.contains(packedValue))
                         fixedBitSet.set(rowIDIndex);
@@ -385,7 +386,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
 
         private FixedBitSet buildPostingsFilterForSingleValueLeaf(int count, IntersectVisitor visitor, final short[] origIndex)
         {
-            FixedBitSet fixedBitSet = new FixedBitSet(state.maxPointsInLeafNode);
+            FixedBitSet fixedBitSet = new FixedBitSet(maxValuesInLeafNode);
 
             // All the values in the leaf are the same, so we only
             // need to visit once then set the bits for the relevant indexes
