@@ -6,6 +6,7 @@
  * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
 Merged from 3.11:
+ * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
  * Fix CAST function for float to decimal (CASSANDRA-18647)
  * Suppress CVE-2022-45688 (CASSANDRA-18643)
  * Remove unrepaired SSTables from garbage collection when only_purge_repaired_tombstones is true (CASSANDRA-14204)
