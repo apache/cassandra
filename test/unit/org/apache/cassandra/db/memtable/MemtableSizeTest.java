@@ -39,16 +39,20 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.MemoryMeter;
+import org.github.jamm.MemoryMeter.Guess;
 
 // Note: This test can be run in idea with the allocation type configured in the test yaml and memtable using the
 // value memtableClass is initialized with.
 @RunWith(Parameterized.class)
 public class MemtableSizeTest extends CQLTester
 {
-    // Note: To see a printout of the usage for each object, add .enableDebug() here (most useful with smaller number of
+    // Note: To see a printout of the usage for each object, add .printVisitedTree() here (most useful with smaller number of
     // partitions).
-    static MemoryMeter meter = new MemoryMeter().ignoreKnownSingletons()
-                                                .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE);
+    static MemoryMeter meter =  MemoryMeter.builder()
+                                           .withGuessing(Guess.INSTRUMENTATION_AND_SPECIFICATION,
+                                                         Guess.UNSAFE)
+//                                           .printVisitedTreeUpTo(1000)
+                                           .build();
 
     static final Logger logger = LoggerFactory.getLogger(MemtableSizeTest.class);
 
@@ -185,18 +189,6 @@ public class MemtableSizeTest extends CQLTester
                                            FBUtilities.prettyPrintMemory(actualHeap),
                                            FBUtilities.prettyPrintMemory(expectedHeap - actualHeap));
             logger.info(message);
-            if (Math.abs(actualHeap - expectedHeap) > max_difference)
-            {
-                // Under Java 11, it seems the meter can reach into phantom reference queues and count more space than
-                // is actually reachable. Unfortunately ignoreNonStrongReferences() does not help (worse, it throws
-                // exceptions trying to get a phantom referrent). Retrying the measurement appears to clear these up.
-                Thread.sleep(50);
-                long secondPass = meter.measureDeep(memtable);
-                logger.error("Deep size first pass {} second pass {}",
-                             FBUtilities.prettyPrintMemory(deepSizeAfter),
-                             FBUtilities.prettyPrintMemory(secondPass));
-                expectedHeap = secondPass - deepSizeBefore;
-            }
 
             Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= max_difference);
         }

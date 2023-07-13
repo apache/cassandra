@@ -40,7 +40,7 @@ CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
 
 
 # set JVM javaagent opts to avoid warnings/errors
-JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.2.jar"
+JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
 
 
 #

@@ -142,7 +142,7 @@
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
 
     <property name="jflex.version" value="1.8.2"/>
-    <property name="jamm.version" value="0.3.2"/>
+    <property name="jamm.version" value="0.4.0"/>
     <property name="ecj.version" value="4.6.1"/>
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
