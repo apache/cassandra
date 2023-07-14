@@ -70,7 +70,6 @@ if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
     CASSANDRA_CQL_HTML = 'file://' + CASSANDRA_PATH + '/doc/cql3/CQL.html'
 elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
     # fallback to package file
-    print(112)
     CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
 else:
     # fallback to online version
