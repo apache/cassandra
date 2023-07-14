@@ -63,7 +63,8 @@ public class StandaloneVerifierTest extends OfflineToolUtils
                        " -q,--quick                  do a quick check, don't read all data\n" + 
                        " -r,--mutate_repair_status   don't mutate repair status\n" + 
                        " -t,--token_range <range>    long token range of the format left,right.\n" + 
-                       "                             This may be provided multiple times to define multiple different ranges\n" + 
+                       "                             This may be provided multiple times to define\n" +
+                       "                             multiple different ranges\n" +
                        " -v,--verbose                verbose output\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }

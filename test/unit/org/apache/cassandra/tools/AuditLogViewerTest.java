@@ -97,8 +97,8 @@ public class AuditLogViewerTest
                        " -h,--help               display this help message\n" + 
                        " -i,--ignore             Silently ignore unsupported records\n" + 
                        " -r,--roll_cycle <arg>   How often to roll the log file was rolled. May be\n" + 
-                       "                         necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY,\n" + 
-                       "                         DAILY). Default HOURLY.\n";
+                       "                         necessary for Chronicle to correctly parse file\n" +
+                       "                         names. (MINUTELY, HOURLY, DAILY). Default HOURLY.\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 

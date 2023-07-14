@@ -130,7 +130,6 @@ public class SSTablePartitionsTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(SSTablePartitions.class);
         Assertions.assertThat(tool.getStdout())
                   .isEqualTo("usage: sstablepartitions <options> <sstable files or directories>\n" +
-                             "                         \n" +
                              "Print partition statistics of one or more sstables.\n" +
                              " -b,--backups                   include backups present in data\n" +
                              "                                directories (recursive scans)\n" +
@@ -142,16 +141,18 @@ public class SSTablePartitionsTest extends OfflineToolUtils
                              " -s,--snapshots                 include snapshots present in data\n" +
                              "                                directories (recursive scans)\n" +
                              " -t,--min-size <arg>            partition size threshold, expressed as\n" +
-                             "                                either the number of bytes or a size with unit of the form 10KiB, 20MiB,\n" +
-                             "                                30GiB, etc.\n" +
+                             "                                either the number of bytes or a size with\n" +
+                             "                                unit of the form 10KiB, 20MiB, 30GiB, etc.\n" +
                              " -u,--current-timestamp <arg>   timestamp (seconds since epoch, unit time)\n" +
                              "                                for TTL expired calculation\n" +
                              " -w,--min-rows <arg>            partition row count threshold\n" +
                              " -x,--exclude-key <arg>         Excluded partition key(s) from partition\n" +
-                             "                                detailed row/cell/tombstone information (irrelevant, if --partitions-only\n" +
-                             "                                is given)\n" +
+                             "                                detailed row/cell/tombstone information\n" +
+                             "                                (irrelevant, if --partitions-only is\n" +
+                             "                                given)\n" +
                              " -y,--partitions-only           Do not process per-partition detailed\n" +
-                             "                                row/cell/tombstone information, only brief information\n");
+                             "                                row/cell/tombstone information, only brief\n" +
+                             "                                information\n");
     }
 
     /**
