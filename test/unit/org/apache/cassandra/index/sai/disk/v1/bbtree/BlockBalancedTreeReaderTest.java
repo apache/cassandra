@@ -257,6 +257,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         }
     }
 
+    @SuppressWarnings("SameParameterValue")
     private void assertRange(BlockBalancedTreeReader reader, long lowerBound, long upperBound)
     {
         Expression expression = new Expression(indexContext);
@@ -276,7 +277,6 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
             throw Throwables.unchecked(e);
         }
     }
-
 
     private PostingList performIntersection(BlockBalancedTreeReader reader, BlockBalancedTreeReader.IntersectVisitor visitor)
     {
