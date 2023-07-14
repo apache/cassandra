@@ -59,7 +59,7 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
             assertEquals(1, walker.treeDepth);
             assertEquals(100, walker.valueCount);
 
-            BlockBalancedTreeWalker.TraversalState state = walker.createTraversalState();
+            BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
             assertTrue(state.atLeafNode());
 
@@ -74,7 +74,7 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
     {
         try (BlockBalancedTreeWalker walker = generateBalancedTree(100, 4, rowID -> 1))
         {
-            BlockBalancedTreeWalker.TraversalState state = walker.createTraversalState();
+            BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
             recursiveAssertTraversal(state, -1);
 
@@ -95,7 +95,7 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
                 assertEquals(numLeaves, walker.numLeaves);
                 assertTrue(walker.treeDepth <= walker.numLeaves);
 
-                BlockBalancedTreeWalker.TraversalState state = walker.createTraversalState();
+                BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
                 recursiveAssertTraversal(state, -1);
 
@@ -116,7 +116,7 @@ public class BlockBalancedTreeTest extends SAIRandomizedTester
 
             try (BlockBalancedTreeWalker walker = generateBalancedTree(numRows, leafSize, rowID -> nextInt(0, numRows / 2)))
             {
-                BlockBalancedTreeWalker.TraversalState state = walker.createTraversalState();
+                BlockBalancedTreeWalker.TraversalState state = walker.newTraversalState();
 
                 recursiveAssertTraversal(state, -1);
 

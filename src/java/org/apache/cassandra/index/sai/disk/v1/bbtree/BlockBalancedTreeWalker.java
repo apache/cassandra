@@ -54,7 +54,7 @@ public class BlockBalancedTreeWalker implements Closeable
     final byte[] minPackedValue;
     final byte[] maxPackedValue;
     final long valueCount;
-    final int maxPointsInLeafNode;
+    final int maxValuesInLeafNode;
     final byte[] packedIndex;
     final long memoryUsage;
 
@@ -68,7 +68,7 @@ public class BlockBalancedTreeWalker implements Closeable
             SAICodecUtils.validate(indexInput);
             indexInput.seek(treeIndexRoot);
 
-            maxPointsInLeafNode = indexInput.readVInt();
+            maxValuesInLeafNode = indexInput.readVInt();
             bytesPerValue = indexInput.readVInt();
 
             // Read index:
@@ -112,7 +112,7 @@ public class BlockBalancedTreeWalker implements Closeable
 
         indexInput.skipBytes(treeIndexRoot);
 
-        maxPointsInLeafNode = indexInput.readVInt();
+        maxValuesInLeafNode = indexInput.readVInt();
         bytesPerValue = indexInput.readVInt();
 
         // Read index:
@@ -148,7 +148,7 @@ public class BlockBalancedTreeWalker implements Closeable
         return memoryUsage;
     }
 
-    public TraversalState createTraversalState()
+    public TraversalState newTraversalState()
     {
         return new TraversalState();
     }
@@ -161,7 +161,7 @@ public class BlockBalancedTreeWalker implements Closeable
 
     void traverse(TraversalCallback callback)
     {
-        traverse(createTraversalState(), callback, new IntArrayList());
+        traverse(newTraversalState(), callback, new IntArrayList());
     }
 
     private void traverse(TraversalState state, TraversalCallback callback, IntArrayList pathToRoot)

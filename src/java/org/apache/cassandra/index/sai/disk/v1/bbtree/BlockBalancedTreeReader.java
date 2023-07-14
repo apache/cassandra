@@ -78,7 +78,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         this.indexContext = indexContext;
         this.postingsFile = postingsFile;
         this.postingsIndex = new BlockBalancedTreePostingsIndex(postingsFile, treePostingsRoot);
-        leafOrderMapBitsRequired = DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1);
+        leafOrderMapBitsRequired = DirectWriter.unsignedBitsRequired(maxValuesInLeafNode - 1);
     }
 
     public int getBytesPerValue()
@@ -140,7 +140,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         Intersection(IndexInput treeInput, IndexInput postingsInput, IndexInput postingsSummaryInput,
                      QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
         {
-            this.state = createTraversalState();
+            this.state = newTraversalState();
             this.treeInput = treeInput;
             this.postingsInput = postingsInput;
             this.postingsSummaryInput = postingsSummaryInput;
@@ -249,7 +249,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             super(treeInput, postingsInput, postingsSummaryInput, listener, context);
             this.visitor = visitor;
             this.packedValue = new byte[bytesPerValue];
-            this.origIndex = new short[maxPointsInLeafNode];
+            this.origIndex = new short[maxValuesInLeafNode];
         }
 
         @Override
@@ -363,7 +363,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             commonPrefixLength++;
             int i;
 
-            FixedBitSet fixedBitSet = new FixedBitSet(maxPointsInLeafNode);
+            FixedBitSet fixedBitSet = new FixedBitSet(maxValuesInLeafNode);
 
             for (i = 0; i < count; )
             {
@@ -386,7 +386,7 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
 
         private FixedBitSet buildPostingsFilterForSingleValueLeaf(int count, IntersectVisitor visitor, final short[] origIndex)
         {
-            FixedBitSet fixedBitSet = new FixedBitSet(maxPointsInLeafNode);
+            FixedBitSet fixedBitSet = new FixedBitSet(maxValuesInLeafNode);
 
             // All the values in the leaf are the same, so we only
             // need to visit once then set the bits for the relevant indexes
