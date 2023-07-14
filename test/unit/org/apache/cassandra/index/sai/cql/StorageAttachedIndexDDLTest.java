@@ -133,7 +133,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldFailUnsupportedType() throws Throwable
+    public void shouldFailUnsupportedType()
     {
         for (CQL3Type.Native cql3Type : CQL3Type.Native.values())
         {
@@ -229,7 +229,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldNotFailCreateWithTupleType() throws Throwable
+    public void shouldNotFailCreateWithTupleType()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val tuple<text, int, double>)");
 
@@ -485,7 +485,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldFailCreationMultipleIndexesOnSimpleColumn() throws Throwable
+    public void shouldFailCreationMultipleIndexesOnSimpleColumn()
     {
         createTable("CREATE TABLE %s (id int PRIMARY KEY, v1 TEXT)");
         execute("INSERT INTO %s (id, v1) VALUES(1, '1')");
@@ -514,7 +514,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldIndexBuildingWithInMemoryData() throws Throwable
+    public void shouldIndexBuildingWithInMemoryData()
     {
         createTable(CREATE_TABLE_TEMPLATE);
 
@@ -644,7 +644,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldCreateIndexFilesAfterMultipleConcurrentIndexCreation() throws Throwable
+    public void shouldCreateIndexFilesAfterMultipleConcurrentIndexCreation()
     {
         createTable(CREATE_TABLE_TEMPLATE);
         verifyNoIndexFiles();
@@ -671,7 +671,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldCreateIndexFilesAfterMultipleSequentialIndexCreation() throws Throwable
+    public void shouldCreateIndexFilesAfterMultipleSequentialIndexCreation()
     {
         createTable(CREATE_TABLE_TEMPLATE);
         verifyNoIndexFiles();
@@ -703,7 +703,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldReleaseIndexFilesAfterCompaction() throws Throwable
+    public void shouldReleaseIndexFilesAfterCompaction()
     {
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);
@@ -741,18 +741,18 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void truncateWithBuiltIndexes() throws Throwable
+    public void truncateWithBuiltIndexes()
     {
         verifyTruncateWithIndex(false);
     }
 
     @Test
-    public void concurrentTruncateWithIndexBuilding() throws Throwable
+    public void concurrentTruncateWithIndexBuilding()
     {
         verifyTruncateWithIndex(true);
     }
 
-    private void verifyTruncateWithIndex(boolean concurrentTruncate) throws Throwable
+    private void verifyTruncateWithIndex(boolean concurrentTruncate)
     {
         createTable(CREATE_TABLE_TEMPLATE);
 
@@ -881,8 +881,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         boolean expectedLiteralState = !failedStringIndex || isBuildCompletionMarker(component);
 
         assertEquals("Checksum verification for " + component + " should be " + expectedNumericState + " but was " + !expectedNumericState,
-                     expectedNumericState,
-                     verifyChecksum(numericIndexContext));
+                     expectedNumericState, verifyChecksum(numericIndexContext));
         assertEquals(expectedLiteralState, verifyChecksum(stringIndexContext));
 
         if (rebuild)
@@ -1006,7 +1005,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void verifyFlushAndCompactEmptyIndex() throws Throwable
+    public void verifyFlushAndCompactEmptyIndex()
     {
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);
@@ -1042,7 +1041,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void verifyFlushAndCompactNonIndexableRows() throws Throwable
+    public void verifyFlushAndCompactNonIndexableRows()
     {
         // valid row ids, but no valid indexable content
         Runnable populateData = () -> {
@@ -1065,7 +1064,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
-    public void verifyFlushAndCompactTombstones() throws Throwable
+    public void verifyFlushAndCompactTombstones()
     {
         // no valid row ids
         Runnable populateData = () -> {
@@ -1086,7 +1085,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         verifyFlushAndCompactEmptyIndexes(populateData);
     }
 
-    private void verifyFlushAndCompactEmptyIndexes(Runnable populateData) throws Throwable
+    private void verifyFlushAndCompactEmptyIndexes(Runnable populateData)
     {
         createTable(CREATE_TABLE_TEMPLATE);
         disableCompaction(KEYSPACE);

@@ -3552,6 +3552,12 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
+    @VisibleForTesting
+    public static boolean setStreamEntireSSTables(boolean value)
+    {
+        return conf.stream_entire_sstables = value;
+    }
+
     public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
     {
         return conf.stream_transfer_task_timeout;

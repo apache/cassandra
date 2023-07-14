@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.format;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -54,12 +55,12 @@ import org.apache.lucene.util.IOUtils;
 /**
  * The {@link IndexDescriptor} is an analog of the SSTable {@link Descriptor} and provides version
  * specific information about the on-disk state of a {@link StorageAttachedIndex}.
- *
+ * <p>
  * The {@link IndexDescriptor} is primarily responsible for maintaining a view of the on-disk state
  * of an index for a specific {@link org.apache.cassandra.io.sstable.SSTable}.
- *
+ * <p>
  * It is responsible for opening files for use by writers and readers.
- *
+ * <p>
  * Its remaining responsibility is to act as a proxy to the {@link OnDiskFormat} associated with the
  * index {@link Version}.
  */
@@ -170,13 +171,11 @@ public class IndexDescriptor
         return isPerColumnIndexBuildComplete(indexContext) && numberOfPerIndexComponents(indexContext) == 1;
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     public void createComponentOnDisk(IndexComponent component) throws IOException
     {
         Files.touch(fileFor(component).toJavaIOFile());
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     public void createComponentOnDisk(IndexComponent component, IndexContext indexContext) throws IOException
     {
         Files.touch(fileFor(component, indexContext).toJavaIOFile());
@@ -335,7 +334,16 @@ public class IndexDescriptor
 
         logger.info(indexContext.logMessage("Validating per-column index components using mode " + validation));
         boolean checksum = validation == IndexValidation.CHECKSUM;
-        return version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, checksum);
+
+        try
+        {
+            version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, checksum);
+            return true;
+        }
+        catch (UncheckedIOException e)
+        {
+            return false;
+        }
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -346,7 +354,27 @@ public class IndexDescriptor
 
         logger.info(logMessage("Validating per-sstable index components using mode " + validation));
         boolean checksum = validation == IndexValidation.CHECKSUM;
-        return version.onDiskFormat().validatePerSSTableIndexComponents(this, checksum);
+
+        try
+        {
+            version.onDiskFormat().validatePerSSTableIndexComponents(this, checksum);
+            return true;
+        }
+        catch (UncheckedIOException e)
+        {
+            return false;
+        }
+    }
+
+    public void checksumPerIndexComponents(IndexContext indexContext)
+    {
+        version.onDiskFormat().validatePerColumnIndexComponents(this, indexContext, true);
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public void checksumPerSSTableComponents()
+    {
+        version.onDiskFormat().validatePerSSTableIndexComponents(this, true);
     }
 
     public void deletePerSSTableIndexComponents()

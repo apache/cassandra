@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.format;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Set;
 
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -35,7 +36,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 /**
  * An interface to the on-disk format of an index. This provides format agnostic methods
  * to read and write an on-disk format.
- *
+ * <p>
  * The methods on this interface can be logically mapped into the following groups
  * based on their method parameters:
  * <ul>
@@ -116,9 +117,9 @@ public interface OnDiskFormat
      * @param indexDescriptor The {@link IndexDescriptor} for the SSTable SAI index
      * @param checksum {@code true} if the checksum should be tested as part of the validation
      *
-     * @return true if all the per-SSTable components are valid
+     * @throws UncheckedIOException if there is a problem validating any on-disk component
      */
-    boolean validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum);
+    void validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum);
 
     /**
      * Validate all the per-column on-disk components and throw if a component is not valid
@@ -127,9 +128,9 @@ public interface OnDiskFormat
      * @param indexContext The {@link IndexContext} holding the per-index information for the index
      * @param checksum {@code true} if the checksum should be tested as part of the validation
      *
-     * @return true if all the per-column components are valid
+     * @throws UncheckedIOException if there is a problem validating any on-disk component
      */
-    boolean validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum);
+    void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum);
 
     /**
      * Returns the set of {@link IndexComponent} for the per-SSTable part of an index.
