@@ -89,7 +89,7 @@ public class DataComponent
                     if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
                     {
                         // The default compressor is generally fast (LZ4 with 16KiB block size)
-                        compressionParams = CompressionParams.defaultParams();
+                        compressionParams = CompressionParams.DEFAULT;
                         break;
                     }
                     // else fall through
