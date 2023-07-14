@@ -20,8 +20,6 @@ package org.apache.cassandra.service.throttler.dynamic;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.util.HashMap;
-import java.util.Map;
 import java.lang.management.ManagementFactory;
 
 import org.slf4j.Logger;
@@ -38,8 +36,6 @@ public class NativeResourceUtilization implements IResourceUtilzation
 {
     private static final Logger logger = LoggerFactory.getLogger(NativeResourceUtilization.class);
 
-    public static final String JVM_CPU_UTIL = "JVM";
-    public static final String CONTAINER_CPU_UTIL = "Container";
     private static final OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
     private static final String NR_THROTTLED_KEY = "nr_throttled";
     private static final MetricNameFactory factory = new DefaultNameFactory("NativeResourceUtilization");
@@ -53,24 +49,25 @@ public class NativeResourceUtilization implements IResourceUtilzation
     }
 
     @Override
-    public Map<String, Double> getCurrentCpuUtil()
+    public Long getCurrentCpuUtil1()
     {
-        return new HashMap<>()
-        {
-            {
-                // Since we don't run anything else within the Cassandra container, so Cassandra JVM = Container, the reason for still keeping two metrics is that more signals are better.
-                put(JVM_CPU_UTIL, osBean.getProcessCpuLoad() * 100d);
-                put(CONTAINER_CPU_UTIL, osBean.getSystemCpuLoad() * 100d);
-            }
-        };
+        // Cassandra container CPU utilization
+        return Double.valueOf(osBean.getProcessCpuLoad() * 100d).longValue();
     }
 
     @Override
-    public Long getCpuNRThrottled()
+    public Long getCurrentCpuUtil2()
+    {
+        // Since we don't run anything else within the Cassandra container, so Cassandra JVM = Container, the reason for still keeping two metrics is that more signals are better
+        return Double.valueOf(osBean.getSystemCpuLoad() * 100d).longValue();
+    }
+
+    @Override
+    public Long getCpuNRThrottled1()
     {
         //BufferedReader reader;
         long nrThrottled = Long.MAX_VALUE;
-        try(BufferedReader reader = new BufferedReader(new FileReader(cpuStatFilePath)))
+        try (BufferedReader reader = new BufferedReader(new FileReader(cpuStatFilePath)))
         {
             /** Usually, it is in the following format:
              * $> cat /sys/fs/cgroup/cpu,cpuacct/cpu.stat
@@ -100,5 +97,11 @@ public class NativeResourceUtilization implements IResourceUtilzation
             logger.error("Exception while reading {}, error: {}", cpuStatFilePath, e);
         }
         return nrThrottled;
+    }
+
+    @Override
+    public Long getCpuNRThrottled2()
+    {
+        return -1L;
     }
 }

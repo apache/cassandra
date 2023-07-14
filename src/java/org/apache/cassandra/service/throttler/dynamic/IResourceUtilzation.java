@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-import java.util.Map;
-
 /**
  * IResourceUtil defines an interface to get the current utilzation of the current JVM.
  */
@@ -32,25 +30,36 @@ public interface IResourceUtilzation
     public void setup();
 
     /**
-     * Provides the current CPU utilization signal. There can be multiple ways we can capture CPU utilization.
-     * Some of them are highlighted below.
+     * CPU utilization signal1. It provides the current CPU utilization signal.
+     * There can be multiple ways we can capture CPU utilization. Some of them are highlighted below.
      * 1. OperatingSystemMXBean.getProcessCpuLoad()
      * 2. OperatingSystemMXBean.getSystemCpuLoad()
      * 3. vmstats
      *
-     * @return Returns a Map containing one or more CPU utilization signals and each entry with the following details:
-     * key: Type of CPU signal, Value: actual CPU utilization between [0-100].
-     * For example,
-     * "JVM"-75.24
-     * "Container"-74.12
-     * "Vmstats"-73.19
+     * @return Returns a CPU utilization signals1, and its value would be between [0-100].
      */
-    public Map<String, Double> getCurrentCpuUtil();
+    public Long getCurrentCpuUtil1();
 
     /**
-     * Represents the number of runnable periods in which the application used its entire quota and was throttled.
+     * CPU utilization signal2. Same as "getCurrentCpuUtil1()" but a different source.
+     *
+     * @return Returns a CPU utilization signals1, and its value would be between [0-100]. If there is only one
+     * source, then return -1.
+     */
+    public Long getCurrentCpuUtil2();
+
+    /**
+     * CPU throttling signal1. It represents the number of runnable periods in which the application used its entire quota and was throttled.
      * It is one of the CPU metrics (nr_throttled) for a cgroup located in /sys/fs/cgroup/cpu,cpuacct/<container>
+     *
      * @return the value of nr_throttled
      **/
-    public Long getCpuNRThrottled();
+    public Long getCpuNRThrottled1();
+
+    /**
+     * CPU throttling signal2. Same as "getCpuNRThrottled1" but a different source.
+     *
+     * @return the value of nr_throttled. If there is only one source, then return -1
+     **/
+    public Long getCpuNRThrottled2();
 }

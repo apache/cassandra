@@ -21,74 +21,103 @@ package org.apache.cassandra.service.throttler.dynamic;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
-
 public class CassandraResourceUtilizationTest
 {
     @Test
-    public void testJVMCPU()
+    public void testCpuUtil1()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
-        cassandraResourceUtilization.setup();
-        cassandraResourceUtilization.getCurrentUtilization();
+        ResourcesStats resourcesStats = getResourceStats();
 
-        Assert.assertEquals(2, CassandraResourceUtilization.cpuMetrics.size());
-        Gauge<Long> jvmCpuCur = CassandraResourceUtilization.cpuMetrics.get(NativeResourceUtilization.JVM_CPU_UTIL).cpuUtilCur;
-        Assert.assertTrue("Current: " + jvmCpuCur.getValue(), jvmCpuCur.getValue() >= 0);
-
-        Meter jvmCpuHistory = CassandraResourceUtilization.cpuMetrics.get(NativeResourceUtilization.JVM_CPU_UTIL).cpuUtilHistory;
-        Assert.assertTrue("OneMinuteRate: " + jvmCpuHistory.getOneMinuteRate(), jvmCpuHistory.getOneMinuteRate() >= 0.0d && jvmCpuHistory.getOneMinuteRate() <= 100.0d);
-        Assert.assertTrue("FiveMinuteRate: " + jvmCpuHistory.getFiveMinuteRate(), jvmCpuHistory.getFiveMinuteRate() >= 0.0d && jvmCpuHistory.getFiveMinuteRate() <= 100.0d);
-        Assert.assertTrue("FifteenMinuteRate: " + jvmCpuHistory.getFifteenMinuteRate(), jvmCpuHistory.getFifteenMinuteRate() >= 0.0d && jvmCpuHistory.getFifteenMinuteRate() <= 100.0d);
+        long cpuUtil1Cur = resourcesStats.getCpuUtil1Cur();
+        long cpuUtil1OneMinute = resourcesStats.getCpuUtil1OneMinute();
+        long cpuUtil1FiveMinute = resourcesStats.getCpuUtil1FiveMinute();
+        long cpuUtil1FifteenMinute = resourcesStats.getCpuUtil1FifteenMinute();
+        Assert.assertTrue("Current: " + cpuUtil1Cur, cpuUtil1Cur >= 0 && cpuUtil1Cur <= 100);
+        Assert.assertTrue("OneMinute: " + cpuUtil1OneMinute, cpuUtil1OneMinute >= 0 && cpuUtil1OneMinute <= 100);
+        Assert.assertTrue("FiveMinute: " + cpuUtil1FiveMinute, cpuUtil1FiveMinute >= 0 && cpuUtil1FiveMinute <= 100);
+        Assert.assertTrue("FifteenMinute: " + cpuUtil1FifteenMinute, cpuUtil1FifteenMinute >= 0 && cpuUtil1FifteenMinute <= 100);
     }
 
     @Test
-    public void testContainerCPU()
+    public void testCpuUtil2()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
-        cassandraResourceUtilization.setup();
-        cassandraResourceUtilization.getCurrentUtilization();
+        ResourcesStats resourcesStats = getResourceStats();
 
-        Assert.assertEquals(2, CassandraResourceUtilization.cpuMetrics.size());
-        Gauge<Long> containerCpuCur = CassandraResourceUtilization.cpuMetrics.get(NativeResourceUtilization.CONTAINER_CPU_UTIL).cpuUtilCur;
-        Assert.assertTrue("Current: " + containerCpuCur.getValue(), containerCpuCur.getValue() >= 0);
+        long cpuUtil2Cur = resourcesStats.getCpuUtil2Cur();
+        long cpuUtil2OneMinute = resourcesStats.getCpuUtil2OneMinute();
+        long cpuUtil2FiveMinute = resourcesStats.getCpuUtil2FiveMinute();
+        long cpuUtil2FifteenMinute = resourcesStats.getCpuUtil2FifteenMinute();
+        Assert.assertTrue("Current: " + cpuUtil2Cur, cpuUtil2Cur >= 0 && cpuUtil2Cur <= 100);
+        Assert.assertTrue("OneMinute: " + cpuUtil2OneMinute, cpuUtil2OneMinute >= 0 && cpuUtil2OneMinute <= 100);
+        Assert.assertTrue("FiveMinute: " + cpuUtil2FiveMinute, cpuUtil2FiveMinute >= 0 && cpuUtil2FiveMinute <= 100);
+        Assert.assertTrue("FifteenMinute: " + cpuUtil2FifteenMinute, cpuUtil2FifteenMinute >= 0 && cpuUtil2FifteenMinute <= 100);
+    }
 
-        Meter containerCpuHistory = CassandraResourceUtilization.cpuMetrics.get(NativeResourceUtilization.CONTAINER_CPU_UTIL).cpuUtilHistory;
-        Assert.assertTrue("OneMinuteRate: " + containerCpuHistory.getOneMinuteRate(), containerCpuHistory.getOneMinuteRate() >= 0.0d && containerCpuHistory.getOneMinuteRate() <= 100.0d);
-        Assert.assertTrue("FiveMinuteRate: " + containerCpuHistory.getFiveMinuteRate(), containerCpuHistory.getFiveMinuteRate() >= 0.0d && containerCpuHistory.getFiveMinuteRate() <= 100.0d);
-        Assert.assertTrue("FifteenMinuteRate: " + containerCpuHistory.getFifteenMinuteRate(), containerCpuHistory.getFifteenMinuteRate() >= 0.0d && containerCpuHistory.getFifteenMinuteRate() <= 100.0d);
+    @Test
+    public void testNrThrottling1()
+    {
+        ResourcesStats resourcesStats = getResourceStats();
+
+        long nrThrottled1Cur = resourcesStats.getNrThrottled1Cur();
+        long nrThrottled1OneMinute = resourcesStats.getNrThrottled1OneMinute();
+        long nrThrottled1FiveMinute = resourcesStats.getNrThrottled1FiveMinute();
+        long nrThrottled1FifteenMinute = resourcesStats.getNrThrottled1FifteenMinute();
+        Assert.assertTrue("Current: " + nrThrottled1Cur, nrThrottled1Cur >= 0);
+        Assert.assertTrue("OneMinute: " + nrThrottled1OneMinute, nrThrottled1OneMinute >= 0);
+        Assert.assertTrue("FiveMinute: " + nrThrottled1FiveMinute, nrThrottled1FiveMinute >= 0);
+        Assert.assertTrue("FifteenMinute: " + nrThrottled1FifteenMinute, nrThrottled1FifteenMinute >= 0);
+    }
+
+    @Test
+    public void testNrThrottling2()
+    {
+        ResourcesStats resourcesStats = getResourceStats();
+
+        long nrThrottled2Cur = resourcesStats.getNrThrottled2Cur();
+        long nrThrottled2OneMinute = resourcesStats.getNrThrottled2OneMinute();
+        long nrThrottled2FiveMinute = resourcesStats.getNrThrottled2FiveMinute();
+        long nrThrottled2FifteenMinute = resourcesStats.getNrThrottled2FifteenMinute();
+        Assert.assertTrue("Current: " + nrThrottled2Cur, nrThrottled2Cur >= 0);
+        Assert.assertTrue("OneMinute: " + nrThrottled2OneMinute, nrThrottled2OneMinute >= 0);
+        Assert.assertTrue("FiveMinute: " + nrThrottled2FiveMinute, nrThrottled2FiveMinute >= 0);
+        Assert.assertTrue("FifteenMinute: " + nrThrottled2FifteenMinute, nrThrottled2FifteenMinute >= 0);
     }
 
     @Test
     public void testPendingReads()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
-        cassandraResourceUtilization.setup();
-        cassandraResourceUtilization.getCurrentUtilization();
+        ResourcesStats resourcesStats = getResourceStats();
 
-        Gauge<Integer> pendingReadsCur = CassandraResourceUtilization.pendingReadsCur;
-        Assert.assertTrue("Current: " + pendingReadsCur.getValue(), pendingReadsCur.getValue() >= 0);
-
-        Meter pendingReadsHistory = CassandraResourceUtilization.pendingReadsHistory;
-        Assert.assertTrue("OneMinuteRate: " + pendingReadsHistory.getOneMinuteRate(), pendingReadsHistory.getOneMinuteRate() >= 0.0d && pendingReadsHistory.getOneMinuteRate() <= 100.0d);
-        Assert.assertTrue("FiveMinuteRate: " + pendingReadsHistory.getFiveMinuteRate(), pendingReadsHistory.getFiveMinuteRate() >= 0.0d && pendingReadsHistory.getFiveMinuteRate() <= 100.0d);
-        Assert.assertTrue("FifteenMinuteRate: " + pendingReadsHistory.getFifteenMinuteRate(), pendingReadsHistory.getFifteenMinuteRate() >= 0.0d && pendingReadsHistory.getFifteenMinuteRate() <= 100.0d);
+        int pendingReadsCur = resourcesStats.getPendingReadsCur();
+        long pendingReadsOneMinute = resourcesStats.getPendingReadsOneMinute();
+        long pendingReadsFiveMinute = resourcesStats.getPendingReadsFiveMinute();
+        long pendingReadsFifteenMinute = resourcesStats.getPendingReadsFifteenMinute();
+        Assert.assertTrue("Current: " + pendingReadsCur, pendingReadsCur >= 0);
+        Assert.assertTrue("OneMinute: " + pendingReadsOneMinute, pendingReadsOneMinute >= 0);
+        Assert.assertTrue("FiveMinute: " + pendingReadsFiveMinute, pendingReadsFiveMinute >= 0);
+        Assert.assertTrue("FifteenMinute: " + pendingReadsFifteenMinute, pendingReadsFifteenMinute >= 0);
     }
 
     @Test
     public void testPendingMutations()
     {
+        ResourcesStats resourcesStats = getResourceStats();
+
+        int pendingMutationsCur = resourcesStats.getPendingMutationsCur();
+        long pendingMutationsOneMinute = resourcesStats.getPendingMutationsOneMinute();
+        long pendingMutationsFiveMinute = resourcesStats.getPendingMutationsFiveMinute();
+        long pendingMutationsFifteenMinute = resourcesStats.getPendingMutationsFifteenMinute();
+        Assert.assertTrue("Current: " + pendingMutationsCur, pendingMutationsCur >= 0);
+        Assert.assertTrue("OneMinute: " + pendingMutationsOneMinute, pendingMutationsOneMinute >= 0);
+        Assert.assertTrue("FiveMinute: " + pendingMutationsFiveMinute, pendingMutationsFiveMinute >= 0);
+        Assert.assertTrue("FifteenMinute: " + pendingMutationsFifteenMinute, pendingMutationsFifteenMinute >= 0);
+    }
+
+    private ResourcesStats getResourceStats()
+    {
         CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
         cassandraResourceUtilization.setup();
-        cassandraResourceUtilization.getCurrentUtilization();
-
-        Gauge<Integer> pendingMutationsCur = CassandraResourceUtilization.pendingMutationsCur;
-        Assert.assertTrue("Current: " + pendingMutationsCur.getValue(), pendingMutationsCur.getValue() >= 0);
-
-        Meter pendingMutationsHistory = CassandraResourceUtilization.pendingMutationsHistory;
-        Assert.assertTrue("OneMinuteRate: " + pendingMutationsHistory.getOneMinuteRate(), pendingMutationsHistory.getOneMinuteRate() >= 0.0d && pendingMutationsHistory.getOneMinuteRate() <= 100.0d);
-        Assert.assertTrue("FiveMinuteRate: " + pendingMutationsHistory.getFiveMinuteRate(), pendingMutationsHistory.getFiveMinuteRate() >= 0.0d && pendingMutationsHistory.getFiveMinuteRate() <= 100.0d);
-        Assert.assertTrue("FifteenMinuteRate: " + pendingMutationsHistory.getFifteenMinuteRate(), pendingMutationsHistory.getFifteenMinuteRate() >= 0.0d && pendingMutationsHistory.getFifteenMinuteRate() <= 100.0d);
+        cassandraResourceUtilization.fetchCurrentHealth();
+        return cassandraResourceUtilization.resourcesStats;
     }
 }

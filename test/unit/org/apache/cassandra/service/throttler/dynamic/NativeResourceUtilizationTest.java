@@ -30,31 +30,46 @@ public class NativeResourceUtilizationTest
     private static final String TEST_CPU_STAT_INVALID_FILE_PATH = "throttling/invalid_file.stat";
 
     @Test
-    public void testGetCurCPUUtil()
+    public void testCurrentCpuUtil1()
     {
-        Map<String, Double> cpuUtilization = new NativeResourceUtilization().getCurrentCpuUtil();
-        Assert.assertEquals(2, cpuUtilization.size());
-        Assert.assertTrue(NativeResourceUtilization.JVM_CPU_UTIL + ":" + cpuUtilization.get(NativeResourceUtilization.JVM_CPU_UTIL), cpuUtilization.get(NativeResourceUtilization.JVM_CPU_UTIL) >= 0.0 && cpuUtilization.get(NativeResourceUtilization.JVM_CPU_UTIL) <= 100.0);
-        Assert.assertTrue(NativeResourceUtilization.CONTAINER_CPU_UTIL + ":" + cpuUtilization.get(NativeResourceUtilization.CONTAINER_CPU_UTIL), cpuUtilization.get(NativeResourceUtilization.CONTAINER_CPU_UTIL) >= 0.0 && cpuUtilization.get(NativeResourceUtilization.CONTAINER_CPU_UTIL) <= 100.0);
+        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
+        Long currentCpuUtil1 = nativeResourceUtilization.getCurrentCpuUtil1();
+        Assert.assertTrue( "GetCurrentCpuUtil1: " + currentCpuUtil1, currentCpuUtil1 >= 0.0 && currentCpuUtil1 <= 100.0);
+    }
+
+    public void testCurrentCpuUtil2()
+    {
+        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
+        Long currentCpuUtil2 = nativeResourceUtilization.getCurrentCpuUtil2();
+        Assert.assertTrue( "GetCurrentCpuUtil2: " + currentCpuUtil2, currentCpuUtil2 >= 0.0 && currentCpuUtil2 <= 100.0);
     }
 
     @Test
-    public void testNRThrottledReadFailure()
+    public void testNRThrottled1ReadFailure()
     {
         NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
         nativeResourceUtilization.cpuStatFilePath = TEST_CPU_STAT_INVALID_FILE_PATH;
-        long nrThrottled = nativeResourceUtilization.getCpuNRThrottled();
-        Assert.assertEquals(Long.MAX_VALUE, nrThrottled);
+        long nrThrottled1 = nativeResourceUtilization.getCpuNRThrottled1();
+        Assert.assertEquals(Long.MAX_VALUE, nrThrottled1);
         Assert.assertEquals(1, nativeResourceUtilization.readFailures.getCount());
     }
 
     @Test
-    public void testNRThrottledReadSuccess()
+    public void testNRThrottled1ReadSuccess()
     {
         NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
         nativeResourceUtilization.cpuStatFilePath = getClass().getClassLoader().getResource(TEST_CPU_STAT_FILE_PATH).getFile();
-        long nrThrottled = nativeResourceUtilization.getCpuNRThrottled();
-        Assert.assertEquals(5468, nrThrottled);
+        long nrThrottled1 = nativeResourceUtilization.getCpuNRThrottled1();
+        Assert.assertEquals(5468, nrThrottled1);
+        Assert.assertEquals(0, nativeResourceUtilization.readFailures.getCount());
+    }
+
+    @Test
+    public void testNRThrottled2ReadSuccess()
+    {
+        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
+        long nrThrottled2 = nativeResourceUtilization.getCpuNRThrottled2();
+        Assert.assertEquals(-1, nrThrottled2);
         Assert.assertEquals(0, nativeResourceUtilization.readFailures.getCount());
     }
 }

@@ -19,25 +19,16 @@
 package org.apache.cassandra.service.throttler.dynamic;
 
 import java.text.DecimalFormat;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.metrics.MetricNameFactory;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 
 public class CassandraResourceUtilization
@@ -48,113 +39,91 @@ public class CassandraResourceUtilization
 
     // TODO: make this configurable
     private static final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
-    private static final MetricNameFactory factory = new DefaultNameFactory("CassandraResourceUtilization");
 
-    public static final String READ_THREAD_POOL = "ReadStage";
-    public static final String MUTATION_THREAD_POOL = "MutationStage";
+    private static final String READ_THREAD_POOL = "ReadStage";
+    private static final String MUTATION_THREAD_POOL = "MutationStage";
 
     // Maintain 1 minute, 5 minutes, and 15 minutes history
-    public static volatile Map<String, CpuUtilMetrics> cpuMetrics = new HashMap<>();
-    public static volatile Meter pendingReadsHistory = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingReads"));
-    public static volatile Meter pendingMutationsHistory = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingMutations"));
-    public static volatile Meter nrThrottledHistory = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("NRThrottled"));
-    public static Gauge<Integer> pendingReadsCur;
-    public static Gauge<Integer> pendingMutationsCur;
-    public static volatile Gauge<Long> nrThrottledCur;
+    private long nrThrottled1Prev = -1;
+    private long nrThrottled2Prev = -1;
 
-    private volatile int pendingReadTaskCount;
-    private volatile int pendingMutationTaskCount;
-    private volatile long nrThrottledDelta;
-    private long nrThrottledPrev = Long.MAX_VALUE;
+    public ResourcesStats resourcesStats;
 
     public void setup()
     {
-        pendingReadsCur = Metrics.register(factory.createMetricName("PendingReadsCur"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return pendingReadTaskCount;
-            }
-        });
-        pendingMutationsCur = Metrics.register(factory.createMetricName("PendingMutationsCur"), new Gauge<Integer>()
-        {
-            public Integer getValue()
-            {
-                return pendingMutationTaskCount;
-            }
-        });
-        nrThrottledCur = Metrics.register(factory.createMetricName("NRThrottledCur"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return nrThrottledDelta;
-            }
-        });
-
-
+        resourcesStats = new ResourcesStats();
         resourceUtilzation.setup();
         // TODO: make this configurable
-        reportThread.scheduleAtFixedRate(() -> getCurrentUtilization(), 10, 1, TimeUnit.SECONDS);
-
-        for (String cpuUtilType : resourceUtilzation.getCurrentCpuUtil().keySet())
-        {
-            cpuMetrics.putIfAbsent(cpuUtilType, new CpuUtilMetrics(cpuUtilType, factory));
-        }
+        reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), 10, 1, TimeUnit.SECONDS);
     }
 
-    public void getCurrentUtilization()
+    public void fetchCurrentHealth()
     {
-        StringBuilder sb = new StringBuilder();
-        Map<String, Double> cpuUtil = resourceUtilzation.getCurrentCpuUtil();
-        for (Map.Entry<String, Double> cpuUtilEntry : cpuUtil.entrySet())
-        {
-            CpuUtilMetrics oneCpuMetric = cpuMetrics.get(cpuUtilEntry.getKey());
-            long currentCpuUtilization = Double.valueOf(cpuUtilEntry.getValue()).longValue();
-            oneCpuMetric.cpuUtilHistory.mark(currentCpuUtilization);
-            oneCpuMetric.currentCpuUtilization = currentCpuUtilization;
-
-            sb.append(cpuUtilEntry.getKey()).append(": ").append(df.format(cpuUtilEntry.getValue())).
-              append("-").append(df.format(oneCpuMetric.cpuUtilHistory.getOneMinuteRate())).
-              append("-").append(df.format(oneCpuMetric.cpuUtilHistory.getFiveMinuteRate())).
-              append("-").append(df.format(oneCpuMetric.cpuUtilHistory.getFifteenMinuteRate())).append(", ");
-        }
+        resourcesStats.setCpuUtil1(resourceUtilzation.getCurrentCpuUtil1());
+        resourcesStats.setCpuUtil2(resourceUtilzation.getCurrentCpuUtil2());
 
         SEPExecutor readSEPTP = SharedExecutorPool.SHARED.getExecutor(READ_THREAD_POOL);
-        SEPExecutor mutationSEPTP = SharedExecutorPool.SHARED.getExecutor(MUTATION_THREAD_POOL);
         if (readSEPTP != null)
         {
-            pendingReadTaskCount = readSEPTP.getPendingTaskCount();
+            resourcesStats.setPendingReads(readSEPTP.getPendingTaskCount());
         }
+        SEPExecutor mutationSEPTP = SharedExecutorPool.SHARED.getExecutor(MUTATION_THREAD_POOL);
         if (mutationSEPTP != null)
         {
-            pendingMutationTaskCount = mutationSEPTP.getPendingTaskCount();
+            resourcesStats.setPendingMutations(mutationSEPTP.getPendingTaskCount());
         }
-        pendingReadsHistory.mark(pendingReadTaskCount);
-        pendingMutationsHistory.mark(pendingMutationTaskCount);
-
-
-        long nrThrottledNow = resourceUtilzation.getCpuNRThrottled();
-        if (nrThrottledPrev != Long.MAX_VALUE )
+        long nrThrottled1Now = resourceUtilzation.getCpuNRThrottled1();
+        if (nrThrottled1Prev != -1)
         {
-            nrThrottledDelta = nrThrottledNow - nrThrottledPrev;
+            resourcesStats.setNrThrottled1(nrThrottled1Now - nrThrottled1Prev);
         }
-        nrThrottledPrev = nrThrottledNow;
-        nrThrottledHistory.mark(nrThrottledDelta);
+        nrThrottled1Prev = nrThrottled1Now;
 
-        sb.append("PendingReads").append(": ").append(pendingReadTaskCount).
-          append("-").append(df.format(pendingReadsHistory.getOneMinuteRate())).
-          append("-").append(df.format(pendingReadsHistory.getFiveMinuteRate())).
-          append("-").append(df.format(pendingReadsHistory.getFifteenMinuteRate())).append(", ");
-        sb.append("PendingMutations").append(": ").append(pendingMutationTaskCount).
-          append("-").append(df.format(pendingMutationsHistory.getOneMinuteRate())).
-          append("-").append(df.format(pendingMutationsHistory.getFiveMinuteRate())).
-          append("-").append(df.format(pendingMutationsHistory.getFifteenMinuteRate()));
-        sb.append("NRThrottled").append(": ").append(nrThrottledDelta).
-          append("-").append(df.format(nrThrottledHistory.getOneMinuteRate())).
-          append("-").append(df.format(nrThrottledHistory.getFiveMinuteRate())).
-          append("-").append(df.format(nrThrottledHistory.getFifteenMinuteRate()));
+        long nrThrottled2Now = resourceUtilzation.getCpuNRThrottled2();
+        if (nrThrottled2Prev != -1)
+        {
+            resourcesStats.setNrThrottled2(nrThrottled2Now - nrThrottled2Prev);
+        }
+        nrThrottled2Prev = nrThrottled2Now;
 
         // TODO: Eventually, change this to Debug to avoid log flooding
-        logger.info("CassandraResourceUtilization {}", sb);
+        logger.info("CassandraResourceUtilization {}", this);
+    }
+
+    public String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("CpuUtil1: ").append(df.format(resourcesStats.getCpuUtil1Cur())).
+          append("-").append(df.format(resourcesStats.getCpuUtil1OneMinute())).
+          append("-").append(df.format(resourcesStats.getCpuUtil1FiveMinute())).
+          append("-").append(df.format(resourcesStats.getCpuUtil1FifteenMinute())).
+
+          append(", CpuUtil2: ").append(df.format(resourcesStats.getCpuUtil2Cur())).
+          append("-").append(df.format(resourcesStats.getCpuUtil2OneMinute())).
+          append("-").append(df.format(resourcesStats.getCpuUtil2FiveMinute())).
+          append("-").append(df.format(resourcesStats.getCpuUtil2FifteenMinute())).
+
+          append(", NrThrottled1: ").append(df.format(resourcesStats.getNrThrottled1Cur())).
+          append("-").append(df.format(resourcesStats.getNrThrottled1OneMinute())).
+          append("-").append(df.format(resourcesStats.getNrThrottled1FiveMinute())).
+          append("-").append(df.format(resourcesStats.getNrThrottled1FifteenMinute())).
+
+          append(", NrThrottled2: ").append(df.format(resourcesStats.getNrThrottled2Cur())).
+          append("-").append(df.format(resourcesStats.getNrThrottled2OneMinute())).
+          append("-").append(df.format(resourcesStats.getNrThrottled2FiveMinute())).
+          append("-").append(df.format(resourcesStats.getNrThrottled2FifteenMinute())).
+
+          append(", PendingReads: ").append(df.format(resourcesStats.getPendingReadsCur())).
+          append("-").append(df.format(resourcesStats.getPendingReadsOneMinute())).
+          append("-").append(df.format(resourcesStats.getPendingReadsFiveMinute())).
+          append("-").append(df.format(resourcesStats.getPendingReadsFifteenMinute())).
+
+          append(", PendingMutations: ").append(df.format(resourcesStats.getPendingMutationsCur())).
+          append("-").append(df.format(resourcesStats.getPendingMutationsOneMinute())).
+          append("-").append(df.format(resourcesStats.getPendingMutationsFiveMinute())).
+          append("-").append(df.format(resourcesStats.getPendingMutationsFifteenMinute()));
+
+        return sb.toString();
     }
 }
