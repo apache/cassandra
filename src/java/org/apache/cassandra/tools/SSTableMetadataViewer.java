@@ -85,11 +85,8 @@ public class SSTableMetadataViewer
     private static final String SCAN = "s";
     private static final String HELP = "h";
 
-<<<<<<< HEAD
     private static final Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
-=======
     private static Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
->>>>>>> 5509cecf98 (added -h option)
 
     static
     {
