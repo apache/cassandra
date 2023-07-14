@@ -234,7 +234,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         if (!f.exists())
             f = new File(FileSystems.getDefault(), String.format("build/test/logs/%s/%s/%s/system.log", tag, clusterId, instanceId));
         if (!f.exists())
-            throw new AssertionError("Unable to locate system.log under " + new File("build/test/logs").absolutePath() + "; make sure ICluster.setup() is called or extend TestBaseImpl and do not define a static beforeClass function with @BeforeClass");
+            throw new AssertionError("Unable to locate system.log under " + f.absolutePath() + "; make sure ICluster.setup() is called or extend TestBaseImpl and do not define a static beforeClass function with @BeforeClass");
         return new FileLogAction(f);
     }
 

@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -25,12 +25,8 @@
 
 WORKSPACE=$1
 
-if [ "${WORKSPACE}" = "" ]; then
-    echo "Specify Cassandra source directory"
-    exit
-fi
-
-PYTHON_VERSION=python3
+[ "x${WORKSPACE}" != "x" ] || WORKSPACE="$(readlink -f $(dirname "$0")/..)"
+[ "x${BUILD_DIR}" != "x" ] || BUILD_DIR="${WORKSPACE}/build"
 
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
@@ -38,43 +34,43 @@ export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="2048M"
 export CCM_HEAP_NEWSIZE="200M"
-export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
+export CCM_CONFIG_DIR=${BUILD_DIR}/.ccm
 export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
+export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
 
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}.jdk${java_version}"
+version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
 
-ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
-# Loop to prevent failure due to maven-ant-tasks not downloading a jar..
-for x in $(seq 1 3); do
-    ant -buildfile ${CASSANDRA_DIR}/build.xml jar
-    RETURN="$?"
-    if [ "${RETURN}" -eq "0" ]; then
-        break
-    fi
-done
-# Exit, if we didn't build successfully
-if [ "${RETURN}" -ne "0" ]; then
-    echo "Build failed with exit code: ${RETURN}"
-    exit ${RETURN}
-fi
+python_version="3.6"
+command -v python3 >/dev/null 2>&1 && python_version="$(python3 -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
+
+export TESTSUITE_NAME="cqlshlib.python${python_version}.jdk${java_version}"
+
+pushd ${CASSANDRA_DIR} >/dev/null
+
+# check project is already built. no cleaning is done, so jenkins unstash works, beware.
+[[ -f "${BUILD_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${BUILD_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${BUILD_DIR} with: $(ls ${BUILD_DIR})"; exit 1; }
 
 # Set up venv with dtest dependencies
 set -e # enable immediate exit if venv setup fails
-virtualenv --python=$PYTHON_VERSION venv
-source venv/bin/activate
-# 3.11 needs the newest pip
-curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
 
-pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
+# fresh virtualenv and test logs results everytime
+rm -fr ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
+
+# re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu2004_test docker image
+virtualenv-clone ${BUILD_HOME}/env${python_version} ${BUILD_DIR}/venv || virtualenv --python=python3 ${BUILD_DIR}/venv
+source ${BUILD_DIR}/venv/bin/activate
+
+pip install --exists-action w -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
     pip install "Cython>=0.29.15,<3.0"
-    cd pylib/; python setup.py build_ext --inplace
-    cd ${WORKSPACE}
+    pushd pylib >/dev/null
+    python setup.py build_ext --inplace
+    popd >/dev/null
 else
     TESTSUITE_NAME="${TESTSUITE_NAME}.no_cython"
 fi
@@ -108,14 +104,27 @@ esac
 
 ccm start --wait-for-binary-proto
 
-cd ${CASSANDRA_DIR}/pylib/cqlshlib/
+pushd ${CASSANDRA_DIR}/pylib/cqlshlib/ >/dev/null
 
 set +e # disable immediate exit from this point
-pytest --junitxml=${WORKSPACE}/cqlshlib.xml
+pytest --junitxml=${BUILD_DIR}/test/output/cqlshlib.xml
 RETURN="$?"
 
-sed -i "s/testsuite errors=\(\".*\"\) failures=\(\".*\"\) hostname=\(\".*\"\) name=\"pytest\"/testsuite errors=\1 failures=\2 hostname=\3 name=\"${TESTSUITE_NAME}\"/g" ${WORKSPACE}/cqlshlib.xml
-sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${WORKSPACE}/cqlshlib.xml
+# remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
+sed -r "s/<[\/]?testsuites>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
+
+# don't do inline sed for linux+mac compat
+sed "s/testsuite errors=\(\".*\"\) failures=\(\".*\"\) hostname=\(\".*\"\) name=\"pytest\"/testsuite errors=\1 failures=\2 hostname=\3 name=\"${TESTSUITE_NAME}\"/g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
+sed "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
+
+# tar up any ccm logs for easy retrieval
+if ls ${TMPDIR}/test/*/logs/* &>/dev/null ; then
+    mkdir -p ${DIST_DIR}/test/logs
+    tar -C ${TMPDIR} -cJf ${DIST_DIR}/test/logs/ccm_logs.tar.xz */test/*/logs/*
+fi
 
 ccm remove
 
@@ -125,8 +134,12 @@ ccm remove
 #
 ################################
 
-# /virtualenv
+
+rm -rf ${TMPDIR}
+unset TMPDIR
 deactivate
+popd >/dev/null
+popd >/dev/null
 
 # circleci needs non-zero exit on failures, jenkins need zero exit to process the test failures
 if ! command -v circleci >/dev/null 2>&1

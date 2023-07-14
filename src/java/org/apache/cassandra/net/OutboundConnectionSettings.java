@@ -27,7 +27,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
@@ -446,7 +446,7 @@ public class OutboundConnectionSettings
     {
         InetAddressAndPort connectTo = this.connectTo;
         if (connectTo == null)
-            connectTo = Gossiper.instance.getInternalAddressAndPort(to);
+            connectTo = SystemKeyspace.getPreferredIP(to);
         if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
             return FBUtilities.getLocalAddressAndPort();
         return connectTo;

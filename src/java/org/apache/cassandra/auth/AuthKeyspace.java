@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -57,6 +60,10 @@ public final class AuthKeyspace
     public static final String NETWORK_PERMISSIONS = "network_permissions";
     public static final String CIDR_PERMISSIONS = "cidr_permissions";
     public static final String CIDR_GROUPS = "cidr_groups";
+
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(ROLES, ROLE_MEMBERS, ROLE_PERMISSIONS,
+                                                                  RESOURCE_ROLE_INDEX, NETWORK_PERMISSIONS,
+                                                                  CIDR_PERMISSIONS, CIDR_GROUPS);
 
     public static final long SUPERUSER_SETUP_DELAY = SUPERUSER_SETUP_DELAY_MS.getLong();
 

@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Properties;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -38,10 +39,14 @@ import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class AlibabaCloudSnitchTest 
+public class AlibabaCloudSnitchTest
 {
-    private static String az;
+    static String az;
 
     @BeforeClass
     public static void setup() throws Exception
@@ -56,25 +61,15 @@ public class AlibabaCloudSnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestAlibabaCloudSnitch extends AlibabaCloudSnitch
-    {
-        public TestAlibabaCloudSnitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        @Override
-        String alibabaApiCall(String url) throws IOException, ConfigurationException
-        {
-            return az;
-        }
-    }
-
     @Test
     public void testRac() throws IOException, ConfigurationException
     {
         az = "cn-hangzhou-f";
-        AlibabaCloudSnitch snitch = new TestAlibabaCloudSnitch();
+
+        AbstractCloudMetadataServiceConnector mock = mock(AbstractCloudMetadataServiceConnector.class);
+        when(mock.apiCall(any(), anyMap())).thenReturn(az);
+
+        AlibabaCloudSnitch snitch = new AlibabaCloudSnitch(new SnitchProperties(new Properties()), mock);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -90,12 +85,16 @@ public class AlibabaCloudSnitchTest
         assertEquals("cn-hangzhou", snitch.getDatacenter(local));
         assertEquals("f", snitch.getRack(local));
     }
-    
+
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
         az = "us-east-1a";
-        AlibabaCloudSnitch snitch = new TestAlibabaCloudSnitch();
+
+        AbstractCloudMetadataServiceConnector mock = mock(AbstractCloudMetadataServiceConnector.class);
+        when(mock.apiCall(any(), anyMap())).thenReturn(az);
+
+        AlibabaCloudSnitch snitch = new AlibabaCloudSnitch(new SnitchProperties(new Properties()), mock);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("us-east", snitch.getDatacenter(local));
         assertEquals("1a", snitch.getRack(local));
@@ -106,5 +105,4 @@ public class AlibabaCloudSnitchTest
     {
         StorageService.instance.stopClient();
     }
-    
 }

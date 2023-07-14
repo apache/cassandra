@@ -514,6 +514,20 @@ public interface SettableByNameData<T extends SettableData<T>>
     public <E> T setSet(String name, Set<E> v, TypeToken<E> elementsType);
 
     /**
+     * Sets the value for (all occurrences of) variable {@code name} to the provided vector value.
+     *
+     * <p>This method uses the {@link CodecRegistry} to find a codec to handle the conversion of {@code v} to the
+     * underlying CQL type.
+     *
+     * @param name the name of the value to set; if {@code name} is present multiple times, all its values are set.
+     * @param v    the value to set.
+     * @return this object.
+     * @throws IllegalArgumentException if {@code name} is not a valid name for this object.
+     * @throws CodecNotFoundException   if there is no registered codec to convert the value to the underlying CQL type.
+     */
+    public <E> T setVector(String name, List<E> v);
+
+    /**
      * Sets the value for (all occurrences of) variable {@code name} to the provided UDT value.
      *
      * <p>This method uses the {@link CodecRegistry} to find a codec to handle the conversion of
