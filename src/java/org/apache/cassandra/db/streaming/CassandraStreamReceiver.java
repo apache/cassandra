@@ -231,10 +231,11 @@ public class CassandraStreamReceiver implements StreamReceiver
             }
             else
             {
-                cfs.indexManager.buildIndexesBlocking(readers);
+                // Ensure the new SSTables are indexed before we finish the transaction:
+                cfs.indexManager.buildIndexesBlocking(readers, false);
                 finishTransaction();
 
-                // All SSTable and their dependent indexes should be built, so make then visible to queries:
+                // New SSTables and their dependent indexes should be built, so make them visible to queries:
                 logger.debug("[Stream #{}] Received {} sstables from {} ({})", session.planId(), readers.size(), session.peer, readers);
                 cfs.addSSTables(readers);
 

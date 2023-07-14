@@ -37,7 +37,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
@@ -109,12 +108,15 @@ public class SecondaryIndexManagerTest extends CQLTester
         assertMarkedAsBuilt(indexName);
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        // This is the equivalent of dropping the table from the index manager's perspective:
         cfs.indexManager.markAllIndexesRemoved();
         assertNotMarkedAsBuilt(indexName);
 
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
-            cfs.indexManager.buildIndexesBlocking(sstables);
+            // A full rebuild will mark the index as being built: 
+            cfs.indexManager.buildIndexesBlocking(sstables, true);
             assertMarkedAsBuilt(indexName);
         }
     }
@@ -229,7 +231,7 @@ public class SecondaryIndexManagerTest extends CQLTester
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
             try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
             {
-                cfs.indexManager.buildIndexesBlocking(sstables);
+                cfs.indexManager.buildIndexesBlocking(sstables, true);
             }
             catch (Throwable ex)
             {
@@ -293,7 +295,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
-            cfs.indexManager.buildIndexesBlocking(sstables);
+            cfs.indexManager.buildIndexesBlocking(sstables, false);
             assertNotMarkedAsBuilt(indexName);
         }
 
@@ -342,7 +344,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
         {
-            cfs.indexManager.buildIndexesBlocking(sstables);
+            cfs.indexManager.buildIndexesBlocking(sstables, false);
             fail("Should have failed!");
         }
         catch (Throwable ex)
@@ -357,8 +359,9 @@ public class SecondaryIndexManagerTest extends CQLTester
         TestingIndex.unblockBuild();
         asyncBuild.join();
 
-        // verify the index is *not* built due to the failing sstable build:
-        assertNotMarkedAsBuilt(indexName);
+        // Only full rebuild failures will mark the index as not being built. If a partial rebuild fails on import
+        // or streaming, the associated SSTables will never be added to the view.
+        assertMarkedAsBuilt(indexName);
         assertFalse(error.get());
     }
 
@@ -428,7 +431,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         assertFalse(isQueryable(readOnlyIndexName));
         assertFalse(isQueryable(writeOnlyIndexName));
 
-        // the index should always we writable while the initialization hasn't finished
+        // the index should always be writable while the initialization hasn't finished
         assertTrue(isWritable(defaultIndexName));
         assertTrue(isWritable(readOnlyIndexName));
         assertTrue(isWritable(writeOnlyIndexName));
@@ -438,7 +441,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         try
         {
-            cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables());
+            cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables(), false);
             fail("Should have failed!");
         }
         catch (Throwable ex)
@@ -454,7 +457,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // a successful partial build doesn't set the index as queryable nor writable
         TestingIndex.shouldFailBuild = false;
-        cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables());
+        cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables(), false);
         assertFalse(isQueryable(defaultIndexName));
         assertFalse(isQueryable(readOnlyIndexName));
         assertFalse(isQueryable(writeOnlyIndexName));
@@ -524,7 +527,7 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // a successful partial build doesn't set the index as queryable nor writable
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables());
+        cfs.indexManager.buildIndexesBlocking(cfs.getLiveSSTables(), false);
         assertTrue(waitForIndexBuilds(KEYSPACE, defaultIndexName));
         assertTrue(waitForIndexBuilds(KEYSPACE, readOnlyIndexName));
         assertTrue(waitForIndexBuilds(KEYSPACE, writeOnlyIndexName));
