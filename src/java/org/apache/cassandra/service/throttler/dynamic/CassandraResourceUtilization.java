@@ -48,10 +48,12 @@ public class CassandraResourceUtilization
     private long nrThrottled2Prev = -1;
 
     public ResourcesStats resourcesStats;
+    public ThrottlingOptions throttlingOptions;
 
     public void setup()
     {
         resourcesStats = new ResourcesStats();
+        throttlingOptions = new ThrottlingOptions();
         resourceUtilzation.setup();
         // TODO: make this configurable
         reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), 10, 1, TimeUnit.SECONDS);
