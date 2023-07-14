@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.index;
 
+import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -63,7 +64,10 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index.IndexBuildingSupport;
 import org.apache.cassandra.index.internal.CassandraIndex;
-import org.apache.cassandra.index.transactions.*;
+import org.apache.cassandra.index.transactions.CleanupTransaction;
+import org.apache.cassandra.index.transactions.CompactionTransaction;
+import org.apache.cassandra.index.transactions.IndexTransaction;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -492,8 +496,93 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
-     * Performs a blocking (re)indexing/recovery of the specified SSTables for the specified indexes.
+     * Validates all index groups against the specified SSTables. 
      *
+     * @param sstables SSTables for which indexes in the group should be built
+     * @param throwOnIncomplete whether to throw an error if any index in the group is incomplete
+     *
+     * @return true if all indexes in all groups are complete and valid
+     *         false if an index in any group is incomplete and {@code throwOnIncomplete} is false 
+     *
+     * @throws IllegalStateException if {@code throwOnIncomplete} is true and an index in any group is incomplete
+     * @throws UncheckedIOException if there is a problem validating any on-disk component in any group
+     */
+    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete)
+    {
+        boolean complete = true;
+
+        for (Index.Group group : indexGroups.values())
+        {
+            if (group.getIndexes().stream().anyMatch(Index::isSSTableAttached))
+                complete &= group.validateSSTableAttachedIndexes(sstables, throwOnIncomplete);
+        }
+
+        return complete;
+    }
+
+    /**
+     * Incrementally builds indexes for the specified SSTables in a blocking fashion.
+     * <p>
+     * This is similar to {@link #buildIndexesBlocking}, but it is designed to be used in cases where failure will
+     * cascade through to failing the containing operation that actuates the build. (ex. streaming and SSTable import)
+     * <p>
+     * It does not update index build status or queryablility on failure or success and does not call
+     * {@link #flushIndexesBlocking(Set, FutureCallback)}, as this is an artifact of the legacy non-SSTable-attached
+     * index implementation.
+     *
+     * @param sstables the SSTables for which indexes must be built
+     */
+    public void buildSSTableAttachedIndexesBlocking(Collection<SSTableReader> sstables)
+    {
+        Set<Index> toBuild = indexes.values().stream().filter(Index::isSSTableAttached).collect(Collectors.toSet());
+
+        if (toBuild.isEmpty())
+            return;
+
+        logger.info("Submitting incremental index build of {} for data in {}...",
+                    commaSeparated(toBuild),
+                    sstables.stream().map(SSTableReader::toString).collect(Collectors.joining(",")));
+
+        // Group all building tasks
+        Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
+        for (Index index : toBuild)
+        {
+            Set<Index> stored = byType.computeIfAbsent(index.getBuildTaskSupport(), i -> new HashSet<>());
+            stored.add(index);
+        }
+
+        // Schedule all index building tasks with callbacks to handle success and failure
+        List<Future<?>> futures = new ArrayList<>(byType.size());
+        byType.forEach((buildingSupport, groupedIndexes) ->
+        {
+            SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables, false);
+            AsyncPromise<Object> build = new AsyncPromise<>();
+            CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback<Object>()
+            {
+                @Override
+                public void onFailure(Throwable t)
+                {
+                    logger.warn("Failed to incrementally build indexes {}", getIndexNames(groupedIndexes));
+                    build.tryFailure(t);
+                }
+
+                @Override
+                public void onSuccess(Object o)
+                {
+                    logger.info("Incremental index build of {} completed", getIndexNames(groupedIndexes));
+                    build.trySuccess(o);
+                }
+            });
+            futures.add(build);
+        });
+
+        // Finally wait for the index builds to finish
+        FBUtilities.waitOnFutures(futures);
+    }
+
+    /**
+     * Performs a blocking (re)indexing/recovery of the specified SSTables for the specified indexes.
+     * <p>
      * If the index doesn't support ALL {@link Index.LoadType} it performs a recovery {@link Index#getRecoveryTaskSupport()}
      * instead of a build {@link Index#getBuildTaskSupport()}
      * 
@@ -501,7 +590,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @param indexes       the indexes to be (re)built for the specifed SSTables
      * @param isFullRebuild True if this method is invoked as a full index rebuild, false otherwise
      */
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings({"unchecked", "RedundantSuppression"})
     private void buildIndexesBlocking(Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
     {
         if (indexes.isEmpty())
@@ -542,7 +631,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                            {
                                SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables, isFullRebuild);
                                final AsyncPromise<Object> build = new AsyncPromise<>();
-                               CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback()
+                               CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback<Object>()
                                {
                                    @Override
                                    public void onFailure(Throwable t)
@@ -584,11 +673,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 }
 
                 // Flush all built indexes with an aynchronous callback to log the success or failure of the flush
-                flushIndexesBlocking(builtIndexes, new FutureCallback()
+                flushIndexesBlocking(builtIndexes, new FutureCallback<>()
                 {
-                    String indexNames = StringUtils.join(builtIndexes.stream()
-                                                                     .map(i -> i.getIndexMetadata().name)
-                                                                     .collect(Collectors.toList()), ',');
+                    final String indexNames = StringUtils.join(builtIndexes.stream()
+                                                                           .map(i -> i.getIndexMetadata().name)
+                                                                           .collect(Collectors.toList()), ',');
 
                     @Override
                     public void onFailure(Throwable ignored)
@@ -886,7 +975,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         executeAllBlocking(indexes.values()
                                   .stream()
-                                  .filter(index -> !index.getBackingTable().isPresent()),
+                                  .filter(index -> index.getBackingTable().isEmpty()),
                            index -> index.getBlockingFlushTask(baseCfsMemtable),
                            null);
     }
@@ -1203,7 +1292,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * implementations
      *
      * @param update PartitionUpdate containing the values to be validated by registered Index implementations
-     * @throws InvalidRequestException
      */
     public void validate(PartitionUpdate update) throws InvalidRequestException
     {
@@ -1701,11 +1789,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SSTableAddedNotification notice = (SSTableAddedNotification) notification;
 
             // SSTables asociated to a memtable come from a flush, so their contents have already been indexed
-            if (!notice.memtable().isPresent())
+            if (notice.memtable().isEmpty())
                 buildIndexesBlocking(Lists.newArrayList(notice.added),
                                      indexes.values()
                                             .stream()
                                             .filter(Index::shouldBuildBlocking)
+                                            .filter(i -> !i.isSSTableAttached())
                                             .collect(Collectors.toSet()),
                                      false);
         }

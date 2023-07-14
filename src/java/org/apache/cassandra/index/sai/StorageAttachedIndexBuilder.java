@@ -99,7 +99,10 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     @Override
     public void build()
     {
-        logger.debug(logMessage("Starting full index build"));
+        logger.debug(logMessage(String.format("Starting %s %s index build...",
+                                              isInitialBuild ? "initial" : "non-initial",
+                                              isFullRebuild ? "full" : "partial")));
+
         for (Map.Entry<SSTableReader, Set<StorageAttachedIndex>> e : sstables.entrySet())
         {
             SSTableReader sstable = e.getKey();
@@ -113,9 +116,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             }
 
             if (indexSSTable(sstable, existing))
-            {
                 return;
-            }
         }
     }
 
@@ -205,7 +206,6 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
             if (t instanceof InterruptedException)
             {
-                // TODO: Is there anything that makes more sense than just restoring the interrupt?
                 logger.warn(logMessage("Interrupted while building indexes {} on SSTable {}"), indexes, sstable.descriptor);
                 Thread.currentThread().interrupt();
                 return true;

@@ -186,6 +186,11 @@ public class SSTableImporter
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
             abortIfDraining();
+
+            // Validate existing SSTable-attached indexes, and then build any that are missing:
+            if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false))
+                cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
+
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
