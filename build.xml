@@ -1967,6 +1967,8 @@
           <arg value="${build.test.dir}/jmh-result.json"/>
           <arg value="-v"/>
           <arg value="EXTRA"/>
+          <jvmarg line="${test-jvmargs}"/>
+          <jvmarg line="${java11-jvmargs}"/>
 
           <!-- Broken: ZeroCopyStreamingBench,MutationBench,FastThreadLocalBench  (FIXME) -->
           <arg value="-e"/><arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench"/>
