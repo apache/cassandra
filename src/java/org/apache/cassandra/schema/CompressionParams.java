@@ -78,7 +78,8 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        emptyMap());
 
-    private static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
+    // The default compressor is generally fast (LZ4 with 16KiB block size)
+    public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
                                                                            DEFAULT_CHUNK_LENGTH,
                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                            DEFAULT_MIN_COMPRESS_RATIO,
