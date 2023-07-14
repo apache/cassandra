@@ -693,7 +693,7 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    protected void assertNumRows(int expected, String query, Object... args) throws Throwable
+    protected void assertNumRows(int expected, String query, Object... args)
     {
         ResultSet rs = executeNet(String.format(query, args));
         assertEquals(expected, rs.all().size());

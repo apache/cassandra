@@ -207,8 +207,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public SSTableReader finish(boolean openResult)
     {
         this.setOpenResult(openResult);
-        txnProxy.finish();
         observers.forEach(SSTableFlushObserver::complete);
+        txnProxy.finish();
         return finished();
     }
 
@@ -232,12 +232,15 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     {
         try
         {
-            return txnProxy.commit(accumulate);
-        }
-        finally
-        {
             observers.forEach(SSTableFlushObserver::complete);
         }
+        catch (Throwable t)
+        {
+            // Return without advancing to COMMITTED, which will trigger abort() when the Transactional closes...
+            return Throwables.merge(accumulate, t);
+        }
+
+        return txnProxy.commit(accumulate);
     }
 
     public final Throwable abort(Throwable accumulate)

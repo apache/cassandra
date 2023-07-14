@@ -19,10 +19,12 @@
 package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.EnumSet;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.utils.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,13 +77,13 @@ public class V1OnDiskFormat implements OnDiskFormat
 
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
-     *
+     * <p>
      * Note that to avoid flushing small index segments, a segment is only flushed when
      * both the global size of all building segments has breached the limit and the size of the
      * segment in question reaches (segment_write_buffer_space_mb / # currently building column indexes).
-     *
+     * <p>
      * ex. If there is only one column index building, it can buffer up to segment_write_buffer_space_mb.
-     *
+     * <p>
      * ex. If there is one column index building per table across 8 compactors, each index will be
      *     eligible to flush once it reaches (segment_write_buffer_space_mb / 8) MBs.
      */
@@ -161,7 +163,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public boolean validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum)
+    public void validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum)
     {
         for (IndexComponent indexComponent : perSSTableIndexComponents())
         {
@@ -174,22 +176,20 @@ public class V1OnDiskFormat implements OnDiskFormat
                     else
                         SAICodecUtils.validate(input);
                 }
-                catch (Throwable e)
+                catch (Exception e)
                 {
-                    logger.error(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}. Error: {}"),
-                                 checksum ? "Checksum validation" : "Validation",
-                                 indexComponent,
-                                 indexDescriptor.sstableDescriptor,
-                                 e);
-                    return false;
+                    logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}."),
+                                                           checksum ? "Checksum validation" : "Validation",
+                                                           indexComponent,
+                                                           indexDescriptor.sstableDescriptor);
+                    rethrowIOException(e);
                 }
             }
         }
-        return true;
     }
 
     @Override
-    public boolean validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum)
+    public void validatePerColumnIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum)
     {
         for (IndexComponent indexComponent : perColumnIndexComponents(indexContext))
         {
@@ -202,20 +202,25 @@ public class V1OnDiskFormat implements OnDiskFormat
                     else
                         SAICodecUtils.validate(input);
                 }
-                catch (Throwable e)
+                catch (Exception e)
                 {
-                    if (logger.isDebugEnabled())
-                    {
-                        logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                                     (checksum ? "Checksum validation" : "Validation"),
-                                     indexComponent,
-                                     indexDescriptor.sstableDescriptor);
-                    }
-                    return false;
+                    logger.warn(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
+                                                           checksum ? "Checksum validation" : "Validation",
+                                                           indexComponent,
+                                                           indexDescriptor.sstableDescriptor);
+                    rethrowIOException(e);
                 }
             }
         }
-        return true;
+    }
+
+    private static void rethrowIOException(Exception e)
+    {
+        if (e instanceof IOException)
+            throw new UncheckedIOException((IOException) e);
+        if (e.getCause() instanceof IOException)
+            throw new UncheckedIOException((IOException) e.getCause());
+        throw Throwables.unchecked(e);
     }
 
     @Override

@@ -249,9 +249,9 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         {
             SSTableAddedNotification notice = (SSTableAddedNotification) notification;
 
-            // Avoid validation for index files just written following Memtable flush.
-            IndexValidation validate = notice.memtable().isPresent() ? IndexValidation.NONE : IndexValidation.CHECKSUM;
-            onSSTableChanged(Collections.emptySet(), notice.added, indexes, validate);
+            // Avoid validation for index files just written following Memtable flush. Otherwise, the new SSTables have
+            // come either from import, streaming, or a standalone tool, where they have also already been validated.
+            onSSTableChanged(Collections.emptySet(), notice.added, indexes, IndexValidation.NONE);
         }
         else if (notification instanceof SSTableListChangedNotification)
         {
@@ -333,6 +333,42 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             }
         }
         return incomplete;
+    }
+
+    @Override
+    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete)
+    {
+        boolean complete = true;
+
+        for (SSTableReader sstable : sstables)
+        {
+            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
+
+            if (indexDescriptor.isPerSSTableIndexBuildComplete())
+            {
+                indexDescriptor.checksumPerSSTableComponents();
+
+                for (StorageAttachedIndex index : indexes)
+                {
+                    if (indexDescriptor.isPerColumnIndexBuildComplete(index.getIndexContext()))
+                        indexDescriptor.checksumPerIndexComponents(index.getIndexContext());
+                    else if (throwOnIncomplete)
+                        throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-column index build"));
+                    else
+                        complete = false;
+                }
+            }
+            else if (throwOnIncomplete)
+            {
+                throw new IllegalStateException(indexDescriptor.logMessage("Incomplete per-SSTable index build"));
+            }
+            else
+            {
+                complete = false;
+            }
+        }
+
+        return complete;    
     }
 
     /**

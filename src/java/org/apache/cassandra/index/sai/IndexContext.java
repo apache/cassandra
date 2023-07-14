@@ -422,7 +422,6 @@ public class IndexContext
                 {
                     if (!sstableContext.indexDescriptor.validatePerIndexComponents(this, validation))
                     {
-                        logger.warn(logMessage("Invalid per-column component for SSTable {}"), sstableContext.descriptor());
                         invalid.add(sstableContext);
                         continue;
                     }

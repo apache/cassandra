@@ -222,6 +222,7 @@ public class SASIIndex implements Index, INotificationConsumer
         };
     }
 
+    @Override
     public boolean shouldBuildBlocking()
     {
         return true;

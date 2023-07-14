@@ -61,7 +61,7 @@ public interface IndexRegistry
     /**
      * An empty {@code IndexRegistry}
      */
-    public static final IndexRegistry EMPTY = new IndexRegistry()
+    IndexRegistry EMPTY = new IndexRegistry()
     {
         @Override
         public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier)
@@ -104,7 +104,7 @@ public interface IndexRegistry
      * but enables query validation and preparation to succeed. Useful for tools which need to prepare
      * CQL statements without instantiating the whole ColumnFamilyStore infrastructure.
      */
-    public static final IndexRegistry NON_DAEMON = new IndexRegistry()
+    IndexRegistry NON_DAEMON = new IndexRegistry()
     {
         final Index index = new Index()
         {
@@ -279,7 +279,7 @@ public interface IndexRegistry
     {
         registerIndex(index, index, () -> new SingletonIndexGroup(index));
     }
-    public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier);
+    void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier);
     Collection<Index.Group> listIndexGroups();
 
     Index getIndex(IndexMetadata indexMetadata);
@@ -304,7 +304,7 @@ public interface IndexRegistry
      * @param table the table metadata
      * @return the {@code IndexRegistry} associated to the specified table
      */
-    public static IndexRegistry obtain(TableMetadata table)
+    static IndexRegistry obtain(TableMetadata table)
     {
         if (!DatabaseDescriptor.isDaemonInitialized())
             return NON_DAEMON;

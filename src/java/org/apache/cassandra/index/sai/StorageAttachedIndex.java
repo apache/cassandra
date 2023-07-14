@@ -470,6 +470,12 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
+    public boolean isSSTableAttached()
+    {
+        return true;
+    }
+
+    @Override
     public Optional<ColumnFamilyStore> getBackingTable()
     {
         return Optional.empty();

@@ -48,13 +48,10 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndexWriter.class);
 
     private final IndexDescriptor indexDescriptor;
-    private final Collection<StorageAttachedIndex> indexes;
     private final Collection<PerColumnIndexWriter> perIndexWriters;
     private final PerSSTableIndexWriter perSSTableWriter;
     private final Stopwatch stopwatch = Stopwatch.createUnstarted();
     private final RowMapping rowMapping;
-    private final boolean propagateErrors;
-
     private DecoratedKey currentKey;
     private boolean tokenOffsetWriterCompleted = false;
     private boolean aborted = false;
@@ -65,7 +62,7 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
                                                                        Collection<StorageAttachedIndex> indexes,
                                                                        LifecycleNewTracker lifecycleNewTracker) throws IOException
     {
-        return new StorageAttachedIndexWriter(indexDescriptor, indexes, lifecycleNewTracker, false, false);
+        return new StorageAttachedIndexWriter(indexDescriptor, indexes, lifecycleNewTracker, false);
 
     }
 
@@ -74,19 +71,16 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
                                                                  LifecycleNewTracker lifecycleNewTracker,
                                                                  boolean perIndexComponentsOnly) throws IOException
     {
-        return new StorageAttachedIndexWriter(indexDescriptor, indexes, lifecycleNewTracker, perIndexComponentsOnly, true);
+        return new StorageAttachedIndexWriter(indexDescriptor, indexes, lifecycleNewTracker, perIndexComponentsOnly);
     }
 
     private StorageAttachedIndexWriter(IndexDescriptor indexDescriptor,
                                        Collection<StorageAttachedIndex> indexes,
                                        LifecycleNewTracker lifecycleNewTracker,
-                                       boolean perIndexComponentsOnly,
-                                       boolean propagateErrors) throws IOException
+                                       boolean perIndexComponentsOnly) throws IOException
     {
         this.indexDescriptor = indexDescriptor;
-        this.indexes = indexes;
         this.rowMapping = RowMapping.create(lifecycleNewTracker.opType());
-        this.propagateErrors = propagateErrors;
         this.perIndexWriters = indexes.stream().map(index -> indexDescriptor.newPerColumnIndexWriter(index,
                                                                                                      lifecycleNewTracker,
                                                                                                      rowMapping))
@@ -209,12 +203,10 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
      */
     public void abort(Throwable accumulator, boolean fromIndex)
     {
+        if (aborted) return;
+
         // Mark the write operation aborted, so we can short-circuit any further operations on the component writers.
         aborted = true;
-        
-        // Make any indexes involved in this transaction non-queryable, as they will likely not match the backing table.
-        if (fromIndex)
-            indexes.forEach(StorageAttachedIndex::makeIndexNonQueryable);
         
         for (PerColumnIndexWriter perIndexWriter : perIndexWriters)
         {
@@ -237,9 +229,9 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
             perSSTableWriter.abort();
         }
 
-        // If the abort was from an index error and this is part of an index build operation then
-        // propagate the error up to the SecondaryIndexManager, so it can be correctly marked as failed.
-        if (fromIndex && propagateErrors)
+        // If the abort was from an index error, propagate the error upstream so index builds, compactions, and 
+        // flushes can handle it correctly.
+        if (fromIndex)
             throw Throwables.unchecked(accumulator);
     }
 

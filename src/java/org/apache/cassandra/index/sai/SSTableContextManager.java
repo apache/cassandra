@@ -79,7 +79,6 @@ public class SSTableContextManager
                 // Only validate on restart or newly refreshed SSTable. Newly built files are unlikely to be corrupted.
                 if (!sstableContexts.containsKey(sstable) && !indexDescriptor.validatePerSSTableComponents(validation))
                 {
-                    logger.warn(indexDescriptor.logMessage("Invalid per-SSTable component for SSTable {}"), sstable.descriptor);
                     invalid.add(sstable);
                     removeInvalidSSTableContext(sstable);
                     continue;
