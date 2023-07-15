@@ -1617,7 +1617,8 @@
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
-        <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
+        <!-- [SO-28906] Commenting this out for CassandraResourceUtilizationTest -->
+        <!-- <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" /> -->
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>

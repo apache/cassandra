@@ -19,6 +19,8 @@
 package org.apache.cassandra.service.throttler.dynamic;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -27,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -38,25 +41,34 @@ public class CassandraResourceUtilization
     private static final DecimalFormat df = new DecimalFormat("0");
 
     // TODO: make this configurable
-    private static final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
+    public final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
 
     private static final String READ_THREAD_POOL = "ReadStage";
     private static final String MUTATION_THREAD_POOL = "MutationStage";
+    private static double MAX_THROTTLING = 1.0;
 
     // Maintain 1 minute, 5 minutes, and 15 minutes history
-    private long nrThrottled1Prev = -1;
-    private long nrThrottled2Prev = -1;
+    public long nrThrottled1Prev = -1;
+    public long nrThrottled2Prev = -1;
 
     public ResourcesStats resourcesStats;
     public ThrottlingOptions throttlingOptions;
+    public volatile long lastThrottlingCheckPointTimeInMS = 0;
+    public volatile long lastThrottlingIndicatorTimeInMS = 0;
+    public volatile double throttlingPercentageCur = 0.1;
+    public volatile List<String> aggressiveThorttlingDatastores = new ArrayList<>();
+    public volatile boolean shouldThrottle = false;
 
-    public void setup()
+    public void setup(boolean continuousHealthCheck)
     {
         resourcesStats = new ResourcesStats();
         throttlingOptions = new ThrottlingOptions();
         resourceUtilzation.setup();
-        // TODO: make this configurable
-        reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), 10, 1, TimeUnit.SECONDS);
+        if (continuousHealthCheck)
+        {
+            // TODO: make this configurable
+            reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), 10, 1, TimeUnit.SECONDS);
+        }
     }
 
     public void fetchCurrentHealth()
@@ -88,8 +100,86 @@ public class CassandraResourceUtilization
         }
         nrThrottled2Prev = nrThrottled2Now;
 
+        shouldThrottle();
+        adjustThrottling();
+
         // TODO: Eventually, change this to Debug to avoid log flooding
         logger.info("CassandraResourceUtilization {}", this);
+    }
+
+    public void shouldThrottle()
+    {
+        boolean cpuUtilSignal1 = false;
+        if (resourcesStats.getCpuUtil1Cur() >= throttlingOptions.cpu_threshold_cur && resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.cpu_threshold_one_minute)
+        {
+            cpuUtilSignal1 = true;
+        }
+        boolean cpuUtilSignal2 = false;
+        if (resourcesStats.getCpuUtil2Cur() == -1 || (resourcesStats.getCpuUtil2Cur() >= throttlingOptions.cpu_threshold_cur && resourcesStats.getCpuUtil2OneMinute() >= throttlingOptions.cpu_threshold_one_minute))
+        {
+            cpuUtilSignal2 = true;
+        }
+        boolean nrThrottlingSignal1 = false;
+        if (resourcesStats.getNrThrottled1Cur() >= throttlingOptions.nr_throttling_threshold_cur && resourcesStats.getNrThrottled1OneMinute() >= throttlingOptions.nr_throttling_threshold_one_minute)
+        {
+            nrThrottlingSignal1 = true;
+        }
+        boolean nrThrottlingSignal2 = false;
+        if (resourcesStats.getNrThrottled2Cur() == -1 || (resourcesStats.getNrThrottled2Cur() >= throttlingOptions.nr_throttling_threshold_cur && resourcesStats.getNrThrottled2OneMinute() >= throttlingOptions.nr_throttling_threshold_one_minute))
+        {
+            nrThrottlingSignal2 = true;
+        }
+        boolean pendingReadsSignal = false;
+        if (resourcesStats.getPendingReadsCur() >= throttlingOptions.pending_reads_threshold_cur && resourcesStats.getPendingReadsOneMinute() >= throttlingOptions.pending_reads_threshold_one_minute)
+        {
+            pendingReadsSignal = true;
+        }
+        boolean pendingMutationsSignal = false;
+        if (resourcesStats.getPendingMutationsCur() >= throttlingOptions.pending_mutations_threshold_cur && resourcesStats.getPendingMutationsOneMinute() >= throttlingOptions.pending_mutations_threshold_one_minute)
+        {
+            pendingMutationsSignal = true;
+        }
+        if (cpuUtilSignal1 && cpuUtilSignal2 && nrThrottlingSignal1 && nrThrottlingSignal2 && pendingReadsSignal && pendingMutationsSignal)
+        {
+            shouldThrottle = true;
+            lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
+        }
+        else
+        {
+            shouldThrottle = false;
+        }
+    }
+
+    public void adjustThrottling()
+    {
+        if (lastThrottlingCheckPointTimeInMS != 0 && MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.more_aggressive_throttling_after_in_sec)
+        {
+            if (MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.reset_after_no_throttling_seen_in_sec)
+            {
+                logger.info("Reset everything....");
+                // reset everything as the system seems to have recovered
+                lastThrottlingCheckPointTimeInMS = 0;
+                lastThrottlingIndicatorTimeInMS = 0;
+                throttlingPercentageCur = throttlingOptions.percentage_of_traffice_to_throttling;
+                aggressiveThorttlingDatastores.clear();
+                shouldThrottle = false;
+            }
+            else if (lastThrottlingIndicatorTimeInMS != 0)
+            {
+                lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
+                if (throttlingPercentageCur < MAX_THROTTLING)
+                {
+                    // more aggressive throttling
+                    double previous = throttlingPercentageCur;
+                    throttlingPercentageCur = Math.min(MAX_THROTTLING, throttlingPercentageCur * 2);
+                    logger.info("Double min throttling previous: {}, now: {}", previous, throttlingPercentageCur);
+                }
+            }
+        }
+        if (lastThrottlingCheckPointTimeInMS == 0 && lastThrottlingIndicatorTimeInMS != 0)
+        {
+            lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
+        }
     }
 
     public String toString()

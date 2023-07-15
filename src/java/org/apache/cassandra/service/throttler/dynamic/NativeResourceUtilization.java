@@ -66,7 +66,7 @@ public class NativeResourceUtilization implements IResourceUtilzation
     public Long getCpuNRThrottled1()
     {
         //BufferedReader reader;
-        long nrThrottled = Long.MAX_VALUE;
+        long nrThrottled = -1;
         try (BufferedReader reader = new BufferedReader(new FileReader(cpuStatFilePath)))
         {
             /** Usually, it is in the following format:

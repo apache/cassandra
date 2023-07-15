@@ -34,7 +34,7 @@ public class ThrottlingOptionsTest
         Assert.assertEquals(1, throttlingOptions.nr_throttling_threshold_one_minute);
         Assert.assertEquals(0, throttlingOptions.pending_reads_threshold_cur);
         Assert.assertEquals(0, throttlingOptions.pending_reads_threshold_one_minute);
-        Assert.assertEquals(0, throttlingOptions.pending_mutations_thresholdCur);
+        Assert.assertEquals(0, throttlingOptions.pending_mutations_threshold_cur);
         Assert.assertEquals(0, throttlingOptions.pending_mutations_threshold_one_minute);
         Assert.assertEquals(0.1, throttlingOptions.percentage_of_traffice_to_throttling, 0.0);
         Assert.assertEquals(1 * 60, throttlingOptions.more_aggressive_throttling_after_in_sec = 1 * 60);

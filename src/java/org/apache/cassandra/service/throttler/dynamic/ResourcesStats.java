@@ -28,7 +28,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class ResourcesStats
 {
-    private final MetricNameFactory factory = new DefaultNameFactory("CassandraResourceUtilization");
+    public static final MetricNameFactory factory = new DefaultNameFactory("ResourcesStats");
     Gauge<Long> cpuUtil1Gauge;
     Gauge<Long> cpuUtil2Gauge;
     Gauge<Long> nrThrottled1Gauge;
@@ -60,7 +60,6 @@ public class ResourcesStats
         nrThrottled2Meter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("NRThrottled2"));
         pendingReadsMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingReads"));
         pendingMutationsMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingMutations"));
-
 
         cpuUtil1Gauge = Metrics.register(factory.createMetricName("CpuUtil1Current"), new Gauge<Long>()
         {

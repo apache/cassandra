@@ -18,16 +18,13 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.junit.Assert;
 import org.junit.Test;
 
 public class NativeResourceUtilizationTest
 {
-    private static final String TEST_CPU_STAT_FILE_PATH = "throttling/test_cpu.stat";
     private static final String TEST_CPU_STAT_INVALID_FILE_PATH = "throttling/invalid_file.stat";
+    public static final String TEST_CPU_STAT_FILE_PATH = "throttling/test_cpu.stat";
 
     @Test
     public void testCurrentCpuUtil1()
@@ -50,7 +47,7 @@ public class NativeResourceUtilizationTest
         NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
         nativeResourceUtilization.cpuStatFilePath = TEST_CPU_STAT_INVALID_FILE_PATH;
         long nrThrottled1 = nativeResourceUtilization.getCpuNRThrottled1();
-        Assert.assertEquals(Long.MAX_VALUE, nrThrottled1);
+        Assert.assertEquals(-1, nrThrottled1);
         Assert.assertEquals(1, nativeResourceUtilization.readFailures.getCount());
     }
 

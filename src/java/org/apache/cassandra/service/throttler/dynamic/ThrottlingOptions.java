@@ -27,9 +27,9 @@ public class ThrottlingOptions
     public long cpu_threshold_one_minute = 35;
     public long nr_throttling_threshold_cur = 1;
     public long nr_throttling_threshold_one_minute = 1;
-    public long pending_reads_threshold_cur = 0;
-    public long pending_reads_threshold_one_minute = 0;
-    public int pending_mutations_thresholdCur = 0;
+    public int pending_reads_threshold_cur = 0;
+    public int pending_reads_threshold_one_minute = 0;
+    public int pending_mutations_threshold_cur = 0;
     public int pending_mutations_threshold_one_minute = 0;
     public double percentage_of_traffice_to_throttling = 0.1;
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
