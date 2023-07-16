@@ -96,6 +96,7 @@ Running unittests with a specific jdk with docker:
 Running only unit tests matching a regexp, with docker:
 
     .build/docker/run-tests.sh test VerifyTest 11
+    .build/docker/run-tests.sh test "Compaction*Test$" 11
 
 
 Running other types of tests with docker:
@@ -106,6 +107,9 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh microbench
     .build/docker/run-tests.sh test-cdc
     .build/docker/run-tests.sh test-compression
+    .build/docker/run-tests.sh test-oa
+    .build/docker/run-tests.sh test-system-keyspace-directory
+    .build/docker/run-tests.sh test-tries
     .build/docker/run-tests.sh test-burn
     .build/docker/run-tests.sh long-test
     .build/docker/run-tests.sh cqlsh-test
@@ -117,6 +121,7 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh dtest-large
     .build/docker/run-tests.sh dtest-large-novnode
     .build/docker/run-tests.sh dtest-upgrade
+    .build/docker/run-tests.sh dtest-upgrade-large
 
 
 Running python dtests without docker:
@@ -126,5 +131,10 @@ Running python dtests without docker:
 
 Other test types without docker:
 
-    .build/run-tests.sh test
+    .build/run-tests.sh jvm-test
+
+
+Other python dtest types without docker:
+
+    .build/run-python-dtests.sh dtest-upgrade-large
 

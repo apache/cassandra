@@ -16,16 +16,24 @@
 # limitations under the License.
 
 #
-# Wrapper script for running a split chunk of a pytest run of cassandra-dtest
+# Wrapper script for running a split or regexp of a pytest run from cassandra-dtest
 #
-# Usage: dtest-python.sh target split_chunk
-#  split_chunk formatted as "K/N" for the Kth chunk of N chunks
 
 ################################
 #
 # Prep
 #
 ################################
+
+
+# help
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || [ "$1" == "-h" ]; then
+    echo ""
+    echo "Usage: run-python-dtest.sh test_type [split_chunk|test_regexp]"
+    echo ""
+    echo "        default split_chunk is 1/1"
+    exit 1
+fi
 
 # Pass in target to run, defaults to dtest
 DTEST_TARGET="${1:-dtest}"
@@ -48,6 +56,7 @@ export NUM_TOKENS="16"
 #Have Cassandra skip all fsyncs to improve test performance and reliability
 export CASSANDRA_SKIP_SYNC=true
 export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
+unset CASSANDRA_HOME
 
 # pre-conditions
 command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1; }
@@ -85,7 +94,7 @@ ant -quiet -silent resolver-dist-lib
 set -e # enable immediate exit if venv setup fails
 
 # fresh virtualenv and test logs results everytime
-rm -rf ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
+[[ "/" == "${DIST_DIR}" ]] || rm -rf "${DIST_DIR}/venv" "${DIST_DIR}/test/{html,output,logs}"
 
 # re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu2004_test docker image
 virtualenv-clone ${BUILD_HOME}/env${python_version} ${DIST_DIR}/venv || virtualenv --python=python${python_version} ${DIST_DIR}/venv
@@ -103,17 +112,19 @@ cd ${CASSANDRA_DTEST_DIR}
 
 set +e # disable immediate exit from this point
 if [ "${DTEST_TARGET}" = "dtest" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests --keep-failed-test-dir"
+    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-novnode" ]; then
     DTEST_ARGS="--skip-resource-intensive-tests --keep-failed-test-dir"
 elif [ "${DTEST_TARGET}" = "dtest-offheap" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --use-off-heap-memtables --skip-resource-intensive-tests --keep-failed-test-dir"
+    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --use-off-heap-memtables --skip-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-large" ]; then
-    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests --keep-failed-test-dir"
+    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-large-novnode" ]; then
-    DTEST_ARGS="--only-resource-intensive-tests --force-resource-intensive-tests --keep-failed-test-dir"
+    DTEST_ARGS="--only-resource-intensive-tests --force-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-upgrade" ]; then
-    DTEST_ARGS="--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
+    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
+elif [ "${DTEST_TARGET}" = "dtest-upgrade-large" ]; then
+    DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
 else
     echo "Unknown dtest target: ${DTEST_TARGET}"
     exit 1
@@ -128,20 +139,21 @@ if [[ "${DTEST_SPLIT_CHUNK}" =~ ^[0-9]+/[0-9]+$ ]]; then
     ( split --help 2>&1 ) | grep -q "r/K/N" || split_cmd=gsplit
     command -v ${split_cmd} >/dev/null 2>&1 || { echo >&2 "${split_cmd} needs to be installed"; exit 1; }
     SPLIT_TESTS=$(${split_cmd} -n r/${DTEST_SPLIT_CHUNK} ${DIST_DIR}/test_list.txt)
-elif [[ "x" != "x${_split_chunk}" ]] ; then
-    SPLIT_TESTS=$(grep "${DTEST_SPLIT_CHUNK}" ${DIST_DIR}/test_list.txt)
+elif [[ "x" != "x${DTEST_SPLIT_CHUNK}" ]] ; then
+    SPLIT_TESTS=$(grep -e "${DTEST_SPLIT_CHUNK}" ${DIST_DIR}/test_list.txt)
+    [[ "x" != "x${SPLIT_TESTS}" ]] || { echo "no tests match regexp \"${DTEST_SPLIT_CHUNK}\""; exit 1; }
 else
     SPLIT_TESTS=$(cat ${DIST_DIR}/test_list.txt)
 fi
 
 
 PYTEST_OPTS="-vv --log-cli-level=DEBUG --junit-xml=${DIST_DIR}/test/output/nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
-pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} ${DTEST_ARGS} ${SPLIT_TESTS} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
+pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
 
 # tar up any ccm logs for easy retrieval
-if ls ${TMPDIR}/test/*/logs/* &>/dev/null ; then
+if ls ${TMPDIR}/*/test/*/logs/* &>/dev/null ; then
     mkdir -p ${DIST_DIR}/test/logs
-    tar -C ${TMPDIR} -cJf ${DIST_DIR}/test/logs/ccm_logs.tar.xz */test/*/logs/*
+    tar -C ${TMPDIR} -cJf ${DIST_DIR}/test/logs/ccm_logs.tar.xz ${TMPDIR}/*/test/*/logs
 fi
 
 # merge all unit xml files into one, and print summary test numbers
@@ -158,7 +170,7 @@ popd  >/dev/null
 #
 ################################
 
-rm -rf ${TMPDIR}
+rm -rf "/tmp/run-python-dtest.${TMPDIR/\/tmp\/run-python-dtest./}"
 unset TMPDIR
 deactivate
 
