@@ -14,7 +14,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." default="jar" name="apache-cassandra"
+<project basedir="." default="check" name="apache-cassandra"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
 
@@ -397,11 +397,18 @@
         <mkdir dir="${jacoco.partials.dir}"/>
 
         <!-- Set up jdk specific properties -->
-        <javac includes="**/JdkProperties.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
+        <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
           <compilerarg value="-Xlint:-options"/>
         </javac>
         <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
+        <taskdef name="SetSystemProperty" classname="org.apache.cassandra.anttasks.SetSystemProperty" classpath="${test.classes}"/>
+
         <JdkProperties/>
+
+        <!-- https://issues.apache.org/jira/browse/CASSANDRA-16391?focusedCommentId=17310803&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-17310803 -->
+        <SetSystemProperty name="jmc5.path" value="/tmp"/>
+        <SetSystemProperty name="jmc6.path" value="/tmp"/>
+        <SetSystemProperty name="visualvm.path" value="/tmp"/>
     </target>
 
     <target name="clean" description="Remove all locally created artifacts">
@@ -508,8 +515,7 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project,checkstyle" description="Compile Cassandra classes"/>
-    <target name="_build_unsafe" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes without checks"/>
+    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -539,6 +545,13 @@
             <fileset dir="${build.src.resources}" />
         </copy>
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
+    </target>
+
+    <target name="check" depends="_main-jar,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+        <antcall target="rat-check" inheritrefs="true"/>
+        <antcall target="checkstyle" inheritrefs="true"/>
+        <antcall target="checkstyle-test" inheritrefs="true"/>
+        <antcall target="eclipse-warnings" inheritrefs="true"/>
     </target>
 
     <!-- Stress build file -->
@@ -650,11 +663,11 @@
     <property name="simulator-bootstrap.build.classes" value="${build.classes}/simulator-bootstrap" />
     <property name="simulator-bootstrap.manifest" value="${simulator-bootstrap.build.classes}/MANIFEST.MF" />
 
-    <target name="simulator-asm-build" depends="_build_unsafe" description="build simulator-asm">
+    <target name="simulator-asm-build" depends="build" description="build simulator-asm">
         <antcall target="_simulator-asm_build"/>
     </target>
 
-    <target name="simulator-bootstrap-build" depends="_build_unsafe" description="build simulator-bootstrap">
+    <target name="simulator-bootstrap-build" depends="build" description="build simulator-bootstrap">
         <antcall target="_simulator-bootstrap_build"/>
     </target>
 
@@ -895,7 +908,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar"
+    <target name="artifacts" depends="_artifacts-init,check,gen-doc,sources-jar"
             description="Create Cassandra tarball and maven artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -1019,7 +1032,7 @@
     <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars"
           description="Compile test classes">
     <antcall target="_build-test"/>
     <checktestnameshelper/>
@@ -1651,7 +1664,7 @@
     </sequential>
   </macrodef>
 
-  <target name="test" depends="eclipse-warnings,maybe-build-test" description="Test Runner">
+  <target name="test" depends="maybe-build-test" description="Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
@@ -1924,7 +1937,7 @@
       IDE configuration in .idea/ updated for use with JDK${ant.java.version}.
 
       In IntelliJ verify that the SDK is ${ant.java.version}, and its path is valid.
-      This can be verified in 'Project Structure/Project Setting/Project' and 'Project Structure/Platform Setting/SDKs'. 
+      This can be verified in 'Project Structure/Project Setting/Project' and 'Project Structure/Platform Setting/SDKs'.
       </echo>
   </target>
 
@@ -2042,46 +2055,6 @@
         </java>
   </target>
 
-  <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
-      <echo message="checkstyle.version=${checkstyle.version}"/>
-      <!-- Sevntu custom checks are retrieved by Ivy into lib folder
-         and will be accessible to checkstyle-->
-      <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
-               classpathref="checkstyle.classpath"/>
-  </target>
-
-  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" if="java.version.8" unless="no-checkstyle">
-      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
-      <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
-      <mkdir  dir="${checkstyle.log.dir}" />
-
-      <property name="checkstyle.properties" value="${build.helpers.dir}/checkstyle.xml" />
-      <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
-      <checkstyle config="${checkstyle.properties}"
-                  failureProperty="checkstyle.failure"
-                  failOnViolation="true">
-          <formatter type="plain"/>
-          <formatter type="xml" tofile="${checkstyle.report.file}"/>
-          <fileset dir="${build.src.java}" includes="**/*.java"/>
-      </checkstyle>
-  </target>
-
-  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8" unless="no-checkstyle">
-      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
-      <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
-      <mkdir  dir="${checkstyle.log.dir}" />
-
-      <property name="checkstyle_test.properties" value="${build.helpers.dir}/checkstyle_test.xml" />
-      <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
-      <checkstyle config="${checkstyle_test.properties}"
-                  failureProperty="checkstyle.failure"
-                  failOnViolation="true">
-          <formatter type="plain"/>
-          <formatter type="xml" tofile="${checkstyle_test.report.file}"/>
-          <fileset dir="${test.dir}" includes="**/*.java"/>
-      </checkstyle>
-  </target>
-
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
           depends="jar,sources-jar,javadoc-jar"
@@ -2133,4 +2106,5 @@
   <import file="${build.helpers.dir}/build-rat.xml"/>
   <import file="${build.helpers.dir}/build-owasp.xml"/>
   <import file="${build.helpers.dir}/build-git.xml"/>
+  <import file="${build.helpers.dir}/build-checkstyle.xml"/>
 </project>

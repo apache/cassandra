@@ -15,7 +15,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." name="apache-cassandra--resolver-tasks"
+<project basedir="." name="apache-cassandra-resolver-tasks"
          xmlns:resolver="antlib:org.apache.maven.resolver.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">

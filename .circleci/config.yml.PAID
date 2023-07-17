@@ -4133,7 +4133,7 @@ jobs:
             git clean -fd
             # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
             for x in $(seq 1 3); do
-                ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
+                ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar -Dno-checkstyle=true -Drat.skip=true
                 RETURN="$?"
                 if [ "${RETURN}" -eq "0" ]; then
                     cp build/dtest*.jar ~/dtest_jars
@@ -4151,7 +4151,7 @@ jobs:
           git checkout origin/$CIRCLE_BRANCH
           git clean -fd
           for x in $(seq 1 3); do
-              ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
+              ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar -Dno-checkstyle=true -Drat.skip=true
               RETURN="$?"
               if [ "${RETURN}" -eq "0" ]; then
                   cp build/dtest*.jar ~/dtest_jars
@@ -8069,11 +8069,11 @@ jobs:
           fi
         no_output_timeout: 15m
     - run:
-        name: Run eclipse-warnings
+        name: Run static code analysis
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           cd ~/cassandra
-          ant eclipse-warnings
+          ant check
     - persist_to_workspace:
         root: /home/cassandra
         paths:
@@ -9523,11 +9523,11 @@ jobs:
           fi
         no_output_timeout: 15m
     - run:
-        name: Run eclipse-warnings
+        name: Run static code analysis
         command: |
           export PATH=$JAVA_HOME/bin:$PATH
           cd ~/cassandra
-          ant eclipse-warnings
+          ant check
     - persist_to_workspace:
         root: /home/cassandra
         paths:

@@ -159,7 +159,7 @@ _main() {
   # ant test setup
   export TMP_DIR="${DIST_DIR}/tmp"
   mkdir -p "${TMP_DIR}" || true
-  export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Drat.skip=true -Dno-checkstyle=true -Dno-javadoc=true -Dant.gen-doc.skip=true"
+  export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR}"
 
   # fresh virtualenv and test logs results everytime
   [[ "/" == "${DIST_DIR}" ]] || rm -rf "${DIST_DIR}/test/{html,output,logs}"
