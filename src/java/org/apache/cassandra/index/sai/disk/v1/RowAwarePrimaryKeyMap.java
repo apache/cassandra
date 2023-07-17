@@ -30,7 +30,6 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -38,6 +37,7 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
+import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsTrieSearcher;
 import org.apache.cassandra.index.sai.disk.v1.trie.TriePrefixSearcher;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -92,7 +92,9 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
                 this.tokenReaderFactory = new BlockPackedReader(tokensFile, tokensMeta);
                 this.primaryKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
                 this.primaryKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCKS);
-                this.primaryKeyTrieFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE);
+
+                this.primaryKeyTrieFile = indexDescriptor.hasClustering() ? indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_TRIE)
+                                                                          : null;
                 this.sortedTermsReader = new SortedTermsReader(primaryKeyBlocksFile, primaryKeyBlockOffsetsFile, sortedTermsMeta, blockOffsetsMeta);
                 this.partitioner = sstable.metadata().partitioner;
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
@@ -109,8 +111,14 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
+            if (clusteringComparator != null && clusteringComparator.size() > 0)
+                return new RowAwarePrimaryKeyMap(rowIdToToken,
+                                                 new SortedTermsTrieSearcher(primaryKeyTrieFile.instantiateRebufferer(null), sortedTermsMeta),
+                                                 sortedTermsReader.openCursor(),
+                                                 partitioner,
+                                                 primaryKeyFactory,
+                                                 clusteringComparator);
             return new RowAwarePrimaryKeyMap(rowIdToToken,
-                                             new TriePrefixSearcher(primaryKeyTrieFile.instantiateRebufferer(null), sortedTermsMeta.trieFilePointer),
                                              sortedTermsReader.openCursor(),
                                              partitioner,
                                              primaryKeyFactory,
@@ -124,23 +132,37 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         }
     }
 
-    private final LongArray rowIdToToken;
-    private final TriePrefixSearcher triePrefixSearcher;
+    private final LongArray tokenArray;
+    private final SortedTermsTrieSearcher trieSearcher;
     private final SortedTermsReader.Cursor cursor;
     private final IPartitioner partitioner;
     private final PrimaryKey.Factory primaryKeyFactory;
     private final ClusteringComparator clusteringComparator;
     private final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
 
-    private RowAwarePrimaryKeyMap(LongArray rowIdToToken,
-                                  TriePrefixSearcher triePrefixSearcher,
+    private RowAwarePrimaryKeyMap(LongArray tokenArray,
+                                  SortedTermsTrieSearcher trieSearcher,
                                   SortedTermsReader.Cursor cursor,
                                   IPartitioner partitioner,
                                   PrimaryKey.Factory primaryKeyFactory,
                                   ClusteringComparator clusteringComparator)
     {
-        this.rowIdToToken = rowIdToToken;
-        this.triePrefixSearcher = triePrefixSearcher;
+        this.tokenArray = tokenArray;
+        this.trieSearcher = trieSearcher;
+        this.cursor = cursor;
+        this.partitioner = partitioner;
+        this.primaryKeyFactory = primaryKeyFactory;
+        this.clusteringComparator = clusteringComparator;
+    }
+
+    private RowAwarePrimaryKeyMap(LongArray tokenArray,
+                                  SortedTermsReader.Cursor cursor,
+                                  IPartitioner partitioner,
+                                  PrimaryKey.Factory primaryKeyFactory,
+                                  ClusteringComparator clusteringComparator)
+    {
+        this.tokenArray = tokenArray;
+        this.trieSearcher = null;
         this.cursor = cursor;
         this.partitioner = partitioner;
         this.primaryKeyFactory = primaryKeyFactory;
@@ -150,7 +172,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public PrimaryKey primaryKeyFromRowId(long sstableRowId)
     {
-        tokenBuffer.putLong(rowIdToToken.get(sstableRowId));
+        tokenBuffer.putLong(tokenArray.get(sstableRowId));
         tokenBuffer.rewind();
         return primaryKeyFactory.createDeferred(partitioner.getTokenFactory().fromByteArray(tokenBuffer), () -> supplier(sstableRowId));
     }
@@ -158,13 +180,23 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long rowIdFromPrimaryKey(PrimaryKey key)
     {
-        return triePrefixSearcher.prefixSearch(key.asComparableBytes(ByteComparable.Version.OSS50));
+        long rowId = tokenArray.findTokenRowID(key.token().getLongValue());
+        // If the key only has a token (initial range skip in the query) or the token is out of range
+        // the return the rowId from the token array.
+        if (key.isTokenOnly() || rowId == -1)
+            return rowId;
+        // If the token for the rowId matches the key token then we need to search the keys in the trie
+        // for a prefix match to get the correct rowId for the clustering key.
+        // Note: This is only neccessary for wide row tables.
+        if (trieSearcher != null && tokenArray.get(rowId) == key.token().getLongValue())
+            return trieSearcher.prefixSearch(key::asComparableBytes);
+        return rowId;
     }
 
     @Override
     public void close()
     {
-        FileUtils.closeQuietly(Arrays.asList(triePrefixSearcher, cursor, rowIdToToken));
+        FileUtils.closeQuietly(Arrays.asList(trieSearcher, cursor, tokenArray));
     }
 
     private PrimaryKey supplier(long sstableRowId)
@@ -174,19 +206,17 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
             cursor.seekToPointId(sstableRowId);
             ByteSource.Peekable peekable = ByteSource.peekable(cursor.term().asComparableBytes(ByteComparable.Version.OSS50));
 
-            Token token = partitioner.getTokenFactory().fromComparableBytes(ByteSourceInverse.nextComponentSource(peekable),
-                                                                            ByteComparable.Version.OSS50);
-            byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekable));
+            byte[] keyBytes = clusteringComparator.size() == 0 ? ByteSourceInverse.getUnescapedBytes(peekable)
+                                                               : ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekable));
 
-            if (keyBytes == null)
-                return primaryKeyFactory.createTokenOnly(token);
+            assert keyBytes != null;
 
-            DecoratedKey partitionKey = new BufferDecoratedKey(token, ByteBuffer.wrap(keyBytes));
+            ByteBuffer decoratedKey = ByteBuffer.wrap(keyBytes);
+            DecoratedKey partitionKey = new BufferDecoratedKey(partitioner.getToken(decoratedKey), decoratedKey);
 
-            Clustering<?> clustering = clusteringComparator.size() == 0
-                                       ? Clustering.EMPTY
-                                       : clusteringComparator.clusteringFromByteComparable(ByteBufferAccessor.instance,
-                                                                                           v -> ByteSourceInverse.nextComponentSource(peekable));
+            Clustering<?> clustering = clusteringComparator.size() == 0 ? Clustering.EMPTY
+                                                                        : clusteringComparator.clusteringFromByteComparable(ByteBufferAccessor.instance,
+                                                                                                                            v -> ByteSourceInverse.nextComponentSource(peekable));
 
             if (clustering == null)
                 clustering = Clustering.EMPTY;

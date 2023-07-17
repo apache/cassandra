@@ -32,7 +32,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
-import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 
@@ -58,7 +58,7 @@ public abstract class SegmentFlushingFailureTester extends SAITester
 
     private static final Injections.Counter memoryTrackingCounter =
             newCounter("memoryTrackingCounter").add(newInvokePoint()
-                                               .onClass(NamedMemoryLimiter.class)
+                                               .onClass(SegmentMemoryLimiter.class)
                                                .onMethod("increment")
                                                .atEntry()).build();
 

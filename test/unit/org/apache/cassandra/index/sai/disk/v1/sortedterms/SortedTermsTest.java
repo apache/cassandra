@@ -24,9 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -49,51 +49,23 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.lucene.store.IndexInput;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class SortedTermsTest extends SAIRandomizedTester
 {
-    @Test
-    public void testLexicographicException() throws Exception
+    private IndexDescriptor indexDescriptor;
+
+    @Before
+    public void setup() throws Exception
     {
-        IndexDescriptor indexDescriptor = newIndexDescriptor();
-        try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
-        {
-            NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                                        indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                                        metadataWriter, true);
-            IndexOutputWriter trieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
-            IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
-            try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
-                                                                  metadataWriter,
-                                                                  bytesWriter,
-                                                                  blockFPWriter,
-                                                                  trieWriter))
-            {
-                ByteBuffer buffer = Int32Type.instance.decompose(99999);
-                ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
-                byte[] bytes1 = ByteSourceInverse.readBytes(byteSource);
-
-                writer.add(ByteComparable.fixedLength(bytes1));
-
-                buffer = Int32Type.instance.decompose(444);
-                byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
-                byte[] bytes2 = ByteSourceInverse.readBytes(byteSource);
-
-                assertThrows(IllegalArgumentException.class, () -> writer.add(ByteComparable.fixedLength(bytes2)));
-            }
-        }
+        indexDescriptor = newIndexDescriptor();
     }
 
     @Test
     public void testFileValidation() throws Exception
     {
-        IndexDescriptor indexDescriptor = newIndexDescriptor();
-
         List<PrimaryKey> primaryKeys = new ArrayList<>();
 
         for (int x = 0; x < 11; x++)
@@ -142,68 +114,25 @@ public class SortedTermsTest extends SAIRandomizedTester
     @Test
     public void testLongPrefixesAndSuffixes() throws Exception
     {
-        IndexDescriptor descriptor = newIndexDescriptor();
-
         List<byte[]> terms = new ArrayList<>();
-        writeLongPrefixAndSuffixTerms(descriptor, terms);
+        writeLongPrefixAndSuffixTerms(indexDescriptor, terms);
 
-        withSortedTermsCursor(descriptor, cursor ->
-        {
-            int x = 0;
-            while (cursor.advance())
-            {
-                ByteComparable term = cursor.term();
-
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
-                assertArrayEquals(terms.get(x), bytes);
-                x++;
-            }
-
-            // assert we don't increase the point id beyond one point after the last item
-            assertEquals(cursor.pointId(), terms.size());
-            assertFalse(cursor.advance());
-            assertEquals(cursor.pointId(), terms.size());
-        });
-    }
-
-    @Test
-    public void testAdvance() throws IOException
-    {
-        IndexDescriptor descriptor = newIndexDescriptor();
-
-        List<byte[]> terms = new ArrayList<>();
-        writeTerms(descriptor, terms);
-
-        withSortedTermsCursor(descriptor, cursor ->
-        {
-            int x = 0;
-            while (cursor.advance())
-            {
-                ByteComparable term = cursor.term();
-
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
-                assertArrayEquals(terms.get(x), bytes);
-
-                x++;
-            }
-
-            // assert we don't increase the point id beyond one point after the last item
-            assertEquals(cursor.pointId(), terms.size());
-            assertFalse(cursor.advance());
-            assertEquals(cursor.pointId(), terms.size());
-        });
+        doTestSortedTerms(terms);
     }
 
     @Test
     public void testSeekToPointId() throws Exception
     {
-        IndexDescriptor descriptor = newIndexDescriptor();
-
         List<byte[]> terms = new ArrayList<>();
-        writeTerms(descriptor, terms);
+        writeTerms(indexDescriptor, terms);
 
+        doTestSortedTerms(terms);
+    }
+
+    private void doTestSortedTerms(List<byte[]> terms) throws Exception
+    {
         // iterate ascending
-        withSortedTermsCursor(descriptor, cursor ->
+        withSortedTermsCursor(indexDescriptor, cursor ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
@@ -216,7 +145,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
 
         // iterate descending
-        withSortedTermsCursor(descriptor, cursor ->
+        withSortedTermsCursor(indexDescriptor, cursor ->
         {
             for (int x = terms.size() - 1; x >= 0; x--)
             {
@@ -229,7 +158,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
 
         // iterate randomly
-        withSortedTermsCursor(descriptor, cursor ->
+        withSortedTermsCursor(indexDescriptor, cursor ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
@@ -246,15 +175,13 @@ public class SortedTermsTest extends SAIRandomizedTester
     @Test
     public void testSeekToPointIdOutOfRange() throws Exception
     {
-        IndexDescriptor descriptor = newIndexDescriptor();
-
         List<byte[]> terms = new ArrayList<>();
-        writeTerms(descriptor, terms);
+        writeTerms(indexDescriptor, terms);
 
-        withSortedTermsCursor(descriptor, cursor ->
+        withSortedTermsCursor(indexDescriptor, cursor ->
         {
-            assertThrows(IndexOutOfBoundsException.class, () -> cursor.seekToPointId(-2));
-            assertThrows(IndexOutOfBoundsException.class, () -> cursor.seekToPointId(Long.MAX_VALUE));
+            assertThatThrownBy(() -> cursor.seekToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class);
+            assertThatThrownBy(() -> cursor.seekToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class);
         });
     }
 
@@ -396,20 +323,6 @@ public class SortedTermsTest extends SAIRandomizedTester
         catch (Throwable ignore)
         {
             return false;
-        }
-    }
-
-    private static void assertThrows(Class<? extends Throwable> clazz, CQLTester.CheckedFunction function)
-    {
-        try
-        {
-            function.apply();
-            fail("An error should havee been thrown but was not.");
-        }
-        catch (Throwable e)
-        {
-            assertTrue("Unexpected exception type (expected: " + clazz + ", value: " + e.getClass() + ')',
-                       clazz.isAssignableFrom(e.getClass()));
         }
     }
 }

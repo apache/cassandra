@@ -39,7 +39,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Clock;
@@ -67,7 +67,6 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private final IndexContext indexContext;
     private final long nowInSec = FBUtilities.nowInSeconds();
     private final AbstractAnalyzer analyzer;
-    private final NamedMemoryLimiter limiter;
     private final int maxTermSize;
     private final BooleanSupplier isIndexValid;
     private final List<SegmentMetadata> segments = new ArrayList<>();
@@ -75,12 +74,11 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private boolean aborted = false;
     private SegmentBuilder currentBuilder;
 
-    public SSTableIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, NamedMemoryLimiter limiter, BooleanSupplier isIndexValid)
+    public SSTableIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, BooleanSupplier isIndexValid)
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
         this.analyzer = indexContext.getAnalyzerFactory().create();
-        this.limiter = limiter;
         this.isIndexValid = isIndexValid;
         this.maxTermSize = indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
     }
@@ -223,7 +221,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
 
         if (!TypeUtil.isLiteral(type))
         {
-            limiter.increment(currentBuilder.add(term, key, sstableRowId));
+            SegmentMemoryLimiter.increment(currentBuilder.add(term, key, sstableRowId));
         }
         else
         {
@@ -233,7 +231,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
                 while (analyzer.hasNext())
                 {
                     ByteBuffer tokenTerm = analyzer.next();
-                    limiter.increment(currentBuilder.add(tokenTerm, key, sstableRowId));
+                    SegmentMemoryLimiter.increment(currentBuilder.add(tokenTerm, key, sstableRowId));
                 }
             }
             finally
@@ -246,17 +244,16 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private boolean shouldFlush(long sstableRowId)
     {
         // If we've hit the minimum flush size and, we've breached the global limit, flush a new segment:
-        boolean reachMemoryLimit = limiter.usageExceedsLimit() && currentBuilder.hasReachedMinimumFlushSize();
+        boolean reachMemoryLimit = SegmentMemoryLimiter.usageExceedsLimit(currentBuilder.totalBytesAllocated());
 
         if (reachMemoryLimit)
         {
-            logger.debug(indexContext.logMessage("Global limit of {} and minimum flush size of {} exceeded. " +
+            logger.debug(indexContext.logMessage("Global limit of {} exceeded. " +
                                             "Current builder usage is {} for {} cells. Global Usage is {}. Flushing..."),
-                         FBUtilities.prettyPrintMemory(limiter.limitBytes()),
-                         FBUtilities.prettyPrintMemory(currentBuilder.getMinimumFlushBytes()),
+                         FBUtilities.prettyPrintMemory(SegmentMemoryLimiter.limitBytes()),
                          FBUtilities.prettyPrintMemory(currentBuilder.totalBytesAllocated()),
                          currentBuilder.getRowCount(),
-                         FBUtilities.prettyPrintMemory(limiter.currentBytesUsed()));
+                         FBUtilities.prettyPrintMemory(SegmentMemoryLimiter.currentBytesUsed()));
         }
 
         return reachMemoryLimit || currentBuilder.exceedsSegmentLimit(sstableRowId);
@@ -328,10 +325,10 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private SegmentBuilder newSegmentBuilder()
     {
         SegmentBuilder builder = TypeUtil.isLiteral(indexContext.getValidator())
-                                 ? new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter)
-                                 : new SegmentBuilder.BlockBalancedTreeSegmentBuilder(indexContext.getValidator(), limiter);
+                                 ? new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator())
+                                 : new SegmentBuilder.BlockBalancedTreeSegmentBuilder(indexContext.getValidator());
 
-        long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
+        long globalBytesUsed = SegmentMemoryLimiter.increment(builder.totalBytesAllocated());
         logger.debug(indexContext.logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),
                      indexDescriptor.sstableDescriptor,
                      FBUtilities.prettyPrintMemory(globalBytesUsed));

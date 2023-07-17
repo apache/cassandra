@@ -19,7 +19,6 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,7 +32,7 @@ import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
-import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -51,12 +50,6 @@ public abstract class SegmentBuilder
     public static final long LAST_VALID_SEGMENT_ROW_ID = (Integer.MAX_VALUE / 2) - 1L;
     private static long testLastValidSegmentRowId = -1;
 
-    /** The number of column indexes being built globally. (Starts at one to avoid divide by zero.) */
-    private static final AtomicInteger ACTIVE_BUILDER_COUNT = new AtomicInteger(0);
-
-    /** Minimum flush size, dynamically updated as segment builds are started and completed/aborted. */
-    private static volatile long minimumFlushBytes;
-    private final NamedMemoryLimiter limiter;
     private final long lastValidSegmentRowID;
     private boolean flushed = false;
     private boolean active = true;
@@ -82,9 +75,9 @@ public abstract class SegmentBuilder
         private final byte[] scratch;
         private final BlockBalancedTreeRamBuffer trieBuffer;
 
-        public BlockBalancedTreeSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+        public BlockBalancedTreeSegmentBuilder(AbstractType<?> termComparator)
         {
-            super(termComparator, limiter);
+            super(termComparator);
 
             scratch = new byte[TypeUtil.fixedSizeOf(termComparator)];
             trieBuffer = new BlockBalancedTreeRamBuffer(TypeUtil.fixedSizeOf(termComparator));
@@ -121,9 +114,9 @@ public abstract class SegmentBuilder
 
         final BytesRefBuilder stringBuffer = new BytesRefBuilder();
 
-        public RAMStringSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+        public RAMStringSegmentBuilder(AbstractType<?> termComparator)
         {
-            super(termComparator, limiter);
+            super(termComparator);
 
             ramIndexer = new RAMStringIndexer();
             totalBytesAllocated = ramIndexer.estimatedBytesUsed();
@@ -161,18 +154,13 @@ public abstract class SegmentBuilder
         }
     }
 
-    public static int getActiveBuilderCount()
-    {
-        return ACTIVE_BUILDER_COUNT.get();
-    }
-
-    private SegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter)
+    private SegmentBuilder(AbstractType<?> termComparator)
     {
         this.termComparator = termComparator;
-        this.limiter = limiter;
+//        this.limiter = limiter;
         lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
 
-        minimumFlushBytes = limiter.limitBytes() / ACTIVE_BUILDER_COUNT.incrementAndGet();
+        SegmentMemoryLimiter.registerBuilder();
     }
 
     public SegmentMetadata flush(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
@@ -234,16 +222,6 @@ public abstract class SegmentBuilder
         return totalBytesAllocated;
     }
 
-    public boolean hasReachedMinimumFlushSize()
-    {
-        return totalBytesAllocated >= minimumFlushBytes;
-    }
-
-    public long getMinimumFlushBytes()
-    {
-        return minimumFlushBytes;
-    }
-
     /**
      * This method does three things:
      * <p>
@@ -259,14 +237,14 @@ public abstract class SegmentBuilder
     {
         if (active)
         {
-            minimumFlushBytes = limiter.limitBytes() / ACTIVE_BUILDER_COUNT.getAndDecrement();
-            long used = limiter.decrement(totalBytesAllocated);
+            SegmentMemoryLimiter.unregisterBuilder();
+            long used = SegmentMemoryLimiter.decrement(totalBytesAllocated);
             active = false;
             return used;
         }
 
         logger.warn(indexContext.logMessage("Attempted to release storage-attached index segment builder memory after builder marked inactive."));
-        return limiter.currentBytesUsed();
+        return SegmentMemoryLimiter.currentBytesUsed();
     }
 
     public abstract boolean isEmpty();

@@ -20,18 +20,25 @@ package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.db.memtable.TrieMemtable;
+import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.lucene.store.IndexOutput;
@@ -67,20 +74,21 @@ public class SortedTermsWriter implements Closeable
     static final int TERMS_DICT_BLOCK_SIZE = 1 << TERMS_DICT_BLOCK_SHIFT;
     static final int TERMS_DICT_BLOCK_MASK = TERMS_DICT_BLOCK_SIZE - 1;
 
-    private final IncrementalDeepTrieWriterPageAware<Long> trieWriter;
-    private final IndexOutput trieOutput;
+    private final IndexOutputWriter trieOutputWriter;
     private final IndexOutput termsOutput;
     private final NumericValuesWriter offsetsWriter;
     private final String componentName;
     private final MetadataWriter metadataWriter;
+    private final List<SortedTermsMeta.SortedTermsSegmentMeta> segments = new ArrayList<>();
 
-    private BytesRefBuilder prevTerm = new BytesRefBuilder();
+    private TrieSegment trieSegment;
     private BytesRefBuilder tempTerm = new BytesRefBuilder();
+    private BytesRefBuilder prevTerm = new BytesRefBuilder();
 
     private final long bytesStartFP;
 
-    private int maxLength = -1;
-    private long pointId = 0;
+    private int maxTermLength = -1;
+    private long rowId = 0;
 
     /**
      * Creates a new writer.
@@ -102,14 +110,28 @@ public class SortedTermsWriter implements Closeable
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
-        this.trieOutput = trieOutput;
-        SAICodecUtils.writeHeader(this.trieOutput);
-        this.trieWriter = new IncrementalDeepTrieWriterPageAware<>(trieSerializer, trieOutput.asSequentialWriter());
+        this.trieOutputWriter = trieOutput;
+        SAICodecUtils.writeHeader(this.trieOutputWriter);
         SAICodecUtils.writeHeader(termsData);
         this.termsOutput = termsData;
         this.bytesStartFP = termsData.getFilePointer();
         this.offsetsWriter = termsDataBlockOffsets;
     }
+
+    public SortedTermsWriter(String componentName,
+                             MetadataWriter metadataWriter,
+                             IndexOutput termsData,
+                             NumericValuesWriter termsDataBlockOffsets) throws IOException
+    {
+        this.componentName = componentName;
+        this.metadataWriter = metadataWriter;
+        this.trieOutputWriter = null;
+        SAICodecUtils.writeHeader(termsData);
+        this.termsOutput = termsData;
+        this.bytesStartFP = termsData.getFilePointer();
+        this.offsetsWriter = termsDataBlockOffsets;
+    }
+
 
     /**
      * Appends a term at the end of the sequence.
@@ -124,26 +146,61 @@ public class SortedTermsWriter implements Closeable
         copyBytes(term, tempTerm);
 
         BytesRef termRef = tempTerm.get();
-        BytesRef prevTermRef = this.prevTerm.get();
 
-        Preconditions.checkArgument(prevTermRef.length == 0 || prevTermRef.compareTo(termRef) < 0,
-                                    "Terms must be added in lexicographic ascending order.");
         writeTermData(termRef);
-        writeTermToTrie(term);
 
-        maxLength = Math.max(maxLength, termRef.length);
-        swapTempWithPrevious();
-        pointId++;
+        maxTermLength = Math.max(maxTermLength, termRef.length);
+
+        BytesRefBuilder temp = this.tempTerm;
+        this.tempTerm = this.prevTerm;
+        this.prevTerm = temp;
+
+        if (trieOutputWriter != null)
+        {
+            if (trieSegment == null)
+                trieSegment = new TrieSegment();
+            else if (SegmentMemoryLimiter.usageExceedsLimit(trieSegment.totalBytesAllocated))
+            {
+                segments.add(trieSegment.flush());
+                trieSegment = new TrieSegment();
+            }
+            trieSegment.add(term);
+        }
+        rowId++;
     }
 
-    private void writeTermToTrie(ByteComparable term) throws IOException
+    /**
+     * Flushes any in-memory buffers to the output streams.
+     * Does not close the output streams.
+     * No more writes are allowed.
+     */
+    @Override
+    public void close() throws IOException
     {
-        trieWriter.add(term, pointId);
+        if (trieOutputWriter != null)
+        {
+            // The trieSegment can be null if we haven't had any terms added
+            if (trieSegment != null)
+                segments.add(trieSegment.flush());
+            SAICodecUtils.writeFooter(trieOutputWriter);
+        }
+        try (IndexOutput output = metadataWriter.builder(componentName))
+        {
+            SAICodecUtils.writeFooter(termsOutput);
+            SortedTermsMeta.write(output, rowId, maxTermLength, segments);
+            // Don't close the offsets writer quietly because of the work it does
+            // during its close. We need to propagate the error.
+            offsetsWriter.close();
+        }
+        finally
+        {
+            FileUtils.closeQuietly(Arrays.asList(trieOutputWriter, termsOutput));
+        }
     }
 
     private void writeTermData(BytesRef term) throws IOException
     {
-        if ((pointId & TERMS_DICT_BLOCK_MASK) == 0)
+        if ((rowId & TERMS_DICT_BLOCK_MASK) == 0)
         {
             offsetsWriter.add(termsOutput.getFilePointer() - bytesStartFP);
 
@@ -169,30 +226,6 @@ public class SortedTermsWriter implements Closeable
         }
     }
 
-    /**
-     * Flushes any in-memory buffers to the output streams.
-     * Does not close the output streams.
-     * No more writes are allowed.
-     */
-    @Override
-    public void close() throws IOException
-    {
-        try (IndexOutput output = metadataWriter.builder(componentName))
-        {
-            long trieFilePointer = this.trieWriter.complete();
-            SAICodecUtils.writeFooter(trieOutput);
-            SAICodecUtils.writeFooter(termsOutput);
-            SortedTermsMeta.write(output, trieFilePointer, pointId, maxLength);
-            // Don't close the offsets writer quietly because of the work it does
-            // during its close. We need to propagate the error.
-            offsetsWriter.close();
-        }
-        finally
-        {
-            FileUtils.closeQuietly(Arrays.asList(trieWriter, trieOutput, termsOutput));
-        }
-    }
-
     private void copyBytes(ByteComparable source, BytesRefBuilder dest)
     {
         ByteSource byteSource = source.asComparableBytes(ByteComparable.Version.OSS50);
@@ -201,14 +234,89 @@ public class SortedTermsWriter implements Closeable
             dest.append((byte) val);
     }
 
-    /**
-     * Swaps {@link #tempTerm} with {@link #prevTerm}.
-     * It is faster to swap the pointers instead of copying the data.
-     */
-    private void swapTempWithPrevious()
+    private class TrieSegment
     {
-        BytesRefBuilder temp = this.tempTerm;
-        this.tempTerm = this.prevTerm;
-        this.prevTerm = temp;
+        private final InMemoryTrie<Long> trie;
+        private final BytesRefBuilder prevTerm = new BytesRefBuilder();
+        private final BytesRefBuilder tempTerm = new BytesRefBuilder();
+
+        private BytesRef minTerm;
+        private long totalBytesAllocated;
+        private boolean flushed = false;
+        private boolean active = true;
+
+        TrieSegment()
+        {
+            trie = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
+            SegmentMemoryLimiter.registerBuilder();
+        }
+
+        void add(ByteComparable term)
+        {
+            final long initialSizeOnHeap = trie.sizeOnHeap();
+
+
+            try
+            {
+                trie.putRecursive(term, rowId, (existing, update) -> update);
+            }
+            catch (InMemoryTrie.SpaceExhaustedException e)
+            {
+                throw Throwables.unchecked(e);
+            }
+
+            long bytesAllocated = trie.sizeOnHeap() - initialSizeOnHeap;
+            totalBytesAllocated += bytesAllocated;
+            SegmentMemoryLimiter.increment(bytesAllocated);
+        }
+
+        SortedTermsMeta.SortedTermsSegmentMeta flush() throws IOException
+        {
+            assert !flushed : "Cannot flush a trie segment that has already been flushed";
+
+            flushed = true;
+
+            long trieFilePointer;
+
+            try (IncrementalDeepTrieWriterPageAware<Long> trieWriter = new IncrementalDeepTrieWriterPageAware<>(trieSerializer,
+                                                                                                                trieOutputWriter.asSequentialWriter()))
+            {
+                Iterator<Map.Entry<ByteComparable, Long>> iterator = trie.entryIterator();
+
+                while (iterator.hasNext())
+                {
+                    Map.Entry<ByteComparable, Long> next = iterator.next();
+                    tempTerm.clear();
+                    copyBytes(next.getKey(), tempTerm);
+
+                    BytesRef termRef = tempTerm.get();
+
+                    if (minTerm == null)
+                        minTerm = new BytesRef(Arrays.copyOf(termRef.bytes, termRef.length));
+
+                    trieWriter.add(next.getKey(), next.getValue());
+                    copyBytes(next.getKey(), prevTerm);
+                }
+
+                trieFilePointer = trieWriter.complete();
+            }
+            finally
+            {
+                release();
+            }
+
+            return new SortedTermsMeta.SortedTermsSegmentMeta(trieFilePointer, minTerm, tempTerm.get().clone());
+        }
+
+        void release()
+        {
+            if (active)
+            {
+                SegmentMemoryLimiter.unregisterBuilder();
+                SegmentMemoryLimiter.decrement(totalBytesAllocated);
+                active = false;
+            }
+        }
+
     }
 }

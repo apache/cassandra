@@ -144,6 +144,12 @@ public class PostingsReader implements OrdinalPostingList
             }
 
             @Override
+            public long findTokenRowID(long targetToken)
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public long length()
             {
                 return length;

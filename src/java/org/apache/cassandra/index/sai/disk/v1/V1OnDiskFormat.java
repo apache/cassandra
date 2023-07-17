@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Gauge;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -41,9 +40,8 @@ import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
-import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
@@ -56,12 +54,20 @@ public class V1OnDiskFormat implements OnDiskFormat
     private static final Logger logger = LoggerFactory.getLogger(V1OnDiskFormat.class);
 
     @VisibleForTesting
-    public static final Set<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
-                                                                                IndexComponent.GROUP_META,
-                                                                                IndexComponent.TOKEN_VALUES,
-                                                                                IndexComponent.PRIMARY_KEY_TRIE,
-                                                                                IndexComponent.PRIMARY_KEY_BLOCKS,
-                                                                                IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
+    public static final Set<IndexComponent> SKINNY_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
+                                                                                       IndexComponent.GROUP_META,
+                                                                                       IndexComponent.TOKEN_VALUES,
+                                                                                       IndexComponent.PRIMARY_KEY_BLOCKS,
+                                                                                       IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
+
+    @VisibleForTesting
+    public static final Set<IndexComponent> WIDE_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
+                                                                                     IndexComponent.GROUP_META,
+                                                                                     IndexComponent.TOKEN_VALUES,
+                                                                                     IndexComponent.PRIMARY_KEY_TRIE,
+                                                                                     IndexComponent.PRIMARY_KEY_BLOCKS,
+                                                                                     IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
+
     @VisibleForTesting
     public static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                             IndexComponent.META,
@@ -73,33 +79,16 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                             IndexComponent.BALANCED_TREE,
                                                                             IndexComponent.POSTING_LISTS);
 
-    /**
-     * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
-     *
-     * Note that to avoid flushing small index segments, a segment is only flushed when
-     * both the global size of all building segments has breached the limit and the size of the
-     * segment in question reaches (segment_write_buffer_space_mb / # currently building column indexes).
-     *
-     * ex. If there is only one column index building, it can buffer up to segment_write_buffer_space_mb.
-     *
-     * ex. If there is one column index building per table across 8 compactors, each index will be
-     *     eligible to flush once it reaches (segment_write_buffer_space_mb / 8) MBs.
-     */
-    public static final long SEGMENT_BUILD_MEMORY_LIMIT = DatabaseDescriptor.getSAISegmentWriteBufferSpace().toBytes();
-
-    public static final NamedMemoryLimiter SEGMENT_BUILD_MEMORY_LIMITER = new NamedMemoryLimiter(SEGMENT_BUILD_MEMORY_LIMIT,
-                                                                                                 "Storage Attached Index Segment Builder");
-
     static
     {
         CassandraMetricsRegistry.MetricName bufferSpaceUsed = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "SegmentBufferSpaceUsedBytes", null);
-        CassandraMetricsRegistry.Metrics.register(bufferSpaceUsed, (Gauge<Long>) SEGMENT_BUILD_MEMORY_LIMITER::currentBytesUsed);
+        CassandraMetricsRegistry.Metrics.register(bufferSpaceUsed, (Gauge<Long>) SegmentMemoryLimiter::currentBytesUsed);
 
         CassandraMetricsRegistry.MetricName bufferSpaceLimit = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "SegmentBufferSpaceLimitBytes", null);
-        CassandraMetricsRegistry.Metrics.register(bufferSpaceLimit, (Gauge<Long>) () -> SEGMENT_BUILD_MEMORY_LIMIT);
+        CassandraMetricsRegistry.Metrics.register(bufferSpaceLimit, (Gauge<Long>) () -> SegmentMemoryLimiter.DEFAULT_SEGMENT_BUILD_MEMORY_LIMIT);
 
         CassandraMetricsRegistry.MetricName buildsInProgress = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "ColumnIndexBuildsInProgress", null);
-        CassandraMetricsRegistry.Metrics.register(buildsInProgress, (Gauge<Integer>) SegmentBuilder::getActiveBuilderCount);
+        CassandraMetricsRegistry.Metrics.register(buildsInProgress, (Gauge<Integer>) SegmentMemoryLimiter::getActiveBuilderCount);
     }
 
     public static final V1OnDiskFormat instance = new V1OnDiskFormat();
@@ -134,11 +123,10 @@ public class V1OnDiskFormat implements OnDiskFormat
         // If we're not flushing, or we haven't yet started the initialization build, flush from SSTable contents.
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
-            NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
             logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
-                        prettyPrintMemory(limiter.currentBytesUsed()));
+                        prettyPrintMemory(SegmentMemoryLimiter.currentBytesUsed()));
 
-            return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
+            return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), index.isIndexValid());
         }
 
         return new MemtableIndexWriter(index.getIndexContext().getMemtableIndexManager().getPendingMemtableIndex(tracker),
@@ -163,7 +151,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public boolean validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum)
     {
-        for (IndexComponent indexComponent : perSSTableIndexComponents())
+        for (IndexComponent indexComponent : perSSTableIndexComponents(indexDescriptor.hasClustering()))
         {
             if (isNotBuildCompletionMarker(indexComponent))
             {
@@ -219,9 +207,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public Set<IndexComponent> perSSTableIndexComponents()
+    public Set<IndexComponent> perSSTableIndexComponents(boolean hasClustering)
     {
-        return PER_SSTABLE_COMPONENTS;
+        return hasClustering ? WIDE_PER_SSTABLE_COMPONENTS : SKINNY_PER_SSTABLE_COMPONENTS;
     }
 
     @Override
@@ -231,11 +219,13 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public int openFilesPerSSTableIndex()
+    public int openFilesPerSSTableIndex(boolean hasClustering)
     {
-        // For the V1 format there are always 4 open files per SSTable - token values, primary key trie,
-        // primary key blocks, primary key block offsets
-        return 4;
+        // For the V1 format the number of files depends on whether the table has clustering. The primary key trie
+        // is only built for clustering columns so the number of files will be 4 per SSTable - token values, primary key trie,
+        // primary key blocks, primary key block offsets for wide tables and 3 per SSTable - token values,
+        // primary key blocks & primary key block offsets for skinny tables.
+        return hasClustering ? 4 : 3;
     }
 
     @Override

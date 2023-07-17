@@ -49,16 +49,26 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         this.tokenWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES),
                                                    indexDescriptor.openPerSSTableOutput(IndexComponent.TOKEN_VALUES),
                                                    metadataWriter, false);
-        IndexOutputWriter primaryKeyTrieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
         IndexOutputWriter primaryKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
         NumericValuesWriter primaryKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
                                                      indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
                                                      metadataWriter, true);
-        this.sortedTermsWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
-                                                       metadataWriter,
-                                                       primaryKeyBlocksWriter,
-                                                       primaryKeyBlockOffsetWriter,
-                                                       primaryKeyTrieWriter);
+        if (indexDescriptor.hasClustering())
+        {
+            IndexOutputWriter primaryKeyTrieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
+            this.sortedTermsWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
+                                                           metadataWriter,
+                                                           primaryKeyBlocksWriter,
+                                                           primaryKeyBlockOffsetWriter,
+                                                           primaryKeyTrieWriter);
+        }
+        else
+        {
+            this.sortedTermsWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
+                                                           metadataWriter,
+                                                           primaryKeyBlocksWriter,
+                                                           primaryKeyBlockOffsetWriter);
+        }
     }
 
     @Override

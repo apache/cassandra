@@ -136,7 +136,7 @@ public interface OnDiskFormat
      * This is a complete set of components that could exist on-disk. It does not imply that the
      * components currently exist on-disk.
      */
-    Set<IndexComponent> perSSTableIndexComponents();
+    Set<IndexComponent> perSSTableIndexComponents(boolean hasClustering);
 
     /**
      * Returns the set of {@link IndexComponent} for the per-column part of an index.
@@ -152,7 +152,7 @@ public interface OnDiskFormat
      * This is a static indication of the files that can be held open by an index
      * for queries. It is not a dynamic calculation.
      */
-    int openFilesPerSSTableIndex();
+    int openFilesPerSSTableIndex(boolean hasClustering);
 
     /**
      * Return the number of open per-column index files that can be open during a query.

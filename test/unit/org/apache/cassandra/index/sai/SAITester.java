@@ -77,8 +77,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.ResourceLeakDetector;
 import org.apache.cassandra.inject.Injection;
@@ -164,7 +163,7 @@ public abstract class SAITester extends CQLTester
         Injections.deleteAll();
         CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.reset();
         CassandraRelevantProperties.SAI_POSTINGS_SKIP.reset();
-        V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.setLimitBytes(V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMIT);
+        SegmentMemoryLimiter.setLimitBytes(SegmentMemoryLimiter.DEFAULT_SEGMENT_BUILD_MEMORY_LIMIT);
     }
 
     public static Randomization getRandom()
@@ -414,17 +413,17 @@ public abstract class SAITester extends CQLTester
 
     protected long getSegmentBufferSpaceLimit()
     {
-        return V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.limitBytes();
+        return SegmentMemoryLimiter.limitBytes();
     }
 
     protected long getSegmentBufferUsedBytes()
     {
-        return V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.currentBytesUsed();
+        return SegmentMemoryLimiter.currentBytesUsed();
     }
 
     protected int getColumnIndexBuildsInProgress()
     {
-        return SegmentBuilder.getActiveBuilderCount();
+        return SegmentMemoryLimiter.getActiveBuilderCount();
     }
 
     protected void upgradeSSTables()
@@ -486,7 +485,7 @@ public abstract class SAITester extends CQLTester
     {
         Set<File> indexFiles = indexFiles();
 
-        for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perSSTableIndexComponents())
+        for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perSSTableIndexComponents(false))
         {
             Set<File> tableFiles = componentFiles(indexFiles, SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent, null)));
             assertEquals(tableFiles.toString(), perSSTableFiles, tableFiles.size());
@@ -763,7 +762,7 @@ public abstract class SAITester extends CQLTester
 
     protected static void setSegmentWriteBufferSpace(final int segmentSize)
     {
-        V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER.setLimitBytes(segmentSize);
+        SegmentMemoryLimiter.setLimitBytes(segmentSize);
     }
 
     protected String getSingleTraceStatement(Session session, String query, String contains)

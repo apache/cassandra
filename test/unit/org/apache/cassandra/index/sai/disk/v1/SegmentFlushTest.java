@@ -119,7 +119,7 @@ public class SegmentFlushTest
                                                      IndexTarget.Type.SIMPLE,
                                                      config);
 
-        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, indexContext, V1OnDiskFormat.SEGMENT_BUILD_MEMORY_LIMITER, () -> true);
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, indexContext, () -> true);
 
         List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
         Collections.sort(keys);

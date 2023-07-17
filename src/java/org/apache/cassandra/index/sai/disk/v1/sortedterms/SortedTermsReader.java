@@ -121,24 +121,14 @@ public class SortedTermsReader
         // The point id the cursor currently points to. BEFORE_START means before the first item.
         private long pointId = BEFORE_START;
 
+
         Cursor(FileHandle termsFile, LongArray.Factory blockOffsetsFactory) throws IOException
         {
             this.termsInput = IndexInputReader.create(termsFile);
-            SAICodecUtils.validate(this.termsInput);
-            this.termsDataFp = this.termsInput.getFilePointer();
+            SAICodecUtils.validate(termsInput);
+            this.termsDataFp = termsInput.getFilePointer();
             this.blockOffsets = new LongArray.DeferredLongArray(blockOffsetsFactory::open);
             this.currentTerm = new BytesRef(meta.maxTermLength);
-        }
-
-        /**
-         * Returns the current position of the cursor.
-         * Initially, before the first call to {@link #advance}, the cursor is positioned at -1.
-         * After reading all the items, the cursor is positioned at index one
-         * greater than the position of the last item.
-         */
-        public long pointId()
-        {
-            return pointId;
         }
 
         /**
@@ -173,12 +163,6 @@ public class SortedTermsReader
             termsInput.seek(blockAddress + termsDataFp);
             this.pointId = (blockIndex << TERMS_DICT_BLOCK_SHIFT) - 1;
             while (this.pointId < pointId && advance());
-        }
-
-        @Override
-        public void close()
-        {
-            termsInput.close();
         }
 
         /**
@@ -229,6 +213,12 @@ public class SortedTermsReader
             // added to the existing prefix.
             termsInput.readBytes(currentTerm.bytes, prefixLength, suffixLength);
             return true;
+        }
+
+        @Override
+        public void close()
+        {
+            termsInput.close();
         }
     }
 }

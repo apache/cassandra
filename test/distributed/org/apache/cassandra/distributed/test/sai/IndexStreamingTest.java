@@ -92,10 +92,10 @@ public class IndexStreamingTest extends TestBaseImpl
             ));
 
             int num_components = isLiteral ? sstableStreamingComponentsCount() +
-                                             V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size() +
+                                             V1OnDiskFormat.SKINNY_PER_SSTABLE_COMPONENTS.size() +
                                              V1OnDiskFormat.LITERAL_COMPONENTS.size()
                                            : sstableStreamingComponentsCount() +
-                                             V1OnDiskFormat.PER_SSTABLE_COMPONENTS.size() +
+                                             V1OnDiskFormat.SKINNY_PER_SSTABLE_COMPONENTS.size() +
                                              V1OnDiskFormat.NUMERIC_COMPONENTS.size();
 
             if (isLiteral)

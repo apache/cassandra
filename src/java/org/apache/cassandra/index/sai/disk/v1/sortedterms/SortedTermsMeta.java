@@ -19,30 +19,87 @@
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.BytesRef;
 
 /**
  * Metadata produced by {@link SortedTermsWriter}, needed by {@link SortedTermsReader}.
  */
 public class SortedTermsMeta
 {
-    public final long trieFilePointer;
     public final long termCount;
     public final int maxTermLength;
+    public List<SortedTermsSegmentMeta> segments;
 
     public SortedTermsMeta(DataInput input) throws IOException
     {
-        this.trieFilePointer = input.readLong();
-        this.termCount = input.readLong();
-        this.maxTermLength = input.readInt();
+        termCount = input.readLong();
+        maxTermLength = input.readInt();
+        int numberOfSegments = input.readInt();
+        segments = new ArrayList<>(numberOfSegments);
+        for (int index = 0; index < numberOfSegments; index++)
+            segments.add(new SortedTermsSegmentMeta(input));
     }
 
-    public static void write(IndexOutput output, long trieFilePointer, long termCount, int maxTermLength) throws IOException
+    public static void write(IndexOutput output, long termCount, int maxTermLength, List<SortedTermsSegmentMeta> segments) throws IOException
     {
-        output.writeLong(trieFilePointer);
         output.writeLong(termCount);
         output.writeInt(maxTermLength);
+        output.writeInt(segments.size());
+        for (SortedTermsSegmentMeta segment : segments)
+            segment.write(output);
+    }
+
+    public static class SortedTermsSegmentMeta
+    {
+        public final long trieFilePointer;
+        public final BytesRef minimumTerm;
+        public final BytesRef maximumTerm;
+
+        public SortedTermsSegmentMeta(DataInput input) throws IOException
+        {
+            trieFilePointer = input.readLong();
+            minimumTerm = readBytes(input);
+            maximumTerm = readBytes(input);
+        }
+
+        public SortedTermsSegmentMeta(long trieFilePointer, BytesRef minimumTerm, BytesRef maximumTerm)
+        {
+            this.trieFilePointer = trieFilePointer;
+            this.minimumTerm = minimumTerm;
+            this.maximumTerm = maximumTerm;
+        }
+
+        void write(IndexOutput indexOutput) throws IOException
+        {
+            indexOutput.writeLong(trieFilePointer);
+            writeBytes(minimumTerm, indexOutput);
+            writeBytes(maximumTerm, indexOutput);
+        }
+
+        private static BytesRef readBytes(DataInput input) throws IOException
+        {
+            int len = input.readInt();
+            byte[] bytes = new byte[len];
+            input.readBytes(bytes, 0, len);
+            return new BytesRef(bytes);
+        }
+
+        private static void writeBytes(BytesRef buffer, IndexOutput out)
+        {
+            try
+            {
+                out.writeInt(buffer.length);
+                out.writeBytes(buffer.bytes, 0, buffer.length);
+            }
+            catch (IOException ioe)
+            {
+                throw new RuntimeException(ioe);
+            }
+        }
     }
 }

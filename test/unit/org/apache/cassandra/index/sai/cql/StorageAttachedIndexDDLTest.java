@@ -777,7 +777,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         IndexContext numericIndexContext = createIndexContext(numericIndexName, Int32Type.instance);
         IndexContext stringIndexContext = createIndexContext(stringIndexName, UTF8Type.instance);
 
-        for (IndexComponent component : Version.LATEST.onDiskFormat().perSSTableIndexComponents())
+        for (IndexComponent component : Version.LATEST.onDiskFormat().perSSTableIndexComponents(false))
             verifyRebuildIndexComponent(numericIndexContext, stringIndexContext, component, null, corruptionType, true, true, rebuild);
 
         for (IndexComponent component : Version.LATEST.onDiskFormat().perColumnIndexComponents(numericIndexContext))
@@ -849,8 +849,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
             reloadSSTableIndex();
 
             // Verify the index cannot be read:
-            verifySSTableIndexes(numericIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, failedNumericIndex ? 0 : 1);
-            verifySSTableIndexes(stringIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, failedStringIndex ? 0 : 1);
+            verifySSTableIndexes(numericIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents(false).contains(component) ? 0 : 1, failedNumericIndex ? 0 : 1);
+            verifySSTableIndexes(stringIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents(false).contains(component) ? 0 : 1, failedStringIndex ? 0 : 1);
 
             try
             {
