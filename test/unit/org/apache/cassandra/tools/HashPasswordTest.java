@@ -59,9 +59,11 @@ public class HashPasswordTest extends CQLTester
                        "                              variable as the password\n" +
                        " -h,--help                    Display this help message\n" +
                        " -i,--input <arg>             Input is a file (or - for stdin) to read the\n" +
-                       "                              password from. Make sure that the whole input including newlines is\n" +
-                       "                              considered. For example, the shell command 'echo -n foobar | hash_password\n" +
-                       "                              -i -' will work as intended and just hash 'foobar'.\n" +
+                       "                              password from. Make sure that the whole\n" +
+                       "                              input including newlines is considered. For\n" +
+                       "                              example, the shell command 'echo -n foobar |\n" +
+                       "                              hash_password -i -' will work as intended\n" +
+                       "                              and just hash 'foobar'.\n" +
                        " -p,--plain <arg>             Argument is the plain text password\n" +
                        " -r,--logrounds <arg>         Number of hash rounds (default: 10).\n";
         assertEquals(help, tool.getStdout());
