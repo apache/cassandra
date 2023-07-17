@@ -249,6 +249,8 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
 
     private static class IntersectionStatistics extends KeyRangeIterator.Builder.Statistics
     {
+        private boolean empty = true;
+
         @Override
         public void update(KeyRangeIterator range)
         {
@@ -256,7 +258,15 @@ public class KeyRangeIntersectionIterator extends KeyRangeIterator
             min = nullSafeMax(min, range.getMinimum());
             // maximum of the intersection is the smallest maximum of individual iterators
             max = nullSafeMin(max, range.getMaximum());
-            count += range.getCount();
+            if (empty)
+            {
+                empty = false;
+                count = range.getCount();
+            }
+            else
+            {
+                count = Math.min(count, range.getCount());
+            }
         }
     }
 
