@@ -122,6 +122,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
     }
 
     // protected because inherited from Guava. We don't want to expose this method.
+    @Override
     protected boolean tryToComputeNext()
     {
         boolean hasNext = super.tryToComputeNext();
