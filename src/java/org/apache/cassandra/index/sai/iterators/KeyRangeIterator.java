@@ -121,9 +121,8 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         return tryToComputeNext() ? peek() : endOfData();
     }
 
-    // protected because inherited from Guava. We don't want to expose this method.
     @Override
-    protected boolean tryToComputeNext()
+    protected final boolean tryToComputeNext()
     {
         boolean hasNext = super.tryToComputeNext();
         current = hasNext ? next : getMaximum();
