@@ -15,7 +15,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." name="apache-cassandra--rat-tasks"
+<project basedir="." name="apache-cassandra-rat-tasks"
      xmlns:rat="antlib:org.apache.rat.anttasks">
 
     <!--
@@ -37,7 +37,7 @@
         </condition>
     </target>
 
-    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="${rat.skip}">
+    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="rat.skip">
         <copy file="${build.dir}/.versioned_files" tofile="${build.dir}/.ratinclude">
             <filterchain>
                 <linecontainsregexp>
@@ -47,7 +47,7 @@
         </copy>
     </target>
 
-    <target name="rat-check" depends="_rat_copy_versioned_files" unless="${rat.skip}" description="License checks on source" >
+    <target name="rat-check" depends="_rat_copy_versioned_files" unless="rat.skip" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
