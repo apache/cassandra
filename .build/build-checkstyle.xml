@@ -20,11 +20,13 @@
      xmlns:rat="antlib:org.apache.rat.anttasks">
 
     <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
-        <echo message="checkstyle.version=${checkstyle.version}"/>
+        <path id="checkstyle.lib.path">
+            <fileset dir="${test.lib}/jars" includes="*.jar"/>
+        </path>
         <!-- Sevntu custom checks are retrieved by Ivy into lib folder
            and will be accessible to checkstyle-->
         <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
-                 classpathref="checkstyle.classpath"/>
+                 classpathref="checkstyle.lib.path"/>
     </target>
 
     <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" unless="no-checkstyle">

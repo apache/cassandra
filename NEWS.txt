@@ -71,6 +71,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - *Experimental* support for Java 17 has been added. JVM options that differ between or are
+      specific for Java 17 have been added into jvm17.options.
+      IMPORTANT: Running C* on Java 17 is *experimental* and do it at your own risk.
     - Added a new "unified" compaction strategy that supports the use cases of the legacy compaction strategies, with
       low space overhead, high parallelism and flexible configuration. Implemented by the UnifiedCompactionStrategy
       class. Further details and documentation can be found in
@@ -176,6 +179,7 @@ New features
 
 Upgrading
 ---------
+    - Java 8 has been removed. Lowest supported version is Java 11.
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
