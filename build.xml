@@ -43,8 +43,8 @@
         When building, javac's source and target flags are set to the jdk used, so lower JDKs are not supported at runtime.
         The use of both CASSANDRA_USE_JDK11 and use-jdk11 is deprecated.
     -->
-    <property name="java.default" value="1.8" />
-    <property name="java.supported" value="1.8,11,17" />
+    <property name="java.default" value="11" />
+    <property name="java.supported" value="11,17" />
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -190,14 +190,6 @@
       <isset property="arch_x86" />
     </condition>
 
-    <resources id="_jvm8_arg_items">
-        <!-- add necessary args in <string> tags; see _jvm11_arg_items as an example -->
-    </resources>
-    <pathconvert property="_jvm8_args_concat" refid="_jvm8_arg_items" pathsep=" "/>
-    <condition property="java-jvmargs" value="${_jvm8_args_concat}">
-        <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
-
     <resources id="_jvm11_arg_items">
         <string>-Djdk.attach.allowAttachSelf=true</string>
         <string>-XX:+UseConcMarkSweepGC</string>
@@ -295,15 +287,6 @@
       In java 11 we also need to set a system property to enable netty to use Unsafe direct byte
       buffer construction (see CASSANDRA-16493)
     -->
-    <!-- Leaving  _jvm8_test_arg_items for now as we are not dropping Java 8 yet but it will be useless after CASSANDRA-18258-->
-    <resources id="_jvm8_test_arg_items">
-      <!-- TODO see CASSANDRA-16212 - we seem to OOM non stop now after CASSANDRA-16212, so to have clean CI while this gets looked into, disabling limiting metaspace
-        <string>-XX:MaxMetaspaceExpansion=64M</string>
-        <string>-XX:MaxMetaspaceSize=512M</string>
-        <string>-XX:MetaspaceSize=128M</string>
-      -->
-    </resources>
-    <pathconvert property="_jvm8_test_arg_items_concat" refid="_jvm8_test_arg_items" pathsep=" "/>
     <resources id="_jvm11_test_arg_items">
         <string>-XX:-CMSClassUnloadingEnabled</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
@@ -313,9 +296,6 @@
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
-    <condition property="_std-test-jvmargs" value="${_jvm8_test_arg_items_concat}">
-        <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}">
             <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
@@ -325,19 +305,8 @@
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
-    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" else="">
-        <not>
-            <equals arg1="${ant.java.version}" arg2="1.8"/>
-        </not>
-    </condition>
-    <condition property="jdk11plus-javadoc-exports" value="${jdk11plus-javac-exports} --frames" else="">
-        <not>
-            <equals arg1="${ant.java.version}" arg2="1.8"/>
-        </not>
-    </condition>
-    <condition property="checkstyle.version" value="8.45.1" else="10.8.1">
-        <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
+    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+    <property name="checkstyle.version" value="10.8.1" />
 
     <!--
          Add all the dependencies.
@@ -367,7 +336,7 @@
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="${jdk11plus-javadoc-exports}">
+        maxmemory="256m" additionalparam="--frames">
         <filesets/>
       </javadoc>
       <fail message="javadoc failed">
@@ -1881,10 +1850,10 @@
       </java>
   </target>
 
-  <target name="_maybe_update_idea_to_java11plus" depends="init" unless="java.version.8">
-    <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_${ant.java.version}"/>
-    <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_${ant.java.version}"/>
-    <replace file=".idea/misc.xml" token="1.8" value="${ant.java.version}"/>
+  <target name="_maybe_update_idea_to_java11plus" depends="init" unless="java.version.11">
+    <replace file="${eclipse.project.name}.iml" token="JDK_11" value="JDK_${ant.java.version}"/>
+    <replace file=".idea/misc.xml" token="JDK_11" value="JDK_${ant.java.version}"/>
+    <replace file=".idea/misc.xml" token="11" value="${ant.java.version}"/>
     <replaceregexp file=".idea/workspace.xml"
                    match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
                    replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java-jvmargs} ${_std-test-jvmargs}"
@@ -2010,38 +1979,6 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
-  <!-- ECJ 4.6.1 in standalone mode does not work with JPMS, so we skip this target for Java 11 -->
-  <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis" if="java.version.8">
-        <property name="ecj.log.dir" value="${build.dir}/ecj" />
-        <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
-        <mkdir  dir="${ecj.log.dir}" />
-
-        <property name="ecj.properties" value="${basedir}/eclipse_compiler.properties" />
-
-        <echo message="Running Eclipse Code Analysis.  Output logged to ${ecj.warnings.file}" />
-
-	<java
-	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"
-            fork="true"
-	    failonerror="true"
-            maxmemory="512m">
-            <arg value="-source"/>
-	    <arg value="${java.default}" />
-	    <arg value="-target"/>
-	    <arg value="${ant.java.version}" />
-	    <arg value="-d" />
-            <arg value="none" />
-	    <arg value="-proc:none" />
-            <arg value="-log" />
-            <arg value="${ecj.warnings.file}" />
-            <arg value="-properties" />
-            <arg value="${ecj.properties}" />
-            <arg value="-cp" />
-            <arg value="${toString:cassandra.classpath}" />
-            <arg value="${build.src.java}" />
-        </java>
-  </target>
-
   <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
       <echo message="checkstyle.version=${checkstyle.version}"/>
       <!-- Sevntu custom checks are retrieved by Ivy into lib folder
@@ -2050,7 +1987,7 @@
                classpathref="checkstyle.classpath"/>
   </target>
 
-  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" if="java.version.8" unless="no-checkstyle">
+  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" unless="no-checkstyle">
       <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
       <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
@@ -2066,7 +2003,7 @@
       </checkstyle>
   </target>
 
-  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8" unless="no-checkstyle">
+  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" unless="no-checkstyle">
       <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
       <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
