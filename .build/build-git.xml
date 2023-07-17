@@ -19,7 +19,7 @@
 <project basedir="." name="apache-cassandra-git-tasks"
          xmlns:if="ant:if">
 
-    <target name="_get-git-sha">
+    <target name="-git-init">
         <exec executable="git" osfamily="unix" dir="${basedir}" logError="false" failonerror="false" failifexecutionfails="false" resultproperty="git.is-available.exit-code">
             <arg value="rev-parse"/>
             <arg value="--is-inside-work-tree"/>
@@ -29,7 +29,9 @@
             <equals arg1="${git.is-available.exit-code}" arg2="0"/>
         </condition>
         <echo message="git.is-available=${git.is-available}"/>
+    </target>
 
+    <target name="_get-git-sha" depends="-git-init">
         <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
             <arg value="describe"/>
             <arg value="--match=''"/>
@@ -51,5 +53,45 @@
         </condition>
         <echo level="warning" if:true="${is-dirty}">Repository state is dirty</echo>
         <echo level="warning" if:true="${is-dirty}">${git.diffstat}</echo>
+    </target>
+
+    <!--
+    Retrieves the configured name of the Apache Cassandra repository in Git, unless it is provided by user in the apache.repo.name property.
+    This is needed to find the diff between the HEAD and the upstream base branch.
+    -->
+    <target name="-get-cassandra-repo-name" unless="apache.repo.name" depends="-git-init">
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="remote"/>
+            <arg value="-v"/>
+            <redirector outputproperty="apache.repo.name">
+                <outputfilterchain>
+                    <linecontainsregexp regexp=".*apache\/cassandra\.git.*\(fetch\).*"/>
+                    <replaceregex pattern="(\S+)\s.*apache\/cassandra\.git.*\(fetch\).*" replace="\1"/>
+                </outputfilterchain>
+            </redirector>
+        </exec>
+        <echo message="apache.repo.name=${apache.repo.name}"/>
+    </target>
+
+    <!--
+    Checks whether the project dependencies were modified between HEAD and the upstream base branch. If so, dependencies-modified property is set to true; otherwise it is left unset.
+    -->
+    <target name="-check-if-dependencies-modified" depends="-git-init,-get-cassandra-repo-name">
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="diff"/>
+            <arg value="--name-only"/>
+            <arg value="--no-renames"/>
+            <arg value="--ignore-all-space"/>
+            <arg value="--merge-base"/>
+            <arg value="${apache.repo.name}/trunk"/>
+            <arg value="${build.helpers.dir}/cassandra-deps-template.xml"/>
+            <arg value="${build.helpers.dir}/parent-pom-template.xml"/>
+            <redirector outputproperty="git-diff-poms-output"/>
+        </exec>
+        <condition property="dependencies-modified" else="true">
+            <equals arg1="${git-diff-poms-output}" arg2=""/>
+        </condition>
+
+        <echo message="dependencies-modified=${dependencies-modified}"/>
     </target>
 </project>
