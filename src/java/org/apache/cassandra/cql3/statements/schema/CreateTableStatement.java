@@ -34,7 +34,6 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Keyspace;
@@ -424,22 +423,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
             // that's the case, add it but with a specific EmptyType so we can recognize that case later
             builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
         }
-    }
-
-    @Override
-    public Set<String> clientWarnings(KeyspacesDiff diff)
-    {
-        // this threshold is deprecated, it will be replaced by the guardrail used in #validate(ClientState)
-        int tableCount = Schema.instance.getNumberOfTables();
-        if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
-        {
-            String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
-                                       tableCount,
-                                       Schema.instance.getKeyspaces().size());
-            logger.warn(msg);
-            return ImmutableSet.of(msg);
-        }
-        return ImmutableSet.of();
     }
 
     private static class DefaultNames

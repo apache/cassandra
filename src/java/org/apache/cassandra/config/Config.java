@@ -841,18 +841,15 @@ public class Config
         isClientMode = clientMode;
     }
 
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public volatile int table_count_warn_threshold = 150;
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public volatile int keyspace_count_warn_threshold = 40;
-
     public volatile int consecutive_message_errors_threshold = 1;
 
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
+    @Replaces(oldName = "keyspace_count_warn_threshold", converter = Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int keyspaces_warn_threshold = -1;
     public volatile int keyspaces_fail_threshold = -1;
+    @Replaces(oldName = "table_count_warn_threshold", converter = Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int tables_warn_threshold = -1;
     public volatile int tables_fail_threshold = -1;
     public volatile int columns_per_table_warn_threshold = -1;

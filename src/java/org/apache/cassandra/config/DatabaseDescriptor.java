@@ -4160,30 +4160,6 @@ public class DatabaseDescriptor
         conf.auto_optimise_preview_repair_streams = enabled;
     }
 
-    @Deprecated
-    public static int tableCountWarnThreshold()
-    {
-        return conf.table_count_warn_threshold;
-    }
-
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public static void setTableCountWarnThreshold(int value)
-    {
-        conf.table_count_warn_threshold = value;
-    }
-
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public static int keyspaceCountWarnThreshold()
-    {
-        return conf.keyspace_count_warn_threshold;
-    }
-
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public static void setKeyspaceCountWarnThreshold(int value)
-    {
-        conf.keyspace_count_warn_threshold = value;
-    }
-
     @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public static ConsistencyLevel getAuthWriteConsistencyLevel()
     {

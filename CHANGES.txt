@@ -1,4 +1,6 @@
 5.0
+ * Disable the deprecated keyspace/table thresholds and convert them to guardrails (CASSANDRA-18617)
+ * Deprecate CloudstackSnitch and remove duplicate code in snitches (CASSANDRA-18438)
  * Add support for vectors in UDFs (CASSANDRA-18613)
  * Improve vector value validation errors (CASSANDRA-18652)
  * Upgrade Guava to 32.0.1 (CASSANDRA-18645)
@@ -166,6 +168,7 @@ Merged from 4.0:
  * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
 Merged from 3.11:
+ * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
  * Fix CAST function for float to decimal (CASSANDRA-18647)
  * Suppress CVE-2022-45688 (CASSANDRA-18643)
  * Remove unrepaired SSTables from garbage collection when only_purge_repaired_tombstones is true (CASSANDRA-14204)
