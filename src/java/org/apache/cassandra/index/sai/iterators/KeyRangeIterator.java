@@ -18,10 +18,10 @@
 package org.apache.cassandra.index.sai.iterators;
 
 import java.io.Closeable;
-import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
@@ -29,6 +29,8 @@ import org.apache.cassandra.utils.AbstractGuavaIterator;
 /**
  * An abstract implementation of {@link AbstractGuavaIterator} that supports the building and management of
  * concatanation, union and intersection iterators.
+ *
+ * Only certain methods are designed to be overriden.  The others are marked private or final.
  */
 public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey> implements Closeable
 {
@@ -81,7 +83,8 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
      *
      * @param nextKey value to skip the iterator forward until matching
      *
-     * @return The next current key after the skip was performed
+     * @return The key skipped to, which will be the key returned by the
+     * next call to {@link #next()}, i.e., we are "peeking" at the next key as part of the skip.
      */
     public final PrimaryKey skipTo(PrimaryKey nextKey)
     {
@@ -106,14 +109,22 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         return recomputeNext();
     }
 
+    /**
+     * Skip to nextKey.
+     *
+     * That is, implementations should set up the iterator state such that
+     * calling computeNext() will return nextKey if present,
+     * or the first one after it if not present.
+     */
     protected abstract void performSkipTo(PrimaryKey nextKey);
 
-    protected PrimaryKey recomputeNext()
+    private PrimaryKey recomputeNext()
     {
         return tryToComputeNext() ? peek() : endOfData();
     }
 
-    protected boolean tryToComputeNext()
+    @Override
+    protected final boolean tryToComputeNext()
     {
         boolean hasNext = super.tryToComputeNext();
         current = hasNext ? next : getMaximum();
@@ -159,9 +170,9 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
             return statistics.count;
         }
 
-        public Builder add(List<KeyRangeIterator> ranges)
+        public Builder add(Iterable<KeyRangeIterator> ranges)
         {
-            if (ranges == null || ranges.isEmpty())
+            if (ranges == null || Iterables.isEmpty(ranges))
                 return this;
 
             ranges.forEach(this::add);
