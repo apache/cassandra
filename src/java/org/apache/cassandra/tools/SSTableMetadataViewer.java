@@ -83,6 +83,7 @@ public class SSTableMetadataViewer
     private static final String GCGS_KEY = "g";
     private static final String TIMESTAMP_UNIT = "t";
     private static final String SCAN = "s";
+    private static final String HELP = "h";
     private static final Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
 
     static
@@ -516,6 +517,10 @@ public class SSTableMetadataViewer
         Option tsUnit = new Option(TIMESTAMP_UNIT, "timestamp_unit", true, "Time unit that cell timestamps are written with");
         tsUnit.setOptionalArg(true);
         options.addOption(tsUnit);
+
+        Option help = new Option(HELP, "help", false, "Help");
+        help.setOptionalArg(true);
+        options.addOption(help);
 
         Option scanEnabled = new Option(SCAN, "scan", false,
                 "Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false");
