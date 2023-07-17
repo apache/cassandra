@@ -16,8 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.security;
 
+import java.util.Map;
 import javax.crypto.Cipher;
 
 import org.slf4j.Logger;
@@ -26,15 +27,18 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.StartupException;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 
-public class AmazonCorrettoCryptoProviderImpl implements ICryptoProvider
+public class DefaultCryptoProvider implements ICryptoProvider
 {
-    private static final Logger logger = LoggerFactory.getLogger(AmazonCorrettoCryptoProviderImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(DefaultCryptoProvider.class);
+
+    public DefaultCryptoProvider(Map<String, String> args) {}
     @Override
     public void installProvider() throws StartupException
     {
         try
         {
             AmazonCorrettoCryptoProvider.install();
+            AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
         }
         catch(Exception e)
         {
@@ -45,13 +49,19 @@ public class AmazonCorrettoCryptoProviderImpl implements ICryptoProvider
     @Override
     public void checkProvider() throws Exception
     {
-        try {
-            if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(AmazonCorrettoCryptoProvider.PROVIDER_NAME)) {
+        try
+        {
+            if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(AmazonCorrettoCryptoProvider.PROVIDER_NAME))
+            {
                 AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
-            } else {
-                logger.warn("ACCP is not the highest priority provider");
             }
-        } catch (Exception e) {
+            else
+            {
+                logger.warn("{} is not the highest priority provider", AmazonCorrettoCryptoProvider.class.getName());
+            }
+        }
+        catch (Exception e)
+        {
             logger.warn("Corretto Crypto Provider Error", e);
         }
     }

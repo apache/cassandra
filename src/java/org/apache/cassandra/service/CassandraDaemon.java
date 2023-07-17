@@ -259,8 +259,6 @@ public class CassandraDaemon
 
         CommitLog.instance.start();
 
-        installCryptoProvider();
-
         runStartupChecks();
 
         try
@@ -488,18 +486,6 @@ public class CassandraDaemon
         PaxosState.startAutoRepairs();
 
         completeSetup();
-    }
-
-    public void installCryptoProvider()
-    {
-        try
-        {
-            DatabaseDescriptor.getCryptoProvider().installProvider();
-        }
-        catch (StartupException e)
-        {
-            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
-        }
     }
 
     public void runStartupChecks()

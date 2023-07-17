@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.security;
 
 import org.apache.cassandra.exceptions.StartupException;
 
