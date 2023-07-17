@@ -29,6 +29,8 @@ import org.apache.cassandra.utils.AbstractGuavaIterator;
 /**
  * An abstract implementation of {@link AbstractGuavaIterator} that supports the building and management of
  * concatanation, union and intersection iterators.
+ *
+ * Only certain methods are designed to be overriden.  The others are marked private or final.
  */
 public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey> implements Closeable
 {
