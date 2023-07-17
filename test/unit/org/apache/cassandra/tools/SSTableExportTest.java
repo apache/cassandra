@@ -58,7 +58,6 @@ public class SSTableExportTest extends OfflineToolUtils
         // If you added, modified options or help, please update docs if necessary
         ToolResult tool = ToolRunner.invokeClass(SSTableExport.class);
         String help = "usage: sstabledump <sstable file path> <options>\n" +
-                       "                   \n" +
                        "Dump contents of given SSTable to standard output in JSON format.\n" +
                        " -d         CQL row per line internal representation\n" +
                        " -e         enumerate partition keys only\n" +

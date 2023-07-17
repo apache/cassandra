@@ -1,4 +1,5 @@
 5.0
+ * Upgrade commons cli to 1.5.0 (CASSANDRA-18659)
  * Disable the deprecated keyspace/table thresholds and convert them to guardrails (CASSANDRA-18617)
  * Deprecate CloudstackSnitch and remove duplicate code in snitches (CASSANDRA-18438)
  * Add support for vectors in UDFs (CASSANDRA-18613)
