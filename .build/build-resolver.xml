@@ -128,12 +128,6 @@
             </dependencies>
             <path refid="jflex.classpath" classpath="runtime"/>
         </resolve>
-        <resolve>
-            <dependencies>
-                <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="${checkstyle.version}" />
-            </dependencies>
-            <path refid="checkstyle.classpath" classpath="runtime"/>
-        </resolve>
 
         <macrodef name="install">
             <attribute name="pomFile"/>
