@@ -1805,6 +1805,7 @@
               <include name="**/TEST*.xml"/>
               <include name="**/cqlshlib.xml"/>
               <include name="**/nosetests.xml"/>
+              <include name="**/dependency-check-junit.xml"/>
           </fileset>
           <!-- FIXME this can easily OOM, need a workaround-->
           <report todir="${build.test.dir}/html" />

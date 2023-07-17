@@ -2855,7 +2855,8 @@ commands:
     - run:
         name: Clone Cassandra Repository (via git)
         command: |
-          git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+          git clone --single-branch --depth 100 --branch $CIRCLE_BRANCH https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+          (cd ~/cassandra && git remote add apache https://github.com/apache/cassandra.git && git fetch apache trunk --no-tags --depth 100)
 
   clone_dtest:
     steps:

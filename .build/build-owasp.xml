@@ -16,10 +16,14 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<project basedir="." name="apache-cassandra-owasp-tasks">
+<project basedir="." name="apache-cassandra-owasp-tasks"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
     <property name="dependency-check.version" value="8.3.1"/>
-    <property name="dependency-check.home.base" value="${build.dir}"/>
+    <property name="dependency-check.home.base" value="${user.home}/.cache/cassandra-build"/>
     <property name="dependency-check.home" value="${dependency-check.home.base}/dependency-check-ant-${dependency-check.version}"/>
+    <property name="owasp.report.dir" value="${build.dir}/owasp"/>
+    <property name="owasp.data.dir" value="${dependency-check.home.base}/owasp"/>
 
     <condition property="is.dependency.check.jar">
         <available file="${dependency-check.home}/dependency-check-ant/dependency-check-ant.jar" type="file" />
@@ -70,19 +74,44 @@
             (2) https://nvd.nist.gov/vuln-metrics/cvss
         -->
         <dependency-check projectname="Apache Cassandra"
-                          reportoutputdirectory="${basedir}/build"
-                          reportformat="HTML"
+                          reportoutputdirectory="${build.dir}/owasp"
+                          reportformat="ALL"
                           prettyPrint="true"
                           cveValidForHours="1"
-                          centralAnalyzerUseCache="false"
-                          nodeAuditAnalyzerUseCache="false"
+                          centralAnalyzerUseCache="true"
+                          nodeAuditAnalyzerUseCache="true"
                           failBuildOnCVSS="1"
                           assemblyAnalyzerEnabled="false"
-                          dataDirectory="${dependency-check.home}/data"
-                          suppressionFile="${basedir}/.build/dependency-check-suppressions.xml">
+                          dataDirectory="${owasp.data.dir}"
+                          suppressionFile="${build.helpers.dir}/dependency-check-suppressions.xml">
             <fileset dir="lib">
                 <include name="**/*.jar"/>
             </fileset>
         </dependency-check>
+
+        <antcall target="-license-report" inheritrefs="true"/>
+    </target>
+
+    <target name="-license-report" depends="init,resolver-dist-lib">
+        <javac includes="**/CheckLicensesTask.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}" classpathref="cassandra.classpath.test">
+            <compilerarg value="-Xlint:-options"/>
+        </javac>
+        <path id="license-check.path">
+            <path refid="cassandra.classpath.test" />
+            <pathelement location="${test.classes}"/>
+            <fileset dir="${test.lib}">
+                <include name="**/*.jar" />
+            </fileset>
+        </path>
+        <taskdef name="CheckLicenses" classname="org.apache.cassandra.anttasks.CheckLicensesTask" classpathref="license-check.path"/>
+        <CheckLicenses allowedlicensespath="${build.helpers.dir}/allowed-licenses.properties"
+                       licenseoverridespath="${build.helpers.dir}/license-overrides.properties"
+                       dependencycheckreportpath="${owasp.report.dir}/dependency-check-report.json"
+                       outputproperty="license-check-failed" />
+        <fail if="license-check-failed" message="License check failed - see the messages above for details. If a license is missing or wrongly recognized for some artifacts, add overrides to ${build.helpers.dir}/license-overrides.properties. If you want to approve new licenses, adjust ${build.helpers.dir}/allowed-licenses.txt."/>
+    </target>
+
+    <target name="maybe-dependency-check" depends="init,-check-if-dependencies-modified" unless="no-dependency-check">
+        <antcall target="dependency-check" inheritrefs="true" if:true="${dependencies-modified}"/>
     </target>
 </project>
