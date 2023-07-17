@@ -150,6 +150,7 @@ public class SSTablePartitionsTest extends OfflineToolUtils
                              "                                detailed row/cell/tombstone information\n" +
                              "                                (irrelevant, if --partitions-only is\n" +
                              "                                given)\n" +
+                             " -y,--partitions-only           Do not process per-partition detailed\n" +
                              "                                row/cell/tombstone information, only brief\n" +
                              "                                information\n");
     }
