@@ -82,7 +82,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
      * @param nextKey value to skip the iterator forward until matching
      *
      * @return The key skipped to, which will be the key returned by the
-     * next call to `next()`, i.e., we are "peeking" at the next key as part of the skip.
+     * next call to {@link #next()}, i.e., we are "peeking" at the next key as part of the skip.
      */
     public final PrimaryKey skipTo(PrimaryKey nextKey)
     {
