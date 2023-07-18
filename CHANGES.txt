@@ -1,3 +1,9 @@
+4.0.12
+Merged from 3.11:
+ * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
+Merged from 3.0:
+
+
 4.0.11
  * Revert CASSANDRA-16718 (CASSANDRA-18560)
  * Upgrade snappy to 1.1.10.1 (CASSANDRA-18608)
@@ -6,7 +12,6 @@
  * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
 Merged from 3.11:
- * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
  * Fix CAST function for float to decimal (CASSANDRA-18647)
  * Suppress CVE-2022-45688 (CASSANDRA-18643)
  * Remove unrepaired SSTables from garbage collection when only_purge_repaired_tombstones is true (CASSANDRA-14204)
