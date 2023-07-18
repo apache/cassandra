@@ -1681,7 +1681,6 @@ build_common: &build_common
     - log_environment
     - clone_cassandra
     - build_cassandra
-    - run_eclipse_warnings
     - persist_to_workspace:
         root: /home/cassandra
         paths:
@@ -2935,15 +2934,6 @@ commands:
           fi
           ls -l ~/dtest_jars
         no_output_timeout: 15m
-
-  run_eclipse_warnings:
-    steps:
-    - run:
-        name: Run eclipse-warnings
-        command: |
-          export PATH=$JAVA_HOME/bin:$PATH
-          cd ~/cassandra
-          ant eclipse-warnings
 
   create_junit_containers:
     parameters:

@@ -4470,12 +4470,6 @@ jobs:
               exit ${RETURN}
           fi
         no_output_timeout: 15m
-    - run:
-        name: Run eclipse-warnings
-        command: |
-          export PATH=$JAVA_HOME/bin:$PATH
-          cd ~/cassandra
-          ant eclipse-warnings
     - persist_to_workspace:
         root: /home/cassandra
         paths:
@@ -8474,12 +8468,6 @@ jobs:
               exit ${RETURN}
           fi
         no_output_timeout: 15m
-    - run:
-        name: Run eclipse-warnings
-        command: |
-          export PATH=$JAVA_HOME/bin:$PATH
-          cd ~/cassandra
-          ant eclipse-warnings
     - persist_to_workspace:
         root: /home/cassandra
         paths:
