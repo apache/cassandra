@@ -19,9 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.*;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -30,7 +30,7 @@ import org.apache.cassandra.tools.nodetool.stats.*;
 @Command(name = "tablestats", description = "Print statistics on tables")
 public class TableStats extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace.table>...]", description = "List of tables (or keyspace) names")
+    @Arguments(title = "[<keyspace.table>...]", description = "List of tables (or keyspace) names")
     private List<String> tableNames = new ArrayList<>();
 
     @Option(name = "-i", description = "Ignore the list of tables and display the remaining tables")

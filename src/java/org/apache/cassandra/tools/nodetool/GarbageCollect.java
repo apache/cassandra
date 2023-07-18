@@ -17,26 +17,27 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.rvesse.airline.annotations.restrictions.AllowedRawValues;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
 public class GarbageCollect extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "granularity",
         name = {"-g", "--granularity"},
-        allowedValues = {"ROW", "CELL"},
         description = "Granularity of garbage removal. ROW (default) removes deleted partitions and rows, CELL also removes overwritten or deleted cells.")
+    @AllowedRawValues(allowedValues = {"ROW", "CELL"})
     private String tombstoneOption = "ROW";
 
     @Option(title = "jobs",

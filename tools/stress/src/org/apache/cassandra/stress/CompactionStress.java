@@ -36,11 +36,13 @@ import javax.inject.Inject;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.Cli;
+import com.github.rvesse.airline.HelpOption;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.restrictions.Required;
+import com.github.rvesse.airline.builder.CliBuilder;
+import com.github.rvesse.airline.help.Help;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -78,10 +80,12 @@ public abstract class CompactionStress implements Runnable
     @Inject
     public HelpOption helpOption;
 
-    @Option(name = { "-p", "--profile" }, description = "Path to stress yaml file", required = true)
+    @Option(name = { "-p", "--profile" }, description = "Path to stress yaml file")
+    @Required
     String profile;
 
-    @Option(name = { "-d", "--datadir" }, description = "Data directory (can be used many times to specify multiple data dirs)", required = true)
+    @Option(name = { "-d", "--datadir" }, description = "Data directory (can be used many times to specify multiple data dirs)")
+    @Required
     List<String> dataDirs;
 
     @Option(name = {"-v", "--vnodes"}, description = "number of local tokens to generate (default 256)")
@@ -284,7 +288,8 @@ public abstract class CompactionStress implements Runnable
     {
         private static double BYTES_IN_GIB = 1024 * 1014 * 1024;
 
-        @Option(name = { "-g", "--gbsize"}, description = "Total GB size on disk you wish to write", required = true)
+        @Option(name = { "-g", "--gbsize"}, description = "Total GB size on disk you wish to write")
+        @Required
         Integer totalSizeGiB;
 
         @Option(name = { "-t", "--threads" }, description = "Number of sstable writer threads (default 2)")
@@ -356,10 +361,10 @@ public abstract class CompactionStress implements Runnable
 
     public static void main(String[] args)
     {
-        Cli.CliBuilder<Runnable> builder = Cli.<Runnable>builder("compaction-stress")
-                                           .withDescription("benchmark for compaction")
-                                           .withDefaultCommand(Help.class)
-                                           .withCommands(Help.class, DataWriter.class, Compaction.class);
+        CliBuilder<Runnable> builder = Cli.<Runnable>builder("compaction-stress")
+                                          .withDescription("benchmark for compaction")
+                                          .withDefaultCommand(Help.class)
+                                          .withCommands(Help.class, DataWriter.class, Compaction.class);
 
         Cli<Runnable> stress = builder.build();
 

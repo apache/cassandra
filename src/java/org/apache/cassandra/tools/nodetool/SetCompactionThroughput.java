@@ -17,16 +17,18 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "setcompactionthroughput", description = "Set the MiB/s throughput cap for compaction in the system, or 0 to disable throttling")
 public class SetCompactionThroughput extends NodeToolCmd
 {
-    @Arguments(title = "compaction_throughput", usage = "<value_in_mb>", description = "Value in MiB, 0 to disable throttling", required = true)
+    @Arguments(title = "compaction_throughput", description = "Value in MiB, 0 to disable throttling")
+    @Required
     private Integer compactionThroughput = null;
 
     @Override

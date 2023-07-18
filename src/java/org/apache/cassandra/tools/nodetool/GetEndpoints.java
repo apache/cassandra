@@ -18,8 +18,8 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "getendpoints", description = "Print the end points that owns the key")
 public class GetEndpoints extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
+    @Arguments(title = "<keyspace> <table> <key>", description = "The keyspace, the table, and the partition key for which we need to find the endpoint")
     private List<String> args = new ArrayList<>();
 
     @Override

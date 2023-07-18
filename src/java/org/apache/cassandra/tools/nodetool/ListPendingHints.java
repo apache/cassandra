@@ -26,7 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.hints.PendingHintsInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.InetAddressAndPort;

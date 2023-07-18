@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -27,7 +28,8 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class SetInterDCStreamThroughput extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Arguments(title = "inter_dc_stream_throughput", usage = "<value_in_mb>", description = "Value in megabits, 0 to disable throttling", required = true)
+    @Arguments(title = "inter_dc_stream_throughput", description = "Value in megabits, 0 to disable throttling")
+    @Required
     private int interDCStreamThroughput;
 
     @SuppressWarnings("UnusedDeclaration")

@@ -62,12 +62,13 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.Cli;
+import com.github.rvesse.airline.HelpOption;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.builder.CliBuilder;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.help.Help;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.utils.JsonUtils;
@@ -108,7 +109,7 @@ public class JMXTool
     };
 
     @Command(name = "dump", description = "Dump the Apache Cassandra JMX objects and metadata.")
-    public static final class Dump implements Callable<Void>
+    public static final class Dump implements Runnable, Callable<Void>
     {
         @Inject
         private HelpOption helpOption;
@@ -124,6 +125,19 @@ public class JMXTool
             Map<String, Info> map = load(new JMXServiceURL(targetUrl));
             format.dump(System.out, map);
             return null;
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                call();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         public enum Format
@@ -188,12 +202,12 @@ public class JMXTool
     }
 
     @Command(name = "diff", description = "Diff two jmx dump files and report their differences")
-    public static final class Diff implements Callable<Void>
+    public static final class Diff implements Runnable, Callable<Void>
     {
         @Inject
         private HelpOption helpOption;
 
-        @Arguments(title = "files", usage = "<left> <right>", description = "Files to diff")
+        @Arguments(title = "files", description = "Files to diff")
         private List<File> files;
 
         @Option(title = "format", name = { "-f", "--format" }, description = "What format the files are in; only support json and yaml as format")
@@ -237,6 +251,19 @@ public class JMXTool
 
             diff(left, right);
             return null;
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                call();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         private void diff(Map<String, Info> left, Map<String, Info> right)
@@ -853,12 +880,12 @@ public class JMXTool
 
     public static void main(String[] args) throws Exception
     {
-        Cli.CliBuilder<Callable<Void>> builder = Cli.builder("jmxtool");
-        builder.withDefaultCommand(Help.class);
-        builder.withCommands(Help.class, Dump.class, Diff.class);
+        CliBuilder<Runnable> builder = Cli.<Runnable>builder("jmxtool")
+                                          .withDefaultCommand(Help.class)
+                                          .withCommand(Help.class)
+                                          .withCommands(Dump.class, Diff.class);
 
-        Cli<Callable<Void>> parser = builder.build();
-        Callable<Void> command = parser.parse(args);
-        command.call();
+        Cli<Runnable> parser = builder.build();
+        parser.parse(args).run();
     }
 }

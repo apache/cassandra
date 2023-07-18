@@ -29,9 +29,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.repair.consistent.LocalSessionInfo;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStats;
@@ -104,7 +105,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
         @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
-        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
 
         protected void execute(NodeProbe probe)
@@ -163,7 +164,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
         @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
-        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
 
         protected void execute(NodeProbe probe)
@@ -227,7 +228,7 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
         @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
         private String endToken = StringUtils.EMPTY;
 
-        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
 
         protected void execute(NodeProbe probe)
@@ -278,7 +279,8 @@ public abstract class RepairAdmin extends NodeTool.NodeToolCmd
         @Option(title = "force", name = {"-f", "--force"}, description = "Force a cancellation.")
         private boolean force = false;
 
-        @Option(title = "session", name = {"-s", "--session"}, description = "The session to cancel", required = true)
+        @Option(title = "session", name = {"-s", "--session"}, description = "The session to cancel")
+        @Required
         private String sessionToCancel;
 
         protected void execute(NodeProbe probe)

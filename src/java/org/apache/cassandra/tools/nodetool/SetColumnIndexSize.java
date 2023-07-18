@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -27,7 +28,8 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class SetColumnIndexSize extends NodeToolCmd
 {
     @SuppressWarnings("UnusedDeclaration")
-    @Arguments(title = "column_index_size", usage = "<value_in_kib>", description = "Value in KiB", required = true)
+    @Arguments(title = "column_index_size", description = "Value in KiB")
+    @Required
     private int columnIndexSizeInKiB;
 
     @Override

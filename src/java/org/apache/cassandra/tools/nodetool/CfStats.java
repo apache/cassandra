@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 
 /**
  * @deprecated use TableStats

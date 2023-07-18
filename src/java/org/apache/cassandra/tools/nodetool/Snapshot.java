@@ -24,9 +24,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.NodeProbe;
@@ -39,7 +39,7 @@ import static org.apache.commons.lang3.StringUtils.join;
 @Command(name = "snapshot", description = "Take a snapshot of specified keyspaces or a snapshot of the specified table")
 public class Snapshot extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspaces...>]", description = "List of keyspaces. By default, all keyspaces")
+    @Arguments(title = "[<keyspaces...>]", description = "List of keyspaces. By default, all keyspaces")
     private List<String> keyspaces = new ArrayList<>();
 
     @Option(title = "table", name = {"-cf", "--column-family", "--table"}, description = "The table name (you must specify one and only one keyspace for using this option)")

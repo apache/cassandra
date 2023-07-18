@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "verify", description = "Verify (check data checksum for) one or more tables")
 public class Verify extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "extended_verify",

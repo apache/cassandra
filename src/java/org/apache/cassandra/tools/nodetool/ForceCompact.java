@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +32,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "forcecompact", description = "Force a (major) compaction on a table")
 public class ForceCompact extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <table> <keys>]", description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
+    @Arguments(title = "[<keyspace> <table> <keys>]", description = "The keyspace, table, and a list of partition keys ignoring the gc_grace_seconds")
     private List<String> args = new ArrayList<>();
 
     @Override

@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -31,9 +32,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "settimeout", description = "Set the specified timeout in ms, or 0 to disable timeout")
 public class SetTimeout extends NodeToolCmd
 {
-    @Arguments(usage = "<timeout_type> <timeout_in_ms>", description = "Timeout type followed by value in ms " +
-            "(0 disables socket streaming timeout). Type should be one of (" + GetTimeout.TIMEOUT_TYPES + ")",
-            required = true)
+    @Arguments(title = "<timeout_type> <timeout_in_ms>", description = "Timeout type followed by value in ms " +
+            "(0 disables socket streaming timeout). Type should be one of (" + GetTimeout.TIMEOUT_TYPES + ")")
+    @Required
     private List<String> args = new ArrayList<>();
 
     @Override

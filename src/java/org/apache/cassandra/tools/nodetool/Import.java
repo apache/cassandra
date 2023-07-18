@@ -19,10 +19,10 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "import", description = "Import new SSTables to the system")
 public class Import extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> <directory> ...", description = "The keyspace, table name and directories to import sstables from")
+    @Arguments(title = "<keyspace> <table> <directory> ...", description = "The keyspace, table name and directories to import sstables from")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "keep_level",

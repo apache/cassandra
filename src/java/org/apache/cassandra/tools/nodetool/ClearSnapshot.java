@@ -20,9 +20,9 @@ package org.apache.cassandra.tools.nodetool;
 import static com.google.common.collect.Iterables.toArray;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -39,7 +39,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "clearsnapshot", description = "Remove the snapshot with the given name from the given keyspaces")
 public class ClearSnapshot extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspaces>...] ", description = "Remove snapshots from the given keyspaces")
+    @Arguments(title = "[<keyspaces>...] ", description = "Remove snapshots from the given keyspaces")
     private List<String> keyspaces = new ArrayList<>();
 
     @Option(title = "snapshot_name", name = "-t", description = "Remove the snapshot with a given name")

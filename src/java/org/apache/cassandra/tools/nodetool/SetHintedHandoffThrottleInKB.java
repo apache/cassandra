@@ -17,16 +17,18 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "sethintedhandoffthrottlekb", description =  "Set hinted handoff throttle in KiB per second, per delivery thread.")
 public class SetHintedHandoffThrottleInKB extends NodeToolCmd
 {
-    @Arguments(title = "throttle_in_kb", usage = "<value_in_kb_per_sec>", description = "Value in KiB per second", required = true)
+    @Arguments(title = "throttle_in_kb", description = "Value in KiB per second")
+    @Required
     private Integer throttleInKB = null;
 
     @Override

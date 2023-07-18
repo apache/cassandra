@@ -19,8 +19,8 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ import org.apache.commons.lang3.ArrayUtils;
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
 public class TableHistograms extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace and table name")
+    @Arguments(title = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace and table name")
     private List<String> args = new ArrayList<>();
 
     @Override

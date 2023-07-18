@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +33,7 @@ public class GetTimeout extends NodeToolCmd
 {
     public static final String TIMEOUT_TYPES = "read, range, write, counterwrite, cascontention, truncate, internodeconnect, internodeuser, internodestreaminguser, misc (general rpc_timeout_in_ms)";
 
-    @Arguments(usage = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
+    @Arguments(title = "<timeout_type>", description = "The timeout type, one of (" + TIMEOUT_TYPES + ")")
     private List<String> args = new ArrayList<>();
 
     @Override

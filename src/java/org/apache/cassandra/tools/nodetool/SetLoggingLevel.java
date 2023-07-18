@@ -18,8 +18,8 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,7 +33,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "setlogginglevel", description = "Set the log level threshold for a given component or class. Will reset to the initial configuration if called with no parameters.")
 public class SetLoggingLevel extends NodeToolCmd
 {
-    @Arguments(usage = "<component|class> <level>", description = "The component or class to change the level for and the log level threshold to set. Will reset to initial level if omitted. "
+    @Arguments(title = "<component|class> <level>", description = "The component or class to change the level for and the log level threshold to set. Will reset to initial level if omitted. "
         + "Available components:  bootstrap, compaction, repair, streaming, cql, ring")
     private List<String> args = new ArrayList<>();
 

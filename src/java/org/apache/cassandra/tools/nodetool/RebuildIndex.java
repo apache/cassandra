@@ -19,8 +19,8 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.toArray;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "rebuild_index", description = "A full rebuild of native secondary indexes for a given table")
 public class RebuildIndex extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> <indexName...>", description = "The keyspace and table name followed by a list of index names")
+    @Arguments(title = "<keyspace> <table> <indexName...>", description = "The keyspace and table name followed by a list of index names")
     List<String> args = new ArrayList<>();
 
     @Override

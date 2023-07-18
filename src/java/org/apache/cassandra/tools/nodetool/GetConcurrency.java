@@ -21,8 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -30,7 +30,6 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class GetConcurrency extends NodeToolCmd
 {
     @Arguments(title = "[stage-names]",
-    usage = "[stage-names]",
     description = "optional list of stage names, otherwise display all stages")
     private List<String> args = new ArrayList<>();
 

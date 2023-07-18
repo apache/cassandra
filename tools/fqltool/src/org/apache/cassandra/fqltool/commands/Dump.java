@@ -28,9 +28,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.bytes.Bytes;
 import net.openhft.chronicle.core.io.IORuntimeException;
@@ -55,7 +56,8 @@ public class Dump implements Runnable
 {
     static final char[] HEXI_DECIMAL = "0123456789ABCDEF".toCharArray();
 
-    @Arguments(usage = "<path1> [<path2>...<pathN>]", description = "Path containing the full query logs to dump.", required = true)
+    @Arguments(title = "<path1> [<path2>...<pathN>]", description = "Path containing the full query logs to dump.")
+    @Required
     private List<String> arguments = new ArrayList<>();
 
     @Option(title = "roll_cycle", name = {"--roll-cycle"}, description = "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY.")

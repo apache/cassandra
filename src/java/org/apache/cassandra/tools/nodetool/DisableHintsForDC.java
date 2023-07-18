@@ -20,8 +20,8 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
@@ -30,7 +30,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "disablehintsfordc", description = "Disable hints for a data center")
 public class DisableHintsForDC extends NodeTool.NodeToolCmd
 {
-    @Arguments(usage = "<datacenter>", description = "The data center to disable")
+    @Arguments(title = "<datacenter>", description = "The data center to disable")
     private List<String> args = new ArrayList<>();
 
     public void execute(NodeProbe probe)
