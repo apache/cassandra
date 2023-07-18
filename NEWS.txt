@@ -71,6 +71,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new secondary index implementation, Storage-Attached Indexes (SAI). Overview documentation and a basic
+      tutorial can be found at src/java/org/apache/cassandra/index/sai/README.md.
     - *Experimental* support for Java 17 has been added. JVM options that differ between or are
       specific for Java 17 have been added into jvm17.options.
       IMPORTANT: Running C* on Java 17 is *experimental* and do it at your own risk.

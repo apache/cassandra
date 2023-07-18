@@ -19,24 +19,25 @@
 # Storage-Attached Indexing
 
 ## Overview
-Storage-attached indexing is a column based secondary indexing apparatus for Cassandra.
+Storage-attached indexing is a column based local secondary index implementation for Cassandra.
 
 The project was inspired by SASI (SSTable-Attached Secondary Indexes) and retains some of its high-level
 architectural character (and even some actual code), but makes significant improvements in a number of areas:
 
 - The on-disk/SSTable index formats for both string and numeric data have been completely replaced. Strings are indexed
-  on disk using our proprietary on-disk byte-ordered trie data structure, while numeric types are indexed using a 
-  balanced tree.
+  on disk using a byte-ordered trie data structure, while numeric types are indexed using a block-oriented balanced tree.
 - While indexes continue to be managed at the column level from the user's perspective, the storage design at the column
   index level is row-based, with related offset and token information stored only once at the SSTable level. This
   drastically reduces our on-disk footprint when several columns are indexed on the same table.
 - Tracing, metrics, virtual table-based metadata and snapshot-based backup/restore are supported out of the box.
+- On-disk index components can be streamed completely when entire SSTable streaming is enabled.
+- Incremental index building is supported, and on-disk index components are included in snapshots.
 
 Many similarities with standard secondary indexes remain:
 
 - The full set of C* consistency levels is supported for both reads and writes.
 - Index updates are synchronous with mutations and do not require any kind of read-before-write.
-- Queries are implemented on the back of C* range reads.
+- Global queries are implemented on the back of C* range reads.
 - Paging is supported.
 - Only token ordering of results is supported.
 - Index builds are visible to operators as compactions and are executed on compaction threads.
