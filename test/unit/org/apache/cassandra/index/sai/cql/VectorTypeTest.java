@@ -432,6 +432,23 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
+    public void lwtTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (p int, c int, v text, vec vector<float, 2>, PRIMARY KEY(p, c))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (p, c, v) VALUES (?, ?, ?)", 0, 0, "test");
+        execute("INSERT INTO %s (p, c, v) VALUES (?, ?, ?)", 0, 1, "00112233445566");
+
+        execute("UPDATE %s SET v='00112233', vec=[0.9, 0.7] WHERE p = 0 AND c = 0 IF v = 'test'");
+
+        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY vec ANN OF [0.1, 0.9] LIMIT 100");
+
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
     public void twoVectorFieldsTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, v2 vector<float, 2>, v3 vector<float, 3>, PRIMARY KEY(pk))");
