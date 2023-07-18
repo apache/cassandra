@@ -26,9 +26,15 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.DefaultNameFactory;
+import org.apache.cassandra.metrics.MetricNameFactory;
+import org.apache.cassandra.service.throttler.metrics.ThrottlingMetrics;
+
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -53,6 +59,7 @@ public class CassandraResourceUtilization
 
     public ResourcesStats resourcesStats;
     public ThrottlingOptions throttlingOptions;
+    public ThrottlingMetrics throttlingMetrics;
     public volatile long lastThrottlingCheckPointTimeInMS = 0;
     public volatile long lastThrottlingIndicatorTimeInMS = 0;
     public volatile double throttlingPercentageCur = 0.1;
@@ -63,6 +70,7 @@ public class CassandraResourceUtilization
     {
         resourcesStats = new ResourcesStats();
         throttlingOptions = new ThrottlingOptions();
+        throttlingMetrics = new ThrottlingMetrics();
         resourceUtilzation.setup();
         if (continuousHealthCheck)
         {
@@ -143,10 +151,12 @@ public class CassandraResourceUtilization
         {
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
+            throttlingMetrics.needsThrottling.inc();
         }
         else
         {
             shouldThrottle = false;
+            throttlingMetrics.doesNotNeedThrottling.inc();
         }
     }
 
@@ -156,6 +166,7 @@ public class CassandraResourceUtilization
         {
             if (MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.reset_after_no_throttling_seen_in_sec)
             {
+                throttlingMetrics.resetThrottling.inc();
                 logger.info("Reset everything....");
                 // reset everything as the system seems to have recovered
                 lastThrottlingCheckPointTimeInMS = 0;
@@ -169,6 +180,7 @@ public class CassandraResourceUtilization
                 lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
                 if (throttlingPercentageCur < MAX_THROTTLING)
                 {
+                    throttlingMetrics.doubleThrottling.inc();
                     // more aggressive throttling
                     double previous = throttlingPercentageCur;
                     throttlingPercentageCur = Math.min(MAX_THROTTLING, throttlingPercentageCur * 2);
