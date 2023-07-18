@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -46,6 +47,8 @@ public class IndexWriterConfigTest
     @Test
     public void maximumNodeConnectionsTest()
     {
+        CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.setBoolean(true);
+
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "10");
         IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
@@ -70,6 +73,8 @@ public class IndexWriterConfigTest
     @Test
     public void queueSizeTest()
     {
+        CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.setBoolean(true);
+
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "150");
         IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
@@ -94,6 +99,9 @@ public class IndexWriterConfigTest
     @Test
     public void similarityFunctionTest()
     {
+        // Similarity function may be changed even when allow_custom_parameters is false
+        CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.setBoolean(false);
+
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "DOT_PRODUCT");
         IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
