@@ -1849,7 +1849,7 @@
       </java>
   </target>
 
-  <target name="_maybe_update_idea_to_java11plus" depends="init" unless="java.version.11">
+  <target name="_maybe_update_idea_to_java11plus" depends="init">
     <replace file="${eclipse.project.name}.iml" token="JDK_11" value="JDK_${ant.java.version}"/>
     <replace file=".idea/misc.xml" token="JDK_11" value="JDK_${ant.java.version}"/>
     <replace file=".idea/misc.xml" token="11" value="${ant.java.version}"/>
