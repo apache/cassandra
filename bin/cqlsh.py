@@ -2161,7 +2161,7 @@ def read_options(cmdlineargs, environment):
                   "\n  chown YOUR_USERNAME credentials"
                   "\n  chmod 600 credentials\n".format(options.credentials),
                   file=sys.stderr)
-        options.credentials = ''  # ConfigParser.read() will ignore unreadable files
+            options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
     if not options.username:
         credentials = configparser.ConfigParser()

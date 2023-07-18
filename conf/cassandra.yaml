@@ -1424,7 +1424,7 @@ trace_type_repair_ttl: 7d
 # INFO level
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
-user_defined_functions_enabled: false
+user_defined_functions_enabled: True
 
 # Enables scripted UDFs (JavaScript UDFs).
 # Java UDFs are always enabled, if user_defined_functions_enabled is true.
