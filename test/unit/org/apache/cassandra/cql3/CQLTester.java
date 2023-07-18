@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -2119,7 +2118,8 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
-    protected Vector<Float> vector(Float... values)
+    @SafeVarargs
+    protected final <T> Vector<T> vector(T... values)
     {
         return new Vector<>(values);
     }
