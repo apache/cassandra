@@ -84,8 +84,6 @@ public final class VectorType<T> extends AbstractType<List<T>>
     private VectorType(AbstractType<T> elementType, int dimension)
     {
         super(ComparisonType.CUSTOM);
-        if (!(elementType instanceof FloatType))
-            throw new InvalidRequestException(String.format("vectors may only use float. given %s", elementType.asCQL3Type()));
         if (dimension <= 0)
             throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
@@ -333,6 +331,13 @@ public final class VectorType<T> extends AbstractType<List<T>>
         }
     }
 
+    private <V> void checkConsumedFully(V buffer, ValueAccessor<V> accessor, int offset)
+    {
+        int remaining = accessor.sizeFromOffset(buffer, offset);
+        if (remaining > 0)
+            throw new MarshalException("Unexpected " + remaining + " extraneous bytes after " + asCQL3Type() + " value");
+    }
+
     public abstract class VectorSerializer extends TypeSerializer<List<T>>
     {
         public abstract <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR);
@@ -409,8 +414,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 elementSerializer.validate(bb, accessor);
                 result.add(bb);
             }
-            if (!accessor.isEmptyFromOffset(buffer, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
+            checkConsumedFully(buffer, accessor, offset);
 
             return result;
         }
@@ -459,8 +463,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 elementSerializer.validate(bb, accessor);
                 result.add(elementSerializer.deserialize(bb, accessor));
             }
-            if (!accessor.isEmptyFromOffset(input, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
+            checkConsumedFully(input, accessor, offset);
 
             return result;
         }
@@ -483,14 +486,18 @@ public final class VectorType<T> extends AbstractType<List<T>>
         {
             int offset = 0;
             int elementSize = elementType.valueLengthIfFixed();
+
+            int expectedSize = elementSize * dimension;
+            if (accessor.size(input) < expectedSize)
+                throw new MarshalException("Not enough bytes to read a " + asCQL3Type());
+
             for (int i = 0; i < dimension; i++)
             {
                 V bb = accessor.slice(input, offset, elementSize);
                 offset += elementSize;
                 elementSerializer.validate(bb, accessor);
             }
-            if (!accessor.isEmptyFromOffset(input, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
+            checkConsumedFully(input, accessor, offset);
         }
     }
 
@@ -559,8 +566,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 elementSerializer.validate(bb, accessor);
                 result.add(bb);
             }
-            if (!accessor.isEmptyFromOffset(buffer, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
+            checkConsumedFully(buffer, accessor, offset);
 
             return result;
         }
@@ -606,8 +612,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 elementSerializer.validate(bb, accessor);
                 result.add(elementSerializer.deserialize(bb, accessor));
             }
-            if (!accessor.isEmptyFromOffset(input, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
+            checkConsumedFully(input, accessor, offset);
 
             return result;
         }
@@ -623,12 +628,14 @@ public final class VectorType<T> extends AbstractType<List<T>>
             int offset = 0;
             for (int i = 0; i < dimension; i++)
             {
+                if (offset >= accessor.size(input))
+                    throw new MarshalException("Not enough bytes to read a " + asCQL3Type());
+
                 V bb = readValue(input, accessor, offset);
                 offset += sizeOf(bb, accessor);
                 elementSerializer.validate(bb, accessor);
             }
-            if (!accessor.isEmptyFromOffset(input, offset))
-                throw new MarshalException("Unexpected extraneous bytes after list value");
+            checkConsumedFully(input, accessor, offset);
         }
     }
 }
