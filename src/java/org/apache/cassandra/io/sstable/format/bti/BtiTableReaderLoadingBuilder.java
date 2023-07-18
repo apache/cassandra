@@ -122,7 +122,7 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
 
             if (builder.getComponents().contains(Components.PARTITION_INDEX))
             {
-                builder.setPartitionIndex(openPartitionIndex(builder.getFilter().isInformative()));
+                builder.setPartitionIndex(openPartitionIndex(!builder.getFilter().isInformative()));
                 if (builder.getFirst() == null || builder.getLast() == null)
                 {
                     builder.setFirst(builder.getPartitionIndex().firstKey());
