@@ -93,14 +93,7 @@ public class VectorMemtableIndex implements MemtableIndex
         if (value == null || value.remaining() == 0)
             return 0;
 
-        if (minimumKey == null)
-            minimumKey = primaryKey;
-        else if (primaryKey.compareTo(minimumKey) < 0)
-            minimumKey = primaryKey;
-        if (maximumKey == null)
-            maximumKey = primaryKey;
-        else if (primaryKey.compareTo(maximumKey) > 0)
-            maximumKey = primaryKey;
+        updateKeyBounds(primaryKey);
 
         writeCount.increment();
         primaryKeys.add(primaryKey);
@@ -129,6 +122,10 @@ public class VectorMemtableIndex implements MemtableIndex
         if (different)
         {
             var primaryKey = indexContext.keyFactory().create(key, clustering);
+            // update bounds because only rows with vectors are included in the key bounds,
+            // so if the vector was null before, we won't have included it
+            updateKeyBounds(primaryKey);
+
             // make the changes in this order so we don't have a window where the row is not in the index at all
             if (newRemaining > 0)
                 graph.add(newValue, primaryKey, FAIL);
@@ -139,6 +136,17 @@ public class VectorMemtableIndex implements MemtableIndex
             if (newRemaining <= 0 && oldRemaining > 0)
                 primaryKeys.remove(primaryKey);
         }
+    }
+
+    private void updateKeyBounds(PrimaryKey primaryKey) {
+        if (minimumKey == null)
+            minimumKey = primaryKey;
+        else if (primaryKey.compareTo(minimumKey) < 0)
+            minimumKey = primaryKey;
+        if (maximumKey == null)
+            maximumKey = primaryKey;
+        else if (primaryKey.compareTo(maximumKey) > 0)
+            maximumKey = primaryKey;
     }
 
     @Override
