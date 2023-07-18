@@ -66,7 +66,7 @@ public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
         .nodesToUpgrade(1, 2, 3)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
                                 .set(Constants.KEY_DTEST_FULL_STARTUP, true))
-        .upgradesFrom(v41, v50)
+        .singleUpgradeToCurrentFrom(v41.toStrict())
         .withUpgradeListener(listener)
         .setup((cluster) -> {
             SchemaSpec schema = new SchemaSpec("harry", "test_table",

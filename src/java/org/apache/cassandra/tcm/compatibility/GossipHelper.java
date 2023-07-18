@@ -53,6 +53,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Period;
@@ -146,9 +147,12 @@ public class GossipHelper
                             newValue = valueFactory.rpcaddress(endpoint.getAddress());
                             break;
                         case HOST_ID:
-                            if (getBroadcastAddressAndPort().equals(addresses.broadcastAddress))
-                                SystemKeyspace.setLocalHostId(nodeId.toUUID());
-                            newValue = valueFactory.hostId(nodeId.toUUID());
+                            // If still running in gossip mode, meaning the upgrade to TCM isn't fully complete,
+                            // continue to gossip the old host id value here, not the node id
+                            UUID uuid = ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP
+                                        ? metadata.directory.hostId(nodeId)
+                                        : nodeId.toUUID();
+                            newValue = valueFactory.hostId(uuid);
                             break;
                         case TOKENS:
                             if (tokens != null)

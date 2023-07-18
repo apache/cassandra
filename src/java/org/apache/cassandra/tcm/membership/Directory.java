@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -57,7 +59,7 @@ public class Directory implements MetadataValue<Directory>
     public final BTreeMap<NodeId, NodeState> states;
     public final BTreeMap<NodeId, NodeVersion> versions;
     public final BTreeMap<NodeId, NodeAddresses> addresses;
-    private final BTreeMap<NodeId, UUID> hostIds;
+    private final BTreeBiMap<NodeId, UUID> hostIds;
     private final BTreeMultimap<String, InetAddressAndPort> endpointsByDC;
     private final BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC;
 
@@ -69,7 +71,7 @@ public class Directory implements MetadataValue<Directory>
              BTreeMap.empty(),
              BTreeMap.empty(),
              BTreeMap.empty(),
-             BTreeMap.empty(),
+             BTreeBiMap.empty(),
              BTreeMap.empty(),
              BTreeMultimap.empty(),
              BTreeMap.empty());
@@ -81,7 +83,7 @@ public class Directory implements MetadataValue<Directory>
                       BTreeMap<NodeId, Location> locations,
                       BTreeMap<NodeId, NodeState> states,
                       BTreeMap<NodeId, NodeVersion> versions,
-                      BTreeMap<NodeId, UUID> hostIds,
+                      BTreeBiMap<NodeId, UUID> hostIds,
                       BTreeMap<NodeId, NodeAddresses> addresses,
                       BTreeMultimap<String, InetAddressAndPort> endpointsByDC,
                       BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC)
@@ -313,6 +315,17 @@ public class Directory implements MetadataValue<Directory>
     public UUID hostId(NodeId peer)
     {
         return hostIds.getOrDefault(peer, peer.toUUID());
+    }
+
+    /**
+     * Retrieve the NodeId for a peer from its pre-upgrade HostId
+     * @param hostId
+     * @return NodeId for the peer which prior to upgrade had the supplied Host ID, or null if no mapping is found
+     */
+    @Nullable
+    public NodeId nodeIdFromHostId(UUID hostId)
+    {
+        return hostIds.inverse().getOrDefault(hostId, null);
     }
 
     public Map<String, Multimap<String, InetAddressAndPort>> allDatacenterRacks()

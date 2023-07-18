@@ -687,8 +687,7 @@ public class ClusterMetadataService
      */
     public ClusterMetadata fetchLogFromPeer(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
     {
-        if (FBUtilities.getBroadcastAddressAndPort().equals(from) ||
-            !metadata.directory.version(metadata.directory.peerId(from)).isUpgraded())
+        if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
             return ClusterMetadata.current();
         logger.info("Fetching log from {}, at least {}", from, awaitAtLeast);
         Epoch before = metadata.epoch;
@@ -715,6 +714,9 @@ public class ClusterMetadataService
      */
     public ClusterMetadata fetchLogWithFallback(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
     {
+        if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
+            return metadata;
+
         Epoch before = metadata.epoch;
         metadata = fetchLogFromPeer(metadata, from, awaitAtLeast);
         if (!metadata.epoch.isEqualOrAfter(awaitAtLeast))
