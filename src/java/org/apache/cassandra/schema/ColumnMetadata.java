@@ -559,6 +559,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             out.writeUTF(t.kind.name());
             out.writeInt(t.position);
             out.writeUTF(t.type.asCQL3Type().toString());
+            out.writeBoolean(t.isReversedType());
             out.writeUTF(t.name.toString());
             ByteBufferUtil.writeWithShortLength(t.name.bytes, out);
             out.writeBoolean(t.mask != null);
@@ -573,6 +574,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             Kind kind = Kind.valueOf(in.readUTF());
             int position = in.readInt();
             AbstractType<?> type = CQLTypeParser.parse(ksName, in.readUTF(), types);
+            boolean isReversedType = in.readBoolean();
+            if (isReversedType)
+                type = ReversedType.getInstance(type);
             String name = in.readUTF();
             ByteBuffer nameBB = ByteBufferUtil.readWithShortLength(in);
             ColumnMask mask = null;
@@ -589,6 +593,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                    sizeof(t.kind.name()) +
                    sizeof(t.position) +
                    sizeof(t.type.asCQL3Type().toString()) +
+                   sizeof(t.isReversedType()) +
                    sizeof(t.name.toString()) +
                    ByteBufferUtil.serializedSizeWithShortLength(t.name.bytes) +
                    BOOL_SIZE +
