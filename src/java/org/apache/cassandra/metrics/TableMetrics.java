@@ -208,12 +208,6 @@ public class TableMetrics
     public final Timer coordinatorScanLatency;
     public final SnapshottingTimer coordinatorWriteLatency;
 
-    /** Time spent waiting for free memtable space, either on- or off-heap */
-    public final Histogram waitingOnFreeMemtableSpace;
-
-    @Deprecated
-    public final Counter droppedMutations;
-
     private final MetricNameFactory factory;
     private final MetricNameFactory aliasFactory;
 
@@ -774,7 +768,6 @@ public class TableMetrics
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency");
-        waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
@@ -796,8 +789,6 @@ public class TableMetrics
 
         tombstoneFailures = createTableCounter("TombstoneFailures");
         tombstoneWarnings = createTableCounter("TombstoneWarnings");
-
-        droppedMutations = createTableCounter("DroppedMutations");
 
         casPrepare = createLatencyMetrics("CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
