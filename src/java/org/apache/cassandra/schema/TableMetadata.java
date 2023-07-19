@@ -205,7 +205,7 @@ public class TableMetadata implements SchemaElement
         epoch = builder.epoch;
         partitioner = builder.partitioner;
         kind = builder.kind;
-        params = builder.params.build();
+        params = builder.params.build(keyspace, name);
 
         indexName = kind == Kind.INDEX ? name.substring(name.indexOf('.') + 1) : null;
 
@@ -664,7 +664,11 @@ public class TableMetadata implements SchemaElement
         // Row caching is never enabled; see CASSANDRA-5732
         builder.caching(baseTableParams.caching.cacheKeys() ? CachingParams.CACHE_KEYS : CachingParams.CACHE_NOTHING);
 
-        return unbuild().params(builder.build()).build();
+        Builder unbuilt = unbuild();
+        String keyspace = unbuilt.keyspace;
+        String table = unbuilt.name;
+
+        return unbuilt.params(builder.build(keyspace, table)).build();
     }
 
     boolean referencesUserType(ByteBuffer name)

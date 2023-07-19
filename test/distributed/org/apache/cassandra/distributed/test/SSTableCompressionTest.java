@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -51,9 +53,12 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.apache.cassandra.schema.SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES;
 import static org.apache.commons.io.FileUtils.readFileToString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class SSTableCompressionTest
@@ -64,9 +69,9 @@ public class SSTableCompressionTest
     static int STORAGE_PORT;
     static int SSL_STORAGE_PORT;
 
-    private static String FAST_PARAM = "WITH compression = {'class': 'SnappyCompressor'}";
-    private static String SLOW_PARAM = "WITH compression = {'class': 'DeflateCompressor'}";
-    private static String DEFAULT_PARAM = "";
+    private static final String FAST_PARAM = "WITH compression = {'class': 'SnappyCompressor'}";
+    private static final String SLOW_PARAM = "WITH compression = {'class': 'DeflateCompressor'}";
+    private static final String DEFAULT_PARAM = "";
 
     private static final String KEYSPACE = "sstable_compression_test";
 
@@ -86,6 +91,12 @@ public class SSTableCompressionTest
         c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP); // need gossip to get hostid for Java driver
         c.set("flush_compression", "fast"); // this is default
         c.set("sstable_compression", ImmutableMap.builder().put("class_name", "deflate").build());
+    };
+
+    private static final Consumer<IInstanceConfig> ZSTD_CONFIG = c -> {
+        c.with(NATIVE_PROTOCOL, NETWORK, GOSSIP); // need gossip to get hostid for Java driver
+        c.set("flush_compression", "fast"); // this is default
+        c.set("sstable_compression", ImmutableMap.builder().put("class_name", "zstd").build());
     };
 
     public static Path setupCluster(Consumer<IInstanceConfig> config, Path root) throws IOException
@@ -182,93 +193,35 @@ public class SSTableCompressionTest
 
     /**
      * This tests shows that defining a table with a different compressor works and that changing
-     * the default compressor between starts does not change the compressors associated with the
+     * the default compressor between starts does not change  the compressors associated with the
      * saved (snapshotted) systems.
      */
     @Test
     public void compressionNotChangedInSnapshotIO() throws Throwable
     {
-        String tableName = "test_table";
         try
         {
             Path root = setupCluster(DEFAULT_CONFIG, null);
             CLUSTER.schemaChange(format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
-            createSSTable(tableName, "WITH compression = {'class': 'ZstdCompressor'}");
-            populateTable(tableName);
-            flushTables();
-
-            Map<String, String> parameters = getCompressionParameters(CLUSTER.get(1), tableName);
-            assertEquals(ZstdCompressor.class.getName(), parameters.get("class"));
-
-            Set<String> snapshot = snapshot(CLUSTER.get(1), tableName, "test");
-
-            // shutdown but do not delete files
-            CLUSTER.close(false);
-
-            // restart with Deflate compression definition
-            setupCluster(SLOW_CONFIG, root);
-
-            restore(CLUSTER.get(1), snapshot, tableName);
-
-            assertSnapshotCompression(snapshot(CLUSTER.get(1), tableName, "backup1"), ImmutableSet.of(LZ4Compressor.class.getSimpleName()));
-            parameters = getCompressionParameters(CLUSTER.get(1), tableName);
-            assertEquals(ZstdCompressor.class.getName(), parameters.get("class"));
-        }
-        finally
-        {
-            tearDownCluster();
-        }
-    }
-
-    @Test
-    public void testUsageOfFastDefaultCompressorUponFlushing() throws Throwable
-    {
-        try
-        {
-            Path root = setupCluster(FAST_CONFIG, null);
-            CLUSTER.schemaChange(format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
             createSSTable("different_compress", "WITH compression = {'class': 'ZstdCompressor'}");
+
             populateTable("different_compress");
             flushTables();
 
             Map<String, String> parameters = getCompressionParameters(CLUSTER.get(1), "different_compress");
             assertEquals(ZstdCompressor.class.getName(), parameters.get("class"));
 
-            // snappy is fast so it will use that one for flushing
-            Set<String> snapshot = snapshot(CLUSTER.get(1), "different_compress", "test2");
-            // global default is snappy and snappy is fast so flushing will use the configured fast compressor
-            assertSnapshotCompression(snapshot, ImmutableSet.of(SnappyCompressor.class.getSimpleName()));
+            Set<String> snapshot1 = snapshot(CLUSTER.get(1), "different_compress", "test");
 
-            // shutdown but do not delete files
+            // shutdown but do not delete files.
             CLUSTER.close(false);
 
-            // restart with Deflate compression definition, deflate is not fast
+            // restart with Deflate compression definition
             setupCluster(SLOW_CONFIG, root);
 
-            restore(CLUSTER.get(1), snapshot, "different_compress");
+            restore(CLUSTER.get(1), snapshot1, "different_compress");
 
-            // snappy upon restoration is preserved
-            assertSnapshotCompression(snapshot(CLUSTER.get(1), "different_compress", "backup2"),
-                                      ImmutableSet.of(SnappyCompressor.class.getSimpleName()));
-
-            // parameters on table were not changed
-            parameters = getCompressionParameters(CLUSTER.get(1), "different_compress");
-            assertEquals(ZstdCompressor.class.getName(), parameters.get("class"));
-
-            // populate table with more data and flush,
-            // we changed the default sstable compressor to "deflate",
-            // but "deflate" is general compressor, not fast,
-            // so it will use fast compressor for flush_compression which is LZ4Compressor
-            populateTable("different_compress");
-            flushTables();
-
-            // here we expect that sstables of a snapshot are compressed both with snappy (the original run)
-            // as well as with LZ4 compressor because we used general default compressor (deflate) which is not fast
-            // but lz4 is and flush_compression is set to "fast"
-            assertSnapshotCompression(snapshot(CLUSTER.get(1), "different_compress", "backup3"),
-                                      ImmutableSet.of(SnappyCompressor.class.getSimpleName(),
-                                                      LZ4Compressor.class.getSimpleName()));
-
+            assertSnapshotCompression(snapshot(CLUSTER.get(1), "different_compress", "backup1"), ImmutableSet.of("LZ4Compressor"));
             parameters = getCompressionParameters(CLUSTER.get(1), "different_compress");
             assertEquals(ZstdCompressor.class.getName(), parameters.get("class"));
         }
@@ -278,7 +231,48 @@ public class SSTableCompressionTest
         }
     }
 
-    private void testCreate(String table, String tableArgs, Map<String, String> expected) throws IOException
+    @Test
+    public void testEnableDisableCompression() throws Throwable
+    {
+        try
+        {
+            setupCluster(ZSTD_CONFIG, null);
+
+            CLUSTER.schemaChange(format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
+            createSSTable("sometable", DEFAULT_PARAM);
+
+            assertEquals(ZstdCompressor.class.getName(), getCompressionParameters(CLUSTER.get(1), "sometable").get("class"));
+
+            // if we transition from false to true, it will use the default compressor in sstable_compression
+            CLUSTER.schemaChange(format("ALTER TABLE %s.%s WITH compression = {'enabled': false}", KEYSPACE, "sometable"));
+            CLUSTER.schemaChange(format("ALTER TABLE %s.%s WITH compression = {'enabled': true}", KEYSPACE, "sometable"));
+
+            assertEquals(ZstdCompressor.class.getName(), getCompressionParameters(CLUSTER.get(1), "sometable").get("class"));
+        }
+        finally
+        {
+            tearDownCluster();
+        }
+    }
+
+    @Test
+    public void testDefaultCompressionDoesNotApplyToSystemKeyspaces() throws Throwable
+    {
+        try
+        {
+            setupCluster(ZSTD_CONFIG, null);
+
+            for (Map.Entry<String, Map<String, String>> entry : getCompressionParametersForSystemKeyspaces(CLUSTER.get(1)).entrySet())
+                assertNotEquals(format("compression for table %s should not be changed by sstable_compression for system keyspaces!", entry.getKey()),
+                                ZstdCompressor.class.getName(), entry.getValue().get("class"));
+        }
+        finally
+        {
+            tearDownCluster();
+        }
+    }
+
+    private void testCreate(String table, String tableArgs, Map<String, String> expected)
     {
         createSSTable(table, tableArgs);
         Map<String, String> parameters = getCompressionParameters(CLUSTER.get(1), table);
@@ -296,7 +290,7 @@ public class SSTableCompressionTest
         }};
     }
 
-    private void testLZ4() throws IOException
+    private void testLZ4()
     {
         Map<String, String> expected = createDefaultMap(LZ4Compressor.class);
         testCreate("lz4", "", expected);
@@ -311,14 +305,14 @@ public class SSTableCompressionTest
         testCreate("lz4_arg_type", "WITH compression = {'class': 'LZ4Compressor', 'lz4_compressor_type':'fast' }", expected);
     }
 
-    private void testDisabled() throws IOException
+    private void testDisabled()
     {
         Map<String, String> expected = new HashMap<>();
         expected.put("enabled", "false");
         testCreate("default_disabled", "WITH compression = { 'enabled':'false'}", expected);
     }
 
-    private void testDeflate() throws IOException
+    private void testDeflate()
     {
         Map<String, String> expected = createDefaultMap(DeflateCompressor.class);
         testCreate("dflt", SLOW_PARAM, expected);
@@ -326,7 +320,7 @@ public class SSTableCompressionTest
         testCreate("dflt_chunk", "WITH compression = {'class':'DeflateCompressor', 'chunk_length_in_kb' : '8'}", expected);
     }
 
-    private void testNoop() throws IOException
+    private void testNoop()
     {
         Map<String, String> expected = createDefaultMap(NoopCompressor.class);
         testCreate("noop", "WITH compression = {'class': 'NoopCompressor'}", expected);
@@ -334,7 +328,7 @@ public class SSTableCompressionTest
         testCreate("noop_chunk", "WITH compression = {'class':'NoopCompressor', 'chunk_length_in_kb' : '8'}", expected);
     }
 
-    private void testSnappy() throws IOException
+    private void testSnappy()
     {
         Map<String, String> expected = createDefaultMap(SnappyCompressor.class);
         testCreate("snappy", FAST_PARAM, expected);
@@ -342,7 +336,7 @@ public class SSTableCompressionTest
         testCreate("snappy_chunk", "WITH compression = {'class':'SnappyCompressor', 'chunk_length_in_kb' : '8'}", expected);
     }
 
-    private void testZstd() throws IOException
+    private void testZstd()
     {
         Map<String, String> expected = createDefaultMap(ZstdCompressor.class);
         testCreate("zstd", "WITH compression = {'class': 'ZstdCompressor'}", expected);
@@ -412,6 +406,23 @@ public class SSTableCompressionTest
                                                                                                        true,
                                                                                                        true));
         assertThat(failedImports).isEmpty();
+    }
+
+    private Map<String, Map<String, String>> getCompressionParametersForSystemKeyspaces(IInvokableInstance instance)
+    {
+        try
+        {
+            return instance.callOnInstance(() -> Keyspace.allExisting()
+                                                         .filter(ks -> LOCAL_SYSTEM_KEYSPACE_NAMES.contains(ks.getName()) || REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ks.getName()))
+                                                         .map(Keyspace::getColumnFamilyStores)
+                                                         .flatMap(Collection::stream)
+                                                         .collect(Collectors.toMap(e -> e.getKeyspaceName() + '.' + e.getTableName(),
+                                                                                   ColumnFamilyStore::getCompressionParameters)));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("error getting parameters for all tables", e);
+        }
     }
 
     private Map<String, String> getCompressionParameters(IInvokableInstance instance, String tableName)
