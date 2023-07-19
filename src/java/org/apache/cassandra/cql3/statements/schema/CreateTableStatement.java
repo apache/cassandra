@@ -159,7 +159,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (useCompactStorage)
             Guardrails.compactTablesEnabled.ensureEnabled(state);
 
-        validateDefaultTimeToLive(attrs.asNewTableParams());
+        validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName, tableName));
 
         rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }
@@ -193,8 +193,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public TableMetadata.Builder builder(Types types, UserFunctions functions)
     {
-        attrs.validate();
-        TableParams params = attrs.asNewTableParams();
+        attrs.validate(keyspaceName, tableName);
+        TableParams params = attrs.asNewTableParams(keyspaceName, tableName);
 
         // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492) - important for stable unit tests
         Map<ColumnIdentifier, ColumnProperties> columns = new TreeMap<>(comparing(o -> o.bytes));

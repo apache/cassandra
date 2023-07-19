@@ -557,14 +557,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
-            validateDefaultTimeToLive(attrs.asNewTableParams());
+            validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName, tableName));
         }
 
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, ClusterMetadata metadata)
         {
-            attrs.validate();
+            attrs.validate(keyspaceName, tableName);
 
-            TableParams params = attrs.asAlteredTableParams(table.params);
+            TableParams params = attrs.asAlteredTableParams(table.params, keyspaceName, tableName);
 
             if (table.isCounter() && params.defaultTimeToLive > 0)
                 throw ire("Cannot set default_time_to_live on a table with counters");
