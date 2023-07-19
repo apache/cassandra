@@ -1,4 +1,5 @@
 5.0
+ * Remove WaitingOnFreeMemtableSpace and DroppedMutations metrics (CASSANDRA-18298)
  * Upgrade Jamm version to 0.4.0  (CASSANDRA-17884, CASSANDRA-16304, CASSANDRA-18329)
  * Remove legacy 3.0/3.11 buffer pool metrics (CASSANDRA-18313)
  * Add AzureSnitch (CASSANDRA-18646)

@@ -166,7 +166,6 @@ public class TableStatsHolder implements StatsHolder
                     table.averageTombstonesPerSliceLastFiveMinutes);
         mpTable.put("maximum_tombstones_per_slice_last_five_minutes",
                     table.maximumTombstonesPerSliceLastFiveMinutes);
-        mpTable.put("dropped_mutations", table.droppedMutations);
         mpTable.put("droppable_tombstone_ratio",
                     String.format("%01.5f", table.droppableTombstoneRatio));
         mpTable.put("top_size_partitions", table.topSizePartitions);
@@ -376,7 +375,6 @@ public class TableStatsHolder implements StatsHolder
                 histogram = (CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "TombstoneScannedHistogram");
                 statsTable.averageTombstonesPerSliceLastFiveMinutes = histogram.getMean();
                 statsTable.maximumTombstonesPerSliceLastFiveMinutes = histogram.getMax();
-                statsTable.droppedMutations = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "DroppedMutations"), humanReadable);
                 statsTable.droppableTombstoneRatio = probe.getDroppableTombstoneRatio(keyspaceName, tableName);
                 statsTable.topSizePartitions = format(table.getTopSizePartitions(), humanReadable);
                 if (table.getTopSizePartitionsLastUpdate() != null)
