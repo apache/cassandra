@@ -358,7 +358,7 @@ public final class TableParams
         private SpeculativeRetryPolicy additionalWritePolicy = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
-        private CompressionParams compression = CompressionParams.defaultParams();
+        private CompressionParams compression = null;
         private MemtableParams memtable = MemtableParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
