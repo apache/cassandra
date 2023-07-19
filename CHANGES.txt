@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Forbid SAI indexes with analysis options on primary key columns (CASSANDRA-18782)
 Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
