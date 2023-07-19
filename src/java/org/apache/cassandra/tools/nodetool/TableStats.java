@@ -53,7 +53,7 @@ public class TableStats extends NodeToolCmd
                         + "bloom_filter_false_ratio, bloom_filter_off_heap_memory_used, bloom_filter_space_used, "
                         + "compacted_partition_maximum_bytes, compacted_partition_mean_bytes, "
                         + "compacted_partition_minimum_bytes, compression_metadata_off_heap_memory_used, "
-                        + "dropped_mutations, full_name, index_summary_off_heap_memory_used, local_read_count, "
+                        + "full_name, index_summary_off_heap_memory_used, local_read_count, "
                         + "local_read_latency_ms, local_write_latency_ms, "
                         + "maximum_live_cells_per_slice_last_five_minutes, "
                         + "maximum_tombstones_per_slice_last_five_minutes, memtable_cell_count, memtable_data_size, "

@@ -68,7 +68,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 6\n" +
         "\tAverage tombstones per slice (last five minutes): 5.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 1\n" +
-        "\tDropped Mutations: 0\n" +
         "\tDroppable tombstone ratio: 0.00000\n" +
         "\n";
 
@@ -110,7 +109,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): 4.001\n" +
         "\tMaximum tombstones per slice (last five minutes): 2\n" +
-        "\tDropped Mutations: 222\n" +
         "\tDroppable tombstone ratio: 0.22222\n" +
         "\n";
 
@@ -147,7 +145,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): NaN\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
-        "\tDropped Mutations: 33333\n" +
         "\tDroppable tombstone ratio: 0.33333\n" +
         "\n";
 
@@ -189,7 +186,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 0.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
-        "\tDropped Mutations: 4444\n" +
         "\tDroppable tombstone ratio: 0.44444\n" +
         "\n";
 
@@ -226,7 +222,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
         "\tMaximum tombstones per slice (last five minutes): 5\n" +
-        "\tDropped Mutations: 0\n" +
         "\tDroppable tombstone ratio: 0.55556\n" +
         "\n";
 
@@ -268,7 +263,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 2\n" +
         "\tAverage tombstones per slice (last five minutes): 6.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 6\n" +
-        "\tDropped Mutations: 666666\n" +
         "\tDroppable tombstone ratio: 0.66667\n" +
         "\n";
 
@@ -430,7 +424,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "        \"local_read_count\" : 5,\n" +
                                  "        \"sstable_compression_ratio\" : 0.68,\n" +
                                  "        \"max_sstable_size\" : 0,\n" +
-                                 "        \"dropped_mutations\" : \"666666\",\n" +
                                  "        \"top_size_partitions\" : null,\n" +
                                  "        \"bloom_filter_false_positives\" : 400,\n" +
                                  "        \"off_heap_memory_used_total\" : \"162470810\",\n" +
@@ -499,7 +492,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "      local_read_count: 5\n" +
                                  "      sstable_compression_ratio: 0.68\n" +
                                  "      max_sstable_size: 0\n" +
-                                 "      dropped_mutations: '666666'\n" +
                                  "      top_size_partitions: null\n" +
                                  "      bloom_filter_false_positives: 400\n" +
                                  "      off_heap_memory_used_total: '162470810'\n" +

@@ -234,11 +234,6 @@ that couldn't be attempted due to lack of replicas
 wait before speculation is attempted. Value may be statically configured
 or updated periodically based on coordinator latency.
 
-|WaitingOnFreeMemtableSpace |Histogram |Histogram of time spent waiting
-for free memtable space, either on- or off-heap.
-
-|DroppedMutations |Counter |Number of dropped mutations on this table.
-
 |AnticompactionTime |Timer |Time spent anticompacting before a
 consistent repair.
 
