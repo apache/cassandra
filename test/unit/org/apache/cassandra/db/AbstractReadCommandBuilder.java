@@ -19,27 +19,46 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeSet;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
-public abstract class AbstractReadCommandBuilder
+import static org.apache.cassandra.Util.makeKey;
+
+public abstract class AbstractReadCommandBuilder<T extends ReadQuery>
 {
     protected final ColumnFamilyStore cfs;
     protected long nowInSeconds;
 
     private int cqlLimit = -1;
-    private int pagingLimit = -1;
+    private PageSize pageSize = PageSize.NONE;
+    private PageSize subPageSize = PageSize.NONE;
+    private int perPartitionLimit = -1;
     protected boolean reversed = false;
 
     protected Set<ColumnIdentifier> columns;
@@ -50,6 +69,8 @@ public abstract class AbstractReadCommandBuilder
 
     private NavigableSet<Clustering<?>> clusterings;
 
+    private AggregationSpecification aggregationSpecification;
+
     // Use Util.cmd() instead of this ctor directly
     AbstractReadCommandBuilder(ColumnFamilyStore cfs)
     {
@@ -57,41 +78,41 @@ public abstract class AbstractReadCommandBuilder
         this.nowInSeconds = FBUtilities.nowInSeconds();
     }
 
-    public AbstractReadCommandBuilder withNowInSeconds(long nowInSec)
+    public AbstractReadCommandBuilder<T> withNowInSeconds(long nowInSec)
     {
         this.nowInSeconds = nowInSec;
         return this;
     }
 
-    public AbstractReadCommandBuilder fromIncl(Object... values)
+    public AbstractReadCommandBuilder<T> fromIncl(Object... values)
     {
         assert lowerClusteringBound == null && clusterings == null;
         this.lowerClusteringBound = ClusteringBound.create(cfs.metadata().comparator, true, true, values);
         return this;
     }
 
-    public AbstractReadCommandBuilder fromExcl(Object... values)
+    public AbstractReadCommandBuilder<T> fromExcl(Object... values)
     {
         assert lowerClusteringBound == null && clusterings == null;
         this.lowerClusteringBound = ClusteringBound.create(cfs.metadata().comparator, true, false, values);
         return this;
     }
 
-    public AbstractReadCommandBuilder toIncl(Object... values)
+    public AbstractReadCommandBuilder<T> toIncl(Object... values)
     {
         assert upperClusteringBound == null && clusterings == null;
         this.upperClusteringBound = ClusteringBound.create(cfs.metadata().comparator, false, true, values);
         return this;
     }
 
-    public AbstractReadCommandBuilder toExcl(Object... values)
+    public AbstractReadCommandBuilder<T> toExcl(Object... values)
     {
         assert upperClusteringBound == null && clusterings == null;
         this.upperClusteringBound = ClusteringBound.create(cfs.metadata().comparator, false, false, values);
         return this;
     }
 
-    public AbstractReadCommandBuilder includeRow(Object... values)
+    public AbstractReadCommandBuilder<T> includeRow(Object... values)
     {
         assert lowerClusteringBound == null && upperClusteringBound == null;
 
@@ -102,31 +123,49 @@ public abstract class AbstractReadCommandBuilder
         return this;
     }
 
-    public AbstractReadCommandBuilder reverse()
+    public AbstractReadCommandBuilder<T> reverse()
     {
         this.reversed = true;
         return this;
     }
 
-    public AbstractReadCommandBuilder withLimit(int newLimit)
+    public AbstractReadCommandBuilder<T> withLimit(int newLimit)
     {
         this.cqlLimit = newLimit;
         return this;
     }
 
-    public AbstractReadCommandBuilder withPagingLimit(int newLimit)
+    public AbstractReadCommandBuilder<T> withPageSize(PageSize pageSize)
     {
-        this.pagingLimit = newLimit;
+        this.pageSize = pageSize;
         return this;
     }
 
-    public AbstractReadCommandBuilder columns(String... columns)
+    public AbstractReadCommandBuilder<T> withPerPartitionLimit(int perPartitionLimit)
+    {
+        this.perPartitionLimit = perPartitionLimit;
+        return this;
+    }
+
+    public AbstractReadCommandBuilder<T> columns(String... columns)
     {
         if (this.columns == null)
             this.columns = Sets.newHashSetWithExpectedSize(columns.length);
 
         for (String column : columns)
             this.columns.add(ColumnIdentifier.getInterned(column, true));
+        return this;
+    }
+
+    public AbstractReadCommandBuilder<T> withAggregationSpecification(AggregationSpecification spec)
+    {
+        this.aggregationSpecification = spec;
+        return this;
+    }
+
+    public AbstractReadCommandBuilder<T> withSubPageSize(PageSize subPageSize)
+    {
+        this.subPageSize = subPageSize;
         return this;
     }
 
@@ -163,7 +202,7 @@ public abstract class AbstractReadCommandBuilder
         throw new AssertionError();
     }
 
-    public AbstractReadCommandBuilder filterOn(String column, Operator op, Object value)
+    public AbstractReadCommandBuilder<T> filterOn(String column, Operator op, Object value)
     {
         ColumnMetadata def = cfs.metadata().getColumn(ColumnIdentifier.getInterned(column, true));
         assert def != null;
@@ -212,15 +251,27 @@ public abstract class AbstractReadCommandBuilder
 
     protected DataLimits makeLimits()
     {
-        DataLimits limits = cqlLimit < 0 ? DataLimits.NONE : DataLimits.cqlLimits(cqlLimit);
-        if (pagingLimit >= 0)
-            limits = limits.forPaging(pagingLimit);
+        DataLimits limits;
+        if (aggregationSpecification != null)
+        {
+            limits = DataLimits.groupByLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                              perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit,
+                                              subPageSize,
+                                              aggregationSpecification);
+        }
+        else
+        {
+            limits = DataLimits.cqlLimits(cqlLimit < 0 ? DataLimits.NO_LIMIT : cqlLimit,
+                                          perPartitionLimit < 0 ? DataLimits.NO_LIMIT : perPartitionLimit);
+        }
+        if (pageSize.isDefined())
+            limits = limits.forPaging(pageSize);
         return limits;
     }
 
-    public abstract ReadCommand build();
+    public abstract T build();
 
-    public static class SinglePartitionBuilder extends AbstractReadCommandBuilder
+    public static class SinglePartitionBuilder extends AbstractReadCommandBuilder<SinglePartitionReadCommand>
     {
         private final DecoratedKey partitionKey;
 
@@ -231,13 +282,40 @@ public abstract class AbstractReadCommandBuilder
         }
 
         @Override
-        public ReadCommand build()
+        public SinglePartitionReadCommand build()
         {
             return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
         }
     }
 
-    public static class PartitionRangeBuilder extends AbstractReadCommandBuilder
+    public static class MultiPartitionBuilder extends AbstractReadCommandBuilder<SinglePartitionReadCommand.Group>
+    {
+        private final List<DecoratedKey> keys = new ArrayList<>();
+
+        public MultiPartitionBuilder(ColumnFamilyStore cfs)
+        {
+            super(cfs);
+        }
+
+        public MultiPartitionBuilder addPartition(DecoratedKey key)
+        {
+            keys.add(key);
+            return this;
+        }
+
+        public MultiPartitionBuilder addPartition(Object... values)
+        {
+            return addPartition(makeKey(cfs.metadata(), values));
+        }
+
+        @Override
+        public SinglePartitionReadCommand.Group build()
+        {
+            return SinglePartitionReadCommand.Group.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), keys, makeFilter());
+        }
+    }
+
+    public static class PartitionRangeBuilder extends AbstractReadCommandBuilder<PartitionRangeReadCommand>
     {
         private DecoratedKey startKey;
         private boolean startInclusive;
@@ -282,7 +360,7 @@ public abstract class AbstractReadCommandBuilder
         }
 
         @Override
-        public ReadCommand build()
+        public PartitionRangeReadCommand build()
         {
             PartitionPosition start = startKey;
             if (start == null)

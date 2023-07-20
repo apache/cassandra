@@ -19,9 +19,12 @@ package org.apache.cassandra.service.pager;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -40,7 +43,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
         if (state != null)
         {
             lastReturned = state.rowMark;
-            restoreState(query.partitionKey(), state.remaining, state.remainingInPartition);
+            restoreState(query.partitionKey(), state.remaining, query.limits().bytes(), state.remainingInPartition);
         }
     }
 
@@ -48,11 +51,12 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
                                  ProtocolVersion protocolVersion,
                                  PagingState.RowMark rowMark,
                                  int remaining,
+                                 int remainingBytes,
                                  int remainingInPartition)
     {
         super(query, protocolVersion);
         this.lastReturned = rowMark;
-        restoreState(query.partitionKey(), remaining, remainingInPartition);
+        restoreState(query.partitionKey(), remaining, remainingBytes, remainingInPartition);
     }
 
     @Override
@@ -62,6 +66,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
                                         protocolVersion,
                                         lastReturned,
                                         maxRemaining(),
+                                        maxRemainingBytes(),
                                         remainingInPartition());
     }
 
@@ -83,7 +88,7 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     }
 
     @Override
-    protected SinglePartitionReadQuery nextPageReadQuery(int pageSize)
+    protected SinglePartitionReadQuery nextPageReadQuery(PageSize pageSize)
     {
         Clustering<?> clustering = lastReturned == null ? null : lastReturned.clustering(query.metadata());
         DataLimits limits = lastReturned == null

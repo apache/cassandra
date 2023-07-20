@@ -19,19 +19,33 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.StringJoiner;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.aggregation.GroupingState;
-import org.apache.cassandra.db.aggregation.AggregationSpecification;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.CachedPartition;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.BasePartitions;
 import org.apache.cassandra.db.transform.BaseRows;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -47,7 +61,7 @@ public abstract class DataLimits
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
-    public static final DataLimits NONE = new CQLLimits(NO_LIMIT)
+    public static final DataLimits NONE = new CQLLimits(NO_LIMIT, NO_LIMIT, NO_LIMIT, false)
     {
         @Override
         public boolean hasEnoughLiveData(CachedPartition cached, long nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
@@ -80,7 +94,7 @@ public abstract class DataLimits
 
     // We currently deal with distinct queries by querying full partitions but limiting the result at 1 row per
     // partition (see SelectStatement.makeFilter). So an "unbounded" distinct is still actually doing some filtering.
-    public static final DataLimits DISTINCT_NONE = new CQLLimits(NO_LIMIT, 1, true);
+    public static final DataLimits DISTINCT_NONE = new CQLLimits(NO_LIMIT, NO_LIMIT, 1, true);
 
     public enum Kind
     {
@@ -94,29 +108,29 @@ public abstract class DataLimits
 
     public static DataLimits cqlLimits(int cqlRowLimit)
     {
-        return cqlRowLimit == NO_LIMIT ? NONE : new CQLLimits(cqlRowLimit);
+        return cqlRowLimit == NO_LIMIT ? NONE : new CQLLimits(cqlRowLimit, NO_LIMIT, NO_LIMIT, false);
     }
 
     public static DataLimits cqlLimits(int cqlRowLimit, int perPartitionLimit)
     {
         return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT
              ? NONE
-             : new CQLLimits(cqlRowLimit, perPartitionLimit);
+             : new CQLLimits(cqlRowLimit, NO_LIMIT, perPartitionLimit, false);
     }
 
     private static DataLimits cqlLimits(int cqlRowLimit, int perPartitionLimit, boolean isDistinct)
     {
         return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT && !isDistinct
              ? NONE
-             : new CQLLimits(cqlRowLimit, perPartitionLimit, isDistinct);
+             : new CQLLimits(cqlRowLimit, NO_LIMIT, perPartitionLimit, isDistinct);
     }
 
     public static DataLimits groupByLimits(int groupLimit,
                                            int groupPerPartitionLimit,
-                                           int rowLimit,
+                                           PageSize subPageSize,
                                            AggregationSpecification groupBySpec)
     {
-        return new CQLGroupByLimits(groupLimit, groupPerPartitionLimit, rowLimit, groupBySpec);
+        return new CQLGroupByLimits(groupLimit, NO_LIMIT, groupPerPartitionLimit, subPageSize.rows, subPageSize.bytes, groupBySpec, GroupingState.EMPTY_STATE);
     }
 
     public static DataLimits distinctLimits(int cqlRowLimit)
@@ -134,13 +148,20 @@ public abstract class DataLimits
         return false;
     }
 
+    /**
+     * Returns true if the count limit is not reached.
+     * <p/>
+     * Note: currently this method's only usage is for paging, where it is checked after processing a page as a quick
+     * signal that the data for the query is complete - if the count limit is not reached at the end of the page, this
+     * must be because there is no more data to return - that is - the input is exhausted.
+     */
     public boolean isExhausted(Counter counter)
     {
-        return counter.counted() < count();
+        return counter.counted() < count() && counter.bytesCounted() < bytes();
     }
 
-    public abstract DataLimits forPaging(int pageSize);
-    public abstract DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining);
+    public abstract DataLimits forPaging(PageSize pageSize);
+    public abstract DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining);
 
     public abstract DataLimits forShortReadRetry(int toFetch);
 
@@ -161,7 +182,7 @@ public abstract class DataLimits
                                               boolean enforceStrictLiveness);
 
     /**
-     * Returns a new {@code Counter} for this limits.
+     * Returns a new {@code Counter} for this limits instance.
      *
      * @param nowInSec the current time in second (to decide what is expired or not).
      * @param assumeLiveData if true, the counter will assume that every row passed is live and won't
@@ -171,12 +192,21 @@ public abstract class DataLimits
      * as 1 valid row.
      * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
      * normally retrieved from {@link org.apache.cassandra.schema.TableMetadata#enforceStrictLiveness()}
-     * @return a new {@code Counter} for this limits.
+     * @return a new {@code Counter} for this limits instance.
      */
     public abstract Counter newCounter(long nowInSec,
                                        boolean assumeLiveData,
                                        boolean countPartitionsWithOnlyStaticData,
                                        boolean enforceStrictLiveness);
+
+    /**
+     * The max number of bytes this limits enforces.
+     * <p>
+     * Note that if this value is set, fewer rows might be returned if the size of the current rows exceeds the bytes limit.
+     *
+     * @return the maximum number of bytes this limits enforces.
+     */
+    public abstract int bytes();
 
     /**
      * The max number of results this limits enforces.
@@ -282,6 +312,13 @@ public abstract class DataLimits
         public abstract int countedInCurrentPartition();
 
         /**
+         * The number of bytes for the counted rows.
+         *
+         * @return the number of bytes counted.
+         */
+        public abstract int bytesCounted();
+
+        /**
          * The number of rows counted.
          *
          * @return the number of rows counted.
@@ -337,6 +374,11 @@ public abstract class DataLimits
         {
             super.onClose();
         }
+
+        public GroupingState recreateGroupingStateFor(ByteBuffer lastPartitionKey, Clustering<?> lastClustering)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**
@@ -344,64 +386,72 @@ public abstract class DataLimits
      */
     private static class CQLLimits extends DataLimits
     {
+        protected final int bytesLimit;
         protected final int rowLimit;
         protected final int perPartitionLimit;
 
         // Whether the query is a distinct query or not.
         protected final boolean isDistinct;
 
-        private CQLLimits(int rowLimit)
-        {
-            this(rowLimit, NO_LIMIT);
-        }
-
-        private CQLLimits(int rowLimit, int perPartitionLimit)
-        {
-            this(rowLimit, perPartitionLimit, false);
-        }
-
-        private CQLLimits(int rowLimit, int perPartitionLimit, boolean isDistinct)
+        private CQLLimits(int rowLimit, int bytesLimit, int perPartitionLimit, boolean isDistinct)
         {
             this.rowLimit = rowLimit;
+            this.bytesLimit = bytesLimit;
             this.perPartitionLimit = perPartitionLimit;
             this.isDistinct = isDistinct;
         }
 
         private static CQLLimits distinct(int rowLimit)
         {
-            return new CQLLimits(rowLimit, 1, true);
+            return new CQLLimits(rowLimit, NO_LIMIT, 1, true);
         }
 
+        @Override
         public Kind kind()
         {
             return Kind.CQL_LIMIT;
         }
 
+        @Override
         public boolean isUnlimited()
         {
-            return rowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT;
+            return rowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT && bytesLimit == NO_LIMIT;
         }
 
+        @Override
         public boolean isDistinct()
         {
             return isDistinct;
         }
 
-        public DataLimits forPaging(int pageSize)
+        @Override
+        public DataLimits forPaging(PageSize pageSize)
         {
-            return new CQLLimits(pageSize, perPartitionLimit, isDistinct);
+            return new CQLLimits(Math.min(rowLimit, pageSize.rows),
+                                 Math.min(bytesLimit, pageSize.bytes),
+                                 perPartitionLimit,
+                                 isDistinct
+            );
         }
 
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        @Override
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            return new CQLPagingLimits(pageSize, perPartitionLimit, isDistinct, lastReturnedKey, lastReturnedKeyRemaining);
+            return new CQLPagingLimits(Math.min(rowLimit, pageSize.rows),
+                                       Math.min(bytesLimit, pageSize.bytes),
+                                       perPartitionLimit,
+                                       isDistinct,
+                                       lastReturnedKey,
+                                       lastReturnedKeyRemaining);
         }
 
+        @Override
         public DataLimits forShortReadRetry(int toFetch)
         {
-            return new CQLLimits(toFetch, perPartitionLimit, isDistinct);
+            return new CQLLimits(toFetch, bytesLimit, perPartitionLimit, isDistinct);
         }
 
+        @Override
         public boolean hasEnoughLiveData(CachedPartition cached, long nowInSec, boolean countPartitionsWithOnlyStaticData, boolean enforceStrictLiveness)
         {
             // We want the number of row that are currently live. Getting that precise number forces
@@ -428,6 +478,7 @@ public abstract class DataLimits
             }
         }
 
+        @Override
         public Counter newCounter(long nowInSec,
                                   boolean assumeLiveData,
                                   boolean countPartitionsWithOnlyStaticData,
@@ -436,21 +487,31 @@ public abstract class DataLimits
             return new CQLCounter(nowInSec, assumeLiveData, countPartitionsWithOnlyStaticData, enforceStrictLiveness);
         }
 
+        @Override
+        public int bytes()
+        {
+            return bytesLimit;
+        }
+
+        @Override
         public int count()
         {
             return rowLimit;
         }
 
+        @Override
         public int perPartitionCount()
         {
             return perPartitionLimit;
         }
 
+        @Override
         public DataLimits withoutState()
         {
             return this;
         }
 
+        @Override
         public float estimateTotalResults(ColumnFamilyStore cfs)
         {
             // TODO: we should start storing stats on the number of rows (instead of the number of cells, which
@@ -462,8 +523,12 @@ public abstract class DataLimits
         protected class CQLCounter extends Counter
         {
             protected int rowsCounted;
+            protected int bytesCounted;
             protected int rowsInCurrentPartition;
             protected final boolean countPartitionsWithOnlyStaticData;
+
+            protected int staticRowBytes;
+            protected int partitionKeyBytes;
 
             protected boolean hasLiveStaticRow;
 
@@ -481,63 +546,90 @@ public abstract class DataLimits
             {
                 rowsInCurrentPartition = 0;
                 hasLiveStaticRow = !staticRow.isEmpty() && isLive(staticRow);
+                staticRowBytes = hasLiveStaticRow ? staticRow.dataSize() : 0;
+                partitionKeyBytes = partitionKey.getKeyLength();
             }
 
             @Override
             public Row applyToRow(Row row)
             {
                 if (isLive(row))
-                    incrementRowCount();
+                    incrementRowCount(row.dataSize());
                 return row;
             }
 
             @Override
             public void onPartitionClose()
             {
-                // Normally, we don't count static rows as from a CQL point of view, it will be merge with other
+                // Normally, we don't count static rows as from a CQL point of view, it will be merged with other
                 // rows in the partition. However, if we only have the static row, it will be returned as one row
                 // so count it.
                 if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && rowsInCurrentPartition == 0)
-                    incrementRowCount();
+                    incrementRowCount(staticRowBytes);
                 super.onPartitionClose();
             }
 
-            protected void incrementRowCount()
+            /**
+             * Increments the number of counted rows and adds the given number of bytes to the total counted size
+             */
+            protected void incrementRowCount(int rowSizeInBytes)
             {
-                if (++rowsCounted >= rowLimit)
+                bytesCounted += rowSizeInBytes + partitionKeyBytes;
+                rowsCounted++;
+                rowsInCurrentPartition++;
+                if (bytesCounted >= bytesLimit || rowsCounted >= rowLimit)
                     stop();
-                if (++rowsInCurrentPartition >= perPartitionLimit)
+                if (rowsInCurrentPartition >= perPartitionLimit)
                     stopInPartition();
             }
 
+            @Override
             public int counted()
             {
                 return rowsCounted;
             }
 
+            @Override
             public int countedInCurrentPartition()
             {
                 return rowsInCurrentPartition;
             }
 
+            @Override
+            public int bytesCounted()
+            {
+                return bytesCounted;
+            }
+
+            @Override
             public int rowsCounted()
             {
                 return rowsCounted;
             }
 
+            @Override
             public int rowsCountedInCurrentPartition()
             {
                 return rowsInCurrentPartition;
             }
 
+            @Override
             public boolean isDone()
             {
-                return rowsCounted >= rowLimit;
+                return rowsCounted >= rowLimit || bytesCounted >= bytesLimit;
             }
 
+            @Override
             public boolean isDoneForPartition()
             {
                 return isDone() || rowsInCurrentPartition >= perPartitionLimit;
+            }
+
+            @Override
+            public String toString()
+            {
+                return String.format("%s(bytes=%s/%s, rows=%s/%s, partition-rows=%s/%s)", this.getClass().getName(),
+                                     bytesCounted(), bytesLimit, rowsCounted(), rowLimit, rowsCountedInCurrentPartition(), perPartitionLimit);
             }
         }
 
@@ -565,9 +657,9 @@ public abstract class DataLimits
         private final ByteBuffer lastReturnedKey;
         private final int lastReturnedKeyRemaining;
 
-        public CQLPagingLimits(int rowLimit, int perPartitionLimit, boolean isDistinct, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public CQLPagingLimits(int rowLimit, int bytesLimit, int perPartitionLimit, boolean isDistinct, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            super(rowLimit, perPartitionLimit, isDistinct);
+            super(rowLimit, bytesLimit, perPartitionLimit, isDistinct);
             this.lastReturnedKey = lastReturnedKey;
             this.lastReturnedKeyRemaining = lastReturnedKeyRemaining;
         }
@@ -579,13 +671,13 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
             throw new UnsupportedOperationException();
         }
@@ -593,7 +685,7 @@ public abstract class DataLimits
         @Override
         public DataLimits withoutState()
         {
-            return new CQLLimits(rowLimit, perPartitionLimit, isDistinct);
+            return new CQLLimits(rowLimit, bytesLimit, perPartitionLimit, isDistinct);
         }
 
         @Override
@@ -623,12 +715,24 @@ public abstract class DataLimits
                     // if any already, so force hasLiveStaticRow to false so we make sure to not count it
                     // once more.
                     hasLiveStaticRow = false;
+                    staticRowBytes = 0;
+                    partitionKeyBytes = partitionKey.getKeyLength();
                 }
                 else
                 {
                     super.applyToPartition(partitionKey, staticRow);
                 }
             }
+        }
+
+        @Override
+        public String toString()
+        {
+            return new StringJoiner(", ", CQLPagingLimits.class.getSimpleName() + "[", "]")
+                   .add("super=" + super.toString())
+                   .add("lastReturnedKey=" + (lastReturnedKey != null ? ByteBufferUtil.bytesToHex(lastReturnedKey) : null))
+                   .add("lastReturnedKeyRemaining=" + lastReturnedKeyRemaining)
+                   .toString();
         }
     }
 
@@ -655,27 +759,24 @@ public abstract class DataLimits
          */
         protected final int groupLimit;
 
+        protected final int groupBytesLimit;
+
         /**
          * The limit on the number of groups per partition
          */
         protected final int groupPerPartitionLimit;
 
-        public CQLGroupByLimits(int groupLimit,
-                                int groupPerPartitionLimit,
-                                int rowLimit,
-                                AggregationSpecification groupBySpec)
-        {
-            this(groupLimit, groupPerPartitionLimit, rowLimit, groupBySpec, GroupingState.EMPTY_STATE);
-        }
-
         private CQLGroupByLimits(int groupLimit,
+                                 int groupBytesLimit,
                                  int groupPerPartitionLimit,
                                  int rowLimit,
+                                 int bytesLimit,
                                  AggregationSpecification groupBySpec,
                                  GroupingState state)
         {
-            super(rowLimit, NO_LIMIT, false);
+            super(rowLimit, bytesLimit, NO_LIMIT, false);
             this.groupLimit = groupLimit;
+            this.groupBytesLimit = groupBytesLimit;
             this.groupPerPartitionLimit = groupPerPartitionLimit;
             this.groupBySpec = groupBySpec;
             this.state = state;
@@ -693,18 +794,20 @@ public abstract class DataLimits
             return true;
         }
 
+        @Override
         public boolean isUnlimited()
         {
-            return groupLimit == NO_LIMIT && groupPerPartitionLimit == NO_LIMIT && rowLimit == NO_LIMIT;
-        }
-
-        public DataLimits forShortReadRetry(int toFetch)
-        {
-            return new CQLLimits(toFetch);
+            return groupLimit == NO_LIMIT && groupBytesLimit == NO_LIMIT && groupPerPartitionLimit == NO_LIMIT && rowLimit == NO_LIMIT && bytesLimit == NO_LIMIT;
         }
 
         @Override
-        public float estimateTotalResults(ColumnFamilyStore cfs)
+        public DataLimits forShortReadRetry(int toFetch)
+        {
+            return new CQLLimits(toFetch, NO_LIMIT, NO_LIMIT, false);
+        }
+
+        @Override
+        public float estimateTotalResults(ColumnFamilyStore cfs) // TODO remove
         {
             // For the moment, we return the estimated number of rows as we have no good way of estimating 
             // the number of groups that will be returned. Hopefully, we should be able to fix
@@ -713,21 +816,25 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
-            return new CQLGroupByLimits(pageSize,
+            return new CQLGroupByLimits(Math.min(groupLimit, pageSize.rows),
+                                        Math.min(groupBytesLimit, pageSize.bytes),
                                         groupPerPartitionLimit,
                                         rowLimit,
+                                        bytesLimit,
                                         groupBySpec,
                                         state);
         }
 
         @Override
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
-            return new CQLGroupByPagingLimits(pageSize,
+            return new CQLGroupByPagingLimits(Math.min(groupLimit, pageSize.rows),
+                                              Math.min(groupBytesLimit, pageSize.bytes),
                                               groupPerPartitionLimit,
                                               rowLimit,
+                                              bytesLimit,
                                               groupBySpec,
                                               state,
                                               lastReturnedKey,
@@ -737,9 +844,11 @@ public abstract class DataLimits
         @Override
         public DataLimits forGroupByInternalPaging(GroupingState state)
         {
-            return new CQLGroupByLimits(rowLimit,
+            return new CQLGroupByLimits(groupLimit,
+                                        groupBytesLimit,
                                         groupPerPartitionLimit,
                                         rowLimit,
+                                        bytesLimit,
                                         groupBySpec,
                                         state);
         }
@@ -760,6 +869,12 @@ public abstract class DataLimits
         }
 
         @Override
+        public int bytes()
+        {
+            return groupBytesLimit;
+        }
+
+        @Override
         public int perPartitionCount()
         {
             return groupPerPartitionLimit;
@@ -770,7 +885,7 @@ public abstract class DataLimits
         {
             return state == GroupingState.EMPTY_STATE
                  ? this
-                 : new CQLGroupByLimits(groupLimit, groupPerPartitionLimit, rowLimit, groupBySpec);
+                 : new CQLGroupByLimits(groupLimit, groupBytesLimit, groupPerPartitionLimit, rowLimit, bytesLimit, groupBySpec, GroupingState.EMPTY_STATE);
         }
 
         @Override
@@ -803,8 +918,8 @@ public abstract class DataLimits
         @Override
         public boolean isExhausted(Counter counter)
         {
-            return ((GroupByAwareCounter) counter).rowsCounted < rowLimit
-                    && counter.counted() < groupLimit;
+            return ((GroupByAwareCounter) counter).rowsCounted < rowLimit && ((GroupByAwareCounter) counter).bytesCounted < bytesLimit
+                    && counter.counted() < groupLimit && counter.bytesCounted() < groupBytesLimit;
         }
 
         protected class GroupByAwareCounter extends Counter
@@ -819,9 +934,15 @@ public abstract class DataLimits
             protected DecoratedKey currentPartitionKey;
 
             /**
+             * The number of bytes counted so far.
+             */
+            protected int bytesCounted;
+            /**
              * The number of rows counted so far.
              */
             protected int rowsCounted;
+
+            protected int maxRowSize;
 
             /**
              * The number of rows counted so far in the current partition.
@@ -834,6 +955,8 @@ public abstract class DataLimits
              */
             protected int groupCounted;
 
+            protected int groupBytesCounted;
+
             /**
              * The number of groups in the current partition.
              */
@@ -842,6 +965,8 @@ public abstract class DataLimits
             protected boolean hasUnfinishedGroup;
 
             protected boolean hasLiveStaticRow;
+
+            protected int staticRowBytes;
 
             protected boolean hasReturnedRowsFromCurrentPartition;
 
@@ -854,10 +979,11 @@ public abstract class DataLimits
                 this.groupMaker = groupBySpec.newGroupMaker(state);
                 this.countPartitionsWithOnlyStaticData = countPartitionsWithOnlyStaticData;
 
-                // If the end of the partition was reached at the same time than the row limit, the last group might
+                // If the end of the partition was reached at the same time that the row limit, the last group might
                 // not have been counted yet. Due to that we need to guess, based on the state, if the previous group
                 // is still open.
                 hasUnfinishedGroup = state.hasClustering();
+                maxRowSize = state.bytes();
             }
 
             @Override
@@ -872,6 +998,7 @@ public abstract class DataLimits
                     // the static row if any already, so force hasLiveStaticRow to false so we make sure to not count it
                     // once more.
                     hasLiveStaticRow = false;
+                    staticRowBytes = 0;
                     hasReturnedRowsFromCurrentPartition = true;
                     hasUnfinishedGroup = true;
                 }
@@ -895,6 +1022,7 @@ public abstract class DataLimits
                     }
                     hasReturnedRowsFromCurrentPartition = false;
                     hasLiveStaticRow = !staticRow.isEmpty() && isLive(staticRow);
+                    staticRowBytes = hasLiveStaticRow ? staticRow.dataSize() : 0;
                 }
                 currentPartitionKey = partitionKey;
                 // If we are done we need to preserve the groupInCurrentPartition and rowsCountedInCurrentPartition
@@ -915,6 +1043,7 @@ public abstract class DataLimits
                 if (enforceLimits && isDone())
                 {
                     hasLiveStaticRow = false; // The row has not been returned
+                    staticRowBytes = 0;
                     return Rows.EMPTY_STATIC_ROW;
                 }
                 return row;
@@ -947,7 +1076,7 @@ public abstract class DataLimits
                 if (isLive(row))
                 {
                     hasUnfinishedGroup = true;
-                    incrementRowCount();
+                    incrementRowCount(row.dataSize());
                     hasReturnedRowsFromCurrentPartition = true;
                 }
 
@@ -967,6 +1096,12 @@ public abstract class DataLimits
             }
 
             @Override
+            public int bytesCounted()
+            {
+                return groupBytesCounted;
+            }
+
+            @Override
             public int rowsCounted()
             {
                 return rowsCounted;
@@ -978,17 +1113,26 @@ public abstract class DataLimits
                 return rowsCountedInCurrentPartition;
             }
 
-            protected void incrementRowCount()
+            /**
+             * Increments the number of counted rows and adds the given number of bytes to the total counted size
+             */
+            protected void incrementRowCount(int rowSizeInBytes)
             {
                 rowsCountedInCurrentPartition++;
-                if (++rowsCounted >= rowLimit)
+                rowsCounted++;
+                int rowSizeWithPartitionKey = rowSizeInBytes + currentPartitionKey.getKeyLength();
+                bytesCounted += rowSizeWithPartitionKey;
+                maxRowSize = Math.max(maxRowSize, rowSizeWithPartitionKey);
+                if (rowsCounted >= rowLimit || bytesCounted >= bytesLimit)
                     stop();
             }
 
             private void incrementGroupCount()
             {
                 groupCounted++;
-                if (groupCounted >= groupLimit)
+                groupBytesCounted += maxRowSize;
+                maxRowSize = 0;
+                if (groupCounted >= groupLimit || groupBytesCounted >= groupBytesLimit)
                     stop();
             }
 
@@ -1008,23 +1152,31 @@ public abstract class DataLimits
             @Override
             public boolean isDone()
             {
-                return groupCounted >= groupLimit;
+                return groupCounted >= groupLimit || groupBytesCounted >= groupBytesLimit;
             }
 
             @Override
             public void onPartitionClose()
             {
-                // Normally, we don't count static rows as from a CQL point of view, it will be merge with other
+                // Normally, we don't count static rows as from a CQL point of view, it will be merged with other
                 // rows in the partition. However, if we only have the static row, it will be returned as one group
                 // so count it.
                 if (countPartitionsWithOnlyStaticData && hasLiveStaticRow && !hasReturnedRowsFromCurrentPartition)
                 {
-                    incrementRowCount();
+                    incrementRowCount(staticRowBytes);
                     incrementGroupCount();
                     incrementGroupInCurrentPartitionCount();
                     hasUnfinishedGroup = false;
                 }
                 super.onPartitionClose();
+            }
+
+            @Override
+            public GroupingState recreateGroupingStateFor(ByteBuffer lastPartitionKey, Clustering<?> lastClustering)
+            {
+                return lastPartitionKey == null && lastClustering == null && maxRowSize == 0
+                       ? GroupingState.EMPTY_STATE
+                       : new GroupingState(lastPartitionKey, lastClustering, maxRowSize);
             }
 
             @Override
@@ -1036,13 +1188,25 @@ public abstract class DataLimits
                 // 2) the end of the data is reached
                 // We know that the end of the data is reached if the group limit has not been reached
                 // and the number of rows counted is smaller than the internal page size.
-                if (hasUnfinishedGroup && groupCounted < groupLimit && rowsCounted < rowLimit)
+                if (hasUnfinishedGroup && groupCounted < groupLimit && groupBytesCounted < groupBytesLimit && bytesCounted < bytesLimit && rowsCounted < rowLimit)
                 {
                     incrementGroupCount();
                     incrementGroupInCurrentPartitionCount();
                 }
 
                 super.onClose();
+            }
+
+            @Override
+            public String toString()
+            {
+                return String.format("%s(bytes=%s/%s, rows=%s/%s, partition-rows=%s/%s, groups=%s/%s, group-bytes=%s/%s, partition-groups=%s/%s)", this.getClass().getName(),
+                                     bytesCounted, bytesLimit,
+                                     rowsCounted, rowLimit,
+                                     rowsCountedInCurrentPartition, perPartitionLimit,
+                                     groupCounted, groupLimit,
+                                     groupBytesCounted, groupBytesLimit,
+                                     groupInCurrentPartition, groupPerPartitionLimit);
             }
         }
     }
@@ -1054,16 +1218,20 @@ public abstract class DataLimits
         private final int lastReturnedKeyRemaining;
 
         public CQLGroupByPagingLimits(int groupLimit,
+                                      int groupBytesLimit,
                                       int groupPerPartitionLimit,
                                       int rowLimit,
+                                      int bytesLimit,
                                       AggregationSpecification groupBySpec,
                                       GroupingState state,
                                       ByteBuffer lastReturnedKey,
                                       int lastReturnedKeyRemaining)
         {
             super(groupLimit,
+                  groupBytesLimit,
                   groupPerPartitionLimit,
                   rowLimit,
+                  bytesLimit,
                   groupBySpec,
                   state);
 
@@ -1078,13 +1246,13 @@ public abstract class DataLimits
         }
 
         @Override
-        public DataLimits forPaging(int pageSize)
+        public DataLimits forPaging(PageSize pageSize)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
+        public DataLimits forPaging(PageSize pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
         {
             throw new UnsupportedOperationException();
         }
@@ -1105,7 +1273,7 @@ public abstract class DataLimits
         @Override
         public DataLimits withoutState()
         {
-            return new CQLGroupByLimits(groupLimit, groupPerPartitionLimit, rowLimit, groupBySpec);
+            return new CQLGroupByLimits(groupLimit, groupBytesLimit, groupPerPartitionLimit, rowLimit, bytesLimit, groupBySpec, GroupingState.EMPTY_STATE);
         }
 
         private class PagingGroupByAwareCounter extends GroupByAwareCounter
@@ -1124,6 +1292,7 @@ public abstract class DataLimits
                     groupInCurrentPartition = groupPerPartitionLimit - lastReturnedKeyRemaining;
                     hasReturnedRowsFromCurrentPartition = true;
                     hasLiveStaticRow = false;
+                    staticRowBytes = 0;
                     hasUnfinishedGroup = state.hasClustering();
                 }
                 else
@@ -1131,6 +1300,16 @@ public abstract class DataLimits
                     super.applyToPartition(partitionKey, staticRow);
                 }
             }
+        }
+
+        @Override
+        public String toString()
+        {
+            return new StringJoiner(", ", CQLGroupByPagingLimits.class.getSimpleName() + "[", "]")
+                   .add("super=" + super.toString())
+                   .add("lastReturnedKey=" + (lastReturnedKey != null ? ByteBufferUtil.bytesToHex(lastReturnedKey) : null))
+                   .add("lastReturnedKeyRemaining=" + lastReturnedKeyRemaining)
+                   .toString();
         }
     }
 
@@ -1145,6 +1324,8 @@ public abstract class DataLimits
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
                     out.writeUnsignedVInt32(cqlLimits.rowLimit);
+                    if (version >= MessagingService.VERSION_50)
+                        out.writeUnsignedVInt32(cqlLimits.bytesLimit);
                     out.writeUnsignedVInt32(cqlLimits.perPartitionLimit);
                     out.writeBoolean(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
@@ -1158,8 +1339,12 @@ public abstract class DataLimits
                 case CQL_GROUP_BY_PAGING_LIMIT:
                     CQLGroupByLimits groupByLimits = (CQLGroupByLimits) limits;
                     out.writeUnsignedVInt32(groupByLimits.groupLimit);
+                    if (version >= MessagingService.VERSION_50)
+                        out.writeUnsignedVInt32(groupByLimits.groupBytesLimit);
                     out.writeUnsignedVInt32(groupByLimits.groupPerPartitionLimit);
                     out.writeUnsignedVInt32(groupByLimits.rowLimit);
+                    if (version >= MessagingService.VERSION_50)
+                        out.writeUnsignedVInt32(groupByLimits.bytesLimit);
 
                     AggregationSpecification groupBySpec = groupByLimits.groupBySpec;
                     AggregationSpecification.serializer.serialize(groupBySpec, out, version);
@@ -1171,8 +1356,8 @@ public abstract class DataLimits
                         CQLGroupByPagingLimits pagingLimits = (CQLGroupByPagingLimits) groupByLimits;
                         ByteBufferUtil.writeWithVIntLength(pagingLimits.lastReturnedKey, out);
                         out.writeUnsignedVInt32(pagingLimits.lastReturnedKeyRemaining);
-                     }
-                     break;
+                    }
+                    break;
             }
         }
 
@@ -1185,20 +1370,23 @@ public abstract class DataLimits
                 case CQL_PAGING_LIMIT:
                 {
                     int rowLimit = in.readUnsignedVInt32();
+                    int bytesLimit = version >= MessagingService.VERSION_50 ? (int) in.readUnsignedVInt() : NO_LIMIT;
                     int perPartitionLimit = in.readUnsignedVInt32();
                     boolean isDistinct = in.readBoolean();
                     if (kind == Kind.CQL_LIMIT)
-                        return cqlLimits(rowLimit, perPartitionLimit, isDistinct);
+                        return new CQLLimits(rowLimit, bytesLimit, perPartitionLimit, isDistinct);
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
                     int lastRemaining = in.readUnsignedVInt32();
-                    return new CQLPagingLimits(rowLimit, perPartitionLimit, isDistinct, lastKey, lastRemaining);
+                    return new CQLPagingLimits(rowLimit, bytesLimit, perPartitionLimit, isDistinct, lastKey, lastRemaining);
                 }
                 case CQL_GROUP_BY_LIMIT:
                 case CQL_GROUP_BY_PAGING_LIMIT:
                 {
                     int groupLimit = in.readUnsignedVInt32();
+                    int groupBytesLimit = version >= MessagingService.VERSION_50 ? (int) in.readUnsignedVInt() : NO_LIMIT;
                     int groupPerPartitionLimit = in.readUnsignedVInt32();
                     int rowLimit = in.readUnsignedVInt32();
+                    int bytesLimit = version >= MessagingService.VERSION_50 ? (int) in.readUnsignedVInt() : NO_LIMIT;
 
                     AggregationSpecification groupBySpec = AggregationSpecification.serializer.deserialize(in, version, metadata);
 
@@ -1206,17 +1394,19 @@ public abstract class DataLimits
 
                     if (kind == Kind.CQL_GROUP_BY_LIMIT)
                         return new CQLGroupByLimits(groupLimit,
+                                                    groupBytesLimit,
                                                     groupPerPartitionLimit,
                                                     rowLimit,
-                                                    groupBySpec,
+                                                    bytesLimit, groupBySpec,
                                                     state);
 
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
                     int lastRemaining = in.readUnsignedVInt32();
                     return new CQLGroupByPagingLimits(groupLimit,
+                                                      groupBytesLimit,
                                                       groupPerPartitionLimit,
                                                       rowLimit,
-                                                      groupBySpec,
+                                                      bytesLimit, groupBySpec,
                                                       state,
                                                       lastKey,
                                                       lastRemaining);
@@ -1234,6 +1424,8 @@ public abstract class DataLimits
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits) limits;
                     size += TypeSizes.sizeofUnsignedVInt(cqlLimits.rowLimit);
+                    if (version >= MessagingService.VERSION_50)
+                        size += TypeSizes.sizeofUnsignedVInt(cqlLimits.bytesLimit);
                     size += TypeSizes.sizeofUnsignedVInt(cqlLimits.perPartitionLimit);
                     size += TypeSizes.sizeof(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
@@ -1247,8 +1439,12 @@ public abstract class DataLimits
                 case CQL_GROUP_BY_PAGING_LIMIT:
                     CQLGroupByLimits groupByLimits = (CQLGroupByLimits) limits;
                     size += TypeSizes.sizeofUnsignedVInt(groupByLimits.groupLimit);
+                    if (version >= MessagingService.VERSION_50)
+                        size += TypeSizes.sizeofUnsignedVInt(groupByLimits.groupBytesLimit);
                     size += TypeSizes.sizeofUnsignedVInt(groupByLimits.groupPerPartitionLimit);
                     size += TypeSizes.sizeofUnsignedVInt(groupByLimits.rowLimit);
+                    if (version >= MessagingService.VERSION_50)
+                        size += TypeSizes.sizeofUnsignedVInt(groupByLimits.bytesLimit);
 
                     AggregationSpecification groupBySpec = groupByLimits.groupBySpec;
                     size += AggregationSpecification.serializer.serializedSize(groupBySpec, version);

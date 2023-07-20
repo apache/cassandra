@@ -17,10 +17,19 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.PartitionRangeReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -39,7 +48,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
         {
             lastReturnedKey = query.metadata().partitioner.decorateKey(state.partitionKey);
             lastReturnedRow = state.rowMark;
-            restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
+            restoreState(lastReturnedKey, state.remaining, query.limits().bytes(), state.remainingInPartition);
         }
     }
 
@@ -48,12 +57,13 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
                                     DecoratedKey lastReturnedKey,
                                     PagingState.RowMark lastReturnedRow,
                                     int remaining,
+                                    int remainingBytes,
                                     int remainingInPartition)
     {
         super(query, protocolVersion);
         this.lastReturnedKey = lastReturnedKey;
         this.lastReturnedRow = lastReturnedRow;
-        restoreState(lastReturnedKey, remaining, remainingInPartition);
+        restoreState(lastReturnedKey, remaining, remainingBytes, remainingInPartition);
     }
 
     public PartitionRangeQueryPager withUpdatedLimit(DataLimits newLimits)
@@ -63,6 +73,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
                                             lastReturnedKey,
                                             lastReturnedRow,
                                             maxRemaining(),
+                                            maxRemainingBytes(),
                                             remainingInPartition());
     }
 
@@ -74,7 +85,7 @@ public class PartitionRangeQueryPager extends AbstractQueryPager<PartitionRangeR
     }
 
     @Override
-    protected PartitionRangeReadQuery nextPageReadQuery(int pageSize)
+    protected PartitionRangeReadQuery nextPageReadQuery(PageSize pageSize)
     {
         DataLimits limits;
         DataRange fullRange = query.dataRange();

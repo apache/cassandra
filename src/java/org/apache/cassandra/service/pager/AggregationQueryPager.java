@@ -20,13 +20,18 @@ package org.apache.cassandra.service.pager;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.aggregation.GroupingState;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -36,7 +41,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * <p>
  * For aggregation/group by queries, the user page size is in number of groups. But each group could be composed of very
  * many rows so to avoid running into OOMs, this pager will page internal queries into sub-pages. So each call to
- * {@link fetchPage} may (transparently) yield multiple internal queries (sub-pages).
+ * {@link #fetchPage} may (transparently) yield multiple internal queries (sub-pages).
  */
 public final class AggregationQueryPager implements QueryPager
 {
@@ -45,6 +50,8 @@ public final class AggregationQueryPager implements QueryPager
     // The sub-pager, used to retrieve the next sub-page.
     private QueryPager subPager;
 
+    private int fetchedSubPages;
+
     public AggregationQueryPager(QueryPager subPager, DataLimits limits)
     {
         this.subPager = subPager;
@@ -52,7 +59,7 @@ public final class AggregationQueryPager implements QueryPager
     }
 
     @Override
-    public PartitionIterator fetchPage(int pageSize,
+    public PartitionIterator fetchPage(PageSize pageSize,
                                        ConsistencyLevel consistency,
                                        ClientState clientState,
                                        long queryStartNanoTime)
@@ -70,8 +77,9 @@ public final class AggregationQueryPager implements QueryPager
     }
 
     @Override
-    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController)
+    public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController)
     {
+        fetchedSubPages = 0;
         if (limits.isGroupByLimit())
             return new GroupByPartitionIterator(pageSize, executionController, nanoTime());
 
@@ -91,6 +99,13 @@ public final class AggregationQueryPager implements QueryPager
     }
 
     @Override
+    public int maxRemainingBytes()
+    {
+        assert (limits.bytes() - getLastCounter().bytesCounted()) == subPager.maxRemainingBytes();
+        return subPager.maxRemainingBytes();
+    }
+
+    @Override
     public PagingState state()
     {
         return subPager.state();
@@ -102,6 +117,17 @@ public final class AggregationQueryPager implements QueryPager
         throw new UnsupportedOperationException();
     }
 
+    public int getNumberOfSubPages()
+    {
+        return fetchedSubPages;
+    }
+
+    @Override
+    public DataLimits.Counter getLastCounter()
+    {
+        return subPager.getLastCounter();
+    }
+
     /**
      * <code>PartitionIterator</code> that automatically fetch a new sub-page of data if needed when the current iterator is
      * exhausted.
@@ -111,7 +137,7 @@ public final class AggregationQueryPager implements QueryPager
         /**
          * The top-level page size in number of groups.
          */
-        private final int pageSize;
+        private final PageSize pageSize;
 
         // For "normal" queries
         private final ConsistencyLevel consistency;
@@ -154,42 +180,36 @@ public final class AggregationQueryPager implements QueryPager
          * The initial amount of row remaining
          */
         private int initialMaxRemaining;
+        private int initialMaxRemainingBytes;
 
         private long queryStartNanoTime;
 
-        public GroupByPartitionIterator(int pageSize,
-                                         ConsistencyLevel consistency,
-                                         ClientState clientState,
+        public GroupByPartitionIterator(PageSize pageSize,
+                                        ConsistencyLevel consistency,
+                                        ClientState clientState,
                                         long queryStartNanoTime)
         {
             this(pageSize, consistency, clientState, null, queryStartNanoTime);
         }
 
-        public GroupByPartitionIterator(int pageSize,
+        public GroupByPartitionIterator(PageSize pageSize,
                                         ReadExecutionController executionController,
                                         long queryStartNanoTime)
        {
            this(pageSize, null, null, executionController, queryStartNanoTime);
        }
 
-        private GroupByPartitionIterator(int pageSize,
+        private GroupByPartitionIterator(PageSize pageSize,
                                          ConsistencyLevel consistency,
                                          ClientState clientState,
                                          ReadExecutionController executionController,
                                          long queryStartNanoTime)
         {
-            this.pageSize = handlePagingOff(pageSize);
+            this.pageSize = pageSize;
             this.consistency = consistency;
             this.clientState = clientState;
             this.executionController = executionController;
             this.queryStartNanoTime = queryStartNanoTime;
-        }
-
-        private int handlePagingOff(int pageSize)
-        {
-            // If the paging is off, the pageSize will be <= 0. So we need to replace
-            // it by DataLimits.NO_LIMIT
-            return pageSize <= 0 ? DataLimits.NO_LIMIT : pageSize;
         }
 
         public final void close()
@@ -222,6 +242,7 @@ public final class AggregationQueryPager implements QueryPager
             if (partitionIterator == null)
             {
                 initialMaxRemaining = subPager.maxRemaining();
+                initialMaxRemainingBytes = subPager.maxRemainingBytes();
                 partitionIterator = fetchSubPage(pageSize);
             }
 
@@ -230,24 +251,27 @@ public final class AggregationQueryPager implements QueryPager
                 partitionIterator.close();
 
                 int counted = initialMaxRemaining - subPager.maxRemaining();
+                int countedBytes = initialMaxRemainingBytes - subPager.maxRemainingBytes();
 
-                if (isDone(pageSize, counted) || subPager.isExhausted())
+                if (isDone(pageSize, counted, countedBytes) || subPager.isExhausted())
                 {
                     endOfData = true;
                     closed = true;
+                    if (!subPager.isExhausted())
+                        subPager = subPager.withUpdatedLimit(limits.withoutState());
                     return;
                 }
 
-                subPager = updatePagerLimit(subPager, limits, lastPartitionKey, lastClustering);
-                partitionIterator = fetchSubPage(computeSubPageSize(pageSize, counted));
+                subPager = updatePagerLimit(subPager, limits, lastPartitionKey, lastClustering, subPager.getLastCounter());
+                partitionIterator = fetchSubPage(computeSubPageSize(pageSize, counted, countedBytes));
             }
 
             next = partitionIterator.next();
         }
 
-        protected boolean isDone(int pageSize, int counted)
+        protected boolean isDone(PageSize pageSize, int counted, int countedBytes)
         {
-            return counted == pageSize;
+            return counted == pageSize.rows || countedBytes >= pageSize.bytes;
         }
 
         /**
@@ -262,9 +286,10 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering<?> lastClustering)
+                                              Clustering<?> lastClustering,
+                                              DataLimits.Counter lastCounter)
         {
-            GroupingState state = new GroupingState(lastPartitionKey, lastClustering);
+            GroupingState state = lastCounter.recreateGroupingStateFor(lastPartitionKey, lastClustering);
             DataLimits newLimits = limits.forGroupByInternalPaging(state);
             return pager.withUpdatedLimit(newLimits);
         }
@@ -272,13 +297,14 @@ public final class AggregationQueryPager implements QueryPager
         /**
          * Computes the size of the next sub-page to retrieve.
          *
-         * @param pageSize the top-level page size
-         * @param counted the number of result returned so far by the previous sub-pages
+         * @param pageSize     the top-level page size
+         * @param counted      the number of result returned so far by the previous sub-pages
+         * @param countedBytes
          * @return the size of the next sub-page to retrieve
          */
-        protected int computeSubPageSize(int pageSize, int counted)
+        protected PageSize computeSubPageSize(PageSize pageSize, int counted, int countedBytes)
         {
-            return pageSize - counted;
+            return pageSize.minus(counted, countedBytes);
         }
 
         /**
@@ -287,8 +313,9 @@ public final class AggregationQueryPager implements QueryPager
          * @param subPageSize the sub-page size in number of groups
          * @return the next sub-page
          */
-        private final PartitionIterator fetchSubPage(int subPageSize)
+        private final PartitionIterator fetchSubPage(PageSize subPageSize)
         {
+            fetchedSubPages++;
             return consistency != null ? subPager.fetchPage(subPageSize, consistency, clientState, queryStartNanoTime)
                                        : subPager.fetchPageInternal(subPageSize, executionController);
         }
@@ -400,7 +427,7 @@ public final class AggregationQueryPager implements QueryPager
      */
     public final class AggregationPartitionIterator extends GroupByPartitionIterator
     {
-        public AggregationPartitionIterator(int pageSize,
+        public AggregationPartitionIterator(PageSize pageSize,
                                             ConsistencyLevel consistency,
                                             ClientState clientState,
                                             long queryStartNanoTime)
@@ -408,7 +435,7 @@ public final class AggregationQueryPager implements QueryPager
             super(pageSize, consistency, clientState, queryStartNanoTime);
         }
 
-        public AggregationPartitionIterator(int pageSize,
+        public AggregationPartitionIterator(PageSize pageSize,
                                             ReadExecutionController executionController,
                                             long queryStartNanoTime)
         {
@@ -419,19 +446,20 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering<?> lastClustering)
+                                              Clustering<?> lastClustering,
+                                              DataLimits.Counter lastCounter)
         {
             return pager;
         }
 
         @Override
-        protected boolean isDone(int pageSize, int counted)
+        protected boolean isDone(PageSize pageSize, int counted, int countedBytes)
         {
             return false;
         }
 
         @Override
-        protected int computeSubPageSize(int pageSize, int counted)
+        protected PageSize computeSubPageSize(PageSize pageSize, int counted, int countedBytes)
         {
             return pageSize;
         }

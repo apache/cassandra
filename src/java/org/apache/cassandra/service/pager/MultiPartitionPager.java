@@ -17,18 +17,20 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.AbstractIterator;
-
 import java.util.Arrays;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.cql3.PageSize;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -54,6 +56,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     private final long nowInSec;
 
     private int remaining;
+    private int remainingBytes;
     private int current;
 
     public MultiPartitionPager(SinglePartitionReadQuery.Group<T> group, PagingState state, ProtocolVersion protocolVersion)
@@ -85,18 +88,21 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
             pagers[j - i] = group.queries.get(j).getPager(null, protocolVersion);
 
         remaining = state == null ? limit.count() : state.remaining;
+        remainingBytes = limit.bytes();
     }
 
     private MultiPartitionPager(SinglePartitionPager[] pagers,
                                 DataLimits limit,
                                 long nowInSec,
                                 int remaining,
+                                int remainingBytes,
                                 int current)
     {
         this.pagers = pagers;
         this.limit = limit;
         this.nowInSec = nowInSec;
         this.remaining = remaining;
+        this.remainingBytes = remainingBytes;
         this.current = current;
     }
 
@@ -109,7 +115,17 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                                           newLimits,
                                           nowInSec,
                                           remaining,
+                                          remainingBytes,
                                           current);
+    }
+
+    @Override
+    public DataLimits.Counter getLastCounter()
+    {
+        DataLimits.Counter lastCounter = null;
+        for (int i = Math.min(pagers.length - 1, current); i >= 0 && lastCounter == null; i--)
+            lastCounter = pagers[i].getLastCounter();
+        return lastCounter;
     }
 
     public PagingState state()
@@ -124,7 +140,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
 
     public boolean isExhausted()
     {
-        if (remaining <= 0 || pagers == null)
+        if (remaining <= 0 || remainingBytes <= 0 || pagers == null)
             return true;
 
         while (current < pagers.length)
@@ -150,22 +166,22 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     }
 
     @SuppressWarnings("resource") // iter closed via countingIter
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
+    public PartitionIterator fetchPage(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
-        int toQuery = Math.min(remaining, pageSize);
+        PageSize toQuery = pageSize.min(remaining, remainingBytes);
         return new PagersIterator(toQuery, consistency, clientState, null, queryStartNanoTime);
     }
 
     @SuppressWarnings("resource") // iter closed via countingIter
-    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
+    public PartitionIterator fetchPageInternal(PageSize pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
     {
-        int toQuery = Math.min(remaining, pageSize);
+        PageSize toQuery = pageSize.min(remaining, remainingBytes);
         return new PagersIterator(toQuery, null, null, executionController, nanoTime());
     }
 
     private class PagersIterator extends AbstractIterator<RowIterator> implements PartitionIterator
     {
-        private final int pageSize;
+        private final PageSize pageSize;
         private PartitionIterator result;
         private boolean closed;
         private final long queryStartNanoTime;
@@ -178,9 +194,11 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         private final ReadExecutionController executionController;
 
         private int pagerMaxRemaining;
+        private int pagerMaxRemainingBytes;
         private int counted;
+        private int bytes;
 
-        public PagersIterator(int pageSize, ConsistencyLevel consistency, ClientState clientState, ReadExecutionController executionController, long queryStartNanoTime)
+        public PagersIterator(PageSize pageSize, ConsistencyLevel consistency, ClientState clientState, ReadExecutionController executionController, long queryStartNanoTime)
         {
             this.pageSize = pageSize;
             this.consistency = consistency;
@@ -197,11 +215,12 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 {
                     result.close();
                     counted += pagerMaxRemaining - pagers[current].maxRemaining();
+                    bytes += pagerMaxRemainingBytes - pagers[current].maxRemainingBytes();
                 }
 
                 // We are done if we have reached the page size or in the case of GROUP BY if the current pager
                 // is not exhausted.
-                boolean isDone = counted >= pageSize
+                boolean isDone = counted >= pageSize.rows || bytes >= pageSize.bytes
                         || (result != null && limit.isGroupByLimit() && !pagers[current].isExhausted());
 
                 // isExhausted() will sets us on the first non-exhausted pager
@@ -212,7 +231,8 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
                 }
 
                 pagerMaxRemaining = pagers[current].maxRemaining();
-                int toQuery = pageSize - counted;
+                pagerMaxRemainingBytes = pagers[current].maxRemainingBytes();
+                PageSize toQuery = pageSize.minus(counted, bytes);
                 result = consistency == null
                        ? pagers[current].fetchPageInternal(toQuery, executionController)
                        : pagers[current].fetchPage(toQuery, consistency, clientState, queryStartNanoTime);
@@ -223,6 +243,7 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
         public void close()
         {
             remaining -= counted;
+            remainingBytes -= bytes;
             if (result != null && !closed)
                 result.close();
         }
@@ -231,5 +252,11 @@ public class MultiPartitionPager<T extends SinglePartitionReadQuery> implements 
     public int maxRemaining()
     {
         return remaining;
+    }
+
+    @Override
+    public int maxRemainingBytes()
+    {
+        return remainingBytes;
     }
 }
