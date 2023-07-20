@@ -37,6 +37,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -274,5 +275,16 @@ public class TokenMap implements MetadataValue<TokenMap>
     {
         return Objects.equals(map, tokenMap.map) &&
                Objects.equals(partitioner, tokenMap.partitioner);
+    }
+
+    public void dumpDiff(TokenMap other)
+    {
+        if (!Objects.equals(map, other.map))
+        {
+            logger.warn("Maps differ: {} != {}", map, other.map);
+            Directory.dumpDiff(logger, map, other.map);
+        }
+        if (!Objects.equals(partitioner, other.partitioner))
+            logger.warn("Partitioners differ: {} != {}", partitioner, other.partitioner);
     }
 }

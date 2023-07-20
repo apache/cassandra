@@ -20,7 +20,9 @@ package org.apache.cassandra.tcm.migration;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -84,7 +86,7 @@ public class Election
         this.abortHandler = new AbortHandler();
     }
 
-    public void nominateSelf(Set<InetAddressAndPort> candidates, Set<InetAddressAndPort> ignoredEndpoints, Function<ClusterMetadata, Boolean> isMatch)
+    public void nominateSelf(Set<InetAddressAndPort> candidates, Set<InetAddressAndPort> ignoredEndpoints, Function<ClusterMetadata, Boolean> isMatch, ClusterMetadata metadata)
     {
         Set<InetAddressAndPort> sendTo = new HashSet<>(candidates);
         sendTo.removeAll(ignoredEndpoints);
@@ -92,7 +94,7 @@ public class Election
 
         try
         {
-            initiate(sendTo, isMatch);
+            initiate(sendTo, isMatch, metadata);
             finish(sendTo);
         }
         catch (Exception e)
@@ -102,7 +104,7 @@ public class Election
         }
     }
 
-    private void initiate(Set<InetAddressAndPort> sendTo, Function<ClusterMetadata, Boolean> isMatch)
+    private void initiate(Set<InetAddressAndPort> sendTo, Function<ClusterMetadata, Boolean> isMatch, ClusterMetadata metadata)
     {
         if (!updateInitiator(null, new Initiator(FBUtilities.getBroadcastAddressAndPort(), UUID.randomUUID())))
             throw new IllegalStateException("Migration already initiated by " + initiator.get());
@@ -122,6 +124,16 @@ public class Election
         {
             // todo; log the differences between the metadatas
             String msg = String.format("Got mismatching cluster metadatas from %s aborting migration", mismatching);
+            Map<InetAddressAndPort, ClusterMetadataHolder> metadataMap = new HashMap<>();
+            metadatas.forEach(pair -> metadataMap.put(pair.left, pair.right));
+            if (metadata != null)
+            {
+                for (InetAddressAndPort e : mismatching)
+                {
+                    logger.warn("Diff with {}", e);
+                    metadata.dumpDiff(metadataMap.get(e).metadata);
+                }
+            }
             throw new IllegalStateException(msg);
         }
     }

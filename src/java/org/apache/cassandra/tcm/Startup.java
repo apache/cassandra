@@ -162,7 +162,8 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
              {
                  Election.instance.nominateSelf(candidates.nodes(),
                                                 Collections.singleton(FBUtilities.getBroadcastAddressAndPort()),
-                                                (cm) -> true);
+                                                (cm) -> true,
+                                                null);
              }
          }
 

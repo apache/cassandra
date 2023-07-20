@@ -23,9 +23,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -222,5 +227,34 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             size += Epoch.serializer.serializedSize(t.lastModified, version);
             return size;
         }
+    }
+
+    public void dumpDiff(DataPlacements other)
+    {
+        if (!map.equals(other.map))
+        {
+            logger.warn("Maps differ: {} != {}", map, other.map);
+            dumpDiff(logger,map, other.map);
+        }
+    }
+
+    private static final Logger logger = LoggerFactory.getLogger(DataPlacements.class);
+    public static void dumpDiff(Logger logger, Map<ReplicationParams, DataPlacement> l, Map<ReplicationParams, DataPlacement> r)
+    {
+        for (ReplicationParams k : Sets.intersection(l.keySet(), r.keySet()))
+        {
+            DataPlacement lv = l.get(k);
+            DataPlacement rv = r.get(k);
+            if (!Objects.equals(lv, rv))
+            {
+                logger.warn("Values for key {} differ: {} != {}", k, lv, rv);
+                logger.warn("Difference: {}", lv.difference(rv));
+            }
+        }
+        for (ReplicationParams k : Sets.difference(l.keySet(), r.keySet()))
+            logger.warn("Value for key {} is only present in the left set: {}", k, l.get(k));
+        for (ReplicationParams k : Sets.difference(r.keySet(), l.keySet()))
+            logger.warn("Value for key {} is only present in the right set: {}", k, r.get(k));
+
     }
 }

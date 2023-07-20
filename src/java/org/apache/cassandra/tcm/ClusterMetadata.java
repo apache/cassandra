@@ -32,6 +32,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
@@ -730,6 +733,52 @@ public class ClusterMetadata
                lockedRanges.equals(that.lockedRanges) &&
                inProgressSequences.equals(that.inProgressSequences) &&
                extensions.equals(that.extensions);
+    }
+
+    private static final Logger logger = LoggerFactory.getLogger(ClusterMetadata.class);
+
+    public void dumpDiff(ClusterMetadata other)
+    {
+        if (!epoch.equals(other.epoch))
+        {
+            logger.warn("Epoch {} != {}", epoch, other.epoch);
+        }
+        if (lastInPeriod != other.lastInPeriod)
+        {
+            logger.warn("lastInPeriod {} != {}", lastInPeriod, other.lastInPeriod);
+        }
+        if (!schema.equals(other.schema))
+        {
+            Keyspaces.KeyspacesDiff diff = Keyspaces.diff(schema.getKeyspaces(), other.schema.getKeyspaces());
+            logger.warn("Schemas differ {}", diff);
+        }
+        if (!directory.equals(other.directory))
+        {
+            logger.warn("Directories differ:");
+            directory.dumpDiff(other.directory);
+        }
+        if (!tokenMap.equals(other.tokenMap))
+        {
+            logger.warn("Token maps differ:");
+            tokenMap.dumpDiff(other.tokenMap);
+        }
+        if (!placements.equals(other.placements))
+        {
+            logger.warn("Placements differ:");
+            placements.dumpDiff(other.placements);
+        }
+        if (!lockedRanges.equals(other.lockedRanges))
+        {
+            logger.warn("Locked ranges differ: {} != {}", lockedRanges, other.lockedRanges);
+        }
+        if (!inProgressSequences.equals(other.inProgressSequences))
+        {
+            logger.warn("In progress sequences differ: {} != {}", inProgressSequences, other.inProgressSequences);
+        }
+        if (!extensions.equals(other.extensions))
+        {
+            logger.warn("Extensions differ: {} != {}", extensions, other.extensions);
+        }
     }
 
     @Override

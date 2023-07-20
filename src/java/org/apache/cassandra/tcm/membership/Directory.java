@@ -29,6 +29,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -602,5 +606,56 @@ public class Directory implements MetadataValue<Directory>
                Objects.equals(racksByDC, directory.racksByDC) &&
                Objects.equals(versions, directory.versions) &&
                Objects.equals(addresses, directory.addresses);
+    }
+    
+    private static final Logger logger = LoggerFactory.getLogger(Directory.class);
+
+    public void dumpDiff(Directory other)
+    {
+        if (nextId != other.nextId)
+        {
+            logger.warn("nextId differ: {} != {}", nextId, other.nextId);
+        }
+        if (!Objects.equals(peers, other.peers))
+        {
+            logger.warn("Peers differ: {} != {}", peers, other.peers);
+            dumpDiff(logger, peers, other.peers);
+        }
+        if (!Objects.equals(states, other.states))
+        {
+            logger.warn("States differ: {} != {}", states, other.states);
+            dumpDiff(logger, states, other.states);
+        }
+        if (!Objects.equals(endpointsByDC, other.endpointsByDC))
+        {
+            logger.warn("Endpoints by dc differ: {} != {}", endpointsByDC, other.endpointsByDC);
+            dumpDiff(logger, endpointsByDC.asMap(), other.endpointsByDC.asMap());
+        }
+        if (!Objects.equals(versions, other.versions))
+        {
+            logger.warn("Versions differ: {} != {}", versions, other.versions);
+            dumpDiff(logger, versions, other.versions);
+        }
+        if (!Objects.equals(addresses, other.addresses))
+        {
+            logger.warn("Addresses differ: {} != {}", addresses, other.addresses);
+            dumpDiff(logger, addresses, other.addresses);
+        }
+    }
+
+    public static <K, V> void dumpDiff(Logger logger, Map<K, V> l, Map<K, V> r)
+    {
+        for (K k : Sets.intersection(l.keySet(), r.keySet()))
+        {
+            V lv = l.get(k);
+            V rv = r.get(k);
+            if (!Objects.equals(lv, rv))
+                logger.warn("Values for key {} differ: {} != {}", k, lv, rv);
+        }
+        for (K k : Sets.difference(l.keySet(), r.keySet()))
+            logger.warn("Value for key {} is only present in the left set: {}", k, l.get(k));
+        for (K k : Sets.difference(r.keySet(), l.keySet()))
+            logger.warn("Value for key {} is only present in the right set: {}", k, r.get(k));
+
     }
 }
