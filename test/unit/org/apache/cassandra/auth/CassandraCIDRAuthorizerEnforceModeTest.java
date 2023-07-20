@@ -219,7 +219,7 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
                                      "cidr_groups",
                                      AUTH_KEYSPACE_NAME,
                                      CIDR_PERMISSIONS,
-                                     RoleResource.role(role).getName());
+                                     RoleResource.role(role).getRoleName());
         return QueryProcessor.executeInternal(query);
     }
 

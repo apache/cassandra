@@ -57,20 +57,20 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=CIDRPermissionsManager";
 
     private static final Logger logger = LoggerFactory.getLogger(CIDRPermissionsManager.class);
-    private SelectStatement authorizeUserForCidrStatement = null;
+    private SelectStatement getCidrPermissionsOfUserStatement = null;
 
     public void setup()
     {
         if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
 
-        String getCIDRsforUserQuery = String.format("SELECT %s FROM %s.%s WHERE %s = ?",
-                                                    AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
-                                                    SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                    AuthKeyspace.CIDR_PERMISSIONS,
-                                                    AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME);
-        authorizeUserForCidrStatement = (SelectStatement) QueryProcessor.getStatement(getCIDRsforUserQuery,
-                                                                                      ClientState.forInternalCalls());
+        String getCidrPermissionsOfUserQuery = String.format("SELECT %s FROM %s.%s WHERE %s = ?",
+                                                             AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
+                                                             SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                             AuthKeyspace.CIDR_PERMISSIONS,
+                                                             AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME);
+        getCidrPermissionsOfUserStatement = (SelectStatement) QueryProcessor.getStatement(getCidrPermissionsOfUserQuery,
+                                                                                          ClientState.forInternalCalls());
     }
 
     @VisibleForTesting
@@ -90,7 +90,7 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
         QueryOptions options = QueryOptions.forInternalCalls(CassandraAuthorizer.authReadConsistencyLevel(),
                                                              Lists.newArrayList(ByteBufferUtil.bytes(name)));
 
-        ResultMessage.Rows rows = select(authorizeUserForCidrStatement, options);
+        ResultMessage.Rows rows = select(getCidrPermissionsOfUserStatement, options);
         UntypedResultSet result = UntypedResultSet.create(rows.result);
         if (!result.isEmpty() && result.one().has(AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME))
         {
@@ -127,7 +127,7 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
             return CIDRPermissions.all();
         }
 
-        Set<String> cidrGroups = getAuthorizedCIDRGroups(role.getName());
+        Set<String> cidrGroups = getAuthorizedCIDRGroups(role.getRoleName());
         // User don't have CIDR permissions explicitly enabled, i.e, allow from all
         if (cidrGroups == null || cidrGroups.isEmpty())
         {
@@ -151,7 +151,7 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
                                      AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
                                      getCidrPermissionsSetString(cidrPermissions),
                                      AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME,
-                                     role.getName());
+                                     role.getRoleName());
 
         process(query, CassandraAuthorizer.authWriteConsistencyLevel());
     }
@@ -165,7 +165,7 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
         String query = String.format("DELETE FROM %s.%s WHERE role = '%s'",
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.CIDR_PERMISSIONS,
-                                     role.getName());
+                                     role.getRoleName());
 
         process(query, CassandraAuthorizer.authWriteConsistencyLevel());
     }
