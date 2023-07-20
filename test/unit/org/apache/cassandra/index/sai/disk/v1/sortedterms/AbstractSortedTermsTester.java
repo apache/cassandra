@@ -19,13 +19,10 @@
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
 
-import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
@@ -36,9 +33,6 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class AbstractSortedTermsTester extends SAIRandomizedTester
 {
@@ -78,15 +72,6 @@ public class AbstractSortedTermsTester extends SAIRandomizedTester
                                                                   trieWriter))
             {
                 testCode.accept(writer);
-//                for (int x = 0; x < 4000; x++)
-//                {
-//                    ByteBuffer buffer = Int32Type.instance.decompose(x);
-//                    ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
-//                    byte[] bytes = ByteSourceInverse.readBytes(byteSource);
-//                    terms.add(bytes);
-//
-//                    writer.add(ByteComparable.fixedLength(bytes));
-//                }
             }
         }
     }

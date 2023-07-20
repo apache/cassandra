@@ -39,7 +39,8 @@ public class SortedTermsFunctionalTest extends AbstractSortedTermsTester
     @Before
     public void setup() throws Exception
     {
-        primaryKeyFactory = new PrimaryKey.Factory(null);
+        super.setup();
+        primaryKeyFactory = new PrimaryKey.Factory(indexDescriptor.clusteringComparator);
     }
 
     @Test

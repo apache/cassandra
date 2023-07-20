@@ -35,7 +35,6 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
-import org.apache.cassandra.index.sai.disk.v1.trie.TriePrefixSearcher;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;

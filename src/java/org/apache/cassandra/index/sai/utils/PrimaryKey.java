@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.Clustering;
@@ -43,7 +44,7 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
     {
         private final ClusteringComparator clusteringComparator;
 
-        public Factory(ClusteringComparator clusteringComparator)
+        public Factory(@Nonnull ClusteringComparator clusteringComparator)
         {
             this.clusteringComparator = clusteringComparator;
         }
@@ -93,7 +94,7 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
             public ByteSource asComparableBytes(ByteComparable.Version version)
             {
                 ByteSource keyComparable = ByteSource.of(partitionKey().getKey(), version);
-                if (clusteringComparator == null || clusteringComparator.size() == 0)
+                if (clusteringComparator.size() == 0)
                     return keyComparable;
                 // It is important that the ClusteringComparator.asBytesComparable method is used
                 // to maintain the correct clustering sort order
