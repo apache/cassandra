@@ -50,7 +50,7 @@ import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWrit
  * Because the blocks are prefix compressed, random access applies only to the locating the whole block.
  * In order to jump to a concrete term inside the block, the block terms are iterated from the block beginning.
  * Expect random access by {@link Cursor#seekToPointId(long)} to be slower
- * than just moving to the next term with {@link Cursor#advance()}.
+ * than just moving to the next term with {@link Cursor#advance(long)}.
  * <p>
  * For documentation of the underlying on-disk data structures, see the package documentation.
  *
@@ -162,63 +162,67 @@ public class SortedTermsReader
             long blockAddress = blockOffsets.get(blockIndex);
             termsInput.seek(blockAddress + termsDataFp);
             this.pointId = (blockIndex << TERMS_DICT_BLOCK_SHIFT) - 1;
-            while (this.pointId < pointId && advance());
-        }
-
-        /**
-         * Advances the cursor to the next term and reads it into the current term buffer.
-         * <p>
-         * If there are no more available terms, clears the term buffer and the cursor's position will point to the
-         * one behind the last item.
-         * <p>
-         * This method has constant time complexity.
-         *
-         * @return true if the cursor was advanced successfully, false if the end of file was reached
-         * @throws IOException if a read from the terms file fails
-         */
-        @VisibleForTesting
-        protected boolean advance() throws IOException
-        {
-            if (pointId >= meta.termCount || ++pointId >= meta.termCount)
-            {
-                currentTerm.length = 0;
-                return false;
-            }
-
-            int prefixLength;
-            int suffixLength;
-            if ((pointId & TERMS_DICT_BLOCK_MASK) == 0L)
-            {
-                prefixLength = 0;
-                suffixLength = termsInput.readVInt();
-            }
-            else
-            {
-                // Read the prefix and suffix lengths following the compression mechanism described
-                // in the SortedTermsWriter. If the lengths contained in the starting byte are less
-                // than the 4 bit maximum then nothing further is read. Otherwise, the lengths in the
-                // following vints are added.
-                int compressedLengths = Byte.toUnsignedInt(termsInput.readByte());
-                prefixLength = compressedLengths & 0x0F;
-                suffixLength = 1 + (compressedLengths >>> 4);
-                if (prefixLength == 15)
-                    prefixLength += termsInput.readVInt();
-                if (suffixLength == 16)
-                    suffixLength += termsInput.readVInt();
-            }
-
-            assert prefixLength + suffixLength <= meta.maxTermLength;
-            currentTerm.length = prefixLength + suffixLength;
-            // The currentTerm is appended to as the suffix for the current term is
-            // added to the existing prefix.
-            termsInput.readBytes(currentTerm.bytes, prefixLength, suffixLength);
-            return true;
+            advance(pointId);
         }
 
         @Override
         public void close()
         {
             termsInput.close();
+        }
+
+        /**
+         * Advances to the required pointId, moving the cursor to the next term and reading it into the current
+         * term buffer as it moves forwards.
+         * <p>
+         * If there are no more available terms, clears the term buffer and the cursor's position will point to the
+         * one behind the last item.
+         * <p>
+         * This method has constant time complexity.
+         *
+         * @param nextPointId the pointId to advance to
+         *
+         * @throws IOException if a read from the terms file fails
+         */
+        @VisibleForTesting
+        protected void advance(long nextPointId) throws IOException
+        {
+            while (pointId < nextPointId)
+            {
+                if (pointId >= meta.termCount || ++pointId >= meta.termCount)
+                {
+                    currentTerm.length = 0;
+                    return;
+                }
+
+                int prefixLength;
+                int suffixLength;
+                if ((pointId & TERMS_DICT_BLOCK_MASK) == 0L)
+                {
+                    prefixLength = 0;
+                    suffixLength = termsInput.readVInt();
+                }
+                else
+                {
+                    // Read the prefix and suffix lengths following the compression mechanism described
+                    // in the SortedTermsWriter. If the lengths contained in the starting byte are less
+                    // than the 4 bit maximum then nothing further is read. Otherwise, the lengths in the
+                    // following vints are added.
+                    int compressedLengths = Byte.toUnsignedInt(termsInput.readByte());
+                    prefixLength = compressedLengths & 0x0F;
+                    suffixLength = 1 + (compressedLengths >>> 4);
+                    if (prefixLength == 15)
+                        prefixLength += termsInput.readVInt();
+                    if (suffixLength == 16)
+                        suffixLength += termsInput.readVInt();
+                }
+
+                assert prefixLength + suffixLength <= meta.maxTermLength;
+                currentTerm.length = prefixLength + suffixLength;
+                // The currentTerm is appended to as the suffix for the current term is
+                // added to the existing prefix.
+                termsInput.readBytes(currentTerm.bytes, prefixLength, suffixLength);
+            }
         }
     }
 }

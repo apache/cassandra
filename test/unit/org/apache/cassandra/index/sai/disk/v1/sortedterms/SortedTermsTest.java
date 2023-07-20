@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Clustering;
@@ -36,14 +35,10 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -53,16 +48,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
 
-public class SortedTermsTest extends SAIRandomizedTester
+public class SortedTermsTest extends AbstractSortedTermsTester
 {
-    private IndexDescriptor indexDescriptor;
-
-    @Before
-    public void setup() throws Exception
-    {
-        indexDescriptor = newIndexDescriptor();
-    }
-
     @Test
     public void testFileValidation() throws Exception
     {
@@ -115,7 +102,56 @@ public class SortedTermsTest extends SAIRandomizedTester
     public void testLongPrefixesAndSuffixes() throws Exception
     {
         List<byte[]> terms = new ArrayList<>();
-        writeLongPrefixAndSuffixTerms(indexDescriptor, terms);
+        writeTerms(writer ->
+        {
+            // The following writes a lexographically ordered set of terms that cover the following
+            // conditions:
+
+            // Start value 0
+            byte[] bytes = new byte[20];
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // prefix > 15
+            bytes = new byte[20];
+            Arrays.fill(bytes, 16, 20, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // prefix == 15
+            bytes = new byte[20];
+            Arrays.fill(bytes, 15, 20, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // prefix < 15
+            bytes = new byte[20];
+            Arrays.fill(bytes, 14, 20, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // suffix > 16
+            bytes = new byte[20];
+            Arrays.fill(bytes, 0, 4, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // suffix == 16
+            bytes = new byte[20];
+            Arrays.fill(bytes, 0, 5, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // suffix < 16
+            bytes = new byte[20];
+            Arrays.fill(bytes, 0, 6, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+
+            bytes = new byte[32];
+            Arrays.fill(bytes, 0, 16, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+            // prefix >= 15 && suffix >= 16
+            bytes = new byte[32];
+            Arrays.fill(bytes, 0, 32, (byte)1);
+            terms.add(bytes);
+            writer.add(ByteComparable.fixedLength(bytes));
+        });
 
         doTestSortedTerms(terms);
     }
@@ -124,7 +160,19 @@ public class SortedTermsTest extends SAIRandomizedTester
     public void testSeekToPointId() throws Exception
     {
         List<byte[]> terms = new ArrayList<>();
-        writeTerms(indexDescriptor, terms);
+
+        writeTerms(writer ->
+        {
+            for (int x = 0; x < 4000; x++)
+            {
+                ByteBuffer buffer = Int32Type.instance.decompose(x);
+                ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
+                byte[] bytes = ByteSourceInverse.readBytes(byteSource);
+                terms.add(bytes);
+
+                writer.add(ByteComparable.fixedLength(bytes));
+            }
+        });
 
         doTestSortedTerms(terms);
     }
@@ -132,7 +180,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     private void doTestSortedTerms(List<byte[]> terms) throws Exception
     {
         // iterate ascending
-        withSortedTermsCursor(indexDescriptor, cursor ->
+        withSortedTermsCursor(cursor ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
@@ -145,7 +193,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
 
         // iterate descending
-        withSortedTermsCursor(indexDescriptor, cursor ->
+        withSortedTermsCursor(cursor ->
         {
             for (int x = terms.size() - 1; x >= 0; x--)
             {
@@ -158,7 +206,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
 
         // iterate randomly
-        withSortedTermsCursor(indexDescriptor, cursor ->
+        withSortedTermsCursor(cursor ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
@@ -175,138 +223,22 @@ public class SortedTermsTest extends SAIRandomizedTester
     @Test
     public void testSeekToPointIdOutOfRange() throws Exception
     {
-        List<byte[]> terms = new ArrayList<>();
-        writeTerms(indexDescriptor, terms);
+        writeTerms(writer ->
+        {
+            for (int x = 0; x < 4000; x++)
+            {
+                ByteBuffer buffer = Int32Type.instance.decompose(x);
+                ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
+                byte[] bytes = ByteSourceInverse.readBytes(byteSource);
 
-        withSortedTermsCursor(indexDescriptor, cursor ->
+                writer.add(ByteComparable.fixedLength(bytes));
+            }
+        });
+
+        withSortedTermsCursor(cursor ->
         {
             assertThatThrownBy(() -> cursor.seekToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class);
             assertThatThrownBy(() -> cursor.seekToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class);
-        });
-    }
-
-    private void writeTerms(IndexDescriptor indexDescriptor, List<byte[]> terms) throws IOException
-    {
-        try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
-        {
-            IndexOutputWriter trieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
-            IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
-            NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                                        indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                                        metadataWriter, true);
-            try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
-                                                                  metadataWriter,
-                                                                  bytesWriter,
-                                                                  blockFPWriter,
-                                                                  trieWriter))
-            {
-                for (int x = 0; x < 1000 * 4; x++)
-                {
-                    ByteBuffer buffer = Int32Type.instance.decompose(x);
-                    ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
-                    byte[] bytes = ByteSourceInverse.readBytes(byteSource);
-                    terms.add(bytes);
-
-                    writer.add(ByteComparable.fixedLength(bytes));
-                }
-            }
-        }
-    }
-
-    private void writeLongPrefixAndSuffixTerms(IndexDescriptor indexDescriptor, List<byte[]> terms) throws IOException
-    {
-        try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
-        {
-            IndexOutputWriter trieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
-            IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
-            NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                                        indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                                        metadataWriter, true);
-            try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
-                                                                  metadataWriter,
-                                                                  bytesWriter,
-                                                                  blockFPWriter,
-                                                                  trieWriter))
-            {
-                // The following writes a lexographically ordered set of terms that cover the following
-                // conditions:
-
-                // Start value 0
-                byte[] bytes = new byte[20];
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // prefix > 15
-                bytes = new byte[20];
-                Arrays.fill(bytes, 16, 20, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // prefix == 15
-                bytes = new byte[20];
-                Arrays.fill(bytes, 15, 20, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // prefix < 15
-                bytes = new byte[20];
-                Arrays.fill(bytes, 14, 20, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // suffix > 16
-                bytes = new byte[20];
-                Arrays.fill(bytes, 0, 4, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // suffix == 16
-                bytes = new byte[20];
-                Arrays.fill(bytes, 0, 5, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // suffix < 16
-                bytes = new byte[20];
-                Arrays.fill(bytes, 0, 6, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-
-                bytes = new byte[32];
-                Arrays.fill(bytes, 0, 16, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-                // prefix >= 15 && suffix >= 16
-                bytes = new byte[32];
-                Arrays.fill(bytes, 0, 32, (byte)1);
-                terms.add(bytes);
-                writer.add(ByteComparable.fixedLength(bytes));
-            }
-        }
-    }
-
-    @FunctionalInterface
-    public interface ThrowingConsumer<T> {
-        void accept(T t) throws IOException;
-    }
-
-    private void withSortedTermsReader(IndexDescriptor indexDescriptor,
-                                       ThrowingConsumer<SortedTermsReader> testCode) throws IOException
-    {
-        MetadataSource metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
-        NumericValuesMeta blockPointersMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS)));
-        SortedTermsMeta sortedTermsMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS)));
-        try (FileHandle termsData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCKS);
-             FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS))
-        {
-            SortedTermsReader reader = new SortedTermsReader(termsData, blockOffsets, sortedTermsMeta, blockPointersMeta);
-            testCode.accept(reader);
-        }
-    }
-
-    private void withSortedTermsCursor(IndexDescriptor descriptor,
-                                       ThrowingConsumer<SortedTermsReader.Cursor> testCode) throws IOException
-    {
-        withSortedTermsReader(descriptor, reader ->
-        {
-            try (SortedTermsReader.Cursor cursor = reader.openCursor())
-            {
-                testCode.accept(cursor);
-            }
         });
     }
 
