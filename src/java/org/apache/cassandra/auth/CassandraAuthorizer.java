@@ -330,37 +330,11 @@ public class CassandraAuthorizer implements IAuthorizer
         if (null == grantee)
             return listPermissionsForRole(permissions, resource, null);
 
-        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        Set<RoleResource> roles = roleManager.getRoles(grantee, true);
+        Set<RoleResource> roles = DatabaseDescriptor.getRoleManager().getRoles(grantee, true);
         Set<PermissionDetails> details = new HashSet<>();
         for (RoleResource role : roles)
-            details.addAll(roleManager.isSuper(role) ? listPermissionsForSuperRole(permissions, resource, role) : listPermissionsForRole(permissions, resource, role));
-        
-        return details;
-    }
+            details.addAll(listPermissionsForRole(permissions, resource, role));
 
-    private Set<PermissionDetails> listPermissionsForSuperRole(Set<Permission> permissions,
-                                                                IResource resource,
-                                                                RoleResource role)
-    {
-        Set<PermissionDetails> details = new HashSet<>();
-        Map<IResource, List<Permission>> resourceToRelevantPermissions = new HashMap<IResource, List<Permission>>();
-        for (IResource rootLevelResource : Resources.getAllRootLevelResources())
-        {
-            resourceToRelevantPermissions.put(
-                rootLevelResource,
-                rootLevelResource.applicablePermissions()
-                    .stream()
-                    .filter(permission -> permissions.contains(permission))
-                    .collect(Collectors.toList())
-            );
-        }
-        for (Map.Entry<IResource, List<Permission>> entry : resourceToRelevantPermissions.entrySet())
-        {
-            IResource rootLevelResource = entry.getKey();
-            for (Permission permission : entry.getValue())
-                details.add(new PermissionDetails(role.getRoleName(), rootLevelResource, permission));
-        }
         return details;
     }
 
