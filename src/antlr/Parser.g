@@ -1307,11 +1307,24 @@ listRolesStatement returns [ListRolesStatement stmt]
     @init {
         boolean recursive = true;
         RoleName grantee = new RoleName();
+        RoleOptions opts = new RoleOptions();
+        DCPermissions.Builder dcperms = DCPermissions.builder();
     }
     : K_LIST K_ROLES
       ( K_OF roleName[grantee])?
       ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListRolesStatement(grantee, recursive); }
+      ( K_WITH roleOptions[opts, dcperms] )?
+      {
+        if (opts.getPassword().isPresent())
+        {
+            throw new SyntaxException("Option 'password' is forbidden for LIST ROLES statement");
+        }
+        if (opts.getHashedPassword().isPresent())
+        {
+            throw new SyntaxException("Option 'hashed password' is forbidden for LIST ROLES statement");
+        }
+        $stmt = new ListRolesStatement(grantee, recursive, opts, dcperms.build());
+      }
     ;
 
 roleOptions[RoleOptions opts, DCPermissions.Builder dcperms]

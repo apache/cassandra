@@ -231,12 +231,28 @@ acquired:
 include::example$CQL/list_roles_of.cql[]
 ----
 
+This example enumerates all roles granted to `alice` with superuser status, including those transitively
+acquired:
+
+[source,cql]
+----
+include::example$CQL/list_roles_of_with_superuser.cql[]
+----
+
 This example lists all roles directly granted to `bob` without including any of the
 transitively acquired ones:
 
 [source,cql]
 ----
 include::example$CQL/list_roles_nonrecursive.cql[]
+----
+
+This example lists all roles directly granted to `bob` with login privilege, not including any of the
+transitively acquired ones:
+
+[source,cql]
+----
+include::example$CQL/list_roles_nonrecursive_with_login.cql[]
 ----
 
 == Users

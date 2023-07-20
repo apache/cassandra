@@ -256,12 +256,26 @@ public class CassandraRoleManager implements IRoleManager
     public Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited)
     throws RequestValidationException, RequestExecutionException
     {
+        return getRoles(grantee, includeInherited, new RoleOptions());
+    }
+
+    public Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited, RoleOptions roleOptions)
+    throws RequestValidationException, RequestExecutionException
+    {
         return collectRoles(getRole(grantee.getRoleName()),
                             includeInherited,
                             filter(),
-                            this::getRole)
-               .map(r -> r.resource)
-               .collect(Collectors.toSet());
+                            this::getRole
+                )
+                .filter(r -> {
+                    if (roleOptions.getLogin().isPresent() && roleOptions.getLogin().get() != r.canLogin)
+                        return false;
+                    if (roleOptions.getSuperuser().isPresent() && roleOptions.getSuperuser().get() != r.isSuper)
+                        return false;
+                    return true;
+                })
+                .map(r -> r.resource)
+                .collect(Collectors.toSet());
     }
 
     public Set<Role> getRoleDetails(RoleResource grantee)

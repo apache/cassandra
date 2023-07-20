@@ -129,10 +129,12 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      *
      * @param grantee Role whose granted roles will be listed.
      * @param includeInherited if True will list inherited roles as well as those directly granted to the grantee.
+     * @param roleOptions Attribute conditions used in filtering roles.
      * @return A list containing the granted roles for the user.
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
+    Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited, RoleOptions roleOptions) throws RequestValidationException, RequestExecutionException;
     Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited) throws RequestValidationException, RequestExecutionException;
 
     /**

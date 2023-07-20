@@ -55,6 +55,8 @@ public class ListRolesStatement extends AuthorizationStatement
 
     private final RoleResource grantee;
     private final boolean recursive;
+    private final RoleOptions roleOptions;
+    private final DCPermissions dcPermissions;
 
     public ListRolesStatement()
     {
@@ -63,8 +65,15 @@ public class ListRolesStatement extends AuthorizationStatement
 
     public ListRolesStatement(RoleName grantee, boolean recursive)
     {
+        this(grantee, recursive, new RoleOptions(), DCPermissions.builder().build());
+    }
+
+    public ListRolesStatement(RoleName grantee, boolean recursive, RoleOptions roleOptions, DCPermissions dcPermissions)
+    {
         this.grantee = grantee.hasName() ? RoleResource.role(grantee.getName()) : null;
         this.recursive = recursive;
+        this.roleOptions = roleOptions;
+        this.dcPermissions = dcPermissions;
     }
 
     public void validate(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -90,15 +99,15 @@ public class ListRolesStatement extends AuthorizationStatement
             if (grantee == null)
                 return resultMessage(DatabaseDescriptor.getRoleManager().getAllRoles());
             else
-                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive));
+                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive, roleOptions));
         }
         else
         {
             RoleResource currentUser = RoleResource.role(state.getUser().getName());
             if (grantee == null)
-                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(currentUser, recursive));
+                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(currentUser, recursive, roleOptions));
             if (DatabaseDescriptor.getRoleManager().getRoles(currentUser, true).contains(grantee))
-                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive));
+                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive, roleOptions));
             else
                 throw new UnauthorizedException(String.format("You are not authorized to view roles granted to %s ", grantee.getRoleName()));
         }
