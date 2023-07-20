@@ -99,7 +99,8 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public PrimaryKeyMap.Factory newPrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
     {
-        return new RowAwarePrimaryKeyMap.RowAwarePrimaryKeyMapFactory(indexDescriptor, sstable);
+        return indexDescriptor.hasClustering() ? new WideRowAwarePrimaryKeyMap.WideRowAwarePrimaryKeyMapFactory(indexDescriptor, sstable)
+                                               : new SkinnyRowAwarePrimaryKeyMap.SkinnyRowAwarePrimaryKeyMapFactory(indexDescriptor, sstable);
     }
 
     @Override
