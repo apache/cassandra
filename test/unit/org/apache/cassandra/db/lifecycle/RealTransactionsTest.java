@@ -134,8 +134,8 @@ public class RealTransactionsTest extends SchemaLoader
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                        .inDirectory(cfs.getDirectories().getDirectoryForNewSSTables())
-                                                       .forTable(String.format(schema, cfs.keyspace.getName(), cfs.name))
-                                                       .using(String.format(query, cfs.keyspace.getName(), cfs.name))
+                                                       .forTable(String.format(schema, cfs.getKeyspaceName(), cfs.name))
+                                                       .using(String.format(query, cfs.getKeyspaceName(), cfs.name))
                                                        .build())
         {
             for (int j = 0; j < numPartitions; j ++)

@@ -170,6 +170,12 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.maxDataAge = maxDataAge;
     }
 
+    public SSTableWriter setTokenSpaceCoverage(double rangeSpanned)
+    {
+        metadataCollector.tokenSpaceCoverage(rangeSpanned);
+        return this;
+    }
+
     public void setOpenResult(boolean openResult)
     {
         txnProxy.openResult = openResult;

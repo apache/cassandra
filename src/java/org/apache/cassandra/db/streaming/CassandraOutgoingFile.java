@@ -89,7 +89,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                     .withSerializationHeader(sstable.header.toComponent())
                                     .isEntireSSTable(shouldStreamEntireSSTable)
                                     .withComponentManifest(manifest)
-                                    .withFirstKey(sstable.first)
+                                    .withFirstKey(sstable.getFirst())
                                     .withTableId(sstable.metadata().id)
                                     .build();
     }

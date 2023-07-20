@@ -241,13 +241,13 @@ public class StreamingTransferTest
         List<Range<Token>> ranges = new ArrayList<>();
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
-        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferRanges(LOCAL, cfs.keyspace.getName(), RangesAtEndpoint.toDummyList(ranges), cfs.getTableName());
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferRanges(LOCAL, cfs.getKeyspaceName(), RangesAtEndpoint.toDummyList(ranges), cfs.getTableName());
         streamPlan.execute().get();
 
         //cannot add ranges after stream session is finished
         try
         {
-            streamPlan.transferRanges(LOCAL, cfs.keyspace.getName(), RangesAtEndpoint.toDummyList(ranges), cfs.getTableName());
+            streamPlan.transferRanges(LOCAL, cfs.getKeyspaceName(), RangesAtEndpoint.toDummyList(ranges), cfs.getTableName());
             fail("Should have thrown exception");
         }
         catch (RuntimeException e)

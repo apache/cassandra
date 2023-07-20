@@ -367,6 +367,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // nb (4.0.0): originating host id
         // nc (4.1): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
         // oa (5.0): Long deletionTime to prevent TTL overflow
+        //           token space coverage
         //
         // NOTE: When adding a new version:
         //  - Please add it to LegacySSTableTest
@@ -387,6 +388,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasPartitionLevelDeletionPresenceMarker;
         private final boolean hasKeyRange;
         private final boolean hasUintDeletionTime;
+        private final boolean hasTokenSpaceCoverage;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -416,6 +418,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
             hasKeyRange = version.compareTo("nc") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
+            hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
         }
 
         @Override
@@ -494,6 +497,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasImprovedMinMax()
         {
             return hasImprovedMinMax;
+        }
+
+        @Override
+        public boolean hasTokenSpaceCoverage()
+        {
+            return hasTokenSpaceCoverage;
         }
 
         @Override

@@ -18,6 +18,7 @@ sstablemetadata <options> <sstable filename(s)>
 |===
 |--colors                 |Use ANSI color sequences
 |--gc_grace_seconds <arg> |The gc_grace_seconds to use when calculating
+|--help                   |Help
 |--scan                   |Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false
 |--timestamp_unit <arg>   |Time unit that cell timestamps are written with
 |--unicode                |Use unicode to draw histograms and progress bars

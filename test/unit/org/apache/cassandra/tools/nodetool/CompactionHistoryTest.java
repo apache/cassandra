@@ -85,7 +85,8 @@ public class CompactionHistoryTest extends CQLTester
         // write SSTables for the specific key
         for (int i = 0; i < 10; i++)
         {
-            execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i, "value" + i);
+            for (int j = 0; j < 3; j++) // write more than once to ensure overlap for UCS
+                execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i + j, "value" + i + j);
             flush(keyspace());
         }
 

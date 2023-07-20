@@ -1100,6 +1100,11 @@ public class Config
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
 
+    /**
+     * Default compaction configuration, used if a table does not specify any.
+     */
+    public ParameterizedClass default_compaction = null;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

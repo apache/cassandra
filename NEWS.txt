@@ -71,6 +71,10 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new "unified" compaction strategy that supports the use cases of the legacy compaction strategies, with
+      low space overhead, high parallelism and flexible configuration. Implemented by the UnifiedCompactionStrategy
+      class. Further details and documentation can be found in
+      src/java/org/apache/cassandra/db/compaction/UnifiedCompactionStrategy.md
     - New `VectorType` (cql `vector<element_type, dimension>`) which adds new fixed-length element arrays. See CASSANDRA-18504
     - Removed UDT type migration logic for 3.6+ clusters upgrading to 4.0.  If migration has been disabled, it must be
       enabled before upgrading to 5.0 if the cluster used UDTs. See CASSANDRA-18504
