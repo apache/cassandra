@@ -240,6 +240,11 @@ public class TTLExpiryTest
             .add("col311", ByteBufferUtil.EMPTY_BYTE_BUFFER)
             .build()
             .applyUnsafe();
+        // also write to other key to ensure overlap for UCS
+        new RowUpdateBuilder(cfs.metadata(), timestamp, 1, key)
+            .add("col7", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+            .build()
+            .applyUnsafe();
 
         Util.flush(cfs);
         Thread.sleep(2000); // wait for ttl to expire

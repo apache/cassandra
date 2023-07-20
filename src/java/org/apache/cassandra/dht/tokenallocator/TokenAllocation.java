@@ -161,7 +161,7 @@ public class TokenAllocation
                     InetAddressAndPort other = tokenMetadata.getEndpoint(t);
                     if (inAllocationRing(other))
                         throw new ConfigurationException(String.format("Allocated token %s already assigned to node %s. Is another node also allocating tokens?", t, other));
-                    t = t.increaseSlightly();
+                    t = t.nextValidToken();
                 }
                 filtered.add(t);
             }

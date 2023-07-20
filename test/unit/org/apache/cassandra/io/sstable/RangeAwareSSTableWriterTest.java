@@ -85,7 +85,7 @@ public class RangeAwareSSTableWriterTest
                                                                      SerializationHeader.make(cfs.metadata(),
                                                                                               cfs.getLiveSSTables()));
         assertEquals(cfs.metadata.id, writer.getTableId());
-        assertEquals(0L, writer.getFilePointer());
-
+        assertEquals(0L, writer.getBytesWritten());
+        assertEquals(0L, writer.getOnDiskBytesWritten());
     }
 }

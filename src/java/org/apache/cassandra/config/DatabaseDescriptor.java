@@ -4820,4 +4820,9 @@ public class DatabaseDescriptor
         else
             return conf.storage_compatibility_mode;
     }
+
+    public static ParameterizedClass getDefaultCompaction()
+    {
+        return conf != null ? conf.default_compaction : null;
+    }
 }
