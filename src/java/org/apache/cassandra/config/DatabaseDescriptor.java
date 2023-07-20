@@ -98,6 +98,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.security.DefaultCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -1223,21 +1224,26 @@ public class DatabaseDescriptor
 
     public static void applyCryptoProvider()
     {
+        if (conf.crypto_provider == null)
+            conf.crypto_provider = new ParameterizedClass(DefaultCryptoProvider.class.getName(), null);
+
+        if (conf.crypto_provider.class_name == null)
+            throw new ConfigurationException("Failed to initialize crypto provider, class_name cannot be null");
+
         try
         {
-            if (conf.crypto_provider == null)
-                conf.crypto_provider = new ParameterizedClass("org.apache.cassandra.security.DefaultCryptoProvider", null);
-
             Class<?> cryptoProviderClass = Class.forName(conf.crypto_provider.class_name);
             cryptoProvider = (ICryptoProvider)cryptoProviderClass.getConstructor(Map.class).newInstance(conf.crypto_provider.parameters);
-
             cryptoProvider.installProvider();
         }
-        catch(Exception e)
+        catch (ClassNotFoundException e)
         {
-            throw new ConfigurationException("Failed to initialize crypto Provider.", e);
+            throw new ConfigurationException(String.format("Failed to initialize crypto provider %s - the class is not found.", conf.crypto_provider.class_name));
         }
-
+        catch (Exception e)
+        {
+            throw new ConfigurationException(String.format("Failed to initialize crypto Provider %s", conf.crypto_provider.class_name), e);
+        }
     }
 
     public static void applySeedProvider()

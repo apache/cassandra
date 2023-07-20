@@ -18,22 +18,21 @@
 
 package org.apache.cassandra.security;
 
-import org.apache.cassandra.exceptions.StartupException;
-
 /**
  * Interface for managing the cryptographic provider
  */
 public interface ICryptoProvider
 {
-
     /**
      * Installs a cryptographic provider of a specific type.
-     * @throws StartupException if an error occurs while installing the provider
+     *
+     * @throws Exception if an error occurs while installing the provider
      */
-    public void installProvider() throws StartupException;
+    public void installProvider() throws Exception;
 
     /**
      * Checks the status of the provider
+     *
      * @throws Exception if an error occurs while checking the provider's status or the provider is not installed properly.
      */
     public void checkProvider() throws Exception;

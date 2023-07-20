@@ -24,25 +24,26 @@ import javax.crypto.Cipher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.exceptions.StartupException;
 import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 
 public class DefaultCryptoProvider implements ICryptoProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(DefaultCryptoProvider.class);
 
-    public DefaultCryptoProvider(Map<String, String> args) {}
+    public DefaultCryptoProvider(Map<String, String> args)
+    {
+    }
+
     @Override
-    public void installProvider() throws StartupException
+    public void installProvider()
     {
         try
         {
             AmazonCorrettoCryptoProvider.install();
-            AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
         }
-        catch(Exception e)
+        catch (Exception e)
         {
-            logger.warn("Amazon Corretto Crypto Provider is not available", e);
+            logger.warn("The installation of {} was not successful.", AmazonCorrettoCryptoProvider.class.getName(), e);
         }
     }
 
@@ -51,18 +52,27 @@ public class DefaultCryptoProvider implements ICryptoProvider
     {
         try
         {
-            if (Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName().equals(AmazonCorrettoCryptoProvider.PROVIDER_NAME))
+            String currentCryptoProvider = Cipher.getInstance("AES/GCM/NoPadding").getProvider().getName();
+
+            if (AmazonCorrettoCryptoProvider.PROVIDER_NAME.equals(currentCryptoProvider))
             {
                 AmazonCorrettoCryptoProvider.INSTANCE.assertHealthy();
+                logger.info("{} successfully passed the healthiness check", AmazonCorrettoCryptoProvider.PROVIDER_NAME);
             }
             else
             {
-                logger.warn("{} is not the highest priority provider", AmazonCorrettoCryptoProvider.class.getName());
+                logger.warn("{} is not the highest priority provider - {} is used. " +
+                            "The most probable cause is that Cassandra node is not running on the same architecture " +
+                            "the Amazon Corretto Crypto Provider library is for." +
+                            "Please place the architecture-specific library for {} to the classpath and try again. ",
+                            AmazonCorrettoCryptoProvider.PROVIDER_NAME,
+                            currentCryptoProvider,
+                            AmazonCorrettoCryptoProvider.class.getName());
             }
         }
         catch (Exception e)
         {
-            logger.warn("Corretto Crypto Provider Error", e);
+            logger.warn("Exception encountered while asserting the healthiness of " + AmazonCorrettoCryptoProvider.class.getName(), e);
         }
     }
 }

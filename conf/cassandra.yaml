@@ -1341,6 +1341,15 @@ dynamic_snitch_reset_interval: 600000ms
 # until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 1.0
 
+# Configures Java crypto provider. By default, it will use DefaultCryptoProvider
+# which will install Amazon Correto Crypto Provider for x86 architecture.
+# If you are on a different architecture (e.g. aarch), the healthcheck will not pass,
+# and it will fall back to the crypto provider of your JRE of choice.
+# If you want to use Amazon Corretto on aarch architecture, you have to replace
+# the corresponding library for aarch one.
+#crypto_provider:
+#  - class_name: org.apache.cassandra.security.DefaultCryptoProvider
+
 # Configure server-to-server internode encryption
 #
 # JVM and netty defaults for supported SSL socket protocols and cipher suites can
