@@ -183,11 +183,12 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             if (readQuorum <= 0)
                 return true;
 
-            throw new IllegalStateException(String.format("During operation execution, the ring has changed from %s to %s in a way that would make responses violate the consistency level." +
+            throw new IllegalStateException(String.format("During operation execution, for keyspace %s at %s the ring has changed from %s to %s in a way that would make responses violate the consistency level." +
                                                           "\n\tReceived responses from: %s" +
                                                           "\n\tOld candidates: %s" +
                                                           "\n\tNew candidates: %s" +
                                                           "\n\tRemaining required: %d",
+                                                          keyspace.getName(), consistencyLevel,
                                                           epoch, newMetadata.epoch,
                                                           contacted, candidates, newPlan.readCandidates(), readQuorum));
         }
@@ -359,11 +360,14 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             if (writeQuorum <= 0)
                 return true;
 
-            throw new IllegalStateException(String.format("During operation execution, the ring has changed in a way that would make responses violate the consistency level." +
+            throw new IllegalStateException(String.format("During operation execution, for keyspace %s at %s the ring has changed from %s to %s in a way that would make responses violate the consistency level." +
                                                           "\n\tReceived responses from: %s" +
                                                           "\n\tOld candidates: %s%s" +
                                                           "\n\tNew candidates: %s%s" +
                                                           "\n\tRemaining required: %d",
+                                                          keyspace.getName(),
+                                                          consistencyLevel,
+                                                          epoch, newMetadata.epoch,
                                                           contacted,
                                                           liveAndDown, pending.isEmpty() ? "" : String.format(" (%s pending)", pending),
                                                           newPlan.liveAndDown, newPlan.pending.isEmpty() ? "" : String.format(" (%s pending)", newPlan.pending),

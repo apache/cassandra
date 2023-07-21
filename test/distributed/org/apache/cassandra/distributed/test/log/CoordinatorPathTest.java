@@ -108,7 +108,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                     if (t.getMessage() == null)
                         throw t;
                     Assert.assertTrue("Expected a different error message, but got " + t.getMessage(),
-                                      t.getMessage().contains("During operation execution, the ring has changed in a way that would make responses violate the consistency level."));
+                                      t.getMessage().contains("the ring has changed"));
                     return;
                 }
             }
@@ -170,7 +170,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                     if (t.getMessage() == null)
                         throw t;
                     Assert.assertTrue(String.format("Got exception: %s", t),
-                                      t.getMessage().contains("During operation execution, the ring has changed"));
+                                      t.getMessage().contains("the ring has changed"));
                     return;
                 }
             }
