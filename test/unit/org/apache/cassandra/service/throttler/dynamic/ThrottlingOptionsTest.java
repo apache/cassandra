@@ -39,6 +39,6 @@ public class ThrottlingOptionsTest
         Assert.assertEquals(0.1, throttlingOptions.percentage_of_traffice_to_throttling, 0.0);
         Assert.assertEquals(1 * 60, throttlingOptions.more_aggressive_throttling_after_in_sec = 1 * 60);
         Assert.assertEquals(15 * 60, throttlingOptions.reset_after_no_throttling_seen_in_sec = 15 * 60);
-        Assert.assertEquals(4, throttlingOptions.aggressive_throttling_latency_ratio, 0.0);
+        Assert.assertEquals(4, throttlingOptions.aggressive_throttling_qps_ratio, 0.0);
     }
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service.throttler.metrics;
+package org.apache.cassandra.service.throttler.dynamic.metrics;
 
 import com.codahale.metrics.Counter;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -31,4 +31,5 @@ public class ThrottlingMetrics
     public Counter doesNotNeedThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DoesNotNeedsThrottling"));
     public Counter resetThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ResetThrottling"));
     public Counter doubleThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DoubleThrottling"));
+    public Counter disableThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DisableThrottling"));
 }

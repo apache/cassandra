@@ -34,5 +34,5 @@ public class ThrottlingOptions
     public double percentage_of_traffice_to_throttling = 0.1;
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
-    public double aggressive_throttling_latency_ratio = 4;
+    public double aggressive_throttling_qps_ratio = 4;
 }

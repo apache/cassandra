@@ -19,21 +19,23 @@
 package org.apache.cassandra.service.throttler.dynamic;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.metrics.MetricNameFactory;
-import org.apache.cassandra.service.throttler.metrics.ThrottlingMetrics;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.metrics.KeyspaceMetrics;
+import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetrics;
+import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetricsManager;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -63,7 +65,7 @@ public class CassandraResourceUtilization
     public volatile long lastThrottlingCheckPointTimeInMS = 0;
     public volatile long lastThrottlingIndicatorTimeInMS = 0;
     public volatile double throttlingPercentageCur = 0.1;
-    public volatile List<String> aggressiveThorttlingDatastores = new ArrayList<>();
+    public volatile Set aggressiveThorttlingDatastores = new HashSet<>();
     public volatile boolean shouldThrottle = false;
 
     public void setup(boolean continuousHealthCheck)
@@ -229,5 +231,93 @@ public class CassandraResourceUtilization
           append("-").append(df.format(resourcesStats.getPendingMutationsFifteenMinute()));
 
         return sb.toString();
+    }
+
+    public boolean throttleUserTraffic(String keyspaceName, boolean reads)
+    {
+        if (!throttlingOptions.enabled)
+        {
+            throttlingMetrics.disableThrottling.inc();
+            logger.info("Throttling is disabled reads: {}....", reads);
+            return false;
+        }
+        KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
+        if (SchemaConstants.isSystemKeyspace(keyspaceName))
+        {
+            ksThrottlingMetrics.skipSystemKSThrottling.inc();
+            return false;
+        }
+
+        KeyspaceMetrics metrics = Keyspace.open(keyspaceName).metric;
+        if (shouldThrottle)
+        {
+            return decideThrottling(keyspaceName, metrics, reads, ksThrottlingMetrics);
+        }
+        return false;
+    }
+
+    public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
+    {
+        if (!aggressiveThorttlingDatastores.contains(ksName.toLowerCase()))
+        {
+            double oneMinuteRate = 0.0;
+            double fiveMinuteRate = 0.0;
+            double fifteenMinuteRate = 0.0;
+
+            if (reads)
+            {
+                oneMinuteRate = metrics.readLatency.latency.getOneMinuteRate();
+                fiveMinuteRate = metrics.readLatency.latency.getFiveMinuteRate();
+                fifteenMinuteRate = metrics.readLatency.latency.getFifteenMinuteRate();
+            }
+            else
+            {
+                oneMinuteRate = metrics.writeLatency.latency.getOneMinuteRate();
+                fiveMinuteRate = metrics.writeLatency.latency.getFiveMinuteRate();
+                fifteenMinuteRate = metrics.writeLatency.latency.getFifteenMinuteRate();
+            }
+            boolean trendingUp = isTrendingUpward(oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+            if (trendingUp)
+            {
+                ksThrottlingMetrics.trendingUpward.inc();
+                double ratio = oneMinuteRate / fifteenMinuteRate;
+                logger.info("Trending upward keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                            ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+                if (ratio >= throttlingOptions.aggressive_throttling_qps_ratio)
+                {
+                    // if we find that there is a datastore, which is the root cause, then throttle it heavily
+                    aggressiveThorttlingDatastores.add(ksName.toLowerCase());
+                    ksThrottlingMetrics.addKSForThrottling.inc();
+                    logger.info("Add throttling keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                                ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+                    return true;
+                }
+            }
+            if (ThreadLocalRandom.current().nextDouble() <= throttlingPercentageCur)
+            {
+                ksThrottlingMetrics.minThrottling.inc();
+                logger.info("Do minimum throttling keyspace: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                            ksName, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+                return true;
+            }
+            else
+            {
+                ksThrottlingMetrics.noThrottling.inc();
+                logger.info("Do no throttling keyspace: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                            ksName, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+                return false;
+            }
+        }
+        ksThrottlingMetrics.maxThrottling.inc();
+        return true;
+    }
+
+    public static boolean isTrendingUpward(double a, double b, double c)
+    {
+        if (a > b && b > c)
+        {
+            return true;
+        }
+        return false;
     }
 }
