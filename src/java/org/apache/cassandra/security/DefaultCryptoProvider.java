@@ -29,13 +29,19 @@ import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 public class DefaultCryptoProvider implements ICryptoProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(DefaultCryptoProvider.class);
+    public static final String FAIL_ON_ERROR = "fail_on_error";
 
-    public DefaultCryptoProvider(Map<String, String> args)
+    private static boolean failOnError = false;
+    public DefaultCryptoProvider(Map<String, Boolean> args)
     {
+        if (args != null)
+        {
+            failOnError = args.getOrDefault(FAIL_ON_ERROR, false);
+        }
     }
 
     @Override
-    public void installProvider()
+    public void installProvider() throws Exception
     {
         try
         {
@@ -43,7 +49,12 @@ public class DefaultCryptoProvider implements ICryptoProvider
         }
         catch (Exception e)
         {
-            logger.warn("The installation of {} was not successful.", AmazonCorrettoCryptoProvider.class.getName(), e);
+            String message = String.format("The installation of {} was not successful.", AmazonCorrettoCryptoProvider.class.getName());
+
+            if (failOnError)
+               throw new Exception(message, e);
+
+            logger.warn(message, e);
         }
     }
 
@@ -72,7 +83,12 @@ public class DefaultCryptoProvider implements ICryptoProvider
         }
         catch (Exception e)
         {
-            logger.warn("Exception encountered while asserting the healthiness of " + AmazonCorrettoCryptoProvider.class.getName(), e);
+            String message = String.format("Exception encountered while asserting the healthiness of " + AmazonCorrettoCryptoProvider.class.getName());
+
+            if (failOnError)
+                throw new Exception(message, e);
+
+            logger.warn(message, e);
         }
     }
 }
