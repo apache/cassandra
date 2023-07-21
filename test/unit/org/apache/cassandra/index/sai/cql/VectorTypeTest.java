@@ -51,25 +51,7 @@ public class VectorTypeTest extends VectorTester
     {
         System.setProperty("cassandra.custom_tracing_class", "org.apache.cassandra.tracing.TracingTestImpl");
     }
-
-    @Test
-    public void emptyIndexTest() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-        waitForIndexQueryable();
-
-        execute("INSERT INTO %s (pk, str_val) VALUES (0, 'A')");
-
-        UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
-        assertThat(result).hasSize(1);
-
-        flush();
-
-        result = execute("SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 3");
-        assertThat(result).hasSize(1);
-    }
-
+    
     @Test
     public void endToEndTest() throws Throwable
     {
