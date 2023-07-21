@@ -84,7 +84,9 @@ public final class DistributedMetadataLogKeyspace
     {
         try
         {
-            String init = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, transformation, kind, entry_id, sealed) VALUES(?, ?, ?, ?, ?, ?, false) IF NOT EXISTS", SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
+            String init = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, transformation, kind, entry_id, sealed) " +
+                                        "VALUES(?, ?, ?, ?, ?, ?, false) " +
+                                        "IF NOT EXISTS", SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
             UntypedResultSet result = QueryProcessor.execute(init, ConsistencyLevel.QUORUM,
                                                              Period.FIRST, FIRST.getEpoch(), FIRST.getEpoch(),
                                                              Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(PreInitialize.blank()), Transformation.Kind.PRE_INITIALIZE_CMS.toString(), Entry.Id.NONE.entryId);
@@ -122,9 +124,9 @@ public final class DistributedMetadataLogKeyspace
             UntypedResultSet result;
             if (previousPeriod + 1 == nextPeriod || ClusterMetadataService.state() == ClusterMetadataService.State.RESET)
             {
-                String query = String.format("BEGIN BATCH\n" +
-                                             "INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind, sealed) VALUES (?, ?, ?, ?, ?, ?, false) IF NOT EXISTS;\n" +
-                                             "APPLY BATCH",
+                String query = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind, sealed) " +
+                                             "VALUES (?, ?, ?, ?, ?, ?, false) " +
+                                             "IF NOT EXISTS;",
                                              SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
                 result = QueryProcessor.execute(query, ConsistencyLevel.QUORUM,
                                                 nextPeriod, nextEpoch.getEpoch(), nextEpoch.getEpoch(), entryId.entryId, serializedEvent, transform.kind().toString());
@@ -132,16 +134,14 @@ public final class DistributedMetadataLogKeyspace
             else
             {
                 assert previousPeriod == nextPeriod;
-                String query = String.format("BEGIN BATCH\n" +
-                                             "UPDATE %s.%s SET current_epoch = ?, sealed = ? WHERE period = ? IF current_epoch = ? AND sealed = false;\n" +
-                                             "UPDATE %s.%s SET entry_id = ?, transformation = ?, kind = ? WHERE period = ? AND epoch = ? IF current_epoch = ? and sealed = false;\n" +
-                                             "APPLY BATCH",
-                                             SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME,
+                String query = String.format("UPDATE %s.%s SET current_epoch = ?, sealed = ?, entry_id = ?, transformation = ?, kind = ? " +
+                                             "WHERE period = ? AND epoch = ? " +
+                                             "IF current_epoch = ? and sealed = false;",
                                              SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
 
                 result = QueryProcessor.execute(query,
                                                 ConsistencyLevel.QUORUM,
-                                                nextEpoch.getEpoch(), sealCurrentPeriod, previousPeriod, previousEpoch.getEpoch(),
+                                                nextEpoch.getEpoch(), sealCurrentPeriod,
                                                 entryId.entryId, serializedEvent, transform.kind().toString(),
                                                 previousPeriod, nextEpoch.getEpoch(), previousEpoch.getEpoch());
             }
