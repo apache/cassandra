@@ -45,6 +45,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -278,7 +279,11 @@ public class ReplicaPlans
         //  - replicas should be in the local datacenter
         //  - choose min(2, number of qualifying candiates above)
         //  - allow the local node to be the only replica only if it's a single-node DC
-        Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(snitch.getLocalRack(), localEndpoints);
+        Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(snitch.getLocalRack(),
+                                                                                 localEndpoints,
+                                                                                 Collections::shuffle,
+                                                                                 (r) -> FailureDetector.isEndpointAlive.test(r) && metadata.directory.peerState(r) == NodeState.JOINED,
+                                                                                 ThreadLocalRandom.current()::nextInt);
 
         if (chosenEndpoints.isEmpty() && isAny)
             chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
@@ -287,6 +292,7 @@ public class ReplicaPlans
                                            SystemReplicas.getSystemReplicas(chosenEndpoints).forToken(token),
                                            EndpointsForToken.empty(token));
     }
+
     public static ReplicaPlan.ForWrite forBatchlogWrite(ClusterMetadata metadata, boolean isAny) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
@@ -307,18 +313,17 @@ public class ReplicaPlans
                                         liveAndDown.all(),
                                         liveAndDown.all().filter(FailureDetector.isReplicaAlive),
                                         contacts,
-                                        (newClusterMetadata) -> forBatchlogWrite(newClusterMetadata, isAny),
-                                        metadata.epoch);
-    }
+                                        (newMetadata) -> forBatchlogWrite(newMetadata, isAny),
+                                        metadata.epoch) {
+            @Override
+            public boolean stillAppliesTo(ClusterMetadata newMetadata)
+            {
+                if (liveAndDown.stream().allMatch(r -> newMetadata.directory.peerState(r.endpoint()) == NodeState.JOINED))
+                    return true;
 
-    private static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
-                                                                          Multimap<String, InetAddressAndPort> endpoints)
-    {
-        return filterBatchlogEndpoints(localRack,
-                                       endpoints,
-                                       Collections::shuffle,
-                                       FailureDetector.isEndpointAlive,
-                                       ThreadLocalRandom.current()::nextInt);
+                return super.stillAppliesTo(newMetadata);
+            }
+        };
     }
 
     // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
@@ -326,7 +331,7 @@ public class ReplicaPlans
     public static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
                                                                          Multimap<String, InetAddressAndPort> endpoints,
                                                                          Consumer<List<?>> shuffle,
-                                                                         Predicate<InetAddressAndPort> isAlive,
+                                                                         Predicate<InetAddressAndPort> include,
                                                                          Function<Integer, Integer> indexPicker)
     {
         // special case for single-node data centers
@@ -338,7 +343,7 @@ public class ReplicaPlans
         for (Map.Entry<String, InetAddressAndPort> entry : endpoints.entries())
         {
             InetAddressAndPort addr = entry.getValue();
-            if (!addr.equals(FBUtilities.getBroadcastAddressAndPort()) && isAlive.test(addr))
+            if (!addr.equals(FBUtilities.getBroadcastAddressAndPort()) && include.test(addr))
                 validated.put(entry.getKey(), entry.getValue());
         }
 

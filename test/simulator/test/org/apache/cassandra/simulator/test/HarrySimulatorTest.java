@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -123,9 +124,9 @@ public class HarrySimulatorTest
                                     return schema.inflate(l);
                                 }
                             })
-                            .setClusteringDescriptorSelector(HarryHelper.singleRowPerModification().build())
-                            .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(1, 1))
-                            .setClusteringDescriptorSelector(HarryHelper.defaultClusteringDescriptorSelectorConfiguration().setMaxPartitionSize(100).build()),
+
+                            .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(2, 1))
+                            .setClusteringDescriptorSelector(HarryHelper.singleRowPerModification().setMaxPartitionSize(100).build()),
                  (simulation) -> {
                      List<ActionSchedule.Work> work = new ArrayList<>();
                      work.add(work(run(() -> {
@@ -283,7 +284,6 @@ public class HarrySimulatorTest
             return new AlwaysDeliverNetworkScheduler(time, random);
         }
 
-
         @Override
         public ClusterSimulation<HarrySimulation> create(long seed) throws IOException
         {
@@ -332,6 +332,8 @@ public class HarrySimulatorTest
                                                                TCM_INIT_MIG_RSP, TCM_INIT_MIG_REQ, TCM_ABORT_MIG,
                                                                TCM_DISCOVER_RSP, TCM_DISCOVER_REQ));
 
+        Set<Verb> somewhatSlow = new HashSet<>(Arrays.asList(BATCH_STORE_REQ, BATCH_STORE_RSP));
+
         Set<Verb> somewhatLossy = new HashSet<>(Arrays.asList(PAXOS2_COMMIT_REMOTE_REQ, PAXOS2_COMMIT_REMOTE_RSP, PAXOS2_PREPARE_RSP, PAXOS2_PREPARE_REQ,
                                                               PAXOS2_PREPARE_REFRESH_RSP, PAXOS2_PREPARE_REFRESH_REQ, PAXOS2_PROPOSE_RSP, PAXOS2_PROPOSE_REQ,
                                                               PAXOS2_COMMIT_AND_PREPARE_RSP, PAXOS2_COMMIT_AND_PREPARE_REQ, PAXOS2_REPAIR_RSP, PAXOS2_REPAIR_REQ,
@@ -347,6 +349,8 @@ public class HarrySimulatorTest
                 schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .2f, .5f));
             else if (somewhatLossy.contains(verb))
                 schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .1f, .15f));
+            else if (somewhatSlow.contains(verb))
+                schedulers.put(verb, new AlwaysDeliverNetworkScheduler(time, random, TimeUnit.MILLISECONDS.toNanos(100)));
         }
         return schedulers;
     }
@@ -445,8 +449,10 @@ public class HarrySimulatorTest
 
         for (int i = 0; i < ops; i++)
         {
-            long lts = simulation.harryRun.clock.nextLts();
-            generatingVisitor.visit(lts);
+            generatingVisitor.visit(simulation.harryRun.clock.nextLts());
+            // A tiny chance of executing a multi-partition batch
+            if (ops % 10 == 0)
+                generatingVisitor.visit(simulation.harryRun.clock.nextLts());
             add.accept(visitExectuor.build());
         }
 

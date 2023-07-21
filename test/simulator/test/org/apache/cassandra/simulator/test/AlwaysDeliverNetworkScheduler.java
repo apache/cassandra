@@ -38,10 +38,17 @@ public class AlwaysDeliverNetworkScheduler implements FutureActionScheduler
     private final RandomSource randomSource;
     private final LongRange schedulerDelay = new LongRange(0, 50, MICROSECONDS, NANOSECONDS);
 
+    private final long delayNanos;
+
     AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource)
+    {
+        this(time, randomSource, TimeUnit.MILLISECONDS.toNanos(10));
+    }
+    AlwaysDeliverNetworkScheduler(SimulatedTime time, RandomSource randomSource, long dealayNanos)
     {
         this.time = time;
         this.randomSource = randomSource;
+        this.delayNanos = dealayNanos;
     }
     public Deliver shouldDeliver(int from, int to)
     {
@@ -50,12 +57,11 @@ public class AlwaysDeliverNetworkScheduler implements FutureActionScheduler
 
     public long messageDeadlineNanos(int from, int to)
     {
-        return time.nanoTime() + TimeUnit.MILLISECONDS.toNanos(10);
+        return time.nanoTime() + delayNanos;
     }
 
     public long messageTimeoutNanos(long expiresAfterNanos, long expirationIntervalNanos)
     {
-
         return expiresAfterNanos + 1;
     }
 

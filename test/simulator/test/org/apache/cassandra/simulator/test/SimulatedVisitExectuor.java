@@ -48,6 +48,7 @@ public class SimulatedVisitExectuor extends VisitExecutor
     private static final Logger logger = LoggerFactory.getLogger(SimulatedVisitExectuor.class);
 
     private Action action = null;
+    private final List<Long> lts = new ArrayList<>();
     private final List<String> statements = new ArrayList<>();
     private final List<Object> bindings = new ArrayList<>();
     private final MutatingRowVisitor rowVisitor;
@@ -67,60 +68,23 @@ public class SimulatedVisitExectuor extends VisitExecutor
 
     public Action build()
     {
-        Action current = action;
-        action = null;
-        return current;
-    }
-
-    protected void beforeLts(long lts, long pd)
-    {
-
-    }
-
-    protected void afterLts(long lts, long pd)
-    {
-    }
-
-    protected void beforeBatch(long lts, long pd, long m)
-    {
-        assert action == null;
-        assert bindings.isEmpty();
-        assert statements.isEmpty();
-    }
-
-    public void operation(long lts, long pd, long cd, long m, long opId, OpSelectors.OperationKind opType)
-    {
-        CompiledStatement statement = rowVisitor.perform(opType, lts, pd, cd, opId);
-        statements.add(statement.cql());
-        Collections.addAll(bindings, statement.bindings());
-    }
-
-    protected void afterBatch(long lts, long pd, long m)
-    {
-        if (statements.isEmpty())
-        {
-            logger.warn("Empty batch on LTS {}", lts);
-            return;
-        }
-
         String query = String.join(" ", statements);
 
         if (statements.size() > 1)
-            query = String.format("BEGIN UNLOGGED BATCH\n%s\nAPPLY BATCH;", query);
+            query = String.format("BEGIN BATCH\n%s\nAPPLY BATCH;", query);
 
         Object[] bindingsArray = new Object[bindings.size()];
         bindings.toArray(bindingsArray);
 
-        statements.clear();
-        bindings.clear();
-
-        action = new SimulatedActionCallable<Object[][]>(String.format("Batch for %d", lts),
+        action = new SimulatedActionCallable<Object[][]>("Batch",
                                                          Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                          Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                                          simulation.simulated,
-                                                         simulation.cluster.get((int) ((lts % simulation.cluster.size()) + 1)),
+                                                         simulation.cluster.get((int) ((lts.get(0) % simulation.cluster.size()) + 1)),
                                                          new RetryingQuery(query, cl, bindingsArray))
         {
+            private final List<Long> localLts = new ArrayList<>(SimulatedVisitExectuor.this.lts);
+
             @Override
             protected InterceptedExecution.InterceptedTaskExecution task()
             {
@@ -128,7 +92,9 @@ public class SimulatedVisitExectuor extends VisitExecutor
                 {
                     public void run()
                     {
-                        tracker.beginModification(lts);
+                        for (Long l : localLts)
+                            tracker.beginModification(l);    
+                        
                         // we'll be invoked on the node's executor, but we need to ensure the task is loaded on its classloader
                         try { accept(on.unsafeCallOnThisThread(execute), null); }
                         catch (Throwable t) { accept(null, t); }
@@ -143,9 +109,43 @@ public class SimulatedVisitExectuor extends VisitExecutor
                 if (failure != null)
                     simulated.failures.accept(failure);
                 else
-                    tracker.endModification(lts);
+                    for (Long l : localLts)
+                        tracker.endModification(l);
             }
         };
+
+        statements.clear();
+        bindings.clear();
+        lts.clear();
+
+        Action current = action;
+        action = null;
+        return current;
+    }
+
+    protected void beforeLts(long lts, long pd)
+    {
+        this.lts.add(lts);
+    }
+
+    protected void afterBatch(long lts, long pd, long m)
+    {
+    }
+
+    protected void beforeBatch(long lts, long pd, long m)
+    {
+    }
+
+    public void operation(long lts, long pd, long cd, long m, long opId, OpSelectors.OperationKind opType)
+    {
+        CompiledStatement statement = rowVisitor.perform(opType, lts, pd, cd, opId);
+        statements.add(statement.cql());
+        Collections.addAll(bindings, statement.bindings());
+    }
+
+    protected void afterLts(long lts, long pd)
+    {
+
     }
 
     public void shutdown() throws InterruptedException
