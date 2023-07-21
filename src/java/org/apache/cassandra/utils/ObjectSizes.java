@@ -32,7 +32,8 @@ import static org.github.jamm.MemoryMeterStrategy.MEMORY_LAYOUT;
 import static org.github.jamm.utils.ArrayMeasurementUtils.computeArraySize;
 
 /**
- * A convenience class for wrapping access to MemoryMeter
+ * A convenience class for wrapping access to MemoryMeter. Should be used instead of using a {@code MemoryMeter} directly.
+ * {@code MemoryMeter} can be used directly for testing as it allow a more fine tuned configuration for comparison.
  */
 public class ObjectSizes
 {

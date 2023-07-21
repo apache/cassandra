@@ -30,6 +30,7 @@ import static org.junit.Assert.assertEquals;
 
 public class ObjectSizesTest
 {
+    // We use INSTRUMENTATION as principal strategy as it is our reference strategy
     private static final MemoryMeter meter = MemoryMeter.builder()
                                                         .withGuessing(Guess.INSTRUMENTATION, Guess.UNSAFE)
                                                         .build();
@@ -65,7 +66,31 @@ public class ObjectSizesTest
     private void checkBufferSizeExcludingData(ByteBuffer buffer, int dataSize)
     {
         assertEquals(meter.measureDeep(buffer, SLAB_ALLOCATION_NO_SLICE) - dataSize, ObjectSizes.sizeOnHeapExcludingDataOf(buffer));
-    };
+    }
+
+    @Test
+    public void testSizeOnHeapExcludingDataArray()
+    {
+        checkBufferSizeExcludingDataArray(0, new ByteBuffer[0]);
+
+        // single heap buffer
+        checkBufferSizeExcludingDataArray(0, ByteBuffer.allocate(0));
+
+        // multiple buffers
+        checkBufferSizeExcludingDataArray(10, ByteBuffer.allocate(0), ByteBuffer.allocate(10), ByteBuffer.allocateDirect(10));
+
+        // heap buffer being a prefix slab
+        ByteBuffer prefix = (ByteBuffer) ByteBuffer.allocate(10).duplicate().limit(8);
+
+        // heap buffer being a suffix slab
+        ByteBuffer suffix = (ByteBuffer) ByteBuffer.allocate(10).duplicate().position(1);
+        checkBufferSizeExcludingDataArray(8 + 9, prefix, suffix);
+    }
+
+    private void checkBufferSizeExcludingDataArray(int dataSize, ByteBuffer... buffers)
+    {
+        assertEquals(meter.measureDeep(buffers, SLAB_ALLOCATION_NO_SLICE) - dataSize, ObjectSizes.sizeOnHeapExcludingDataOf(buffers));
+    }
 
     @Test
     public void testSizeOnHeapOf()
@@ -98,5 +123,22 @@ public class ObjectSizesTest
     private void checkBufferSize(ByteBuffer buffer)
     {
         assertEquals(meter.measureDeep(buffer, SLAB_ALLOCATION_NO_SLICE), ObjectSizes.sizeOnHeapOf(buffer));
-    };
+    }
+
+    @Test
+    public void testSizeOnHeapOfArray()
+    {
+        checkBufferArraySize(new ByteBuffer[0]);
+
+        // single heap buffer
+        checkBufferArraySize(ByteBuffer.allocate(0));
+
+        // multiple buffers
+        checkBufferArraySize(ByteBuffer.allocate(0), ByteBuffer.allocate(10), ByteBuffer.allocateDirect(10));
+    }
+
+    private void checkBufferArraySize(ByteBuffer... buffers)
+    {
+        assertEquals(meter.measureDeep(buffers, SLAB_ALLOCATION_NO_SLICE), ObjectSizes.sizeOnHeapOf(buffers));
+    }
 }

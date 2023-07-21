@@ -366,17 +366,21 @@ public class FullQueryLogger implements QueryEvents.Listener
         @Override
         public int weight()
         {
-            return Ints.checkedCast(EMPTY_SIZE + ObjectSizes.sizeOf(query) + super.fielsdSize());
+            // Object deep size = Object' shallow size + query field deep size + deep size of the parent fields
+            return Ints.checkedCast(EMPTY_SIZE + ObjectSizes.sizeOf(query) + super.fieldsSize());
         }
     }
 
     public static class Batch extends AbstractLogEntry
     {
         /**
-         * The shallow size of a {@code Batch} object.
+         * The shallow size of a {@code Batch} object (which includes primitive fields).
          */
         private static final long EMPTY_SIZE = ObjectSizes.measure(new Batch());
 
+        /**
+         * The way is pre-computed in the constructor and represent the object deep size.
+         */
         private final int weight;
         private final BatchStatement.Type batchType;
         private final List<String> queries;
@@ -398,6 +402,7 @@ public class FullQueryLogger implements QueryEvents.Listener
             // We assume that all the lists are ArrayLists and that the size of each underlying array is the one of the list 
             // (which is obviously wrong but not worst than the previous computation that was ignoring part of the arrays size in the computation).
             long queriesSize = EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(queries.size());
+
             for (String query : queries)
                 queriesSize += ObjectSizes.sizeOf(checkNotNull(query));
 
@@ -409,8 +414,11 @@ public class FullQueryLogger implements QueryEvents.Listener
                     valuesSize += ObjectSizes.sizeOnHeapOf(subValue);
             }
 
-            // No need to add the batch type which is an enum. 
-            this.weight = Ints.checkedCast(EMPTY_SIZE + super.fielsdSize() + queriesSize + valuesSize);
+            // No need to add the batch type which is an enum.
+            this.weight = Ints.checkedCast(EMPTY_SIZE            // Shallow size object
+                                            + super.fieldsSize() // deep size of the parent fields (non-primitives as they are included in the shallow size) 
+                                            + queriesSize        // deep size queries field
+                                            + valuesSize);       // deep size values field
         }
 
         /**
@@ -464,7 +472,6 @@ public class FullQueryLogger implements QueryEvents.Listener
     {
         private final long queryStartTime;
         private final int protocolVersion;
-        @Unmetered
         private final ByteBuf queryOptionsBuffer;
 
         private final long generatedTimestamp;
@@ -546,10 +553,10 @@ public class FullQueryLogger implements QueryEvents.Listener
         }
 
         /**
-         * Returns the sum of the non primitive fields sizes.
-         * @return the sum of the non primitive fields sizes.
+         * Returns the sum of the non-primitive fields' deep sizes.
+         * @return the sum of the non-primitive fields' deep sizes.
          */
-        protected long fielsdSize()
+        protected long fieldsSize()
         {
             return EMPTY_BYTEBUF_SIZE + queryOptionsBuffer.capacity() // queryOptionsBuffer
                    + ObjectSizes.sizeOf(keyspace);                    // keyspace

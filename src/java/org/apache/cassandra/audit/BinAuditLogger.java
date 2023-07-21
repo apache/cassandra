@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.fql.FullQueryLogger.Query;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
@@ -98,6 +99,11 @@ public class BinAuditLogger implements IAuditLogger
     @VisibleForTesting
     public static class Message extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
     {
+        /**
+         * The shallow size of a {@code Query} object.
+         */
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new Message(""));
+
         private final String message;
 
         public Message(String message)
@@ -130,7 +136,7 @@ public class BinAuditLogger implements IAuditLogger
         @Override
         public int weight()
         {
-            return Ints.checkedCast(ObjectSizes.sizeOf(message));
+            return Ints.checkedCast(EMPTY_SIZE + ObjectSizes.sizeOf(message));
         }
     }
 }
