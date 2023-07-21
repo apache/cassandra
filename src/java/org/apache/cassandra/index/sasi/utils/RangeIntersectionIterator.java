@@ -23,12 +23,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.PriorityQueue;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.io.util.FileUtils;
 
-import com.google.common.annotations.VisibleForTesting;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
-@SuppressWarnings("resource")
 public class RangeIntersectionIterator
 {
     protected enum Strategy
@@ -125,6 +126,7 @@ public class RangeIntersectionIterator
             super(statistics, ranges);
         }
 
+        @SuppressWarnings(RESOURCE)
         protected D computeNext()
         {
             List<RangeIterator<K, D>> processed = null;
@@ -199,6 +201,7 @@ public class RangeIntersectionIterator
             return endOfData();
         }
 
+        @SuppressWarnings(RESOURCE)
         protected void performSkipTo(K nextToken)
         {
             List<RangeIterator<K, D>> skipped = new ArrayList<>();
@@ -240,6 +243,7 @@ public class RangeIntersectionIterator
                 smallestIterator.skipTo(getMinimum());
         }
 
+        @SuppressWarnings(RESOURCE)
         protected D computeNext()
         {
             while (smallestIterator.hasNext())

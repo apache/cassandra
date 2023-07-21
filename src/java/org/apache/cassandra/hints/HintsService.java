@@ -33,28 +33,31 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.MustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
@@ -69,11 +72,12 @@ import static com.google.common.collect.Iterables.transform;
  *
  * The front-end for everything hints related.
  */
+@MustCall("shutdownBlocking")
 public final class HintsService implements HintsServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsService.class);
 
-    public static HintsService instance = new HintsService();
+    public static @Owning HintsService instance = new HintsService();
 
     public static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
 
@@ -82,7 +86,7 @@ public final class HintsService implements HintsServiceMBean
 
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
-    private final HintsBufferPool bufferPool;
+    private final @Owning HintsBufferPool bufferPool;
     final HintsDispatchExecutor dispatchExecutor;
     final AtomicBoolean isDispatchPaused;
 
@@ -265,28 +269,35 @@ public final class HintsService implements HintsServiceMBean
      * Will abort dispatch sessions that are currently in progress (which is okay, it's idempotent),
      * and make sure the buffers are flushed, hints files written and fsynced.
      */
+    @EnsuresCalledMethods(value = "this.bufferPool", methods = "close")
     public synchronized void shutdownBlocking() throws ExecutionException, InterruptedException
     {
         if (isShutDown)
             throw new IllegalStateException("HintsService has already been shut down");
         isShutDown = true;
+        try
+        {
 
-        if (triggerDispatchFuture != null)
-            triggerDispatchFuture.cancel(false);
-        pauseDispatch();
+            if (triggerDispatchFuture != null)
+                triggerDispatchFuture.cancel(false);
+            pauseDispatch();
 
-        triggerFlushingFuture.cancel(false);
+            triggerFlushingFuture.cancel(false);
 
-        triggerCleanupFuture.cancel(false);
+            triggerCleanupFuture.cancel(false);
 
-        writeExecutor.flushBufferPool(bufferPool).get();
-        writeExecutor.closeAllWriters().get();
+            writeExecutor.flushBufferPool(bufferPool).get();
+            writeExecutor.closeAllWriters().get();
 
-        dispatchExecutor.shutdownBlocking();
-        writeExecutor.shutdownBlocking();
+            dispatchExecutor.shutdownBlocking();
+            writeExecutor.shutdownBlocking();
 
-        HintsServiceDiagnostics.dispatchingShutdown(this);
-        bufferPool.close();
+            HintsServiceDiagnostics.dispatchingShutdown(this);
+        }
+        finally
+        {
+            bufferPool.close();
+        }
     }
 
     /**

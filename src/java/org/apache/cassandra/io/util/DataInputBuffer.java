@@ -19,6 +19,8 @@ package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
 
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+
 /**
  * Input stream around a single ByteBuffer.
  */
@@ -40,7 +42,7 @@ public class DataInputBuffer extends RebufferingInputStream
      * @param buffer
      * @param duplicate Whether or not to duplicate the buffer to ensure thread safety
      */
-    public DataInputBuffer(ByteBuffer buffer, boolean duplicate)
+    public @MustCallAlias DataInputBuffer(ByteBuffer buffer, boolean duplicate)
     {
         super(duplicate ? buffer.duplicate() : buffer);
     }

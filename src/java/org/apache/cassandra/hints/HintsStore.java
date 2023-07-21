@@ -18,29 +18,37 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Predicate;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.SyncUtil;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * Encapsulates the state of a peer's hints: the queue of hints files for dispatch, and the current writer (if any).
@@ -64,6 +72,7 @@ final class HintsStore
 
     // last timestamp used in a descriptor; make sure to not reuse the same timestamp for new descriptors.
     private volatile long lastUsedTimestamp;
+
     private volatile HintsWriter hintsWriter;
 
     private HintsStore(UUID hostId, File hintsDirectory, ImmutableMap<String, Object> writerParams, List<HintsDescriptor> descriptors)
@@ -279,7 +288,8 @@ final class HintsStore
         return hintsWriter != null;
     }
 
-    HintsWriter getOrOpenWriter()
+    @SuppressWarnings(RESOURCE) // TODO stores are closed elsewhere and it is difficult to explain the logic of that to the static analysis tool
+    @MustCallAlias HintsWriter getOrOpenWriter()
     {
         if (hintsWriter == null)
             hintsWriter = openWriter();

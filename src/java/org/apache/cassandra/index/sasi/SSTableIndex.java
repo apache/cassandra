@@ -38,13 +38,17 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
+@InheritableMustCall("release")
 public class SSTableIndex
 {
     private final ColumnIndex columnIndex;
     private final Ref<SSTableReader> sstableRef;
     private final SSTableReader sstable;
-    private final OnDiskIndex index;
+    private final @Owning OnDiskIndex index;
     private final AtomicInteger references = new AtomicInteger(1);
     private final AtomicBoolean obsolete = new AtomicBoolean(false);
 
@@ -124,6 +128,7 @@ public class SSTableIndex
         }
     }
 
+    @EnsuresCalledMethods(value = "index", methods = "close")
     public void release()
     {
         int n = references.decrementAndGet();

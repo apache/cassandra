@@ -88,7 +88,6 @@ public class Flushing
         }
     }
 
-    @SuppressWarnings("resource")   // writer owned by runnable, to be closed or aborted by its caller
     static FlushRunnable flushRunnable(ColumnFamilyStore cfs,
                                        Memtable memtable,
                                        PartitionPosition from,

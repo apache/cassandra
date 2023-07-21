@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.utils.memory.MemoryUtil;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
 public class MemoryInputStream extends RebufferingInputStream implements DataInput
 {
@@ -34,7 +35,7 @@ public class MemoryInputStream extends RebufferingInputStream implements DataInp
     private long offset;
 
 
-    public MemoryInputStream(Memory mem)
+    public @MustCallAlias MemoryInputStream(Memory mem)
     {
         this(mem, Ints.saturatedCast(mem.size));
     }

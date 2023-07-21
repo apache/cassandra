@@ -38,6 +38,9 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethodsVarArgs;
+
+import static org.apache.cassandra.utils.SuppressionConstants.ENSUREVARARGS_UNVERIFIED;
 
 public final class Throwables
 {
@@ -158,6 +161,8 @@ public final class Throwables
     }
 
     @SafeVarargs
+    @EnsuresCalledMethodsVarArgs("perform")
+    @SuppressWarnings(ENSUREVARARGS_UNVERIFIED)
     public static void perform(File against, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
     {
         perform(against.path(), opType, actions);
@@ -193,6 +198,8 @@ public final class Throwables
     /**
      * @see {@link #closeAndAddSuppressed(Throwable, Iterable)}
      */
+    @EnsuresCalledMethodsVarArgs("close")
+    @SuppressWarnings("ensuresvarargs.unverified")
     public static void closeAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
     {
         closeAndAddSuppressed(t, Arrays.asList(closeables));
@@ -201,6 +208,8 @@ public final class Throwables
     /**
      * Do what {@link #closeAndAddSuppressed(Throwable, Iterable)} does, additionally filtering out all null closables.
      */
+    @EnsuresCalledMethodsVarArgs("close")
+    @SuppressWarnings("ensuresvarargs.unverified")
     public static void closeNonNullAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
     {
         closeAndAddSuppressed(t, Iterables.filter(Arrays.asList(closeables), Objects::nonNull));
@@ -231,6 +240,8 @@ public final class Throwables
     /**
      * See {@link #close(Throwable, Iterable)}
      */
+    @EnsuresCalledMethodsVarArgs("close")
+    @SuppressWarnings("ensuresvarargs.unverified")
     public static Throwable close(Throwable accumulate, AutoCloseable ... closeables)
     {
         return close(accumulate, Arrays.asList(closeables));

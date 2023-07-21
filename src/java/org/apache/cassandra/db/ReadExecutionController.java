@@ -120,7 +120,6 @@ public class ReadExecutionController implements AutoCloseable
      * @param command the command for which to create a controller.
      * @return the created execution controller, which must always be closed.
      */
-    @SuppressWarnings("resource") // ops closed during controller close
     static ReadExecutionController forCommand(ReadCommand command, boolean trackRepairedStatus)
     {
         ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(command.metadata());

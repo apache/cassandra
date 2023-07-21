@@ -27,17 +27,16 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.index.sasi.analyzer.filter.*;
+import com.google.common.annotations.VisibleForTesting;
+
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sasi.analyzer.filter.*;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import com.carrotsearch.hppc.IntObjectMap;
-import com.carrotsearch.hppc.IntObjectHashMap;
 
 public class StandardAnalyzer extends AbstractAnalyzer
 {
@@ -159,7 +158,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
         init(options, UTF8Type.instance);
     }
 
-    public void init(StandardTokenizerOptions tokenizerOptions, AbstractType<?> validator)
+    private void init(StandardTokenizerOptions tokenizerOptions, AbstractType<?> validator)
     {
         this.validator = validator;
         this.options = tokenizerOptions;
@@ -170,6 +169,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
         this.inputReader = reader;
     }
 
+    @Override
     public boolean hasNext()
     {
         try
@@ -189,6 +189,7 @@ public class StandardAnalyzer extends AbstractAnalyzer
         return false;
     }
 
+    @Override
     public void reset(ByteBuffer input)
     {
         this.next = null;

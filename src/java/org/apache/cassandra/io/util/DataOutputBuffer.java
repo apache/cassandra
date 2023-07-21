@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_BUFFER_ALLOCATE_TYPE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DOB_DOUBLING_THRESHOLD_MB;
@@ -64,16 +65,24 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         {
             return new DataOutputBuffer()
             {
+                @EnsuresCalledMethods(value = "this.channel", methods = "close")
                 @Override
-                public void close()
+                public void close() throws IOException
                 {
-                    if (buffer != null && buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
+                    try
                     {
-                        buffer.clear();
+                        if (buffer != null && buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
+                        {
+                            buffer.clear();
+                        }
+                        else
+                        {
+                            setBuffer(allocate(DEFAULT_INITIAL_BUFFER_SIZE));
+                        }
                     }
-                    else
+                    finally
                     {
-                        setBuffer(allocate(DEFAULT_INITIAL_BUFFER_SIZE));
+                        channel.close();
                     }
                 }
 
@@ -216,9 +225,11 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         }
     }
 
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
     @Override
-    public void close()
+    public void close() throws IOException
     {
+        channel.close();
     }
 
     public ByteBuffer buffer()

@@ -173,14 +173,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     /**
      * construct an empty Transaction with no existing readers
      */
-    @SuppressWarnings("resource") // log closed during postCleanup
     public static LifecycleTransaction offline(OperationType operationType)
     {
         Tracker dummy = Tracker.newDummyTracker();
         return new LifecycleTransaction(dummy, new LogTransaction(operationType, dummy), Collections.emptyList());
     }
 
-    @SuppressWarnings("resource") // log closed during postCleanup
     LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers)
     {
         this(tracker, new LogTransaction(operationType, tracker), readers);

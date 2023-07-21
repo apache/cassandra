@@ -171,7 +171,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
     {
         List<T> summaryProviders = indexSummariesProvider.get();
         double total = 0.0;
-        for (IndexSummarySupport summaryProvider : summaryProviders)
+        for (T summaryProvider : summaryProviders)
             total += summaryProvider.getIndexSummary().getEffectiveIndexInterval();
         return total / summaryProviders.size();
     }
@@ -188,7 +188,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
     public double getMemoryPoolSizeInMB()
     {
         long total = 0;
-        for (IndexSummarySupport summaryProvider : indexSummariesProvider.get())
+        for (T summaryProvider : indexSummariesProvider.get())
             total += summaryProvider.getIndexSummary().getOffHeapSize();
         return total / 1024.0 / 1024.0;
     }
@@ -200,7 +200,6 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
      *          left: total size of the off heap index summaries for the sstables we were unable to mark compacting (they were involved in other compactions)
      *          right: the transactions, keyed by table id.
      */
-    @SuppressWarnings("resource")
     private Pair<Long, Map<TableId, LifecycleTransaction>> getRestributionTransactions()
     {
         List<SSTableReader> allCompacting = new ArrayList<>();

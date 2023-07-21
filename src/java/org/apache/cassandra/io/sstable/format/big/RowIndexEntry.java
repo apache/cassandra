@@ -49,6 +49,9 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 import org.github.jamm.Unmetered;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -816,7 +819,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         private final int offsetsOffset;
 
         private ShallowInfoRetriever(long indexInfoFilePosition, int offsetsOffset,
-                                     FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
+                                     @Owning FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
         {
             super(indexInfoFilePosition, indexReader, idxInfoSerializer);
             this.offsetsOffset = offsetsOffset;
@@ -853,11 +856,12 @@ public class RowIndexEntry extends AbstractRowIndexEntry
      * Base class to access {@link IndexInfo} objects on disk that keeps already
      * read {@link IndexInfo} on heap.
      */
+    @InheritableMustCall("close")
     private abstract static class FileIndexInfoRetriever implements IndexInfoRetriever
     {
         final long indexInfoFilePosition;
         final ISerializer<IndexInfo> idxInfoSerializer;
-        final FileDataInput indexReader;
+        final @Owning FileDataInput indexReader;
         int retrievals;
 
         /**
@@ -866,7 +870,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
          * @param indexReader file data input to access the index file, closed by this instance
          * @param idxInfoSerializer the index serializer to deserialize {@link IndexInfo} objects
          */
-        FileIndexInfoRetriever(long indexInfoFilePosition, FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
+        FileIndexInfoRetriever(long indexInfoFilePosition, @Owning FileDataInput indexReader, ISerializer<IndexInfo> idxInfoSerializer)
         {
             this.indexInfoFilePosition = indexInfoFilePosition;
             this.idxInfoSerializer = idxInfoSerializer;
@@ -882,6 +886,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
         abstract IndexInfo fetchIndex(int index) throws IOException;
 
+        @EnsuresCalledMethods(value = "indexReader", methods = "close")
         @Override
         public void close() throws IOException
         {

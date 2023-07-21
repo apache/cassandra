@@ -18,7 +18,10 @@
 package org.apache.cassandra.hints;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -26,17 +29,22 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.utils.concurrent.Condition;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
-
-import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.*;
+import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.FAILURE;
+import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.INTERRUPTED;
+import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.SUCCESS;
+import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.TIMEOUT;
 import static org.apache.cassandra.metrics.HintsServiceMetrics.updateDelayMetrics;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -48,13 +56,14 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
  * Uses either {@link HintMessage.Encoded} - when dispatching hints into a node with the same messaging version as the hints file,
  * or {@link HintMessage}, when conversion is required.
  */
+@InheritableMustCall("close")
 final class HintsDispatcher implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsDispatcher.class);
 
     private enum Action { CONTINUE, ABORT }
 
-    private final HintsReader reader;
+    private final @Owning HintsReader reader;
     final UUID hostId;
     final InetAddressAndPort address;
     private final int messagingVersion;
@@ -62,7 +71,7 @@ final class HintsDispatcher implements AutoCloseable
 
     private InputPosition currentPagePosition;
 
-    private HintsDispatcher(HintsReader reader, UUID hostId, InetAddressAndPort address, int messagingVersion, BooleanSupplier abortRequested)
+    private HintsDispatcher(@Owning HintsReader reader, UUID hostId, InetAddressAndPort address, int messagingVersion, BooleanSupplier abortRequested)
     {
         currentPagePosition = null;
 
@@ -81,6 +90,7 @@ final class HintsDispatcher implements AutoCloseable
         return dispatcher;
     }
 
+    @EnsuresCalledMethods(value = "this.reader", methods = "close")
     public void close()
     {
         HintDiagnostics.dispatcherClosed(this);

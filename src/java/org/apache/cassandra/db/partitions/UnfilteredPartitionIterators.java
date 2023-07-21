@@ -51,7 +51,6 @@ public abstract class UnfilteredPartitionIterators
         public static MergeListener NOOP = (partitionKey, versions) -> UnfilteredRowIterators.MergeListener.NOOP;
     }
 
-    @SuppressWarnings("resource") // The created resources are returned right away
     public static UnfilteredRowIterator getOnlyElement(final UnfilteredPartitionIterator iter, SinglePartitionReadCommand command)
     {
         // If the query has no results, we'll get an empty iterator, but we still
@@ -101,7 +100,6 @@ public abstract class UnfilteredPartitionIterators
         return FilteredPartitions.filter(iterator, nowInSec);
     }
 
-    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final MergeListener listener)
     {
         assert !iterators.isEmpty();
@@ -125,7 +123,6 @@ public abstract class UnfilteredPartitionIterators
                 toMerge.set(idx, current);
             }
 
-            @SuppressWarnings("resource")
             protected UnfilteredRowIterator getReduced()
             {
                 UnfilteredRowIterators.MergeListener rowListener = listener == null
@@ -185,7 +182,6 @@ public abstract class UnfilteredPartitionIterators
         };
     }
 
-    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator mergeLazily(final List<? extends UnfilteredPartitionIterator> iterators)
     {
         assert !iterators.isEmpty();

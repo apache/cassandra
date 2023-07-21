@@ -726,7 +726,6 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             lastRowSet = i;
         }
 
-        @SuppressWarnings("resource")
         public Row merge(DeletionTime activeDeletion)
         {
             // If for this clustering we have only one row version and have no activeDeletion (i.e. nothing to filter out),
@@ -835,7 +834,6 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
                 return ColumnMetadataVersionComparator.INSTANCE.compare(column, dataColumn) < 0;
             }
 
-            @SuppressWarnings("resource")
             protected ColumnData getReduced()
             {
                 if (column.isSimple())

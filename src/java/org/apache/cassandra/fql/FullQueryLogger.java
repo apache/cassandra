@@ -22,14 +22,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +39,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
@@ -50,13 +48,19 @@ import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.CreatesMustCallFor;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 import org.github.jamm.MemoryLayoutSpecification;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * A logger that logs entire query contents after the query finishes (or times out).
  */
+@InheritableMustCall({"stop", "reset"})
 public class FullQueryLogger implements QueryEvents.Listener
 {
     protected static final Logger logger = LoggerFactory.getLogger(FullQueryLogger.class);
@@ -88,10 +92,12 @@ public class FullQueryLogger implements QueryEvents.Listener
     private static final int OBJECT_HEADER_SIZE = MemoryLayoutSpecification.SPEC.getObjectHeaderSize();
     private static final int OBJECT_REFERENCE_SIZE = MemoryLayoutSpecification.SPEC.getReferenceSize();
 
-    public static final FullQueryLogger instance = new FullQueryLogger();
+    public static final @Owning FullQueryLogger instance = new FullQueryLogger();
 
-    volatile BinLog binLog;
+    volatile @Owning BinLog binLog;
 
+    @CreatesMustCallFor
+    @SuppressWarnings(RESOURCE) // TODO probably a bug in CheckerFramework (see https://github.com/typetools/checker-framework/issues/5971)
     public synchronized void enable(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
         if (this.binLog != null)
@@ -107,6 +113,8 @@ public class FullQueryLogger implements QueryEvents.Listener
         QueryEvents.instance.registerListener(this);
     }
 
+    @CreatesMustCallFor
+    @SuppressWarnings(RESOURCE) // TODO probably a bug in CheckerFramework (see https://github.com/typetools/checker-framework/issues/5971)
     public synchronized void enableWithoutClean(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
     {
         if (this.binLog != null)
@@ -121,7 +129,6 @@ public class FullQueryLogger implements QueryEvents.Listener
                                           .build(false);
         QueryEvents.instance.registerListener(this);
     }
-
 
     static
     {
@@ -160,15 +167,16 @@ public class FullQueryLogger implements QueryEvents.Listener
         }
     }
 
+    @EnsuresCalledMethods(value = "this.binLog", methods = "stop")
     public synchronized void stop()
     {
         try
         {
-            BinLog binLog = this.binLog;
             if (binLog != null)
             {
                 logger.info("Stopping full query logging to {}", binLog.path);
                 binLog.stop();
+                binLog = null;
             }
             else
             {
@@ -182,7 +190,6 @@ public class FullQueryLogger implements QueryEvents.Listener
         finally
         {
             QueryEvents.instance.unregisterListener(this);
-            this.binLog = null;
         }
     }
 
@@ -191,6 +198,7 @@ public class FullQueryLogger implements QueryEvents.Listener
      * location for retrieving the path to the full query log files, but JMX also allows you to specify a path
      * that isn't persisted anywhere so we have to clean that one as well.
      */
+    @EnsuresCalledMethods(value = "this.binLog", methods = "stop")
     public synchronized void reset(String fullQueryLogPath)
     {
         try

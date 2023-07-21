@@ -46,6 +46,8 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.btree.BTree;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
@@ -68,8 +70,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    @SuppressWarnings("resource") // caller to close
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
+    protected Reader createReaderInternal(RowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile, Version version)
     {
         return indexEntry.isIndexed()
              ? new ReverseIndexedReader(indexEntry, file, shouldCloseFile)
@@ -103,7 +104,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
         protected boolean skipFirstIteratedItem;
         protected boolean skipLastIteratedItem;
 
-        private ReverseReader(FileDataInput file, boolean shouldCloseFile)
+        private ReverseReader(@Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
         }
@@ -279,13 +280,14 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
         // The last index block to consider for the slice
         private int lastBlockIdx;
 
-        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        private ReverseIndexedReader(RowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
             this.indexState = new IndexState(this, metadata.comparator, indexEntry, true, ifile);
         }
 
         @Override
+        @EnsuresCalledMethods(value = { "file", "this.indexState"}, methods = "close")
         public void close() throws IOException
         {
             super.close();

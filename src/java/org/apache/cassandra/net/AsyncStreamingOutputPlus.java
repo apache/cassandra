@@ -39,8 +39,10 @@ import org.apache.cassandra.net.SharedDefaultFileRegion.SharedFileChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static java.lang.Math.min;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * A {@link DataOutputStreamPlus} that writes ASYNCHRONOUSLY to a Netty Channel.
@@ -154,7 +156,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
      * WARNING: this method blocks only for permission to write to the netty channel; it exits before
      * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
      */
-    public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
+    public long writeFileToChannel(@Owning FileChannel file, RateLimiter limiter) throws IOException
     {
         if (channel.pipeline().get(SslHandler.class) != null)
             // each batch is loaded into ByteBuffer, 64KiB is more BufferPool friendly.
@@ -166,13 +168,13 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     }
 
     @VisibleForTesting
-    long writeFileToChannel(FileChannel fc, RateLimiter limiter, int batchSize) throws IOException
+    long writeFileToChannel(@Owning FileChannel fc, RateLimiter limiter, int batchSize) throws IOException
     {
-        final long length = fc.size();
         long bytesTransferred = 0;
 
         try
         {
+            final long length = fc.size();
             while (bytesTransferred < length)
             {
                 int toWrite = (int) min(batchSize, length - bytesTransferred);
@@ -203,7 +205,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
     }
 
     @VisibleForTesting
-    long writeFileToChannelZeroCopy(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    long writeFileToChannelZeroCopy(@Owning FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
         if (!limiter.isRateLimited())
             return writeFileToChannelZeroCopyUnthrottled(file);
@@ -211,7 +213,8 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
             return writeFileToChannelZeroCopyThrottled(file, limiter, batchSize, lowWaterMark, highWaterMark);
     }
 
-    private long writeFileToChannelZeroCopyUnthrottled(FileChannel file) throws IOException
+    @SuppressWarnings(RESOURCE) // TODO should the defaultFileRegion field be released somehow?
+    private long writeFileToChannelZeroCopyUnthrottled(@Owning FileChannel file) throws IOException
     {
         final long length = file.size();
 
@@ -225,14 +228,16 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements 
         return length;
     }
 
-    private long writeFileToChannelZeroCopyThrottled(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    @SuppressWarnings(RESOURCE) // TODO should the fileRegion field be released somehow?
+    private long writeFileToChannelZeroCopyThrottled(@Owning FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
-        final long length = file.size();
         long bytesTransferred = 0;
 
         final SharedFileChannel sharedFile = SharedDefaultFileRegion.share(file);
         try
         {
+            final long length = file.size();
+
             int toWrite;
             while (bytesTransferred < length)
             {

@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 /**
  * A generic interface for encapsulating a Runnable task with related work before and after execution,
@@ -66,7 +67,7 @@ public interface WithResources
     }
     static WithResources none() { return None.INSTANCE; }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings(RESOURCE)
     public static WithResources and(WithResources first, WithResources second)
     {
         if (second.isNoOp()) return first;

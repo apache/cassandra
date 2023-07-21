@@ -41,10 +41,14 @@ import org.apache.cassandra.io.sstable.format.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
+@InheritableMustCall("doClose")
 public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntry, BigTableScanner.BigScanningIterator>
 {
-    protected final RandomAccessReader ifile;
+    protected final @Owning RandomAccessReader ifile;
 
     private AbstractBounds<PartitionPosition> currentRange;
 
@@ -117,6 +121,7 @@ public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntr
         }
     }
 
+    @EnsuresCalledMethods(value = {"this.dfile", "this.ifile"}, methods = "close")
     protected void doClose() throws IOException
     {
         FileUtils.close(dfile, ifile);

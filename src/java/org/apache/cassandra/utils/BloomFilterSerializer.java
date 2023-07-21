@@ -25,6 +25,7 @@ import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public final class BloomFilterSerializer implements IGenericSerializer<BloomFilter, DataInputStreamPlus, DataOutputStreamPlus>
 {
@@ -70,8 +71,7 @@ public final class BloomFilterSerializer implements IGenericSerializer<BloomFilt
     }
 
     @Override
-    @SuppressWarnings("resource")
-    public BloomFilter deserialize(DataInputStreamPlus in) throws IOException
+    public @Owning BloomFilter deserialize(DataInputStreamPlus in) throws IOException
     {
         int hashes = in.readInt();
         IBitSet bs = OffHeapBitSet.deserialize(in, oldFormat);

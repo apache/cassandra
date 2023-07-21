@@ -19,26 +19,29 @@ package org.apache.cassandra.index.sasi;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
-import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.util.FileUtils;
-
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode.CONTAINS;
 import static org.apache.cassandra.index.sasi.plan.Expression.Op.PREFIX;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class TermIterator extends RangeIterator<Long, Token>
@@ -76,7 +79,7 @@ public class TermIterator extends RangeIterator<Long, Token>
         this.referencedIndexes = referencedIndexes;
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings(RESOURCE)
     public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes)
     {
         final List<RangeIterator<Long, Token>> tokens = new CopyOnWriteArrayList<>();
@@ -187,6 +190,7 @@ public class TermIterator extends RangeIterator<Long, Token>
         }
     }
 
+    @Override
     public void close()
     {
         FileUtils.closeQuietly(union);

@@ -37,12 +37,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implements IScrubber
 {
     private final boolean isIndex;
 
-    private final RandomAccessReader indexFile;
+    private final @Owning RandomAccessReader indexFile;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     private ByteBuffer currentIndexKey;
@@ -275,6 +277,7 @@ public class BigTableScrubber extends SortedTableScrubber<BigTableReader> implem
     }
 
     @Override
+    @EnsuresCalledMethods(value = {"indexFile", "dataFile"}, methods = "close")
     public void close()
     {
         fileAccessLock.writeLock().lock();

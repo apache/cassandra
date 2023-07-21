@@ -51,6 +51,8 @@ import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.index.sasi.disk.OnDiskBlock.SearchResult;
 
@@ -112,7 +114,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     protected final OnDiskIndexBuilder.TermSize termSize;
 
     protected final AbstractType<?> comparator;
-    protected final MappedBuffer indexFile;
+    protected final @Owning MappedBuffer indexFile;
     protected final long indexSize;
     protected final boolean hasMarkedPartials;
 
@@ -125,7 +127,6 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
     protected final ByteBuffer minTerm, maxTerm, minKey, maxKey;
 
-    @SuppressWarnings("resource")
     public OnDiskIndex(File index, AbstractType<?> cmp, Function<Long, DecoratedKey> keyReader)
     {
         keyFetcher = keyReader;
@@ -150,7 +151,15 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
             hasMarkedPartials = backingFile.readBoolean();
 
             FileChannel channel = index.newReadChannel();
-            indexSize = channel.size();
+            try
+            {
+                indexSize = channel.size();
+            }
+            catch (IOException e)
+            {
+                channel.close();
+                throw e;
+            }
             indexFile = new MappedBuffer(new ChannelProxy(index, channel));
         }
         catch (IOException e)
@@ -277,10 +286,8 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
         for (Expression e : ranges)
         {
-            @SuppressWarnings("resource")
             RangeIterator<Long, Token> range = searchRange(e);
-            if (range != null)
-                builder.add(range);
+            builder.add(range);
         }
 
         return builder.build();
@@ -441,6 +448,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         return new TermIterator(0, new Expression("", comparator), IteratorOrder.DESC);
     }
 
+    @EnsuresCalledMethods(value = { "indexFile" }, methods = "close")
     public void close() throws IOException
     {
         FileUtils.closeQuietly(indexFile);

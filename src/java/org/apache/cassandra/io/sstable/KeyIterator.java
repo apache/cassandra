@@ -24,17 +24,21 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
+@InheritableMustCall("close")
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
     private final IPartitioner partitioner;
-    private final KeyReader it;
+    private final @Owning KeyReader it;
     private final ReadWriteLock fileAccessLock;
     private final long totalBytes;
 
     private boolean initialized = false;
 
-    public KeyIterator(KeyReader it, IPartitioner partitioner, long totalBytes, ReadWriteLock fileAccessLock)
+    public KeyIterator(@Owning KeyReader it, IPartitioner partitioner, long totalBytes, ReadWriteLock fileAccessLock)
     {
         this.it = it;
         this.partitioner = partitioner;
@@ -73,6 +77,8 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
         }
     }
 
+    @EnsuresCalledMethods(value = "this.it", methods = "close")
+    @Override
     public void close()
     {
         if (fileAccessLock != null)

@@ -327,7 +327,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             {
                 DecoratedKey pk;
 
-                @SuppressWarnings("resource")
                 protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
                     pk = partition.partitionKey();

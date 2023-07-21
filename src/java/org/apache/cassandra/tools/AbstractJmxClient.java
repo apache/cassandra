@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
-
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
@@ -39,6 +38,12 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
+import org.apache.cassandra.io.util.FileUtils;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.CreatesMustCallFor;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
+
 public abstract class AbstractJmxClient implements Closeable
 {
     private static final Options options = new Options();
@@ -49,7 +54,7 @@ public abstract class AbstractJmxClient implements Closeable
     protected final int port;
     protected final String username;
     protected final String password;
-    protected JMXConnection jmxConn;
+    protected @Owning JMXConnection jmxConn;
     protected PrintStream out = System.out;
 
     static
@@ -70,6 +75,7 @@ public abstract class AbstractJmxClient implements Closeable
         jmxConn = new JMXConnection(this.host, this.port, username, password);
     }
 
+    @EnsuresCalledMethods(value = "this.jmxConn", methods = "close")
     public void close() throws IOException
     {
         jmxConn.close();
@@ -131,12 +137,13 @@ public abstract class AbstractJmxClient implements Closeable
     }
 }
 
+@InheritableMustCall("close")
 class JMXConnection
 {
     private static final String FMT_URL = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private final String host, username, password;
     private final int port;
-    private JMXConnector jmxc;
+    private @Owning JMXConnector jmxc;
     private MBeanServerConnection mbeanServerConn;
 
     JMXConnection(String host, int port, String username, String password) throws IOException
@@ -148,6 +155,7 @@ class JMXConnection
         connect();
     }
 
+    @CreatesMustCallFor
     private void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(FMT_URL, host, port));
@@ -156,10 +164,12 @@ class JMXConnection
         if (username != null)
             env.put(JMXConnector.CREDENTIALS, new String[]{ username, password });
 
+        FileUtils.closeQuietly(jmxc);
         jmxc = JMXConnectorFactory.connect(jmxUrl, env);
         mbeanServerConn = jmxc.getMBeanServerConnection();
     }
 
+    @EnsuresCalledMethods(value = "this.jmxc", methods = "close")
     public void close() throws IOException
     {
         jmxc.close();

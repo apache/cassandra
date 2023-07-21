@@ -34,6 +34,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
+
 /** a pared-down version of DataTracker and DT.View. need one for each index of each column family */
 public class DataTracker
 {
@@ -88,7 +90,7 @@ public class DataTracker
     public boolean hasSSTable(SSTableReader sstable)
     {
         View currentView = view.get();
-        for (SSTableIndex index : currentView)
+        for (SSTableIndex index : currentView.getIndexes())
         {
             if (index.getSSTable().equals(sstable))
                 return true;
@@ -104,7 +106,7 @@ public class DataTracker
             return;
 
         Set<SSTableReader> toRemove = new HashSet<>(sstablesToRebuild);
-        for (SSTableIndex index : currentView)
+        for (SSTableIndex index : currentView.getIndexes())
         {
             SSTableReader sstable = index.getSSTable();
             if (!sstablesToRebuild.contains(sstable))
@@ -123,7 +125,7 @@ public class DataTracker
             return;
 
         Set<SSTableReader> toRemove = new HashSet<>();
-        for (SSTableIndex index : currentView)
+        for (SSTableIndex index : currentView.getIndexes())
         {
             SSTableReader sstable = index.getSSTable();
             if (sstable.getMaxTimestamp() > truncateUntil)
@@ -136,6 +138,7 @@ public class DataTracker
         update(toRemove, Collections.<SSTableReader>emptyList());
     }
 
+    @SuppressWarnings(RESOURCE)
     private Pair<Set<SSTableIndex>, Set<SSTableReader>> getBuiltIndexes(Collection<SSTableReader> sstables)
     {
         Set<SSTableIndex> indexes = new HashSet<>(sstables.size());

@@ -36,7 +36,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
 
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
+
+@InheritableMustCall("doClose")
 public class BtiTableScanner extends SSTableScanner<BtiTableReader, TrieIndexEntry, BtiTableScanner.BtiScanningIterator>
 {
     // Full scan of the sstables
@@ -72,6 +77,7 @@ public class BtiTableScanner extends SSTableScanner<BtiTableReader, TrieIndexEnt
         super(sstable, columns, dataRange, rangeIterator, listener);
     }
 
+    @EnsuresCalledMethods(value = {"this.dfile", "this.iterator"}, methods = "close")
     protected void doClose() throws IOException
     {
         FileUtils.close(dfile, iterator);
@@ -88,6 +94,7 @@ public class BtiTableScanner extends SSTableScanner<BtiTableReader, TrieIndexEnt
         private PartitionIterator iterator;
 
         @Override
+        @SuppressWarnings(RESOURCE)
         protected boolean prepareToIterateRow() throws IOException
         {
             while (true)

@@ -20,6 +20,9 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.NotOwning;
+
 /**
  * This class provides a way to stream the writes into the {@link Memory}
  */
@@ -29,7 +32,7 @@ public class MemoryOutputStream extends OutputStream
     private final Memory mem;
     private long position = 0;
 
-    public MemoryOutputStream(Memory mem)
+    public @MustCallAlias MemoryOutputStream(@NotOwning Memory mem)
     {
         this.mem = mem;
     }

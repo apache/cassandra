@@ -123,7 +123,7 @@ public class PagingState
      * Modern serde (> VERSION_3)
      */
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     private ByteBuffer modernSerialize() throws IOException
     {
         DataOutputBuffer out = new DataOutputBufferFixed(modernSerializedSize());
@@ -196,7 +196,7 @@ public class PagingState
         return (int)value;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     private static PagingState modernDeserialize(ByteBuffer bytes, ProtocolVersion protocolVersion) throws IOException
     {
         if (protocolVersion.isSmallerThan(ProtocolVersion.V4))
@@ -231,7 +231,7 @@ public class PagingState
      */
 
     @VisibleForTesting
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     ByteBuffer legacySerialize(boolean withRemainingInPartition) throws IOException
     {
         DataOutputBuffer out = new DataOutputBufferFixed(legacySerializedSize(withRemainingInPartition));
@@ -282,7 +282,7 @@ public class PagingState
         return false;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+
     private static PagingState legacyDeserialize(ByteBuffer bytes, ProtocolVersion protocolVersion) throws IOException
     {
         if (protocolVersion.isGreaterThan(ProtocolVersion.V3))

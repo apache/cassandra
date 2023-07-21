@@ -361,7 +361,6 @@ public class FileHandle extends SharedCloseableImpl
         }
 
         @VisibleForTesting
-        @SuppressWarnings("resource")
         public FileHandle complete(Function<File, ChannelProxy> channelProxyFactory)
         {
             ChannelProxy channel = null;

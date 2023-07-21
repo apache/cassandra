@@ -29,13 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,11 +47,14 @@ import io.netty.util.concurrent.PromiseNotifier;
 import io.netty.util.concurrent.SucceededFuture;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Math.max;
@@ -63,11 +62,18 @@ import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.net.InternodeConnectionUtils.isSSLError;
 import static org.apache.cassandra.net.MessagingService.current_version;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.Result;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateMessaging;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
-import static org.apache.cassandra.net.ResourceLimits.*;
-import static org.apache.cassandra.net.ResourceLimits.Outcome.*;
-import static org.apache.cassandra.net.SocketFactory.*;
+import static org.apache.cassandra.net.ResourceLimits.EndpointAndGlobal;
+import static org.apache.cassandra.net.ResourceLimits.Limit;
+import static org.apache.cassandra.net.ResourceLimits.Outcome;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.SUCCESS;
+import static org.apache.cassandra.net.SocketFactory.encryptionConnectionSummary;
+import static org.apache.cassandra.net.SocketFactory.isCausedByConnectionReset;
+import static org.apache.cassandra.net.SocketFactory.isConnectionReset;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
@@ -754,7 +760,6 @@ public class OutboundConnection
          *
          * If there is more work to be done, we submit ourselves for execution once the eventLoop has time.
          */
-        @SuppressWarnings("resource")
         boolean doRun(Established established)
         {
             if (!isWritable)
@@ -775,13 +780,14 @@ public class OutboundConnection
             int canonicalSize = 0; // number of bytes we must use for our resource accounting
             int sendingBytes = 0;
             int sendingCount = 0;
+            DataOutputBufferFixed out = null;
             try (OutboundMessageQueue.WithLock withLock = queue.lockOrCallback(approxTime.now(), this::execute))
             {
                 if (withLock == null)
                     return false; // we failed to acquire the queue lock, so return; we will be scheduled again when the lock is available
 
                 sending = established.payloadAllocator.allocate(true, maxSendBytes);
-                DataOutputBufferFixed out = new DataOutputBufferFixed(sending.buffer);
+                out = new DataOutputBufferFixed(sending.buffer);
 
                 Message<?> next;
                 while ( null != (next = withLock.peek()) )
@@ -809,7 +815,7 @@ public class OutboundConnection
                             sending.release();
                             sending = null; // set to null to prevent double-release if we fail to allocate our new buffer
                             sending = established.payloadAllocator.allocate(true, messageSize);
-                            //noinspection IOResourceOpenedButNotSafelyClosed
+                            out.close();
                             out = new DataOutputBufferFixed(sending.buffer);
                         }
 
@@ -900,6 +906,8 @@ public class OutboundConnection
             }
             finally
             {
+                FileUtils.closeQuietly(out);
+
                 if (canonicalSize > 0)
                     releaseCapacity(sendingCount, canonicalSize);
 
@@ -965,7 +973,7 @@ public class OutboundConnection
             }
         }
 
-        @SuppressWarnings({ "resource", "RedundantSuppression" }) // make eclipse warnings go away
+
         boolean doRun(Established established)
         {
             Message<?> send = queue.tryPoll(approxTime.now(), this::execute);
@@ -1023,6 +1031,10 @@ public class OutboundConnection
 
                 onFailedSerialize(send, established.messagingVersion, out == null ? 0 : (int) out.flushedToNetwork(), t);
                 return tryAgain;
+            }
+            finally
+            {
+                FileUtils.closeQuietly(out);
             }
         }
 

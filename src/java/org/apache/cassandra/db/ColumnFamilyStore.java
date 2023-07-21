@@ -176,6 +176,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
@@ -183,6 +184,7 @@ import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
@@ -320,7 +322,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     private final CassandraStreamManager streamManager;
 
     private final TableRepairManager repairManager;
-    public final TopPartitionTracker topPartitions;
+
+    @SuppressWarnings(RESOURCE) // acceptable - topPartitions are closed on table invalidation
+    public final @Owning TopPartitionTracker topPartitions;
 
     private final SSTableImporter sstableImporter;
 
@@ -1290,7 +1294,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     Iterator<SSTableMultiWriter> writerIterator = flushResults.iterator();
                     while (writerIterator.hasNext())
                     {
-                        @SuppressWarnings("resource")
                         SSTableMultiWriter writer = writerIterator.next();
                         if (writer.getBytesWritten() > 0)
                         {
@@ -1922,7 +1925,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return nowInSec - metadata().params.gcGraceSeconds;
     }
 
-    @SuppressWarnings("resource")
     public RefViewFragment selectAndReference(Function<View, Iterable<SSTableReader>> filter)
     {
         long failingSince = -1L;
@@ -2531,7 +2533,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                           Supplier<Collection<Range<PartitionPosition>>> rangesSupplier,
                                           Refs<SSTableReader> placeIntoRefs)
     {
-        @SuppressWarnings("resource") // closed by finish or on exception
         SSTableMultiWriter memtableContent = writeMemtableRanges(rangesSupplier, repairSessionID);
         if (memtableContent != null)
         {

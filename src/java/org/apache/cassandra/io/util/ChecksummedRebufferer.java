@@ -22,13 +22,15 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Closeable;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
-class ChecksummedRebufferer extends BufferManagingRebufferer
+class ChecksummedRebufferer extends BufferManagingRebufferer implements Closeable
 {
-    private final DataIntegrityMetadata.ChecksumValidator validator;
+    private final @Owning DataIntegrityMetadata.ChecksumValidator validator;
 
-    @SuppressWarnings("resource") // chunk reader is closed by super::close()
-    ChecksummedRebufferer(ChannelProxy channel, DataIntegrityMetadata.ChecksumValidator validator)
+    ChecksummedRebufferer(@Owning  ChannelProxy channel, @Owning DataIntegrityMetadata.ChecksumValidator validator)
     {
         super(new SimpleChunkReader(channel, channel.size(), BufferType.ON_HEAP, validator.chunkSize));
         this.validator = validator;
@@ -56,6 +58,7 @@ class ChecksummedRebufferer extends BufferManagingRebufferer
         return this;
     }
 
+    @EnsuresCalledMethods(value = {"this.validator", "this.source"}, methods = "close")
     @Override
     public void close()
     {

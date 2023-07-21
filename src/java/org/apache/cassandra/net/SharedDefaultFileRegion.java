@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import io.netty.channel.DefaultFileRegion;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  * Netty's DefaultFileRegion closes the underlying FileChannel as soon as
@@ -32,6 +34,7 @@ import org.apache.cassandra.utils.concurrent.RefCounted;
  *
  * See {@link AsyncChannelOutputPlus} for its usage.
  */
+@InheritableMustCall("deallocate")
 public class SharedDefaultFileRegion extends DefaultFileRegion
 {
     public static class SharedFileChannel
@@ -41,7 +44,7 @@ public class SharedDefaultFileRegion extends DefaultFileRegion
         final Ref<FileChannel> ref;
         final AtomicInteger refCount = new AtomicInteger(1);
 
-        SharedFileChannel(FileChannel fileChannel)
+        SharedFileChannel(@Owning FileChannel fileChannel)
         {
             this.ref = new Ref<>(fileChannel, new RefCounted.Tidy()
             {
@@ -86,7 +89,7 @@ public class SharedDefaultFileRegion extends DefaultFileRegion
         shared.release();
     }
 
-    public static SharedFileChannel share(FileChannel fileChannel)
+    public static SharedFileChannel share(@Owning FileChannel fileChannel)
     {
         return new SharedFileChannel(fileChannel);
     }

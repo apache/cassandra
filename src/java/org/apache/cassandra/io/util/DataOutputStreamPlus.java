@@ -24,6 +24,8 @@ import java.nio.channels.WritableByteChannel;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE;
 
@@ -36,14 +38,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPU
 public abstract class DataOutputStreamPlus extends OutputStream implements DataOutputPlus
 {
     //Dummy wrapper channel for derived implementations that don't have a channel
-    protected final WritableByteChannel channel;
+    protected final @Owning WritableByteChannel channel;
 
     protected DataOutputStreamPlus()
     {
         this.channel = newDefaultChannel();
     }
 
-    protected DataOutputStreamPlus(WritableByteChannel channel)
+    protected DataOutputStreamPlus(@Owning WritableByteChannel channel)
     {
         this.channel = channel;
     }
@@ -133,4 +135,10 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
         };
     }
 
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
+    @Override
+    public void close() throws IOException
+    {
+        channel.close();
+    }
 }

@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class StreamingDataOutputPlusFixed extends DataOutputBufferFixed implements StreamingDataOutputPlus
 {
@@ -40,11 +41,18 @@ public class StreamingDataOutputPlusFixed extends DataOutputBufferFixed implemen
     }
 
     @Override
-    public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
+    public long writeFileToChannel(@Owning FileChannel file, RateLimiter limiter) throws IOException
     {
-        long count = 0;
-        long tmp;
-        while (0 <= (tmp = file.read(buffer))) count += tmp;
-        return count;
+        try
+        {
+            long count = 0;
+            long tmp;
+            while (0 <= (tmp = file.read(buffer))) count += tmp;
+            return count;
+        }
+        finally
+        {
+            file.close();
+        }
     }
 }

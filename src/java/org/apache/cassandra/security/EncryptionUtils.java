@@ -34,6 +34,9 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.checkerframework.checker.mustcall.qual.NotOwning;
+
+import static org.apache.cassandra.utils.SuppressionConstants.CONTRACTS_CONDITIONAL_POSTCONDITION;
 
 /**
  * Encryption and decryption functions specific to the commit log.
@@ -115,11 +118,13 @@ public class EncryptionUtils
         return outputBuffer;
     }
 
-    @SuppressWarnings("resource")
     public static ByteBuffer encrypt(ByteBuffer inputBuffer, ByteBuffer outputBuffer, boolean allowBufferResize, Cipher cipher) throws IOException
     {
         Preconditions.checkNotNull(outputBuffer, "output buffer may not be null");
-        return encryptAndWrite(inputBuffer, new ChannelAdapter(outputBuffer), allowBufferResize, cipher);
+        try (WritableByteChannel channel = new ChannelAdapter(outputBuffer))
+        {
+            return encryptAndWrite(inputBuffer, channel, allowBufferResize, cipher);
+        }
     }
 
     /**
@@ -167,10 +172,12 @@ public class EncryptionUtils
     }
 
     // path used when decrypting commit log files
-    @SuppressWarnings("resource")
     public static ByteBuffer decrypt(FileDataInput fileDataInput, ByteBuffer outputBuffer, boolean allowBufferResize, Cipher cipher) throws IOException
     {
-        return decrypt(new DataInputReadChannel(fileDataInput), outputBuffer, allowBufferResize, cipher);
+        try (ReadableByteChannel channel = new DataInputReadChannel(fileDataInput))
+        {
+            return decrypt(channel, outputBuffer, allowBufferResize, cipher);
+        }
     }
 
     /**
@@ -261,11 +268,12 @@ public class EncryptionUtils
             return readLength;
         }
 
+        @SuppressWarnings(CONTRACTS_CONDITIONAL_POSTCONDITION)
         public boolean isOpen()
         {
             try
             {
-                return fileDataInput.isEOF();
+                return fileDataInput.isEOF(); // TODO is it really opened when it is EOF?
             }
             catch (IOException e)
             {
@@ -284,7 +292,7 @@ public class EncryptionUtils
         private final ChannelProxy channelProxy;
         private volatile long currentPosition;
 
-        public ChannelProxyReadChannel(ChannelProxy channelProxy, long currentPosition)
+        public ChannelProxyReadChannel(@NotOwning ChannelProxy channelProxy, long currentPosition)
         {
             this.channelProxy = channelProxy;
             this.currentPosition = currentPosition;
@@ -303,9 +311,10 @@ public class EncryptionUtils
             return currentPosition;
         }
 
+        @SuppressWarnings(CONTRACTS_CONDITIONAL_POSTCONDITION)
         public boolean isOpen()
         {
-            return channelProxy.isCleanedUp();
+            return channelProxy.isCleanedUp(); // TODO how can it be opened when it is cleaned up?
         }
 
         public void close()

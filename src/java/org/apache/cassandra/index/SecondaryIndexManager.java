@@ -510,7 +510,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                            {
                                SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables);
                                final AsyncPromise<Object> build = new AsyncPromise<>();
-                               CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback()
+                               CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback<Object>()
                                {
                                    @Override
                                    public void onFailure(Throwable t)
@@ -552,7 +552,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                 }
 
                 // Flush all built indexes with an aynchronous callback to log the success or failure of the flush
-                flushIndexesBlocking(builtIndexes, new FutureCallback()
+                flushIndexesBlocking(builtIndexes, new FutureCallback<Object>()
                 {
                     String indexNames = StringUtils.join(builtIndexes.stream()
                                                                      .map(i -> i.getIndexMetadata().name)

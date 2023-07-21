@@ -590,7 +590,6 @@ public final class JavaBasedUDFunction extends UDFunction
             return findType(result.toString());
         }
 
-        @SuppressWarnings("resource")
         private NameEnvironmentAnswer findType(String className)
         {
             if (className.equals(this.className))

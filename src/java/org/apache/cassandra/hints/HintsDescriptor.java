@@ -19,6 +19,7 @@ package org.apache.cassandra.hints;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -33,9 +34,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
 import org.slf4j.Logger;
@@ -47,6 +45,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
@@ -394,7 +394,8 @@ final class HintsDescriptor
 
         // Let's avoid allocation of serialized output, use counting output stream
         int serializedParamsLength;
-        try (CountingOutputStream out = new CountingOutputStream(ByteStreams.nullOutputStream()))
+        try (OutputStream nullOut = ByteStreams.nullOutputStream();
+             CountingOutputStream out = new CountingOutputStream(nullOut))
         {
             JsonUtils.JSON_OBJECT_MAPPER.writeValue(out, parameters);
             serializedParamsLength = (int) out.getCount();

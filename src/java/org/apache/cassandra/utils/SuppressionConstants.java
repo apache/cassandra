@@ -16,20 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.io.util;
+package org.apache.cassandra.utils;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-
-public class FileReader extends InputStreamReader
+public class SuppressionConstants
 {
-    public FileReader(String file) throws IOException
-    {
-        super(new FileInputStreamPlus(file));
-    }
-
-    public FileReader(File file) throws IOException
-    {
-        super(new FileInputStreamPlus(file));
-    }
+    public static final String RESOURCE = "required.method.not.called";
+    public static final String CONTRACTS_CONDITIONAL_POSTCONDITION = "contracts.conditional.postcondition";
+    public static final String ENSUREVARARGS_UNVERIFIED = "ensuresvarargs.unverified";
+    public static final String MISSING_CREATES_MUSTCALL_FOR = "missing.creates.mustcall.for";
 }

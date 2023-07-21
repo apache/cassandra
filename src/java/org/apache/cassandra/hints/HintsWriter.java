@@ -36,12 +36,16 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.Throwables;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 import static org.apache.cassandra.utils.Throwables.perform;
 
+@InheritableMustCall("close")
 class HintsWriter implements AutoCloseable
 {
     static final int PAGE_SIZE = 4096;
@@ -49,13 +53,13 @@ class HintsWriter implements AutoCloseable
     private final File directory;
     private final HintsDescriptor descriptor;
     private final File file;
-    protected final FileChannel channel;
+    protected final @Owning FileChannel channel;
     private final int fd;
     protected final CRC32 globalCRC;
 
     private volatile long lastSyncPosition = 0L;
 
-    protected HintsWriter(File directory, HintsDescriptor descriptor, File file, FileChannel channel, int fd, CRC32 globalCRC)
+    protected HintsWriter(File directory, HintsDescriptor descriptor, File file, @Owning FileChannel channel, int fd, CRC32 globalCRC)
     {
         this.directory = directory;
         this.descriptor = descriptor;
@@ -65,7 +69,6 @@ class HintsWriter implements AutoCloseable
         this.globalCRC = globalCRC;
     }
 
-    @SuppressWarnings("resource") // HintsWriter owns channel
     static HintsWriter create(File directory, HintsDescriptor descriptor) throws IOException
     {
         File file = descriptor.file(directory);
@@ -114,6 +117,7 @@ class HintsWriter implements AutoCloseable
         }
     }
 
+    @EnsuresCalledMethods(value = "this.channel", methods = "close")
     public void close()
     {
         perform(file, Throwables.FileOpType.WRITE, this::doFsync, channel::close);

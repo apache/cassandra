@@ -30,7 +30,11 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
+@InheritableMustCall("stop")
 public class BinAuditLogger implements IAuditLogger
 {
     public static final long CURRENT_VERSION = 0;
@@ -38,7 +42,7 @@ public class BinAuditLogger implements IAuditLogger
     public static final String AUDITLOG_MESSAGE = "message";
     private static final Logger logger = LoggerFactory.getLogger(BinAuditLogger.class);
 
-    private volatile BinLog binLog;
+    private volatile @Owning BinLog binLog;
 
     public BinAuditLogger(AuditLogOptions auditLoggingOptions)
     {
@@ -60,6 +64,7 @@ public class BinAuditLogger implements IAuditLogger
     /**
      * Stop the audit log leaving behind any generated files.
      */
+    @EnsuresCalledMethods(value = "this.binLog", methods = "stop")
     public synchronized void stop()
     {
         try

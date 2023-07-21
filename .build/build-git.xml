@@ -17,9 +17,10 @@
   limitations under the License.
 -->
 <project basedir="." name="apache-cassandra-git-tasks"
-         xmlns:if="ant:if">
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
 
-    <target name="_get-git-sha">
+    <target name="-git-init">
         <exec executable="git" osfamily="unix" dir="${basedir}" logError="false" failonerror="false" failifexecutionfails="false" resultproperty="git.is-available.exit-code">
             <arg value="rev-parse"/>
             <arg value="--is-inside-work-tree"/>
@@ -30,6 +31,25 @@
         </condition>
         <echo message="git.is-available=${git.is-available}"/>
 
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="diff"/>
+            <arg value="--help"/>
+            <redirector outputproperty="git.output.diffHelp--merge-base-arg">
+                <outputfilterchain>
+                    <linecontains matchany="--merge-base"/>
+                </outputfilterchain>
+            </redirector>
+        </exec>
+        <condition property="git.is-merge-base-supported" value="true">
+            <not>
+                <equals arg1="${git.output.diffHelp--merge-base-arg}" arg2=""/>
+            </not>
+        </condition>
+        <echo level="info" if:true="${git.is-merge-base-supported}" message="Git supports --merge-base argument"/>
+        <echo level="warning" unless:true="${git.is-merge-base-supported}" message="Git does not support --merge-base argument - please update Git to 2.30+"/>
+    </target>
+
+    <target name="_get-git-sha" depends="-git-init">
         <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
             <arg value="describe"/>
             <arg value="--match=''"/>
@@ -52,4 +72,72 @@
         <echo level="warning" if:true="${is-dirty}">Repository state is dirty</echo>
         <echo level="warning" if:true="${is-dirty}">${git.diffstat}</echo>
     </target>
+
+    <macrodef name="check-dirty-files">
+        <attribute name="outputProperty" default="dirtyFiles"/> <!-- property to store the list of dirty files -->
+        <attribute name="paths" default="."/> <!-- space separated paths to be checked -->
+
+        <sequential>
+            <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+                <arg value="diff"/>
+                <arg value="--name-only"/>
+                <arg value="--no-renames"/>
+                <arg value="--ignore-all-space"/>
+                <arg value="--staged"/>
+                <arg line="@{paths}"/>
+                <redirector outputproperty="git.output.staged"/>
+            </exec>
+            <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+                <arg value="diff"/>
+                <arg value="--name-only"/>
+                <arg value="--no-renames"/>
+                <arg value="--ignore-all-space"/>
+                <arg line="@{paths}"/>
+                <redirector outputproperty="git.output.unstaged"/>
+            </exec>
+
+            <property name="@{outputProperty}" value="${git.output.staged}${line.separator}${git.output.unstaged}"/>
+        </sequential>
+    </macrodef>
+
+    <macrodef name="check-changed-files">
+        <attribute name="outputProperty" default="changedFiles"/> <!-- property to store the list of changed files -->
+        <attribute name="paths" default="."/> <!-- space separated paths to be checked -->
+
+        <sequential>
+            <fail unless:true="${git.is-merge-base-supported}" message="Git does not support --merge-base argument - please update Git to 2.30+"/>
+
+            <check-dirty-files outputProperty="git.output.dirtyFiles" paths="@{paths}"/>
+
+            <!--
+            Retrieves the configured name of the Apache Cassandra repository in Git, unless it is provided by user in the apache.repo.name property.
+            This is needed to find the diff between the HEAD and the upstream base branch.
+            -->
+            <exec if:true="${git.is-merge-base-supported}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+                <arg value="remote"/>
+                <arg value="-v"/>
+                <redirector outputproperty="apache.repo.name">
+                    <outputfilterchain>
+                        <linecontainsregexp regexp=".*apache\/cassandra\.git.*\(fetch\).*"/>
+                        <replaceregex pattern="(\S+)\s.*apache\/cassandra\.git.*\(fetch\).*" replace="\1"/>
+                    </outputfilterchain>
+                </redirector>
+            </exec>
+            <echo if:true="${git.is-merge-base-supported}" message="apache.repo.name=${apache.repo.name}"/>
+
+            <exec if:true="${git.is-merge-base-supported}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+                <arg value="diff"/>
+                <arg value="--name-only"/>
+                <arg value="--no-renames"/>
+                <arg value="--ignore-all-space"/>
+                <arg value="--merge-base"/>
+                <arg value="${apache.repo.name}/trunk"/>
+                <arg line="@{paths}"/>
+                <redirector outputproperty="git.output.changedFiles"/>
+            </exec>
+
+            <property name="@{outputProperty}" value="${git.output.changedFiles}${line.separator}${git.output.dirtyFiles}"/>
+        </sequential>
+    </macrodef>
+
 </project>

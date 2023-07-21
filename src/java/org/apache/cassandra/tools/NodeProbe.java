@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
@@ -55,11 +54,21 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import com.codahale.metrics.JmxReporter;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
-import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.auth.NetworkPermissionsCache;
@@ -83,6 +92,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.hints.HintsServiceMBean;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -102,18 +112,12 @@ import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
-
-import com.codahale.metrics.JmxReporter;
-import com.google.common.base.Function;
-import com.google.common.base.Strings;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.CreatesMustCallFor;
+import org.checkerframework.checker.mustcall.qual.InheritableMustCall;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_ENABLE;
@@ -121,6 +125,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_ENABLE
 /**
  * JMX client operations for Cassandra.
  */
+@InheritableMustCall("close")
 public class NodeProbe implements AutoCloseable
 {
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
@@ -135,7 +140,7 @@ public class NodeProbe implements AutoCloseable
     private String password;
 
 
-    protected JMXConnector jmxc;
+    protected @Owning JMXConnector jmxc;
     protected MBeanServerConnection mbeanServerConn;
     protected CompactionManagerMBean compactionProxy;
     protected StorageServiceMBean ssProxy;
@@ -222,6 +227,7 @@ public class NodeProbe implements AutoCloseable
      *
      * @throws IOException on connection failures
      */
+    @CreatesMustCallFor
     protected void connect() throws IOException
     {
         String host = this.host;
@@ -240,6 +246,7 @@ public class NodeProbe implements AutoCloseable
 
         env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
 
+        FileUtils.closeQuietly(jmxc);
         jmxc = JMXConnectorFactory.connect(jmxUrl, env);
         mbeanServerConn = jmxc.getMBeanServerConnection();
 
@@ -302,6 +309,7 @@ public class NodeProbe implements AutoCloseable
             return RMISocketFactory.getDefaultSocketFactory();
     }
 
+    @EnsuresCalledMethods(value = "this.jmxc", methods = "close")
     public void close() throws IOException
     {
         try

@@ -95,6 +95,8 @@
             </sequential>
         </macrodef>
 
+        <delete dir="${checkerframework.jars.dir}" quiet="true"/>
+
         <resolve>
             <dependencies>
                 <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
@@ -133,6 +135,14 @@
                 <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="${checkstyle.version}" />
             </dependencies>
             <path refid="checkstyle.classpath" classpath="runtime"/>
+        </resolve>
+        <resolve>
+            <dependencies>
+                <dependency groupId="org.checkerframework" artifactId="checker" version="${checkerframework.version}" classifier="all"/>
+                <dependency groupId="org.checkerframework" artifactId="checker-qual" version="${checkerframework.version}"/>
+                <dependency groupId="org.checkerframework" artifactId="checker-util" version="${checkerframework.version}"/>
+            </dependencies>
+            <files refid="checkerframework.jars" dir="${checkerframework.jars.dir}" layout="{artifactId}-{classifier}.{extension}"/>
         </resolve>
 
         <macrodef name="install">

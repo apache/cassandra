@@ -63,6 +63,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public final class JsonTransformer
 {
@@ -85,6 +86,7 @@ public final class JsonTransformer
 
     private long currentPosition = 0;
 
+    @SuppressWarnings(RESOURCE) // setPrettyPrinter returns a JsonGenerator (alias)
     private JsonTransformer(JsonGenerator json, ISSTableScanner currentScanner, boolean rawTime, TableMetadata metadata, boolean isJsonLines)
     {
         this.json = json;

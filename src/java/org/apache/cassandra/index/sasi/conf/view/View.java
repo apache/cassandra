@@ -21,18 +21,21 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.index.sasi.SSTableIndex;
-import org.apache.cassandra.index.sasi.conf.ColumnIndex;
-import org.apache.cassandra.index.sasi.plan.Expression;
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sasi.SSTableIndex;
+import org.apache.cassandra.index.sasi.conf.ColumnIndex;
+import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
-import com.google.common.collect.Iterables;
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public class View implements Iterable<SSTableIndex>
 {
@@ -47,6 +50,7 @@ public class View implements Iterable<SSTableIndex>
         this(index, Collections.<SSTableIndex>emptyList(), Collections.<SSTableReader>emptyList(), indexes);
     }
 
+    @SuppressWarnings(RESOURCE)
     public View(ColumnIndex index,
                 Collection<SSTableIndex> currentView,
                 Collection<SSTableReader> oldSSTables,
@@ -91,22 +95,26 @@ public class View implements Iterable<SSTableIndex>
             throw new IllegalStateException(String.format("mismatched sizes for intervals tree for keys vs terms: %d != %d", keyIntervalTree.intervalCount(), termTree.intervalCount()));
     }
 
-    public Set<SSTableIndex> match(Expression expression)
+    @SuppressWarnings("annotations.on.use")
+    public Set<@MustCallAlias SSTableIndex> match(Expression expression)
     {
         return termTree.search(expression);
     }
 
-    public List<SSTableIndex> match(ByteBuffer minKey, ByteBuffer maxKey)
+    @SuppressWarnings("annotations.on.use")
+    public List<@MustCallAlias SSTableIndex> match(ByteBuffer minKey, ByteBuffer maxKey)
     {
         return keyIntervalTree.search(Interval.create(new Key(minKey, keyValidator), new Key(maxKey, keyValidator), (SSTableIndex) null));
     }
 
-    public Iterator<SSTableIndex> iterator()
+    @SuppressWarnings("annotations.on.use")
+    public Iterator<@MustCallAlias SSTableIndex> iterator()
     {
         return view.values().iterator();
     }
 
-    public Collection<SSTableIndex> getIndexes()
+    @SuppressWarnings("annotations.on.use")
+    public Collection<@MustCallAlias SSTableIndex> getIndexes()
     {
         return view.values();
     }

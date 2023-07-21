@@ -29,6 +29,8 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.bti.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.checkerframework.checker.calledmethods.qual.EnsuresCalledMethods;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  *  Unfiltered row iterator over a BTI SSTable.
@@ -51,7 +53,7 @@ class SSTableIterator extends AbstractSSTableIterator<AbstractRowIndexEntry>
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReaderInternal(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
+    protected Reader createReaderInternal(AbstractRowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile, Version version)
     {
         if (indexEntry.isIndexed())
             return new ForwardIndexedReader(indexEntry, file, shouldCloseFile, version);
@@ -82,7 +84,7 @@ class SSTableIterator extends AbstractSSTableIterator<AbstractRowIndexEntry>
         private final long basePosition;
         private final Version version;
 
-        private ForwardIndexedReader(AbstractRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
+        private ForwardIndexedReader(AbstractRowIndexEntry indexEntry, @Owning FileDataInput file, boolean shouldCloseFile, Version version)
         {
             super(file, shouldCloseFile);
             basePosition = indexEntry.position;
@@ -91,6 +93,7 @@ class SSTableIterator extends AbstractSSTableIterator<AbstractRowIndexEntry>
         }
 
         @Override
+        @EnsuresCalledMethods(value = { "file", "this.indexReader"}, methods = "close")
         public void close() throws IOException
         {
             indexReader.close();

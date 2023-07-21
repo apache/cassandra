@@ -23,8 +23,8 @@ import java.util.*;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -38,6 +38,8 @@ import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.utils.SuppressionConstants.RESOURCE;
 
 public class TriggerExecutor
 {
@@ -56,6 +58,7 @@ public class TriggerExecutor
      * Reload the triggers which is already loaded, Invoking this will update
      * the class loader so new jars can be loaded.
      */
+    @SuppressWarnings(RESOURCE) // TODO should we close customClassLoader?
     public void reloadClasses()
     {
         File triggerDirectory = FBUtilities.cassandraTriggerDir();

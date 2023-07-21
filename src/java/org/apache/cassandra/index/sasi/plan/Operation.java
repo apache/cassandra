@@ -19,28 +19,32 @@ package org.apache.cassandra.index.sasi.plan;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.ColumnMetadata.Kind;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.ListMultimap;
+
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.*;
-
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.ColumnMetadata.Kind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
 
-@SuppressWarnings("resource")
 public class Operation extends RangeIterator<Long, Token>
 {
     public enum OperationType
@@ -71,7 +75,7 @@ public class Operation extends RangeIterator<Long, Token>
 
     protected Operation left, right;
 
-    private Operation(OperationType operation,
+    private @MustCallAlias Operation(OperationType operation,
                       QueryController controller,
                       ListMultimap<ColumnMetadata, Expression> expressions,
                       RangeIterator<Long, Token> range,
@@ -381,6 +385,7 @@ public class Operation extends RangeIterator<Long, Token>
             range.skipTo(nextToken);
     }
 
+    @Override
     public void close() throws IOException
     {
         controller.releaseIndexes(this);
@@ -426,7 +431,7 @@ public class Operation extends RangeIterator<Long, Token>
                 expressions.addAll(newExpressions);
         }
 
-        public Operation complete()
+        public @MustCallAlias Operation complete()
         {
             if (!expressions.isEmpty())
             {
@@ -440,7 +445,8 @@ public class Operation extends RangeIterator<Long, Token>
                     range.add(rightOp);
                 }
 
-                return new Operation(op, controller, analyzedExpressions, range.build(), null, rightOp);
+                @MustCallAlias RangeIterator<Long, Token> it = range.build();
+                return new Operation(op, controller, analyzedExpressions, it, null, rightOp);
             }
             else
             {

@@ -20,6 +20,8 @@ package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
 
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+
 /**
  * This is the same as DataInputBuffer, i.e. a stream for a fixed byte buffer,
  * except that we also implement FileDataInput by using an offset and a file path.
@@ -29,7 +31,7 @@ public class FileSegmentInputStream extends DataInputBuffer implements FileDataI
     private final String filePath;
     private final long offset;
 
-    public FileSegmentInputStream(ByteBuffer buffer, String filePath, long offset)
+    public @MustCallAlias FileSegmentInputStream(ByteBuffer buffer, String filePath, long offset)
     {
         super(buffer, false);
         this.filePath = filePath;

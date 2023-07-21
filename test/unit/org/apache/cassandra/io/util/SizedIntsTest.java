@@ -78,7 +78,7 @@ public class SizedIntsTest
 
 
     @Test
-    public void readWrite()
+    public void readWrite() throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer(8))
         {
@@ -100,7 +100,7 @@ public class SizedIntsTest
     }
 
     @Test
-    public void readWriteUnsigned()
+    public void readWriteUnsigned() throws IOException
     {
         try (DataOutputBuffer out = new DataOutputBuffer(8))
         {

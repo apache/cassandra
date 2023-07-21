@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.SharedCloseable;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 /**
  * This class holds the partition index as an on-disk trie mapping unique prefixes of decorated keys to:
@@ -402,7 +403,7 @@ public class PartitionIndex implements SharedCloseable
             super(index.instantiateRebufferer(), index.root);
         }
 
-        IndexPosIterator(PartitionIndex index, PartitionPosition start, PartitionPosition end)
+        IndexPosIterator(@Owning PartitionIndex index, PartitionPosition start, PartitionPosition end)
         {
             super(index.instantiateRebufferer(), index.root, start, end, true);
         }

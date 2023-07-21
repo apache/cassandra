@@ -22,12 +22,14 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-
-import com.google.common.annotations.VisibleForTesting;
+import org.checkerframework.checker.mustcall.qual.MustCallAlias;
+import org.checkerframework.checker.mustcall.qual.Owning;
 
 public class MappedBuffer implements Closeable
 {
@@ -52,13 +54,13 @@ public class MappedBuffer implements Closeable
         this(file.getChannel(), 30);
     }
 
-    public MappedBuffer(ChannelProxy file)
+    public MappedBuffer(@Owning ChannelProxy file)
     {
         this(file, 30);
     }
 
     @VisibleForTesting
-    protected MappedBuffer(ChannelProxy file, int numPageBits)
+    protected MappedBuffer(@Owning ChannelProxy file, int numPageBits)
     {
         if (numPageBits > Integer.SIZE - 1)
             throw new IllegalArgumentException("page size can't be bigger than 1G");
@@ -100,7 +102,7 @@ public class MappedBuffer implements Closeable
         return position;
     }
 
-    public MappedBuffer position(long newPosition)
+    public @MustCallAlias MappedBuffer position(long newPosition)
     {
         if (newPosition < 0 || newPosition > limit)
             throw new IllegalArgumentException("position: " + newPosition + ", limit: " + limit);
@@ -114,7 +116,7 @@ public class MappedBuffer implements Closeable
         return limit;
     }
 
-    public MappedBuffer limit(long newLimit)
+    public @MustCallAlias MappedBuffer limit(long newLimit)
     {
         if (newLimit < position || newLimit > capacity)
             throw new IllegalArgumentException();
@@ -210,7 +212,7 @@ public class MappedBuffer implements Closeable
         return slice;
     }
 
-    public MappedBuffer duplicate()
+    public @MustCallAlias MappedBuffer duplicate()
     {
         return new MappedBuffer(this);
     }

@@ -31,7 +31,6 @@ public abstract class PartitionIterators
 {
     private PartitionIterators() {}
 
-    @SuppressWarnings("resource") // The created resources are returned right away
     public static RowIterator getOnlyElement(final PartitionIterator iter, SinglePartitionReadQuery query)
     {
         // If the query has no results, we'll get an empty iterator, but we still
@@ -58,7 +57,6 @@ public abstract class PartitionIterators
         return Transformation.apply(toReturn, new Close());
     }
 
-    @SuppressWarnings("resource") // The created resources are returned right away
     public static PartitionIterator concat(final List<PartitionIterator> iterators)
     {
         if (iterators.size() == 1)
@@ -116,7 +114,6 @@ public abstract class PartitionIterators
      * Note that this is only meant for debugging as this can log a very large amount of
      * logging at INFO.
      */
-    @SuppressWarnings("resource") // The created resources are returned right away
     public static PartitionIterator loggingIterator(PartitionIterator iterator, final String id)
     {
         class Logger extends Transformation<RowIterator>
