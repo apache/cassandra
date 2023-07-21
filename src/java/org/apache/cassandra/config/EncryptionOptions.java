@@ -723,6 +723,43 @@ public class EncryptionOptions
             return optional != null && optional;
         }
 
+        /**
+         * The method is being mainly used to cache SslContexts therefore, we only consider
+         * fields that would make a difference when the TrustStore or KeyStore files are updated
+         */
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == this)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            if (!super.equals(o))
+                return false;
+
+            ServerEncryptionOptions opt = (ServerEncryptionOptions) o;
+            return internode_encryption == opt.internode_encryption &&
+                   legacy_ssl_storage_port_enabled == opt.legacy_ssl_storage_port_enabled &&
+                   Objects.equals(outbound_keystore, opt.outbound_keystore) &&
+                   Objects.equals(outbound_keystore_password, opt.outbound_keystore_password);
+        }
+
+        /**
+         * The method is being mainly used to cache SslContexts therefore, we only consider
+         * fields that would make a difference when the TrustStore or KeyStore files are updated
+         */
+        @Override
+        public int hashCode()
+        {
+            int result = 0;
+            result += 31 * super.hashCode();
+            result += 31 * (internode_encryption == null ? 0 : internode_encryption.hashCode());
+            result += 31 * Boolean.hashCode(legacy_ssl_storage_port_enabled);
+            result += 31 * (outbound_keystore == null ? 0 : outbound_keystore.hashCode());
+            result += 31 * (outbound_keystore_password == null ? 0 : outbound_keystore_password.hashCode());
+            return result;
+        }
+
         public ServerEncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass)
         {
             return new ServerEncryptionOptions(sslContextFactoryClass, keystore, keystore_password,
