@@ -1,4 +1,5 @@
 5.0
+ * Add equals/hashCode override for ServerEncryptionOptions (CASSANDRA-18428)
  * Upgrade ECJ to version 3.33.0 (CASSANDRA-18190)
  * Fix ClassCastException  from jdk GaloisCounterMode when using JDK17 provider (CASSANDRA-18180)
  * Drop JDK8, add JDK17 (CASSANDRA-18255)
