@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -29,6 +30,7 @@ import org.apache.cassandra.distributed.impl.DistributedTestSnitch;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.awaitility.Awaitility;
 
 import static org.junit.Assert.assertEquals;
 
@@ -93,7 +95,9 @@ public class CMSMembershipMetricsTest extends TestBaseImpl
 
     private void markUp(IInvokableInstance down, IInvokableInstance inst)
     {
-        InetSocketAddress node3Address = down.config().broadcastAddress();
-        inst.runOnInstance(() -> FailureDetector.instance.report(DistributedTestSnitch.toCassandraInetAddressAndPort(node3Address)));
+        InetSocketAddress downAddress = down.config().broadcastAddress();
+        inst.runOnInstance(() -> FailureDetector.instance.report(DistributedTestSnitch.toCassandraInetAddressAndPort(downAddress)));
+        Awaitility.waitAtMost(10, TimeUnit.SECONDS)
+                  .until(() -> inst.callOnInstance(() -> FailureDetector.instance.isAlive(DistributedTestSnitch.toCassandraInetAddressAndPort(downAddress))));
     }
 }
