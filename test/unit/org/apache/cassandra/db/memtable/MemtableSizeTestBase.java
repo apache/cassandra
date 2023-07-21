@@ -189,18 +189,6 @@ public abstract class MemtableSizeTestBase extends CQLTester
                                            FBUtilities.prettyPrintMemory(actualHeap),
                                            FBUtilities.prettyPrintMemory(expectedHeap - actualHeap));
             logger.info(message);
-            if (Math.abs(actualHeap - expectedHeap) > max_difference)
-            {
-                // Under Java 11, it seems the meter can reach into phantom reference queues and count more space than
-                // is actually reachable. Unfortunately ignoreNonStrongReferences() does not help (worse, it throws
-                // exceptions trying to get a phantom referrent). Retrying the measurement appears to clear these up.
-                Thread.sleep(50);
-                long secondPass = meter.measureDeep(memtable);
-                logger.error("Deep size first pass {} second pass {}",
-                             FBUtilities.prettyPrintMemory(deepSizeAfter),
-                             FBUtilities.prettyPrintMemory(secondPass));
-                expectedHeap = secondPass - deepSizeBefore;
-            }
 
             Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= max_difference);
         }
