@@ -73,12 +73,6 @@
         <attribute name="outputDir" default="${build.dir}/checkerframework"/>
 
         <sequential>
-            <delete includeemptydirs="true" quiet="true">
-                <fileset dir="@{outputDir}">
-                    <include name="**/*"/>
-                </fileset>
-            </delete>
-
             <mkdir dir="@{outputDir}"/>
 
             <path id="processor.classpath">
@@ -124,8 +118,6 @@
 
                 <compilerarg value="-processor"/>
                 <compilerarg value="org.checkerframework.checker.resourceleak.ResourceLeakChecker"/>  <!-- add more checkers if needed -->
-
-                <compilerarg value="-proc:only"/> <!-- do not compile, only run annotation processors -->
 
                 <compilerarg value="-ApermitInitializationLeak"/>
                 <compilerarg value="-ApermitStaticOwning"/>
