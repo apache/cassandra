@@ -225,7 +225,7 @@ public class CorruptedSSTablesCompactionsTest
             try
             {
                 cfs.forceMajorCompaction();
-                break;
+                break; // After all corrupted sstables are marked as such, compaction of the rest should succeed.
             }
             catch (Exception e)
             {
