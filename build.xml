@@ -1990,6 +1990,10 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
+  <!-- Empty fake task until we remove it from Jenkins. eclipse-warnings removed in favor of using CheckerFramework
+      For more information - CASSANDRA-18190 and CASSANDDRA-18239-->
+  <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis" if="java.version.8">  </target>
+
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
           depends="jar,sources-jar,javadoc-jar"
