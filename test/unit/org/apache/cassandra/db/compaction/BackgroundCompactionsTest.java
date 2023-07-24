@@ -34,7 +34,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.unified.AdaptiveController;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.StaticController;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.notifications.MetricsNotification;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
 import org.mockito.Mock;
@@ -447,7 +450,7 @@ public class BackgroundCompactionsTest
     }
 
     @Test
-    public void periodicReportsTest()
+    public void testPeriodicReports()
     {
         CompactionStrategyOptions options = mock(CompactionStrategyOptions.class);
         BackgroundCompactions backgroundCompactions = mock(BackgroundCompactions.class);
@@ -467,7 +470,7 @@ public class BackgroundCompactionsTest
     }
 
     @Test
-    public void controllerConfigTest()
+    public void testControllerConfig()
     {
         UnifiedCompactionStrategy ucs = mock(UnifiedCompactionStrategy.class);
         doCallRealMethod().when(ucs).storeControllerConfig();
@@ -481,5 +484,35 @@ public class BackgroundCompactionsTest
         when(ucs.getController()).thenReturn(staticController);
         ucs.storeControllerConfig();
         Mockito.verify(staticController, times(1)).storeControllerConfig();
+    }
+
+    @Test
+    public void testPublishMetrics()
+    {
+        long bytesInserted = 10;
+        long partitionsRead = 5;
+        double flushSize = 1024;
+        double readLatency = 20;
+        double flushTime = 15;
+
+        ColumnFamilyStore cfs = mock(ColumnFamilyStore.class);
+        Tracker data = mock(Tracker.class);
+        TableMetrics tableMetrics = mock(TableMetrics.class);
+        MetricsNotification metricsNotification = new MetricsNotification(bytesInserted, partitionsRead, flushSize, readLatency, flushTime);
+
+        assertEquals(bytesInserted, metricsNotification.getBytesInserted());
+        assertEquals(partitionsRead, metricsNotification.getPartitionsRead());
+        assertEquals(flushSize, metricsNotification.getFlushSize(), 0.01);
+        assertEquals(readLatency, metricsNotification.getSstablePartitionReadLatencyNanos(), 0.01);
+        assertEquals(flushTime, metricsNotification.getFlushTimePerKbNanos(), 0.01);
+
+        when(cfs.metrics()).thenReturn(tableMetrics);
+        when(tableMetrics.createMetricsNotification()).thenReturn(metricsNotification);
+        when(cfs.getTracker()).thenReturn(data);
+        doCallRealMethod().when(cfs).publishMetrics();
+
+        cfs.publishMetrics();
+        Mockito.verify(data, times(1)).publishMetrics(metricsNotification);
+
     }
 }
