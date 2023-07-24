@@ -798,21 +798,21 @@ public class ReadCommandTest
         long nowInSec = FBUtilities.nowInSeconds();
 
         // A simple tombstone
-        new RowUpdateBuilder(cfs.metadata(), 0, keys[0]).clustering("cc").delete("a").build().apply();
+        new RowUpdateBuilder(cfs.metadata(), 100, keys[0]).clustering("cc").delete("a").build().apply();
 
         // Collection with an associated complex deletion
-        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(cfs.metadata(), keys[1]).timestamp(0);
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(cfs.metadata(), keys[1]).timestamp(100);
         builder.row("cc").add("c", ImmutableSet.of("element1", "element2"));
         builder.buildAsMutation().apply();
 
         // RangeTombstone and a row (not covered by the RT). The row contains a regular tombstone which will not be
         // purged. This is to prevent the partition from being fully purged and removed from the final results
-        new RowUpdateBuilder(cfs.metadata(), nowInSec, 0L, keys[2]).addRangeTombstone("aa", "bb").build().apply();
+        new RowUpdateBuilder(cfs.metadata(), nowInSec, 100L, keys[2]).addRangeTombstone("aa", "bb").build().apply();
         new RowUpdateBuilder(cfs.metadata(), nowInSec+ 1000, 1000L, keys[2]).clustering("cc").delete("a").build().apply();
 
         // Partition with 2 rows, one fully deleted
-        new RowUpdateBuilder(cfs.metadata.get(), 0, keys[3]).clustering("bb").add("a", ByteBufferUtil.bytes("a")).delete("b").build().apply();
-        RowUpdateBuilder.deleteRow(cfs.metadata(), 0, keys[3], "cc").apply();
+        new RowUpdateBuilder(cfs.metadata.get(), 100, keys[3]).clustering("bb").add("a", ByteBufferUtil.bytes("a")).delete("b").build().apply();
+        RowUpdateBuilder.deleteRow(cfs.metadata(), 100, keys[3], "cc").apply();
         Util.flush(cfs);
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
 

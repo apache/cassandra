@@ -21,12 +21,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
@@ -214,6 +216,29 @@ public abstract class Cell<V> extends ColumnData
     protected abstract int localDeletionTimeAsUnsignedInt();
 
     /**
+     * Handle unsigned encoding and potentially invalid localDeletionTime.
+     */
+    public static long decodeLocalDeletionTime(long localDeletionTime, int ttl, DeserializationHelper helper)
+    {
+        if (localDeletionTime >= ttl)
+            return localDeletionTime;   // fast path, positive and valid signed 32-bit integer
+
+        if (localDeletionTime < 0)
+        {
+            // Overflown signed int, decode to long. The result is guaranteed > ttl (and any signed int)
+            return helper.version < MessagingService.VERSION_50
+                   ? INVALID_DELETION_TIME
+                   : deletionTimeUnsignedIntegerToLong((int) localDeletionTime);
+        }
+
+        if (ttl == LivenessInfo.EXPIRED_LIVENESS_TTL)
+            return localDeletionTime;   // ttl is already expired, localDeletionTime is valid
+        else
+            return INVALID_DELETION_TIME;  // Invalid as it can't occur without corruption and would cause negative
+                                           // timestamp on expiry.
+    }
+
+    /**
      * The serialization format for cell is:
      *     [ flags ][ timestamp ][ deletion time ][    ttl    ][ path size ][ path ][ value size ][ value ]
      *     [   1b  ][ 8b (vint) ][   4b (vint)   ][ 4b (vint) ][ 4b (vint) ][  arb ][  4b (vint) ][  arb  ]
@@ -317,11 +342,11 @@ public abstract class Cell<V> extends ColumnData
                 }
             }
 
-            if (localDeletionTime < 0)
-                localDeletionTime = helper.version < MessagingService.VERSION_50
-                                    ? INVALID_DELETION_TIME
-                                    : deletionTimeUnsignedIntegerToLong((int) localDeletionTime);
-
+            if (timestamp < 0)
+                throw new IOException("Invalid negative timestamp: " + timestamp);
+            if (ttl < 0)
+                throw new IOException("Invalid TTL: " + ttl);
+            localDeletionTime = decodeLocalDeletionTime(localDeletionTime, ttl, helper);
             return accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
         }
 

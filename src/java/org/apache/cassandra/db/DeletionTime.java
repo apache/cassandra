@@ -70,8 +70,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     private DeletionTime(long markedForDeleteAt, long localDeletionTime)
     {
-        this.markedForDeleteAt = markedForDeleteAt;
-        this.localDeletionTimeUnsignedInteger = Cell.deletionTimeLongToUnsignedInteger(localDeletionTime);
+        this(markedForDeleteAt, Cell.deletionTimeLongToUnsignedInteger(localDeletionTime));
     }
 
     private DeletionTime(long markedForDeleteAt, int localDeletionTimeUnsignedInteger)
@@ -116,12 +115,13 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     }
 
     /**
-     * check if this deletion time is valid - localDeletionTime can never be negative
+     * Check if this deletion time is valid - markedForDeleteAt can only negative if the deletion is LIVE.
+     * localDeletionTime is not checked as it is stored as an unsigned int and cannot be negative.
      * @return true if it is valid
      */
     public boolean validate()
     {
-        return true;
+        return markedForDeleteAt >= 0 || isLive();
     }
 
     @Override
