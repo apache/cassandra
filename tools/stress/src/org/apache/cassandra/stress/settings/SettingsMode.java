@@ -41,7 +41,6 @@ public class SettingsMode implements Serializable
 
     public final ConnectionAPI api;
     public final ConnectionStyle style;
-    public final CqlVersion cqlVersion;
     public final ProtocolVersion protocolVersion;
 
     public final String username;
@@ -59,7 +58,6 @@ public class SettingsMode implements Serializable
     {
         if (options instanceof Cql3Options)
         {
-            cqlVersion = CqlVersion.CQL3;
             Cql3Options opts = (Cql3Options) options;
             protocolVersion = "NEWEST_SUPPORTED".equals(opts.protocolVersion.value())
                     ? ProtocolVersion.NEWEST_SUPPORTED
@@ -101,7 +99,6 @@ public class SettingsMode implements Serializable
         }
         else if (options instanceof Cql3SimpleNativeOptions)
         {
-            cqlVersion = CqlVersion.CQL3;
             Cql3SimpleNativeOptions opts = (Cql3SimpleNativeOptions) options;
             protocolVersion = ProtocolVersion.NEWEST_SUPPORTED;
             api = ConnectionAPI.SIMPLE_NATIVE;
@@ -136,7 +133,6 @@ public class SettingsMode implements Serializable
 
     private static abstract class Cql3Options extends GroupedOptions
     {
-        final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
         final OptionSimple protocolVersion = new OptionSimple("protocolVersion=", "[2-5]+", "NEWEST_SUPPORTED", "CQL Protocol Version", false);
         final OptionSimple useUnPrepared = new OptionSimple("unprepared", "", null, "force use of unprepared statements", false);
         final OptionSimple useCompression = new OptionSimple("compression=", "none|lz4|snappy", "none", "", false);
@@ -155,14 +151,13 @@ public class SettingsMode implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(mode(), useUnPrepared, api, useCompression, port, user, password, authProvider,
+            return Arrays.asList(mode(), useUnPrepared, useCompression, port, user, password, authProvider,
                                  maxPendingPerConnection, connectionsPerHost, protocolVersion);
         }
     }
 
     private static final class Cql3SimpleNativeOptions extends GroupedOptions
     {
-        final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
         final OptionSimple useSimpleNative = new OptionSimple("simplenative", "", null, "", true);
         final OptionSimple usePrepared = new OptionSimple("prepared", "", null, "", false);
         final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
@@ -170,7 +165,7 @@ public class SettingsMode implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(useSimpleNative, usePrepared, api, port);
+            return Arrays.asList(useSimpleNative, usePrepared, port);
         }
     }
 
@@ -179,7 +174,6 @@ public class SettingsMode implements Serializable
     {
         out.printf("  API: %s%n", api);
         out.printf("  Connection Style: %s%n", style);
-        out.printf("  CQL Version: %s%n", cqlVersion);
         out.printf("  Protocol Version: %s%n", protocolVersion);
         out.printf("  Username: %s%n", username);
         out.printf("  Password: %s%n", (password==null?password:"*suppressed*"));
