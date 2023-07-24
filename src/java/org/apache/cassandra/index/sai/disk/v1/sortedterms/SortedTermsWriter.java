@@ -22,12 +22,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
-
 
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.tries.InMemoryTrie;
@@ -74,14 +74,12 @@ public class SortedTermsWriter implements Closeable
     static final int TERMS_DICT_BLOCK_SIZE = 1 << TERMS_DICT_BLOCK_SHIFT;
     static final int TERMS_DICT_BLOCK_MASK = TERMS_DICT_BLOCK_SIZE - 1;
 
-    private final IndexOutputWriter trieOutputWriter;
+    private final TrieWriter trieWriter;
     private final IndexOutput termsOutput;
     private final NumericValuesWriter offsetsWriter;
     private final String componentName;
     private final MetadataWriter metadataWriter;
-    private final List<SortedTermsMeta.SortedTermsSegmentMeta> segments = new ArrayList<>();
 
-    private TrieSegment trieSegment;
     private BytesRefBuilder tempTerm = new BytesRefBuilder();
     private BytesRefBuilder prevTerm = new BytesRefBuilder();
 
@@ -110,8 +108,7 @@ public class SortedTermsWriter implements Closeable
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
-        this.trieOutputWriter = trieOutput;
-        SAICodecUtils.writeHeader(this.trieOutputWriter);
+        this.trieWriter = createTrieWriter(trieOutput);
         SAICodecUtils.writeHeader(termsData);
         this.termsOutput = termsData;
         this.bytesStartFP = termsData.getFilePointer();
@@ -123,15 +120,8 @@ public class SortedTermsWriter implements Closeable
                              IndexOutput termsData,
                              NumericValuesWriter termsDataBlockOffsets) throws IOException
     {
-        this.componentName = componentName;
-        this.metadataWriter = metadataWriter;
-        this.trieOutputWriter = null;
-        SAICodecUtils.writeHeader(termsData);
-        this.termsOutput = termsData;
-        this.bytesStartFP = termsData.getFilePointer();
-        this.offsetsWriter = termsDataBlockOffsets;
+        this(componentName, metadataWriter, termsData, termsDataBlockOffsets, null);
     }
-
 
     /**
      * Appends a term at the end of the sequence.
@@ -151,21 +141,12 @@ public class SortedTermsWriter implements Closeable
 
         maxTermLength = Math.max(maxTermLength, termRef.length);
 
-        BytesRefBuilder temp = this.tempTerm;
-        this.tempTerm = this.prevTerm;
-        this.prevTerm = temp;
+        BytesRefBuilder temp = tempTerm;
+        tempTerm = prevTerm;
+        prevTerm = temp;
 
-        if (trieOutputWriter != null)
-        {
-            if (trieSegment == null)
-                trieSegment = new TrieSegment();
-            else if (SegmentMemoryLimiter.usageExceedsLimit(trieSegment.totalBytesAllocated))
-            {
-                segments.add(trieSegment.flush());
-                trieSegment = new TrieSegment();
-            }
-            trieSegment.add(term);
-        }
+        trieWriter.add(term);
+
         rowId++;
     }
 
@@ -177,24 +158,19 @@ public class SortedTermsWriter implements Closeable
     @Override
     public void close() throws IOException
     {
-        if (trieOutputWriter != null)
-        {
-            // The trieSegment can be null if we haven't had any terms added
-            if (trieSegment != null)
-                segments.add(trieSegment.flush());
-            SAICodecUtils.writeFooter(trieOutputWriter);
-        }
+        trieWriter.complete();
+
         try (IndexOutput output = metadataWriter.builder(componentName))
         {
             SAICodecUtils.writeFooter(termsOutput);
-            SortedTermsMeta.write(output, rowId, maxTermLength, segments);
+            SortedTermsMeta.write(output, rowId, maxTermLength, trieWriter.segments());
             // Don't close the offsets writer quietly because of the work it does
             // during its close. We need to propagate the error.
             offsetsWriter.close();
         }
         finally
         {
-            FileUtils.closeQuietly(Arrays.asList(trieOutputWriter, termsOutput));
+            FileUtils.closeQuietly(Arrays.asList(trieWriter, termsOutput));
         }
     }
 
@@ -234,89 +210,167 @@ public class SortedTermsWriter implements Closeable
             dest.append((byte) val);
     }
 
-    private class TrieSegment
+    private TrieWriter createTrieWriter(IndexOutputWriter trieOutputWriter) throws IOException
     {
-        private final InMemoryTrie<Long> trie;
-        private final BytesRefBuilder prevTerm = new BytesRefBuilder();
-        private final BytesRefBuilder tempTerm = new BytesRefBuilder();
+        return trieOutputWriter == null ? new TrieWriter.NoopTrieWriter() : new TrieWriterImpl(trieOutputWriter);
+    }
 
-        private BytesRef minTerm;
-        private long totalBytesAllocated;
-        private boolean flushed = false;
-        private boolean active = true;
+    private interface TrieWriter extends Closeable
+    {
+        void add(ByteComparable term) throws IOException;
 
-        TrieSegment()
+        void complete() throws IOException;
+
+        List<SortedTermsMeta.SegmentMeta> segments();
+
+        class NoopTrieWriter implements TrieWriter
         {
-            trie = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
-            SegmentMemoryLimiter.registerBuilder();
-        }
+            @Override
+            public void add(ByteComparable term) {}
 
-        void add(ByteComparable term)
-        {
-            final long initialSizeOnHeap = trie.sizeOnHeap();
+            @Override
+            public void complete() {}
 
-
-            try
+            @Override
+            public List<SortedTermsMeta.SegmentMeta> segments()
             {
-                trie.putRecursive(term, rowId, (existing, update) -> update);
-            }
-            catch (InMemoryTrie.SpaceExhaustedException e)
-            {
-                throw Throwables.unchecked(e);
+                return Collections.emptyList();
             }
 
-            long bytesAllocated = trie.sizeOnHeap() - initialSizeOnHeap;
-            totalBytesAllocated += bytesAllocated;
-            SegmentMemoryLimiter.increment(bytesAllocated);
+            @Override
+            public void close() {}
+        }
+    }
+
+    private class TrieWriterImpl implements TrieWriter
+    {
+        private final IndexOutputWriter trieOutputWriter;
+        private final List<SortedTermsMeta.SegmentMeta> segments = new ArrayList<>();
+        private TrieSegment trieSegment;
+
+        TrieWriterImpl(IndexOutputWriter trieOutputWriter) throws IOException
+        {
+            this.trieOutputWriter = trieOutputWriter;
+            SAICodecUtils.writeHeader(this.trieOutputWriter);
         }
 
-        SortedTermsMeta.SortedTermsSegmentMeta flush() throws IOException
+        @Override
+        public void add(ByteComparable term) throws IOException
         {
-            assert !flushed : "Cannot flush a trie segment that has already been flushed";
-
-            flushed = true;
-
-            long trieFilePointer;
-
-            try (IncrementalDeepTrieWriterPageAware<Long> trieWriter = new IncrementalDeepTrieWriterPageAware<>(trieSerializer,
-                                                                                                                trieOutputWriter.asSequentialWriter()))
+            if (trieSegment == null)
+                trieSegment = new TrieSegment();
+            else if (SegmentMemoryLimiter.instance.usageExceedsLimit(trieSegment.totalBytesAllocated))
             {
-                Iterator<Map.Entry<ByteComparable, Long>> iterator = trie.entryIterator();
+                segments.add(trieSegment.flush());
+                trieSegment = new TrieSegment();
+            }
+            trieSegment.add(term);
+        }
 
-                while (iterator.hasNext())
+        @Override
+        public void complete() throws IOException
+        {
+            // The trieSegment can be null if we haven't had any terms added
+            if (trieSegment != null)
+                segments.add(trieSegment.flush());
+            SAICodecUtils.writeFooter(trieOutputWriter);
+        }
+
+        @Override
+        public List<SortedTermsMeta.SegmentMeta> segments()
+        {
+            return segments;
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            FileUtils.closeQuietly(trieOutputWriter);
+        }
+
+        private class TrieSegment
+        {
+            private final InMemoryTrie<Long> trie;
+            private final BytesRefBuilder prevTerm = new BytesRefBuilder();
+            private final BytesRefBuilder tempTerm = new BytesRefBuilder();
+
+            private BytesRef minTerm;
+            private long totalBytesAllocated;
+            private boolean flushed = false;
+            private boolean active = true;
+
+            TrieSegment()
+            {
+                trie = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
+                SegmentMemoryLimiter.instance.registerBuilder();
+            }
+
+            void add(ByteComparable term)
+            {
+                final long initialSizeOnHeap = trie.sizeOnHeap();
+
+
+                try
                 {
-                    Map.Entry<ByteComparable, Long> next = iterator.next();
-                    tempTerm.clear();
-                    copyBytes(next.getKey(), tempTerm);
-
-                    BytesRef termRef = tempTerm.get();
-
-                    if (minTerm == null)
-                        minTerm = new BytesRef(Arrays.copyOf(termRef.bytes, termRef.length));
-
-                    trieWriter.add(next.getKey(), next.getValue());
-                    copyBytes(next.getKey(), prevTerm);
+                    trie.putRecursive(term, rowId, (existing, update) -> update);
+                }
+                catch (InMemoryTrie.SpaceExhaustedException e)
+                {
+                    throw Throwables.unchecked(e);
                 }
 
-                trieFilePointer = trieWriter.complete();
+                long bytesAllocated = trie.sizeOnHeap() - initialSizeOnHeap;
+                totalBytesAllocated += bytesAllocated;
+                SegmentMemoryLimiter.instance.increment(bytesAllocated);
             }
-            finally
+
+            SortedTermsMeta.SegmentMeta flush() throws IOException
             {
-                release();
+                assert !flushed : "Cannot flush a trie segment that has already been flushed";
+
+                flushed = true;
+
+                long trieFilePointer;
+
+                try (IncrementalDeepTrieWriterPageAware<Long> trieWriter = new IncrementalDeepTrieWriterPageAware<>(trieSerializer,
+                                                                                                                    trieOutputWriter.asSequentialWriter()))
+                {
+                    Iterator<Map.Entry<ByteComparable, Long>> iterator = trie.entryIterator();
+
+                    while (iterator.hasNext())
+                    {
+                        Map.Entry<ByteComparable, Long> next = iterator.next();
+                        tempTerm.clear();
+                        copyBytes(next.getKey(), tempTerm);
+
+                        BytesRef termRef = tempTerm.get();
+
+                        if (minTerm == null)
+                            minTerm = new BytesRef(Arrays.copyOf(termRef.bytes, termRef.length));
+
+                        trieWriter.add(next.getKey(), next.getValue());
+                        copyBytes(next.getKey(), prevTerm);
+                    }
+
+                    trieFilePointer = trieWriter.complete();
+                }
+                finally
+                {
+                    release();
+                }
+
+                return new SortedTermsMeta.SegmentMeta(trieFilePointer, minTerm, tempTerm.get().clone());
             }
 
-            return new SortedTermsMeta.SortedTermsSegmentMeta(trieFilePointer, minTerm, tempTerm.get().clone());
-        }
-
-        void release()
-        {
-            if (active)
+            void release()
             {
-                SegmentMemoryLimiter.unregisterBuilder();
-                SegmentMemoryLimiter.decrement(totalBytesAllocated);
-                active = false;
+                if (active)
+                {
+                    SegmentMemoryLimiter.instance.unregisterBuilder();
+                    SegmentMemoryLimiter.instance.decrement(totalBytesAllocated);
+                    active = false;
+                }
             }
         }
-
     }
 }

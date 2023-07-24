@@ -113,16 +113,13 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
     @Override
     public long rowIdFromPrimaryKey(PrimaryKey key)
     {
-        long rowId = tokenArray.findTokenRowID(key.token().getLongValue());
+        long rowId = tokenArray.indexOf(key.token().getLongValue());
         // If the key only has a token (initial range skip in the query) or the token is out of range
         // the return the rowId from the token array.
-        if (key.isTokenOnly() || rowId == -1)
+        if (key.isTokenOnly() || rowId < 0)
             return rowId;
-        // If the token for the rowId matches the key token then we need to search the keys in the trie
-        // for a prefix match to get the correct rowId for the clustering key.
-        if (tokenArray.get(rowId) == key.token().getLongValue())
-            return trieSearcher.prefixSearch(key::asComparableBytes);
-        return rowId;
+
+        return trieSearcher.prefixSearch(key);
     }
 
     @Override

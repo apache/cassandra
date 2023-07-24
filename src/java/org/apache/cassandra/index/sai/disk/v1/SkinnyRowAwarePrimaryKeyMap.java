@@ -142,7 +142,7 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long rowIdFromPrimaryKey(PrimaryKey key)
     {
-        return tokenArray.findTokenRowID(key.token().getLongValue());
+        return tokenArray.indexOf(key.token().getLongValue());
     }
 
     @Override

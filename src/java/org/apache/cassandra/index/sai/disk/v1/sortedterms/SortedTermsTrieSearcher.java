@@ -29,24 +29,31 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public class SortedTermsTrieSearcher implements AutoCloseable
 {
-    List<TrieSegment> segments;
+    private final List<TrieSegment> segments;
 
     public SortedTermsTrieSearcher(Rebufferer source, SortedTermsMeta meta)
     {
         this.segments = new ArrayList<>(meta.segments.size());
-        for (SortedTermsMeta.SortedTermsSegmentMeta segmentMeta : meta.segments)
+        for (SortedTermsMeta.SegmentMeta segmentMeta : meta.segments)
             this.segments.add(new TrieSegment(source, segmentMeta));
 
     }
 
-    public long prefixSearch(ByteComparable term)
+    /**
+     * Search the segments for a prefix. The search will return the first payload value after the prefix or
+     * -1 if the prefix wasn't found.
+     *
+     * @param prefix The {@link ByteComparable} containing the prefix
+     * @return A {@link long} containing the payload value or -1.
+     */
+    public long prefixSearch(ByteComparable prefix)
     {
         for (TrieSegment segment : segments)
         {
-            if (segment.includesTerm(term))
-                return segment.prefixSearch(term);
+            if (segment.includesTerm(prefix))
+                return segment.prefixSearch(prefix);
         }
-        return Long.MAX_VALUE;
+        return -1l;
     }
 
     @Override
@@ -55,12 +62,12 @@ public class SortedTermsTrieSearcher implements AutoCloseable
         segments.forEach(TrieSegment::close);
     }
 
-    private class TrieSegment implements AutoCloseable
+    private static class TrieSegment implements AutoCloseable
     {
         private final TriePrefixSearcher prefixSearcher;
-        private final SortedTermsMeta.SortedTermsSegmentMeta meta;
+        private final SortedTermsMeta.SegmentMeta meta;
 
-        TrieSegment(Rebufferer source, SortedTermsMeta.SortedTermsSegmentMeta meta)
+        TrieSegment(Rebufferer source, SortedTermsMeta.SegmentMeta meta)
         {
             this.meta = meta;
             this.prefixSearcher = new TriePrefixSearcher(source, meta.trieFilePointer);

@@ -44,6 +44,7 @@ import javax.management.ObjectName;
 
 import com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -77,9 +78,9 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.ResourceLeakDetector;
+import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Component;
@@ -142,13 +143,24 @@ public abstract class SAITester extends CQLTester
 
     public static final PrimaryKey.Factory TEST_FACTORY = new PrimaryKey.Factory(EMPTY_COMPARATOR);
 
+    public static TestMemoryLimiter memoryLimiter;
+
     @BeforeClass
     public static void setUpClass()
     {
         CQLTester.setUpClass();
 
+        System.setProperty("cassandra.sai.test.memory_limiter_implementation", TestMemoryLimiter.class.getName());
+        memoryLimiter = (TestMemoryLimiter) SegmentMemoryLimiter.instance;
+
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
+    }
+
+    @AfterClass
+    public static void clearup()
+    {
+        System.clearProperty("cassandra.sai.test.memory_limiter_implementation");
     }
 
     @Rule
@@ -163,7 +175,7 @@ public abstract class SAITester extends CQLTester
         Injections.deleteAll();
         CassandraRelevantProperties.SAI_MINIMUM_POSTINGS_LEAVES.reset();
         CassandraRelevantProperties.SAI_POSTINGS_SKIP.reset();
-        SegmentMemoryLimiter.setLimitBytes(SegmentMemoryLimiter.DEFAULT_SEGMENT_BUILD_MEMORY_LIMIT);
+        memoryLimiter.reset();
     }
 
     public static Randomization getRandom()
@@ -413,17 +425,17 @@ public abstract class SAITester extends CQLTester
 
     protected long getSegmentBufferSpaceLimit()
     {
-        return SegmentMemoryLimiter.limitBytes();
+        return memoryLimiter.limitBytes();
     }
 
     protected long getSegmentBufferUsedBytes()
     {
-        return SegmentMemoryLimiter.currentBytesUsed();
+        return memoryLimiter.currentBytesUsed();
     }
 
     protected int getColumnIndexBuildsInProgress()
     {
-        return SegmentMemoryLimiter.getActiveBuilderCount();
+        return memoryLimiter.getActiveBuilderCount();
     }
 
     protected void upgradeSSTables()
@@ -762,7 +774,7 @@ public abstract class SAITester extends CQLTester
 
     protected static void setSegmentWriteBufferSpace(final int segmentSize)
     {
-        SegmentMemoryLimiter.setLimitBytes(segmentSize);
+        memoryLimiter.setLimitBytes(segmentSize);
     }
 
     protected String getSingleTraceStatement(Session session, String query, String contains)
@@ -965,6 +977,30 @@ public abstract class SAITester extends CQLTester
             {
                 throw Throwables.unchecked(e);
             }
+        }
+    }
+
+    public static class TestMemoryLimiter extends SegmentMemoryLimiter
+    {
+        private long limitBytes = SEGMENT_BUILD_MEMORY_LIMIT;
+
+        @Override
+        public long limitBytes()
+        {
+            return limitBytes;
+        }
+
+        public void setLimitBytes(long limitBytes)
+        {
+            this.limitBytes = limitBytes;
+        }
+
+        public void reset()
+        {
+            this.limitBytes = SEGMENT_BUILD_MEMORY_LIMIT;
+            bytesUsed.set(0);
+            activeBuilderCount.set(0);
+            minimumFlushSize = 0;
         }
     }
 }

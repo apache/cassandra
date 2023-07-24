@@ -436,6 +436,7 @@ public enum CassandraRelevantProperties
 
     SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
+    SAI_TEST_MEMORY_LIMITER_IMPLEMENTATION("cassandra.sai.test.memory_limiter_implementation"),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),

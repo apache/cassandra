@@ -44,12 +44,6 @@ public class AbstractSortedTermsTester extends SAIRandomizedTester
         indexDescriptor = newIndexDescriptor();
     }
 
-    @After
-    public void reset()
-    {
-        SegmentMemoryLimiter.reset();
-    }
-
     @FunctionalInterface
     public interface ThrowingConsumer<T>
     {

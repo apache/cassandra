@@ -25,7 +25,6 @@ import java.util.List;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.index.sai.utils.SegmentMemoryLimiter;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -65,7 +64,7 @@ public class SortedTermsTrieSearcherTest extends AbstractSortedTermsTester
     @Test
     public void multiSegmentTest() throws Exception
     {
-        SegmentMemoryLimiter.setLimitBytes(10);
+        memoryLimiter.setLimitBytes(10);
 
         List<byte[]> terms = new ArrayList<>();
         writeTerms(writer ->

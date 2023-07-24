@@ -33,7 +33,7 @@ public class SortedTermsMeta
 {
     public final long termCount;
     public final int maxTermLength;
-    public List<SortedTermsSegmentMeta> segments;
+    public List<SegmentMeta> segments;
 
     public SortedTermsMeta(DataInput input) throws IOException
     {
@@ -42,32 +42,32 @@ public class SortedTermsMeta
         int numberOfSegments = input.readInt();
         segments = new ArrayList<>(numberOfSegments);
         for (int index = 0; index < numberOfSegments; index++)
-            segments.add(new SortedTermsSegmentMeta(input));
+            segments.add(new SegmentMeta(input));
     }
 
-    public static void write(IndexOutput output, long termCount, int maxTermLength, List<SortedTermsSegmentMeta> segments) throws IOException
+    public static void write(IndexOutput output, long termCount, int maxTermLength, List<SegmentMeta> segments) throws IOException
     {
         output.writeLong(termCount);
         output.writeInt(maxTermLength);
         output.writeInt(segments.size());
-        for (SortedTermsSegmentMeta segment : segments)
+        for (SegmentMeta segment : segments)
             segment.write(output);
     }
 
-    public static class SortedTermsSegmentMeta
+    public static class SegmentMeta
     {
         public final long trieFilePointer;
         public final BytesRef minimumTerm;
         public final BytesRef maximumTerm;
 
-        public SortedTermsSegmentMeta(DataInput input) throws IOException
+        public SegmentMeta(DataInput input) throws IOException
         {
             trieFilePointer = input.readLong();
             minimumTerm = readBytes(input);
             maximumTerm = readBytes(input);
         }
 
-        public SortedTermsSegmentMeta(long trieFilePointer, BytesRef minimumTerm, BytesRef maximumTerm)
+        public SegmentMeta(long trieFilePointer, BytesRef minimumTerm, BytesRef maximumTerm)
         {
             this.trieFilePointer = trieFilePointer;
             this.minimumTerm = minimumTerm;

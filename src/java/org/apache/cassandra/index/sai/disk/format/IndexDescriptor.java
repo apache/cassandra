@@ -105,7 +105,7 @@ public class IndexDescriptor
 
     public boolean hasClustering()
     {
-        return clusteringComparator != null && clusteringComparator.size() > 0;
+        return clusteringComparator.size() > 0;
     }
 
     public String componentName(IndexComponent indexComponent)

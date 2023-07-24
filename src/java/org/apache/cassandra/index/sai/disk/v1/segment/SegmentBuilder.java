@@ -157,10 +157,9 @@ public abstract class SegmentBuilder
     private SegmentBuilder(AbstractType<?> termComparator)
     {
         this.termComparator = termComparator;
-//        this.limiter = limiter;
         lastValidSegmentRowID = testLastValidSegmentRowId >= 0 ? testLastValidSegmentRowId : LAST_VALID_SEGMENT_ROW_ID;
 
-        SegmentMemoryLimiter.registerBuilder();
+        SegmentMemoryLimiter.instance.registerBuilder();
     }
 
     public SegmentMetadata flush(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
@@ -237,14 +236,14 @@ public abstract class SegmentBuilder
     {
         if (active)
         {
-            SegmentMemoryLimiter.unregisterBuilder();
-            long used = SegmentMemoryLimiter.decrement(totalBytesAllocated);
+            SegmentMemoryLimiter.instance.unregisterBuilder();
+            long used = SegmentMemoryLimiter.instance.decrement(totalBytesAllocated);
             active = false;
             return used;
         }
 
         logger.warn(indexContext.logMessage("Attempted to release storage-attached index segment builder memory after builder marked inactive."));
-        return SegmentMemoryLimiter.currentBytesUsed();
+        return SegmentMemoryLimiter.instance.currentBytesUsed();
     }
 
     public abstract boolean isEmpty();

@@ -52,7 +52,7 @@ public class SortedTermsFunctionalTest extends AbstractSortedTermsTester
     @Test
     public void primaryKeySearchMultipleSegments() throws Exception
     {
-        SegmentMemoryLimiter.setLimitBytes(100);
+        memoryLimiter.setLimitBytes(100);
 
         doPrimaryKeySearch();
     }

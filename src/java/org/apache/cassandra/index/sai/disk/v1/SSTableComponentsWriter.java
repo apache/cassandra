@@ -75,7 +75,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     public void nextRow(PrimaryKey primaryKey) throws IOException
     {
         tokenWriter.add(primaryKey.token().getLongValue());
-        sortedTermsWriter.add(primaryKey::asComparableBytes);
+        sortedTermsWriter.add(primaryKey);
     }
 
     @Override

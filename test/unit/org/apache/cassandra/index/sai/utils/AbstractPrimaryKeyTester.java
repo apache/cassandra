@@ -120,9 +120,7 @@ public class AbstractPrimaryKeyTester extends SAIRandomizedTester
 
     void assertByteComparison(PrimaryKey a, PrimaryKey b, int expected)
     {
-        assertEquals(expected, ByteComparable.compare(a::asComparableBytes,
-                                                      b::asComparableBytes,
-                                                      ByteComparable.Version.OSS50));
+        assertEquals(expected, ByteComparable.compare(a, b, ByteComparable.Version.OSS50));
     }
 
     void assertCompareToAndEquals(PrimaryKey a, PrimaryKey b, int expected)

@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
  * Representation of the primary key for a row consisting of the {@link DecoratedKey} and
  * {@link Clustering} associated with a {@link org.apache.cassandra.db.rows.Row}.
  */
-public interface PrimaryKey extends Comparable<PrimaryKey>
+public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
 {
     class Factory
     {
@@ -91,6 +91,8 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
 
         abstract class AbstractPrimaryKey implements PrimaryKey
         {
+            @Override
+            @SuppressWarnings("ConstantConditions")
             public ByteSource asComparableBytes(ByteComparable.Version version)
             {
                 ByteSource keyComparable = ByteSource.of(partitionKey().getKey(), version);
@@ -109,6 +111,7 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
             }
 
             @Override
+            @SuppressWarnings("ConstantConditions")
             public int compareTo(PrimaryKey o)
             {
                 int cmp = token().compareTo(o.token());
@@ -144,6 +147,7 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
             }
 
             @Override
+            @SuppressWarnings("ConstantConditions")
             public String toString()
             {
                 return String.format("PrimaryKey: { token: %s, partition: %s, clustering: %s:%s} ",
@@ -301,6 +305,7 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
      *
      * @return {@code true} if the clustering is empty, otherwise {@code false}
      */
+    @SuppressWarnings("ConstantConditions")
     default boolean hasEmptyClustering()
     {
         return clustering() == null || clustering().isEmpty();

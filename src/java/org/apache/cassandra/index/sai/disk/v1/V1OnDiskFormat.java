@@ -82,13 +82,13 @@ public class V1OnDiskFormat implements OnDiskFormat
     static
     {
         CassandraMetricsRegistry.MetricName bufferSpaceUsed = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "SegmentBufferSpaceUsedBytes", null);
-        CassandraMetricsRegistry.Metrics.register(bufferSpaceUsed, (Gauge<Long>) SegmentMemoryLimiter::currentBytesUsed);
+        CassandraMetricsRegistry.Metrics.register(bufferSpaceUsed, (Gauge<Long>) SegmentMemoryLimiter.instance::currentBytesUsed);
 
         CassandraMetricsRegistry.MetricName bufferSpaceLimit = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "SegmentBufferSpaceLimitBytes", null);
-        CassandraMetricsRegistry.Metrics.register(bufferSpaceLimit, (Gauge<Long>) () -> SegmentMemoryLimiter.DEFAULT_SEGMENT_BUILD_MEMORY_LIMIT);
+        CassandraMetricsRegistry.Metrics.register(bufferSpaceLimit, (Gauge<Long>) SegmentMemoryLimiter.instance::limitBytes);
 
         CassandraMetricsRegistry.MetricName buildsInProgress = DefaultNameFactory.createMetricName(AbstractMetrics.TYPE, "ColumnIndexBuildsInProgress", null);
-        CassandraMetricsRegistry.Metrics.register(buildsInProgress, (Gauge<Integer>) SegmentMemoryLimiter::getActiveBuilderCount);
+        CassandraMetricsRegistry.Metrics.register(buildsInProgress, (Gauge<Integer>) SegmentMemoryLimiter.instance::getActiveBuilderCount);
     }
 
     public static final V1OnDiskFormat instance = new V1OnDiskFormat();
@@ -125,7 +125,7 @@ public class V1OnDiskFormat implements OnDiskFormat
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
             logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
-                        prettyPrintMemory(SegmentMemoryLimiter.currentBytesUsed()));
+                        prettyPrintMemory(SegmentMemoryLimiter.instance.currentBytesUsed()));
 
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), index.isIndexValid());
         }

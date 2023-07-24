@@ -117,8 +117,7 @@ public class RowMapping
                     while (primaryKeys.hasNext())
                     {
                         PrimaryKey primaryKey = primaryKeys.next();
-                        ByteComparable byteComparable = primaryKey::asComparableBytes;
-                        Long sstableRowId = rowMapping.get(byteComparable);
+                        Long sstableRowId = rowMapping.get(primaryKey);
 
                         // The in-memory index does not handle deletions, so it is possible to
                         // have a primary key in the index that doesn't exist in the row mapping
@@ -157,8 +156,7 @@ public class RowMapping
     {
         assert !complete : "Cannot modify built RowMapping.";
 
-        ByteComparable byteComparable = key::asComparableBytes;
-        rowMapping.putSingleton(byteComparable, sstableRowId, OVERWRITE_TRANSFORMER);
+        rowMapping.putSingleton(key, sstableRowId, OVERWRITE_TRANSFORMER);
 
         maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
 

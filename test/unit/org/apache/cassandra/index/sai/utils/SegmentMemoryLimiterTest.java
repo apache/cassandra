@@ -24,92 +24,81 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.index.sai.SAITester;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SegmentMemoryLimiterTest
+public class SegmentMemoryLimiterTest extends SAITester
 {
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 
-    @BeforeClass
-    public static void setup()
-    {
-        DatabaseDescriptor.clientInitialization();
-    }
-
-    @After
-    public void restoreDefaults()
-    {
-        SegmentMemoryLimiter.reset();
-    }
-
     @Test
     public void shouldStartAtZeroUsage()
     {
-        assertEquals(0, SegmentMemoryLimiter.currentBytesUsed());
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(0));
+        assertEquals(0, memoryLimiter.currentBytesUsed());
+        assertFalse(memoryLimiter.usageExceedsLimit(0));
     }
 
     @Test
     public void shouldRegisterUsageBelowLimit()
     {
-        SegmentMemoryLimiter.increment(4);
-        assertEquals(4, SegmentMemoryLimiter.currentBytesUsed());
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(0));
+        memoryLimiter.increment(4);
+        assertEquals(4, memoryLimiter.currentBytesUsed());
+        assertFalse(memoryLimiter.usageExceedsLimit(0));
     }
 
     @Test
     public void shouldRegisterUsageExceedingLimit()
     {
-        SegmentMemoryLimiter.setLimitBytes(9);
-        SegmentMemoryLimiter.increment(10);
-        assertEquals(10, SegmentMemoryLimiter.currentBytesUsed());
-        assertTrue(SegmentMemoryLimiter.usageExceedsLimit(10));
+        memoryLimiter.setLimitBytes(9);
+        memoryLimiter.increment(10);
+        assertEquals(10, memoryLimiter.currentBytesUsed());
+        assertTrue(memoryLimiter.usageExceedsLimit(10));
     }
 
     @Test
     public void shouldReturnBelowLimit()
     {
-        SegmentMemoryLimiter.setLimitBytes(9);
-        SegmentMemoryLimiter.increment(10);
-        assertEquals(10, SegmentMemoryLimiter.currentBytesUsed());
-        assertTrue(SegmentMemoryLimiter.usageExceedsLimit(10));
+        memoryLimiter.setLimitBytes(9);
+        memoryLimiter.increment(10);
+        assertEquals(10, memoryLimiter.currentBytesUsed());
+        assertTrue(memoryLimiter.usageExceedsLimit(10));
 
-        SegmentMemoryLimiter.decrement(3);
-        assertEquals(7, SegmentMemoryLimiter.currentBytesUsed());
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(10));
+        memoryLimiter.decrement(3);
+        assertEquals(7, memoryLimiter.currentBytesUsed());
+        assertFalse(memoryLimiter.usageExceedsLimit(10));
     }
 
     @Test
     public void shouldZeroTrackerAfterFlush()
     {
-        SegmentMemoryLimiter.increment(5);
-        SegmentMemoryLimiter.decrement(5);
-        assertEquals(0, SegmentMemoryLimiter.currentBytesUsed());
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(0));
+        memoryLimiter.increment(5);
+        memoryLimiter.decrement(5);
+        assertEquals(0, memoryLimiter.currentBytesUsed());
+        assertFalse(memoryLimiter.usageExceedsLimit(0));
     }
 
     @Test
     public void activeBuilderLifeCycle()
     {
-        assertEquals(0, SegmentMemoryLimiter.getActiveBuilderCount());
-        SegmentMemoryLimiter.registerBuilder();
-        assertEquals(1, SegmentMemoryLimiter.getActiveBuilderCount());
-        SegmentMemoryLimiter.unregisterBuilder();
-        assertEquals(0, SegmentMemoryLimiter.getActiveBuilderCount());
+        assertEquals(0, memoryLimiter.getActiveBuilderCount());
+        memoryLimiter.registerBuilder();
+        assertEquals(1, memoryLimiter.getActiveBuilderCount());
+        memoryLimiter.unregisterBuilder();
+        assertEquals(0, memoryLimiter.getActiveBuilderCount());
     }
 
     @Test
     public void usageLimitLifeCycle()
     {
-        SegmentMemoryLimiter.setLimitBytes(40);
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(40));
-        SegmentMemoryLimiter.registerBuilder();
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(40));
-        SegmentMemoryLimiter.registerBuilder();
-        assertFalse(SegmentMemoryLimiter.usageExceedsLimit(20));
+        memoryLimiter.setLimitBytes(40);
+        assertFalse(memoryLimiter.usageExceedsLimit(40));
+        memoryLimiter.registerBuilder();
+        assertFalse(memoryLimiter.usageExceedsLimit(40));
+        memoryLimiter.registerBuilder();
+        assertFalse(memoryLimiter.usageExceedsLimit(20));
     }
 }

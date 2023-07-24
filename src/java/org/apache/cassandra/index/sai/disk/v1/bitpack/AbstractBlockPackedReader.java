@@ -65,7 +65,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
     }
 
     @Override
-    public long findTokenRowID(long targetValue)
+    public long indexOf(long value)
     {
         // already out of range
         if (lastIndex >= valueCount)
@@ -73,11 +73,11 @@ public abstract class AbstractBlockPackedReader implements LongArray
 
         // We keep track previous returned value in lastIndex, so searching backward will not return correct result.
         // Also it's logically wrong to search backward during token iteration in PostingListRangeIterator.
-        if (targetValue < prevTokenValue)
-            throw new IllegalArgumentException(String.format("%d is smaller than prev token value %d", targetValue, prevTokenValue));
-        prevTokenValue = targetValue;
+        if (value < prevTokenValue)
+            throw new IllegalArgumentException(String.format("%d is smaller than prev token value %d", value, prevTokenValue));
+        prevTokenValue = value;
 
-        int blockIndex = binarySearchBlockMinValues(targetValue);
+        int blockIndex = binarySearchBlockMinValues(value);
 
         // We need to check next block's min value on an exact match.
         boolean exactMatch = blockIndex >= 0;
@@ -99,7 +99,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
         }
 
         // Find the global (not block-specific) index of the target token, which is equivalent to its row ID:
-        lastIndex = findBlockRowID(targetValue, blockIndex, exactMatch);
+        lastIndex = findBlockRowID(value, blockIndex, exactMatch);
         return lastIndex >= valueCount ? -1 : lastIndex;
     }
 

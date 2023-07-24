@@ -66,15 +66,17 @@ public class IndexStreamingTest extends TestBaseImpl
     public boolean isLiteral;
     @Parameterized.Parameter(1)
     public boolean isZeroCopyStreaming;
+    @Parameterized.Parameter(2)
+    public boolean isWide;
 
-    @Parameterized.Parameters(name = "isLiteral={0}, isZeroCopyStreaming={1}")
+    @Parameterized.Parameters(name = "isLiteral={0}, isZeroCopyStreaming={1} isWide={2}")
     public static List<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        result.add(new Object[]{ true, true });
-        result.add(new Object[]{ true, false });
-        result.add(new Object[]{ false, true });
-        result.add(new Object[]{ false, false });
+        for (boolean isLiteral : BOOLEANS)
+            for (boolean isZeroCopyStreaming : BOOLEANS)
+                for (boolean isWide : BOOLEANS)
+                    result.add(new Object[]{ isLiteral, isZeroCopyStreaming, isWide });
         return result;
     }
 
@@ -88,23 +90,22 @@ public class IndexStreamingTest extends TestBaseImpl
                                            .start()))
         {
             cluster.schemaChange(withKeyspace(
-                "CREATE TABLE %s.test (pk int PRIMARY KEY, literal text, numeric int, b blob) WITH compression = { 'enabled' : false };"
+                    isWide
+                    ? "CREATE TABLE %s.test (pk int, ck int , literal text, numeric int, b blob, PRIMARY KEY(pk, ck)) WITH compression = { 'enabled' : false };"
+                    : "CREATE TABLE %s.test (pk int PRIMARY KEY , literal text, numeric int, b blob) WITH compression = { 'enabled' : false };"
             ));
 
-            int num_components = isLiteral ? sstableStreamingComponentsCount() +
-                                             V1OnDiskFormat.SKINNY_PER_SSTABLE_COMPONENTS.size() +
-                                             V1OnDiskFormat.LITERAL_COMPONENTS.size()
-                                           : sstableStreamingComponentsCount() +
-                                             V1OnDiskFormat.SKINNY_PER_SSTABLE_COMPONENTS.size() +
-                                             V1OnDiskFormat.NUMERIC_COMPONENTS.size();
+            int numSSTableComponents = isWide ? V1OnDiskFormat.WIDE_PER_SSTABLE_COMPONENTS.size() : V1OnDiskFormat.SKINNY_PER_SSTABLE_COMPONENTS.size();
+            int numIndexComponents = isLiteral ? V1OnDiskFormat.LITERAL_COMPONENTS.size() : V1OnDiskFormat.NUMERIC_COMPONENTS.size();
+            int numComponents = sstableStreamingComponentsCount() + numSSTableComponents + numIndexComponents;
 
             if (isLiteral)
                 cluster.schemaChange(withKeyspace(
-                    "CREATE CUSTOM INDEX ON %s.test(literal) USING 'StorageAttachedIndex';"
+                   "CREATE CUSTOM INDEX ON %s.test(literal) USING 'StorageAttachedIndex';"
                 ));
             else
                 cluster.schemaChange(withKeyspace(
-                "CREATE CUSTOM INDEX ON %s.test(numeric) USING 'StorageAttachedIndex';"
+                   "CREATE CUSTOM INDEX ON %s.test(numeric) USING 'StorageAttachedIndex';"
                 ));
 
             cluster.stream().forEach(i ->
@@ -113,10 +114,13 @@ public class IndexStreamingTest extends TestBaseImpl
             IInvokableInstance first = cluster.get(1);
             IInvokableInstance second = cluster.get(2);
             long sstableCount = 10;
-            long expectedFiles = isZeroCopyStreaming ? sstableCount * num_components : sstableCount;
+            long expectedFiles = isZeroCopyStreaming ? sstableCount * numComponents : sstableCount;
             for (int i = 0; i < sstableCount; i++)
             {
-                first.executeInternal(withKeyspace("insert into %s.test(pk, literal, numeric, b) values (?, ?, ?, ?)"), i, "v" + i, i, BLOB);
+                if (isWide)
+                    first.executeInternal(withKeyspace("insert into %s.test(pk, ck, literal, numeric, b) values (?, ?, ?, ?, ?)"), i, i, "v" + i, i, BLOB);
+                else
+                    first.executeInternal(withKeyspace("insert into %s.test(pk, literal, numeric, b) values (?, ?, ?, ?)"), i, "v" + i, i, BLOB);
                 first.flush(KEYSPACE);
             }
 
