@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 
-BASEDIR=$(dirname "$0")
+BASEDIR=`dirname $0`
 BASE_BRANCH=trunk
 set -e
 
@@ -117,8 +117,8 @@ fi
 
 # validate environment variables
 if $has_env_vars && $check_env_vars; then
-  for entry in $(echo "$env_vars" | tr "|" "\n"); do
-    key=$(echo "$entry" | tr "=" "\n" | head -n 1)
+  for entry in $(echo $env_vars | tr "|" "\n"); do
+    key=$(echo $entry | tr "=" "\n" | head -n 1)
     if [ "$key" != "DTEST_REPO" ] &&
        [ "$key" != "DTEST_BRANCH" ] &&
        [ "$key" != "REPEATED_TESTS_STOP_ON_FAILURE" ] &&
@@ -155,17 +155,17 @@ fi
 if $free; then
   ($all || $paid) && die "Cannot use option -f with options -a or -p"
   echo "Generating new config.yml file for free tier from config_template.yml"
-  circleci config process "$BASEDIR"/config_template.yml > "$BASEDIR"/config.yml.FREE.tmp
-  cat "$BASEDIR"/license.yml "$BASEDIR"/config.yml.FREE.tmp > "$BASEDIR"/config.yml
-  rm "$BASEDIR"/config.yml.FREE.tmp
+  circleci config process $BASEDIR/config_template.yml > $BASEDIR/config.yml.FREE.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.FREE.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config.yml.FREE.tmp
 
 elif $paid; then
   ($all || $free) && die "Cannot use option -p with options -a or -f"
   echo "Generating new config.yml file for paid tier from config_template.yml"
-  patch -o "$BASEDIR"/config_template.yml.PAID "$BASEDIR"/config_template.yml "$BASEDIR"/config_template.yml.PAID.patch
-  circleci config process "$BASEDIR"/config_template.yml.PAID > "$BASEDIR"/config.yml.PAID.tmp
-  cat "$BASEDIR"/license.yml "$BASEDIR"/config.yml.PAID.tmp > "$BASEDIR"/config.yml
-  rm "$BASEDIR"/config_template.yml.PAID "$BASEDIR"/config.yml.PAID.tmp
+  patch -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
+  circleci config process $BASEDIR/config_template.yml.PAID > $BASEDIR/config.yml.PAID.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.PAID.tmp > $BASEDIR/config.yml
+  rm $BASEDIR/config_template.yml.PAID $BASEDIR/config.yml.PAID.tmp
 
 elif $all; then
   ($free || $paid || $has_env_vars) && die "Cannot use option -a with options -f, -p or -e"
@@ -174,18 +174,18 @@ elif $all; then
   echo "after running this command if you want them to persist."
 
   # setup config for free tier
-  circleci config process "$BASEDIR"/config_template.yml > "$BASEDIR"/config.yml.FREE.tmp
-  cat "$BASEDIR"/license.yml "$BASEDIR"/config.yml.FREE.tmp > "$BASEDIR"/config.yml.FREE
-  rm "$BASEDIR"/config.yml.FREE.tmp
+  circleci config process $BASEDIR/config_template.yml > $BASEDIR/config.yml.FREE.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.FREE.tmp > $BASEDIR/config.yml.FREE
+  rm $BASEDIR/config.yml.FREE.tmp
 
   # setup config for paid tier
-  patch -o "$BASEDIR"/config_template.yml.PAID "$BASEDIR"/config_template.yml "$BASEDIR"/config_template.yml.PAID.patch
-  circleci config process "$BASEDIR"/config_template.yml.PAID > "$BASEDIR"/config.yml.PAID.tmp
-  cat "$BASEDIR"/license.yml "$BASEDIR"/config.yml.PAID.tmp > "$BASEDIR"/config.yml.PAID
-  rm "$BASEDIR"/config_template.yml.PAID "$BASEDIR"/config.yml.PAID.tmp
+  patch -o $BASEDIR/config_template.yml.PAID $BASEDIR/config_template.yml $BASEDIR/config_template.yml.PAID.patch
+  circleci config process $BASEDIR/config_template.yml.PAID > $BASEDIR/config.yml.PAID.tmp
+  cat $BASEDIR/license.yml $BASEDIR/config.yml.PAID.tmp > $BASEDIR/config.yml.PAID
+  rm $BASEDIR/config_template.yml.PAID $BASEDIR/config.yml.PAID.tmp
 
   # copy free tier into config.yml to make sure this gets updated
-  cp "$BASEDIR"/config.yml.FREE "$BASEDIR"/config.yml
+  cp $BASEDIR/config.yml.FREE $BASEDIR/config.yml
 
 elif (! ($has_env_vars)); then
   print_help
@@ -195,7 +195,7 @@ fi
 # add new or modified tests to the sets of tests to be repeated
 if $detect_changed_tests; then
   # Sanity check that the referenced branch exists
-  if ! git show "${BASE_BRANCH}" -- >&/dev/null; then
+  if ! git show ${BASE_BRANCH} -- >&/dev/null; then
     echo -e "\n\nUnknown base branch: ${BASE_BRANCH}. Unable to detect changed tests.\n"
     echo    "Please use the '-b' option to choose an existing branch name"
     echo    "(e.g. origin/${BASE_BRANCH}, apache/${BASE_BRANCH}, etc.)."
@@ -205,19 +205,18 @@ if $detect_changed_tests; then
   add_diff_tests ()
   {
     dir="${BASEDIR}/../${2}"
-    diff=$(git --no-pager diff --name-only --diff-filter=AMR "${BASE_BRANCH}"...HEAD "${dir}")
+    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD ${dir})
     tests=$( echo "$diff" \
            | grep "Test\\.java" \
            | sed -e "s/\\.java//" \
            | sed -e "s,^${2},," \
            | tr  '/' '.' \
-           | grep "${3}" )\
+           | grep ${3} )\
            || : # avoid execution interruptions due to grep return codes and set -e
     for test in $tests; do
       echo "  $test"
       has_env_vars=true
       if echo "$env_vars" | grep -q "${1}="; then
-        # shellcheck disable=SC2001
         env_vars=$(echo "$env_vars" | sed -e "s/${1}=/${1}=${test},/")
       elif [ -z "$env_vars" ]; then
         env_vars="${1}=${test}"
@@ -243,12 +242,12 @@ if $has_env_vars; then
   echo
   echo "Setting environment variables:"
   IFS='='
-  echo "$env_vars" | tr '|' '\n' | while read -r entry; do
-    set -- "$entry"
+  echo "$env_vars" | tr '|' '\n' | while read entry; do
+    set -- $entry
     key=$1
     val=$2
     echo "  $key: $val"
-    sed -i.bak "s|- $key:.*|- $key: $val|" "$BASEDIR"/config.yml
+    sed -i.bak "s|- $key:.*|- $key: $val|" $BASEDIR/config.yml
   done
   unset IFS
 fi
@@ -325,7 +324,7 @@ delete_repeated_jobs()
     delete_job "$1" "j17_dtests_large_vnode_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
-      delete_job "$1" "j11_upgrade_dtests_repeat"
+    delete_job "$1" "j11_upgrade_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
     delete_job "$1" "j11_repeated_ant_test"
