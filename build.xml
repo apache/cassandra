@@ -1713,14 +1713,29 @@
   </target>
 
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
-      <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
+      <delete dir="${build.dir}/dtest/**" quiet="true"/>
+
+      <copy todir="${build.dir}/dtest" quiet="true">
           <fileset dir="${build.classes.main}"/>
           <fileset dir="${test.classes}"/>
           <fileset dir="${test.conf}" />
-          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
-          <zipgroupfileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar" excludes="META-INF/*.SF"/>
-          <zipgroupfileset dir="${build.dir.lib}/jars" includes="asm-*.jar" excludes="META-INF/*.SF"/>
+      </copy>
+      <unzip dest="${build.dir}/dtest">
+          <fileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar"/>
+      </unzip>
+      <unzip dest="${build.dir}/dtest">
+          <fileset dir="${build.dir.lib}/jars" includes="*.jar"/>
+      </unzip>
+
+      <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
+          <fileset dir="${build.dir}/dtest">
+              <exclude name="META-INF/*.SF"/>
+              <exclude name="META-INF/*.DSA"/>
+              <exclude name="META-INF/*.RSA"/>
+          </fileset>
       </jar>
+
+      <delete dir="${build.dir}/dtest"/>
   </target>
 
   <target name="test-jvm-dtest" depends="maybe-build-test" description="Execute in-jvm dtests">
