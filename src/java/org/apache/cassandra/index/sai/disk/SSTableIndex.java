@@ -55,8 +55,8 @@ public abstract class SSTableIndex
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndex.class);
 
     // sort sstable indexes by first key, then last key, then descriptor id
-    public static final Comparator<SSTableIndex> COMPARATOR = Comparator.comparing((SSTableIndex s) -> s.getSSTable().first)
-                                                                        .thenComparing(s -> s.getSSTable().last)
+    public static final Comparator<SSTableIndex> COMPARATOR = Comparator.comparing((SSTableIndex s) -> s.getSSTable().getFirst())
+                                                                        .thenComparing(s -> s.getSSTable().getLast())
                                                                         .thenComparing(s -> s.getSSTable().descriptor.id, SSTableIdFactory.COMPARATOR);
 
     protected final SSTableContext sstableContext;
@@ -123,7 +123,7 @@ public abstract class SSTableIndex
 
     /**
      * Perform a search on the index for a single expression and keyRange.
-     *
+     * <p>
      * The result is a {@link List} of {@link KeyRangeIterator} because there will
      * be a {@link KeyRangeIterator} for each segment in the index. The result
      * will never be null but may be an empty {@link List}.
