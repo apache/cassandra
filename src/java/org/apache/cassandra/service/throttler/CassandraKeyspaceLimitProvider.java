@@ -35,6 +35,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ClientState;
@@ -85,7 +87,6 @@ public class CassandraKeyspaceLimitProvider
 
     private static final Logger logger = LoggerFactory.getLogger(CassandraKeyspaceLimitProvider.class);
 
-    private static final String keyspaceName = "system_throttle";
     private static final String tableName = "limits";
     private static final int singlePartitonKey = 0;
     private static final String tableSchema =
@@ -101,7 +102,7 @@ public class CassandraKeyspaceLimitProvider
 
     private final static String selectQuery = String.format(
         "SELECT partition,keyspace_name,single_read_limit,serial_read_limit,range_read_limit,single_mutation_limit,serial_mutation_limit"
-        + " FROM %s.%s WHERE partition=%d", keyspaceName, tableName, singlePartitonKey);
+        + " FROM %s.%s WHERE partition=%d", SchemaConstants.THROTTLE_KEYSPACE_NAME, tableName, singlePartitonKey);
 
     private SelectStatement selectStatement;
 
@@ -112,11 +113,12 @@ public class CassandraKeyspaceLimitProvider
 
     public KeyspaceMetadata getKeyspaceMetadata()
     {
-        TableMetadata limits = CreateTableStatement.parse(tableSchema, keyspaceName)
+        TableMetadata limits = CreateTableStatement.parse(tableSchema, SchemaConstants.THROTTLE_KEYSPACE_NAME)
+                                                   .id(TableId.forSystemTable(SchemaConstants.THROTTLE_KEYSPACE_NAME, tableName))
                                                    .comment("Throttling limits on different keyspaces")
                                                    .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90)).build();;
 
-        return KeyspaceMetadata.create(keyspaceName, KeyspaceParams.simple(1), Tables.of(limits));
+        return KeyspaceMetadata.create(SchemaConstants.THROTTLE_KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(limits));
     }
 
     public Map<String, KeyspaceLimits> getKeyspaceLimits() throws RequestExecutionException, RequestValidationException

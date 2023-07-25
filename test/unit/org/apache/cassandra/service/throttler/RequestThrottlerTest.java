@@ -126,6 +126,11 @@ public class RequestThrottlerTest extends CQLTester
 
     private void initializeKeyspaceBasedThrottler() throws Throwable
     {
+        // Clear old limits from previous tests.
+        if (Schema.instance.getKeyspaces().stream().anyMatch(name -> name.equals("system_throttle"))) {
+            exec("TRUNCATE system_throttle.limits");
+        }
+
         Map<String, String> params = new HashMap<String, String>()
         {{
             put("fetch_limits_period_in_sec", "100");
@@ -133,18 +138,8 @@ public class RequestThrottlerTest extends CQLTester
         }};
 
         keyspaceThrottler = new KeyspaceBasedRequestThrottler(params);
-        try
-        {
-            Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(
-                                      keyspaceThrottler.getLimitProvider().getKeyspaceMetadata(), 0));
-        }
-        catch (AlreadyExistsException e)
-        {
-            logger.debug("Attempted to create new keyspace, but it already exists");
-
-            // Clear old limits from previous tests.
-            exec("TRUNCATE system_throttle.limits");
-        }
+        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(
+                                  keyspaceThrottler.getLimitProvider().getKeyspaceMetadata(), 0));
 
         keyspaceThrottler.setup();
         DatabaseDescriptor.setRequestThrottler(keyspaceThrottler);

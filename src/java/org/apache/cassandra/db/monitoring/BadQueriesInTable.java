@@ -34,6 +34,8 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ClientState;
@@ -61,7 +63,6 @@ public class BadQueriesInTable implements IBadQueryReporter
     private static final Map<BadQuery.BadQueryCategory, ConcurrentLinkedQueue<BadQueryTypes>> BAD_QUERY_CATEGORY_QUEUES = new HashMap<>();
     private static final Map<BadQuery.BadQueryCategory, AtomicInteger> CURRENT_SAMPLES = new HashMap<>();
 
-    private static final String KEYSPACE_NAME = "system_monitor";
     private static final String TABLE_NAME = "badquery";
     private static final String TABLE_SCHEMA =
             "CREATE TABLE " + TABLE_NAME + "("
@@ -73,17 +74,18 @@ public class BadQueriesInTable implements IBadQueryReporter
                     + "details text,"
                     + "PRIMARY KEY (policyid, sampleid))";
     private final static String INSERT_QUERY = String.format(
-            "INSERT INTO %s.%s (policyid, sampleid, ksname, tablename, key, details) values (?, ?, ?, ?, ?, ?)"
-            , KEYSPACE_NAME, TABLE_NAME);
+    "INSERT INTO %s.%s (policyid, sampleid, ksname, tablename, key, details) values (?, ?, ?, ?, ?, ?)"
+            , SchemaConstants.BAD_QUERY_MONITOR_KEYSPACE_NAME, TABLE_NAME);
 
     private static ModificationStatement modificationStatement;
 
     private KeyspaceMetadata getKeyspaceMetadata()
     {
-        TableMetadata limits = CreateTableStatement.parse(TABLE_SCHEMA, KEYSPACE_NAME)
+        TableMetadata limits = CreateTableStatement.parse(TABLE_SCHEMA, SchemaConstants.BAD_QUERY_MONITOR_KEYSPACE_NAME)
+                                                   .id(TableId.forSystemTable(SchemaConstants.BAD_QUERY_MONITOR_KEYSPACE_NAME, TABLE_NAME))
                                                    .comment("badquery details")
                                                    .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90)).build();
-        return KeyspaceMetadata.create(KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(limits));
+        return KeyspaceMetadata.create(SchemaConstants.BAD_QUERY_MONITOR_KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(limits));
     }
 
     static
@@ -158,7 +160,7 @@ public class BadQueriesInTable implements IBadQueryReporter
      */
     private static void log()
     {
-        Keyspace ks = Schema.instance.getKeyspaceInstance(KEYSPACE_NAME);
+        Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.BAD_QUERY_MONITOR_KEYSPACE_NAME);
         boolean dcawareDeployment = ks.getReplicationStrategy().getClass() == NetworkTopologyStrategy.class;
         for (BadQuery.BadQueryCategory type : BadQuery.BadQueryCategory.values())
         {

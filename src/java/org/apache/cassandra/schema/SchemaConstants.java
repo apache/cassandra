@@ -43,6 +43,9 @@ public final class SchemaConstants
     public static final String AUTH_KEYSPACE_NAME = "system_auth";
     public static final String DISTRIBUTED_KEYSPACE_NAME = "system_distributed";
     public static final String AUTO_REPAIR_KEYSPACE_NAME = "system_auto_repair";
+    public static final String THROTTLE_KEYSPACE_NAME = "system_throttle";
+    public static final String BAD_QUERY_MONITOR_KEYSPACE_NAME = "system_monitor";
+
 
     public static final String VIRTUAL_SCHEMA = "system_virtual_schema";
 
@@ -58,7 +61,8 @@ public final class SchemaConstants
 
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME, AUTO_REPAIR_KEYSPACE_NAME);
+        ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME, AUTO_REPAIR_KEYSPACE_NAME,
+                        THROTTLE_KEYSPACE_NAME, BAD_QUERY_MONITOR_KEYSPACE_NAME);
     /**
      * The longest permissible KS or CF name.
      *
