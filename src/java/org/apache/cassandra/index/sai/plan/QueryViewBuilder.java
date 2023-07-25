@@ -187,6 +187,6 @@ public class QueryViewBuilder
     private boolean indexInRange(SSTableIndex index)
     {
         SSTableReader sstable = index.getSSTable();
-        return range.left.compareTo(sstable.last) <= 0 && (range.right.isMinimum() || sstable.first.compareTo(range.right) <= 0);
+        return range.left.compareTo(sstable.getLast()) <= 0 && (range.right.isMinimum() || sstable.getFirst().compareTo(range.right) <= 0);
     }
 }
