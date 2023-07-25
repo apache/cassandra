@@ -267,7 +267,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        IntervalSet<CommitLogPosition> commitLogPositions,
                                                        int sstableLevel,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
         ShardManager shardManager = getShardManager();
@@ -281,7 +281,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                       isTransient,
                                       commitLogPositions,
                                       header,
-                                      indexes,
+                                      indexGroups,
                                       lifecycleNewTracker,
                                       boundaries);
     }

@@ -63,7 +63,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
     private final boolean isTransient;
     private final IntervalSet<CommitLogPosition> commitLogPositions;
     private final SerializationHeader header;
-    private final Collection<Index> indexes;
+    private final Collection<Index.Group> indexGroups;
     private final LifecycleNewTracker lifecycleNewTracker;
     private final ShardTracker boundaries;
     private final SSTableWriter[] writers;
@@ -77,7 +77,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                               boolean isTransient,
                               IntervalSet<CommitLogPosition> commitLogPositions,
                               SerializationHeader header,
-                              Collection<Index> indexes,
+                              Collection<Index.Group> indexGroups,
                               LifecycleNewTracker lifecycleNewTracker,
                               ShardTracker boundaries)
     {
@@ -89,7 +89,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
         this.isTransient = isTransient;
         this.commitLogPositions = commitLogPositions;
         this.header = header;
-        this.indexes = indexes;
+        this.indexGroups = indexGroups;
         this.lifecycleNewTracker = lifecycleNewTracker;
         this.boundaries = boundaries;
         this.writers = new SSTableWriter[this.boundaries.count()]; // at least one
@@ -116,8 +116,8 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(metadataCollector)
                          .setSerializationHeader(header)
-                         .addDefaultComponents()
-                         .addFlushObserversForSecondaryIndexes(indexes, lifecycleNewTracker.opType())
+                         .addDefaultComponents(indexGroups)
+                         .addFlushObserversForSecondaryIndexes(indexGroups, lifecycleNewTracker, cfs.metadata.get())
                          .build(lifecycleNewTracker, cfs);
     }
 
