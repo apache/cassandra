@@ -92,6 +92,13 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
                                                  primaryKeyFactory,
                                                  clusteringComparator);
         }
+
+        @Override
+        public void close()
+        {
+            super.close();
+            FileUtils.closeQuietly(primaryKeyTrieFile);
+        }
     }
 
     private final SortedTermsTrieSearcher trieSearcher;
@@ -119,7 +126,11 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
         if (key.isTokenOnly() || rowId < 0)
             return rowId;
 
-        return trieSearcher.prefixSearch(key);
+        // If the token for the rowId matches the key token then we need to search the keys in the trie
+        // for a prefix match to get the correct rowId for the clustering key.
+        if (tokenArray.get(rowId) == key.token().getLongValue())
+            return trieSearcher.prefixSearch(key::asComparableBytes);
+        return rowId;
     }
 
     @Override
