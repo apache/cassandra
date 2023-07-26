@@ -51,7 +51,8 @@ class OptionSimple extends Option implements Serializable
         }
         public String apply(String s)
         {
-            if (!pattern.matcher(s).matches()) {
+            if (!pattern.matcher(s).matches()) 
+            {
                 throw new IllegalArgumentException("Invalid value " + s + "; must match pattern " + pattern);
             }
             return s;
