@@ -1713,29 +1713,32 @@
   </target>
 
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
-      <delete dir="${build.dir}/dtest/**" quiet="true"/>
+    <delete dir="${build.dir}/dtest/**" quiet="true"/>
 
-      <copy todir="${build.dir}/dtest" quiet="true">
-          <fileset dir="${build.classes.main}"/>
-          <fileset dir="${test.classes}"/>
-          <fileset dir="${test.conf}" />
-      </copy>
-      <unzip dest="${build.dir}/dtest">
-          <fileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar"/>
-      </unzip>
-      <unzip dest="${build.dir}/dtest">
-          <fileset dir="${build.dir.lib}/jars" includes="*.jar"/>
-      </unzip>
+    <copy todir="${build.dir}/dtest" quiet="true" overwrite="false">
+      <fileset dir="${build.classes.main}"/>
+      <fileset dir="${test.classes}"/>
+      <fileset dir="${test.conf}"/>
+    </copy>
+    <unzip dest="${build.dir}/dtest" overwrite="false">
+      <fileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar"/>
+      <patternset excludes="META-INF/license/**"/>
+    </unzip>
+    <unzip dest="${build.dir}/dtest" overwrite="false">
+      <fileset dir="${build.dir.lib}/jars" includes="*.jar"/>
+      <patternset excludes="META-INF/license/**"/>
+    </unzip>
 
-      <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
-          <fileset dir="${build.dir}/dtest">
-              <exclude name="META-INF/*.SF"/>
-              <exclude name="META-INF/*.DSA"/>
-              <exclude name="META-INF/*.RSA"/>
-          </fileset>
-      </jar>
+    <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
+      <fileset dir="${build.dir}/dtest">
+        <exclude name="META-INF/*.SF"/>
+        <exclude name="META-INF/*.DSA"/>
+        <exclude name="META-INF/*.RSA"/>
+        <exclude name="META-INF/license/**"/>
+      </fileset>
+    </jar>
 
-      <delete dir="${build.dir}/dtest"/>
+    <delete dir="${build.dir}/dtest" quiet="true"/>
   </target>
 
   <target name="test-jvm-dtest" depends="maybe-build-test" description="Execute in-jvm dtests">
