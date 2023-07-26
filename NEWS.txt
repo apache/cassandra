@@ -184,6 +184,8 @@ New features
     - It is possible to read all credentials for `cassandra-stress` from a file via option `-credentials-file` (CASSANDRA-18544)
     - nodetool info displays bootstrap state a node is in as well as if it was decommissioned or if it failed to decommission (CASSANDRA-18555)
     - Added snitch for Microsoft Azure of name AzureSnitch (CASSANDRA-18646)
+    - legacy command line options from cassandra-stress were removed
+    - `-mode` option in cassandra-stress has `native` and `cql3` as defaults and they do not need to be specified
 
 Upgrading
 ---------
