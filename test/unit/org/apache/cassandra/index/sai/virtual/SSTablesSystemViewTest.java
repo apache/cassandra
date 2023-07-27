@@ -73,6 +73,7 @@ public class SSTablesSystemViewTest extends SAITester
     public void testVirtualTableThroughIndexLifeCycle() throws Throwable
     {
         createTable("CREATE TABLE %s (k text, c text, v1 text, v2 text, PRIMARY KEY (k, c))");
+        disableCompaction();
         String v1IndexName = createIndex("CREATE INDEX ON %s(v1) USING 'sai'");
 
         String insert = "INSERT INTO %s(k, c, v1, v2) VALUES (?, ?, ?, ?)";
