@@ -39,6 +39,7 @@
             <sourceFolder url="file://$MODULE_DIR$/test/simulator/asm" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/simulator/bootstrap" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/simulator/main" isTestSource="true" />
+            <sourceFolder url="file://$MODULE_DIR$/test/simulator/test" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
             <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />
             <excludeFolder url="file://$MODULE_DIR$/.idea" />
