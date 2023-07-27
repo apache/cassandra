@@ -70,15 +70,11 @@ public class ColumnFamilyStoreClientModeTest
     @Test
     public void testTopPartitionsAreNotInitialized() throws IOException
     {
-        CreateTableStatement.Raw schemaStatement = parseStatement("CREATE TABLE " + KEYSPACE + ".test1 (a int, b text, PRIMARY KEY (a))", CreateTableStatement.Raw.class, "CREATE TABLE");
+        CreateTableStatement.Raw schemaStatement = parseStatement("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (a int, b text, PRIMARY KEY (a))", CreateTableStatement.Raw.class, "CREATE TABLE");
 
         Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(KEYSPACE, KeyspaceParams.simple(1)), true));
 
-        Schema.instance.getKeyspaceMetadata(KEYSPACE);
-        Types.RawBuilder builder = Types.rawBuilder(KEYSPACE);
-
-        Types types = builder.build();
-
+        Types types = Types.rawBuilder(KEYSPACE).build();
         Schema.instance.transform(SchemaTransformations.addTypes(types, true));
 
         ClientState state = ClientState.forInternalCalls(KEYSPACE);
@@ -92,7 +88,7 @@ public class ColumnFamilyStoreClientModeTest
         Keyspace.setInitialized();
         Directories directories = new Directories(tableMetadata, new Directories.DataDirectory[]{ new Directories.DataDirectory(new org.apache.cassandra.io.util.File(tempFolder.newFolder("datadir"))) });
         Keyspace ks = Keyspace.openWithoutSSTables(KEYSPACE);
-        ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(ks, "table1", TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);
+        ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(ks, TABLE, TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);
 
         assertNull(cfs.topPartitions);
     }
