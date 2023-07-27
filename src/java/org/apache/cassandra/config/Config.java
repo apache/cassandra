@@ -763,6 +763,9 @@ public class Config
     // Number of consecutive mismatch occurrences after which we declare caches are not in sync */
     public volatile Integer gossip_and_storage_service_cache_mismatch_conviction_threshold = 5;
 
+    // rate limiter related variables:
+    public Integer rate_limiter_var1 = 3;
+
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
      * To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully

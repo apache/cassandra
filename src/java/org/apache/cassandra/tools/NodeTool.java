@@ -258,7 +258,9 @@ public class NodeTool
                 UpgradeSSTable.class,
                 Verify.class,
                 Version.class,
-                ViewBuildStatus.class
+                ViewBuildStatus.class,
+                GetRateLimiterConfig.class,
+                SetRateLimiterConfig.class
         );
 
         Cli.CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");

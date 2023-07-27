@@ -1404,6 +1404,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         doAutoRepairSetup();
 
         doGossipServiceCacheMismatchSetup();
+
+        doRateLimiterSetup();
     }
 
     @VisibleForTesting
@@ -1481,13 +1483,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("AutoRepair setup complete!");
     }
 
-    private void doGossipServiceCacheMismatchSetup()
-    {
-        if (DatabaseDescriptor.getCompareGossipAndStorageServiceCache())
-        {
+    private void doGossipServiceCacheMismatchSetup() {
+        if (DatabaseDescriptor.getCompareGossipAndStorageServiceCache()) {
             logger.info("Enable GossipAndStorageServiceCache mechanism");
             Gossiper.instance.setup();
         }
+    }
+
+    private void doRateLimiterSetup()
+    {
+        RateLimiterService.instance.setRateLimiterVar1(DatabaseDescriptor.getRateLimiterVar1());
+        logger.info("RateLimiter setup complete!");
     }
 
     @VisibleForTesting

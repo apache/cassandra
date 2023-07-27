@@ -107,6 +107,7 @@ import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.GCInspectorMXBean;
 import org.apache.cassandra.service.MonitoringServiceMBean;
+import org.apache.cassandra.service.RateLimiterServiceMBean;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
@@ -135,6 +136,7 @@ public class NodeProbe implements AutoCloseable
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final String mnObjName = "org.apache.cassandra.db:type=MonitoringService";
     private static final String autoRepairObjName = "org.apache.cassandra.db:type=AutoRepairService";
+    private static final String rateLimiterObjName = "org.apache.cassandra.db:type=RateLimiterService";
     private static final int defaultPort = 7199;
 
     static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = Long.getLong("cassandra.nodetool.jmx_notification_poll_interval_seconds", TimeUnit.SECONDS.convert(5, TimeUnit.MINUTES));
@@ -151,6 +153,7 @@ public class NodeProbe implements AutoCloseable
     protected StorageServiceMBean ssProxy;
     protected MonitoringServiceMBean monitoringProxy;
     protected AutoRepairServiceMBean autoRepairProxy;
+    protected RateLimiterServiceMBean rateLimiterProxy;
     protected GossiperMBean gossProxy;
     protected MemoryMXBean memProxy;
     protected GCInspectorMXBean gcProxy;
@@ -264,6 +267,8 @@ public class NodeProbe implements AutoCloseable
             monitoringProxy = JMX.newMBeanProxy(mbeanServerConn, name, MonitoringServiceMBean.class);
             name = new ObjectName(autoRepairObjName);
             autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
+            name = new ObjectName(rateLimiterObjName);
+            rateLimiterProxy = JMX.newMBeanProxy(mbeanServerConn, name, RateLimiterServiceMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
             name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
@@ -2346,6 +2351,16 @@ public class NodeProbe implements AutoCloseable
     public int getRepairThreads()
     {
         return autoRepairProxy.getRepairThreads();
+    }
+
+    public void setRatLimiterVar1(int var1)
+    {
+        rateLimiterProxy.setRateLimiterVar1(var1);
+    }
+
+    public int getRatLimiterVar1()
+    {
+        return rateLimiterProxy.getRateLimiterVar1();
     }
 
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> hosts)

@@ -4976,6 +4976,17 @@ public class DatabaseDescriptor
         return conf.auto_repair_mv_repair_enabled;
     }
 
+    public static Integer getRateLimiterVar1()
+    {
+        return conf.rate_limiter_var1;
+    }
+
+    public static void setRateLimiterVar1(int var1)
+    {
+        conf.rate_limiter_var1 = var1;
+    }
+
+
     public static boolean isOrphanNodeHintFilesCleanupEnabled() {
         return conf.orphan_node_hint_files_cleanup_enabled;
     }
