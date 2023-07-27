@@ -65,7 +65,8 @@ public class CassandraResourceUtilization
     public volatile long lastThrottlingCheckPointTimeInMS = 0;
     public volatile long lastThrottlingIndicatorTimeInMS = 0;
     public volatile double throttlingPercentageCur = 0.1;
-    public volatile Set aggressiveThorttlingDatastores = new HashSet<>();
+    public volatile Set readAggressiveThorttlingKeyspaces = new HashSet<>();
+    public volatile Set mutationAggressiveThorttlingKeyspaces = new HashSet<>();
     public volatile boolean shouldThrottle = false;
 
     public void setup(boolean continuousHealthCheck)
@@ -174,7 +175,8 @@ public class CassandraResourceUtilization
                 lastThrottlingCheckPointTimeInMS = 0;
                 lastThrottlingIndicatorTimeInMS = 0;
                 throttlingPercentageCur = throttlingOptions.percentage_of_traffice_to_throttling;
-                aggressiveThorttlingDatastores.clear();
+                readAggressiveThorttlingKeyspaces.clear();
+                mutationAggressiveThorttlingKeyspaces.clear();
                 shouldThrottle = false;
             }
             else if (lastThrottlingIndicatorTimeInMS != 0)
@@ -258,12 +260,20 @@ public class CassandraResourceUtilization
 
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
-        if (throttlingPercentageCur < MAX_THROTTLING && !aggressiveThorttlingDatastores.contains(ksName.toLowerCase()))
+        if (throttlingPercentageCur < MAX_THROTTLING &&
+            ((reads && !readAggressiveThorttlingKeyspaces.contains(ksName.toLowerCase())) || (!reads && !mutationAggressiveThorttlingKeyspaces.contains(ksName.toLowerCase()))))
         {
             if (spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
             {
                 // if we find that there is a keyspace, which is the root cause, then throttle it more aggressively
-                aggressiveThorttlingDatastores.add(ksName.toLowerCase());
+                if (reads)
+                {
+                    readAggressiveThorttlingKeyspaces.add(ksName.toLowerCase());
+                }
+                else
+                {
+                    mutationAggressiveThorttlingKeyspaces.add(ksName.toLowerCase());
+                }
                 ksThrottlingMetrics.addKSForThrottling.inc();
                 return true;
             }
