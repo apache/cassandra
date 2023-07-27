@@ -258,58 +258,96 @@ public class CassandraResourceUtilization
 
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
-        if (!aggressiveThorttlingDatastores.contains(ksName.toLowerCase()))
+        if (throttlingPercentageCur < MAX_THROTTLING && !aggressiveThorttlingDatastores.contains(ksName.toLowerCase()))
         {
-            double oneMinuteRate = 0.0;
-            double fiveMinuteRate = 0.0;
-            double fifteenMinuteRate = 0.0;
-
-            if (reads)
+            if (spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
             {
-                oneMinuteRate = metrics.readLatency.latency.getOneMinuteRate();
-                fiveMinuteRate = metrics.readLatency.latency.getFiveMinuteRate();
-                fifteenMinuteRate = metrics.readLatency.latency.getFifteenMinuteRate();
-            }
-            else
-            {
-                oneMinuteRate = metrics.writeLatency.latency.getOneMinuteRate();
-                fiveMinuteRate = metrics.writeLatency.latency.getFiveMinuteRate();
-                fifteenMinuteRate = metrics.writeLatency.latency.getFifteenMinuteRate();
-            }
-            boolean trendingUp = isTrendingUpward(oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
-            if (trendingUp)
-            {
-                ksThrottlingMetrics.trendingUpward.inc();
-                double ratio = oneMinuteRate / fifteenMinuteRate;
-                logger.info("Trending upward keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
-                            ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
-                if (ratio >= throttlingOptions.aggressive_throttling_qps_ratio)
-                {
-                    // if we find that there is a datastore, which is the root cause, then throttle it heavily
-                    aggressiveThorttlingDatastores.add(ksName.toLowerCase());
-                    ksThrottlingMetrics.addKSForThrottling.inc();
-                    logger.info("Add throttling keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
-                                ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
-                    return true;
-                }
+                // if we find that there is a keyspace, which is the root cause, then throttle it more aggressively
+                aggressiveThorttlingDatastores.add(ksName.toLowerCase());
+                ksThrottlingMetrics.addKSForThrottling.inc();
+                return true;
             }
             if (ThreadLocalRandom.current().nextDouble() <= throttlingPercentageCur)
             {
                 ksThrottlingMetrics.minThrottling.inc();
-                logger.info("Do minimum throttling keyspace: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
-                            ksName, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+                logger.info("Do minimum throttling keyspace: {}", ksName);
                 return true;
             }
             else
             {
                 ksThrottlingMetrics.noThrottling.inc();
-                logger.info("Do no throttling keyspace: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
-                            ksName, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+                logger.info("Do no throttling keyspace: {}", ksName);
                 return false;
             }
         }
         ksThrottlingMetrics.maxThrottling.inc();
         return true;
+    }
+
+    public boolean spikeInRequestRate(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
+    {
+        double oneMinuteRate = 0.0;
+        double fiveMinuteRate = 0.0;
+        double fifteenMinuteRate = 0.0;
+
+        if (reads)
+        {
+            oneMinuteRate = metrics.readLatency.latency.getOneMinuteRate();
+            fiveMinuteRate = metrics.readLatency.latency.getFiveMinuteRate();
+            fifteenMinuteRate = metrics.readLatency.latency.getFifteenMinuteRate();
+        }
+        else
+        {
+            oneMinuteRate = metrics.writeLatency.latency.getOneMinuteRate();
+            fiveMinuteRate = metrics.writeLatency.latency.getFiveMinuteRate();
+            fifteenMinuteRate = metrics.writeLatency.latency.getFifteenMinuteRate();
+        }
+        boolean trendingUp = isTrendingUpward(oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+        if (trendingUp)
+        {
+            ksThrottlingMetrics.requestsTrendingUpward.inc();
+            double ratio = oneMinuteRate / fifteenMinuteRate;
+            logger.info("Trending requests upward keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                        ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+            if (ratio >= throttlingOptions.aggressive_throttling_qps_ratio)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean spikeInLatency(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
+    {
+        double oneMinuteRate = 0.0;
+        double fiveMinuteRate = 0.0;
+        double fifteenMinuteRate = 0.0;
+
+        if (reads)
+        {
+            oneMinuteRate = metrics.readLatency.latencyMeter.getOneMinuteRate();
+            fiveMinuteRate = metrics.readLatency.latencyMeter.getFiveMinuteRate();
+            fifteenMinuteRate = metrics.readLatency.latencyMeter.getFifteenMinuteRate();
+        }
+        else
+        {
+            oneMinuteRate = metrics.writeLatency.latencyMeter.getOneMinuteRate();
+            fiveMinuteRate = metrics.writeLatency.latencyMeter.getFiveMinuteRate();
+            fifteenMinuteRate = metrics.writeLatency.latencyMeter.getFifteenMinuteRate();
+        }
+        boolean trendingUp = isTrendingUpward(oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+        if (trendingUp)
+        {
+            ksThrottlingMetrics.latencyTrendingUpward.inc();
+            double ratio = oneMinuteRate / fifteenMinuteRate;
+            logger.info("Trending latency upward keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                        ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
+            if (ratio >= throttlingOptions.aggressive_throttling_latency_ratio)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean isTrendingUpward(double a, double b, double c)

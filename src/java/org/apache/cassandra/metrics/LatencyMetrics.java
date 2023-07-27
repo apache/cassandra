@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Lists;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
@@ -49,6 +50,8 @@ public class LatencyMetrics
     protected final MetricNameFactory aliasFactory;
     protected final String namePrefix;
 
+    // The meter to track a Keyspace's latency over one minute, five minutes, and fifteen minutes interval
+    public final Meter latencyMeter;
     /**
      * Create LatencyMetrics with given group, type, and scope. Name prefix for each metric will be empty.
      *
@@ -91,16 +94,19 @@ public class LatencyMetrics
 
         LatencyMetricsTimer timer = new LatencyMetrics.LatencyMetricsTimer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
         Counter counter = new LatencyMetricsCounter();
+        Meter meter = new LatencyMetricsMeter();
 
         if (aliasFactory == null)
         {
             latency = Metrics.register(factory.createMetricName(namePrefix + "Latency"), timer);
             totalLatency = Metrics.register(factory.createMetricName(namePrefix + "TotalLatency"), counter);
+            latencyMeter = Metrics.register(factory.createMetricName(namePrefix + "LatencyMeter"), meter);
         }
         else
         {
             latency = Metrics.register(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"), timer);
             totalLatency = Metrics.register(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"), counter);
+            latencyMeter = Metrics.register(factory.createMetricName(namePrefix + "LatencyMeter"), aliasFactory.createMetricName(namePrefix + "LatencyMeter"), meter);
         }
     }
     
@@ -155,6 +161,7 @@ public class LatencyMetrics
         // convert to microseconds. 1 millionth
         latency.update(nanos, TimeUnit.NANOSECONDS);
         totalLatency.inc(nanos / 1000);
+        latencyMeter.mark(nanos / 1000);
     }
 
     public void release()
@@ -168,11 +175,13 @@ public class LatencyMetrics
         {
             Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
             Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
+            Metrics.remove(factory.createMetricName(namePrefix + "LatencyMeter"));
         }
         else
         {
             Metrics.remove(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"));
             Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"));
+            Metrics.remove(factory.createMetricName(namePrefix + "LatencyMeter"), aliasFactory.createMetricName(namePrefix + "LatencyMeter"));
         }
     }
 
@@ -269,4 +278,52 @@ public class LatencyMetrics
             return count;
         }
     }
+
+    class LatencyMetricsMeter extends Meter
+    {
+        @Override
+        public long getCount()
+        {
+            long count = super.getCount();
+            for (LatencyMetrics child : children)
+            {
+                count += child.latencyMeter.getCount();
+            }
+            return count;
+        }
+
+        @Override
+        public double getOneMinuteRate()
+        {
+            double oneMinuteRate = super.getOneMinuteRate();
+            for (LatencyMetrics child : children)
+            {
+                oneMinuteRate += child.latencyMeter.getOneMinuteRate();
+            }
+            return oneMinuteRate;
+        }
+
+        @Override
+        public double getFiveMinuteRate()
+        {
+            double fiveMinuteRate = super.getFiveMinuteRate();
+            for (LatencyMetrics child : children)
+            {
+                fiveMinuteRate += child.latencyMeter.getFiveMinuteRate();
+            }
+            return fiveMinuteRate;
+        }
+
+        @Override
+        public double getFifteenMinuteRate()
+        {
+            double fifteenMinuteRate = super.getFifteenMinuteRate();
+            for (LatencyMetrics child : children)
+            {
+                fifteenMinuteRate += child.latencyMeter.getFifteenMinuteRate();
+            }
+            return fifteenMinuteRate;
+        }
+    }
+
 }

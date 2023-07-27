@@ -177,6 +177,7 @@ Merged from 3.0:
 Unreleased
  * [SO-22458] make rate limiter config comply with 4.0 convention
  * [SO-22458] Very basic implementation to make rate limiter variables configurable
+ * [SO-21943] Track Keyspace's last one-minute, five minutes, and fifteen minutes latency
  * [SO-21943] A thread that tracks Cassandra's resource utilization
  * [SO-21943] Default implementation to track CPU util
  * [SO-21943] Add an interface to track resource utilization

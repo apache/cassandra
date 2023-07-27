@@ -27,7 +27,8 @@ public class KeyspaceThrottlingMetrics
 
     public Counter addKSForThrottling ;
     public Counter skipSystemKSThrottling;
-    public Counter trendingUpward;
+    public Counter requestsTrendingUpward;
+    public Counter latencyTrendingUpward;
     public Counter minThrottling;
     public Counter maxThrottling;
     public Counter noThrottling;
@@ -38,7 +39,8 @@ public class KeyspaceThrottlingMetrics
 
         addKSForThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AddKSForThrottling"));
         skipSystemKSThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("SkipSystemKSThrottling"));
-        trendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("TrendingUpward"));
+        requestsTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("RequestsTrendingUpward"));
+        latencyTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("LatencyTrendingUpward"));
         minThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MinThrottling"));
         maxThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MaxThrottling"));
         noThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoThrottling"));

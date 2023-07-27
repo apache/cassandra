@@ -36,6 +36,7 @@ public class ThrottlingOptions implements Serializable
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 4;
+    public double aggressive_throttling_latency_ratio = 4;
 
     public String toString()
     {
@@ -53,6 +54,7 @@ public class ThrottlingOptions implements Serializable
                 ", more_aggressive_throttling_after_in_sec='" + more_aggressive_throttling_after_in_sec + '\'' +
                 ", reset_after_no_throttling_seen_in_sec='" + reset_after_no_throttling_seen_in_sec + '\'' +
                 ", aggressive_throttling_qps_ratio='" + aggressive_throttling_qps_ratio + '\'' +
+                ", aggressive_throttling_latency_ratio='" + aggressive_throttling_latency_ratio + '\'' +
                 '}';
     }
 }
