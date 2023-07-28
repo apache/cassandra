@@ -542,10 +542,6 @@ counter_cache_save_period: 7200s
 #
 # When in batch mode, Cassandra won't ack writes until the commit log
 # has been flushed to disk.  Each incoming write will trigger the flush task.
-# commitlog_sync_batch_window_in_ms is a deprecated value. Previously it had
-# almost no value, and is being removed.
-#
-# commitlog_sync_batch_window_in_ms: 2
 #
 # group mode is similar to batch mode, where Cassandra will not ack writes
 # until the commit log has been flushed to disk. The difference is group

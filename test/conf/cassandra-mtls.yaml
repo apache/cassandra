@@ -22,7 +22,6 @@
 cluster_name: Test Cluster
 memtable_allocation_type: offheap_objects
 commitlog_sync: batch
-commitlog_sync_batch_window_in_ms: 1.0
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
 cdc_raw_directory: build/test/cassandra/cdc_raw
