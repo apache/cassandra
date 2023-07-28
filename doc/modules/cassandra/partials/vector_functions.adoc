@@ -1,0 +1,41 @@
+[cols=",",options="header",]
+|===
+|Function | Description
+
+| `similarity_cosine(vector, vector)` | Calculates the cosine similarity score between two float vectors of the same dimension.
+
+Examples:
+
+`similarity_cosine([0.1, 0.2], null)` -> `null`
+
+`similarity_cosine([0.1, 0.2], [0.1, 0.2])` -> `1`
+
+`similarity_cosine([0.1, 0.2], [-0.1, -0.2])` -> `0`
+
+`similarity_cosine([0.1, 0.2], [0.9, 0.8])` -> `0.964238`
+
+| `similarity_euclidean(vector, vector)` | Calculates the euclidian distance between two float vectors of the same dimension.
+
+Examples:
+
+`similarity_euclidean([0.1, 0.2], null)` -> `null`
+
+`similarity_euclidean([0.1, 0.2], [0.1, 0.2])` -> `1`
+
+`similarity_euclidean([0.1, 0.2], [-0.1, -0.2])` -> `0.833333`
+
+`similarity_euclidean([0.1, 0.2], [0.9, 0.8])` -> `0.5`
+
+| `similarity_dot_product(vector, vector)` | Calculates the dot product between two float vectors of the same dimension.
+
+Examples:
+
+`similarity_dot_product([0.1, 0.2], null)` -> `null`
+
+`similarity_dot_product([0.1, 0.2], [0.1, 0.2])` -> `0.525`
+
+`similarity_dot_product([0.1, 0.2], [-0.1, -0.2])` -> `0.475`
+
+`similarity_dot_product([0.1, 0.2], [0.9, 0.8])` -> `0.625`
+
+|===
