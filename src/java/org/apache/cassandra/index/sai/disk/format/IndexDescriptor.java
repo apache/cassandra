@@ -49,6 +49,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 
@@ -102,6 +103,11 @@ public class IndexDescriptor
         return new IndexDescriptor(Version.LATEST,
                                    sstable.descriptor,
                                    sstable.metadata().comparator);
+    }
+
+    public boolean hasClustering()
+    {
+        return clusteringComparator.size() > 0;
     }
 
     public String componentName(IndexComponent indexComponent)
@@ -251,36 +257,66 @@ public class IndexDescriptor
         return writer;
     }
 
-    public FileHandle createPerSSTableFileHandle(IndexComponent indexComponent)
+    public FileHandle createPerSSTableFileHandle(IndexComponent indexComponent, Throwables.DiscreteAction<?> cleanup)
     {
-        final File file = fileFor(indexComponent);
-
-        if (logger.isTraceEnabled())
+        try
         {
-            logger.trace(logMessage("Opening {} file handle for {} ({})"),
-                         file, FBUtilities.prettyPrintMemory(file.length()));
-        }
+            final File file = fileFor(indexComponent);
 
-        return new FileHandle.Builder(file).mmapped(true).complete();
+            if (logger.isTraceEnabled())
+            {
+                logger.trace(logMessage("Opening {} file handle for {} ({})"),
+                             file, FBUtilities.prettyPrintMemory(file.length()));
+            }
+
+            return new FileHandle.Builder(file).mmapped(true).complete();
+        }
+        catch (Throwable t)
+        {
+            throw handleFileHandleCleanup(t, cleanup);
+        }
     }
 
-    public FileHandle createPerIndexFileHandle(IndexComponent indexComponent, IndexContext indexContext)
+    public FileHandle createPerIndexFileHandle(IndexComponent indexComponent, IndexContext indexContext, Throwables.DiscreteAction<?> cleanup)
     {
-        final File file = fileFor(indexComponent, indexContext);
-
-        if (logger.isTraceEnabled())
+        try
         {
-            logger.trace(indexContext.logMessage("Opening file handle for {} ({})"),
-                         file, FBUtilities.prettyPrintMemory(file.length()));
-        }
+            final File file = fileFor(indexComponent, indexContext);
 
-        return new FileHandle.Builder(file).mmapped(true).complete();
+            if (logger.isTraceEnabled())
+            {
+                logger.trace(indexContext.logMessage("Opening file handle for {} ({})"),
+                             file, FBUtilities.prettyPrintMemory(file.length()));
+            }
+
+            return new FileHandle.Builder(file).mmapped(true).complete();
+        }
+        catch (Throwable t)
+        {
+            throw handleFileHandleCleanup(t, cleanup);
+        }
+    }
+
+    private RuntimeException handleFileHandleCleanup(Throwable t, Throwables.DiscreteAction<?> cleanup)
+    {
+        if (cleanup != null)
+        {
+            try
+            {
+                cleanup.perform();
+            }
+            catch (Exception e)
+            {
+                return Throwables.unchecked(Throwables.merge(t, e));
+            }
+        }
+        return Throwables.unchecked(t);
     }
 
     public Set<Component> getLivePerSSTableComponents()
     {
         return version.onDiskFormat()
-                      .perSSTableIndexComponents()
+                      .perSSTableIndexComponents(hasClustering())
                       .stream()
                       .filter(c -> fileFor(c).exists())
                       .map(version::makePerSSTableComponent)
@@ -300,7 +336,7 @@ public class IndexDescriptor
     public long sizeOnDiskOfPerSSTableComponents()
     {
         return version.onDiskFormat()
-                      .perSSTableIndexComponents()
+                      .perSSTableIndexComponents(hasClustering())
                       .stream()
                       .map(this::fileFor)
                       .filter(File::exists)
@@ -380,7 +416,7 @@ public class IndexDescriptor
     public void deletePerSSTableIndexComponents()
     {
         version.onDiskFormat()
-               .perSSTableIndexComponents()
+               .perSSTableIndexComponents(hasClustering())
                .stream()
                .map(this::fileFor)
                .filter(File::exists)

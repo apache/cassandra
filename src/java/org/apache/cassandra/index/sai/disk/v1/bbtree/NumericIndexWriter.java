@@ -148,7 +148,7 @@ public class NumericIndexWriter
             components.put(IndexComponent.BALANCED_TREE, treePosition, treeOffset, treeLength, attributes);
         }
 
-        try (BlockBalancedTreeWalker reader = new BlockBalancedTreeWalker(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext), treePosition);
+        try (BlockBalancedTreeWalker reader = new BlockBalancedTreeWalker(indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null), treePosition);
              IndexOutputWriter postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true))
         {
             long postingsOffset = postingsOutput.getFilePointer();
