@@ -700,7 +700,7 @@
              this that the new assertj's `assertj-parent-pom` depends on. -->
           <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom" scope="test"/>
           <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
-          <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="provided"/>
+          <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="test"/>
           <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3"  scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest"/>
           </dependency>
@@ -763,6 +763,7 @@
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
         <dependency groupId="junit" artifactId="junit" scope="test"/>
+        <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="commons-io" artifactId="commons-io" scope="test"/>
         <dependency groupId="org.mockito" artifactId="mockito-core" scope="test"/>
         <dependency groupId="org.ow2.asm" artifactId="asm" version="${asm.version}"/>
