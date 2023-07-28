@@ -28,20 +28,17 @@ import org.apache.lucene.store.IndexOutput;
  */
 public class SortedTermsMeta
 {
-    public final long trieFilePointer;
     public final long termCount;
     public final int maxTermLength;
 
     public SortedTermsMeta(DataInput input) throws IOException
     {
-        this.trieFilePointer = input.readLong();
         this.termCount = input.readLong();
         this.maxTermLength = input.readInt();
     }
 
-    public static void write(IndexOutput output, long trieFilePointer, long termCount, int maxTermLength) throws IOException
+    public static void write(IndexOutput output, long termCount, int maxTermLength) throws IOException
     {
-        output.writeLong(trieFilePointer);
         output.writeLong(termCount);
         output.writeInt(maxTermLength);
     }

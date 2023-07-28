@@ -105,6 +105,8 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
         if (aborted) return;
         
         currentKey = key;
+
+        perSSTableWriter.startPartition();
     }
 
     @Override

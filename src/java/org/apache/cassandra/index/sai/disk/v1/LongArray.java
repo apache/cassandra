@@ -37,6 +37,13 @@ public interface LongArray extends Closeable
      */
     long length();
 
+    /**
+     * Using the given value returns the first index corresponding to the value.
+     * @param value Value to lookup, and it must not be smaller than previous value
+     * @return The index of the given value or negative value if target value is greater than all values
+     */
+    long indexOf(long value);
+
     @Override
     default void close() throws IOException { }
 
@@ -64,6 +71,13 @@ public interface LongArray extends Closeable
         {
             open();
             return longArray.length();
+        }
+
+        @Override
+        public long indexOf(long value)
+        {
+            open();
+            return longArray.indexOf(value);
         }
 
         @Override

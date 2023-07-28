@@ -18,19 +18,10 @@
 
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Arrays;
-import javax.annotation.Nonnull;
-import javax.annotation.concurrent.NotThreadSafe;
-
-import com.google.common.base.Preconditions;
-
-import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
-import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
+import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -39,7 +30,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.StringHelper;
 
-import static org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryReader.trieSerializer;
+import javax.annotation.Nonnull;
+import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Closeable;
+import java.io.IOException;
 
 /**
  * Writes an ordered sequence of terms for use with {@link SortedTermsReader}.
@@ -49,9 +43,9 @@ import static org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryRea
  * <p>
  * For documentation of the underlying on-disk data structures, see the package documentation.
  * <p>
- * The TERMS_DICT_ constants allow for quickly determining the id of the current block based on a point id
- * or to check if we are exactly at the beginning of the block.
- * Terms data are organized in blocks of (2 ^ {@link #TERMS_DICT_BLOCK_SHIFT}) terms.
+ * The {@code cassandra.sai.sorted_terms_block_shift} property is used to quickly determine the id of the current block
+ * based on a point id or to check if we are exactly at the beginning of the block.
+ * Terms data are organized in blocks of (2 ^ {@link #blockShift}) terms.
  * The blocks should not be too small because they allow prefix compression of
  * the terms except the first term in a block.
  * The blocks should not be too large because we can't just randomly jump to the term inside the block,
@@ -63,12 +57,8 @@ import static org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryRea
 @NotThreadSafe
 public class SortedTermsWriter implements Closeable
 {
-    static final int TERMS_DICT_BLOCK_SHIFT = 4;
-    static final int TERMS_DICT_BLOCK_SIZE = 1 << TERMS_DICT_BLOCK_SHIFT;
-    static final int TERMS_DICT_BLOCK_MASK = TERMS_DICT_BLOCK_SIZE - 1;
-
-    private final IncrementalDeepTrieWriterPageAware<Long> trieWriter;
-    private final IndexOutput trieOutput;
+    private final int blockShift;
+    private final int blockMask;
     private final IndexOutput termsOutput;
     private final NumericValuesWriter offsetsWriter;
     private final String componentName;
@@ -79,7 +69,7 @@ public class SortedTermsWriter implements Closeable
 
     private final long bytesStartFP;
 
-    private int maxLength = -1;
+    private int maxTermLength = -1;
     private long pointId = 0;
 
     /**
@@ -90,30 +80,27 @@ public class SortedTermsWriter implements Closeable
      *
      * @param componentName the component name for the {@link SortedTermsMeta}
      * @param metadataWriter the {@link MetadataWriter} for storing the {@link SortedTermsMeta}
-     * @param termsData where to write the prefix-compressed terms data
+     * @param termsOutput where to write the prefix-compressed terms data
      * @param termsDataBlockOffsets  where to write the offsets of each block of terms data
-     * @param trieOutput where to write the trie that maps the terms to point ids
      */
     public SortedTermsWriter(String componentName,
                              MetadataWriter metadataWriter,
-                             IndexOutput termsData,
-                             NumericValuesWriter termsDataBlockOffsets,
-                             IndexOutputWriter trieOutput) throws IOException
+                             IndexOutput termsOutput,
+                             NumericValuesWriter termsDataBlockOffsets) throws IOException
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
-        this.trieOutput = trieOutput;
-        SAICodecUtils.writeHeader(this.trieOutput);
-        this.trieWriter = new IncrementalDeepTrieWriterPageAware<>(trieSerializer, trieOutput.asSequentialWriter());
-        SAICodecUtils.writeHeader(termsData);
-        this.termsOutput = termsData;
-        this.bytesStartFP = termsData.getFilePointer();
+        SAICodecUtils.writeHeader(termsOutput);
+        this.blockShift = CassandraRelevantProperties.SAI_SORTED_TERMS_BLOCK_SHIFT.getInt();
+        this.blockMask = (1 << this.blockShift) - 1;
+        this.termsOutput = termsOutput;
+        this.termsOutput.writeVInt(blockShift);
+        this.bytesStartFP = termsOutput.getFilePointer();
         this.offsetsWriter = termsDataBlockOffsets;
     }
 
     /**
      * Appends a term at the end of the sequence.
-     * Terms must be added in lexicographic order.
      *
      * @throws IOException if write to disk fails
      * @throws IllegalArgumentException if the term is not greater than the previous added term
@@ -124,26 +111,21 @@ public class SortedTermsWriter implements Closeable
         copyBytes(term, tempTerm);
 
         BytesRef termRef = tempTerm.get();
-        BytesRef prevTermRef = this.prevTerm.get();
 
-        Preconditions.checkArgument(prevTermRef.length == 0 || prevTermRef.compareTo(termRef) < 0,
-                                    "Terms must be added in lexicographic ascending order.");
         writeTermData(termRef);
-        writeTermToTrie(term);
 
-        maxLength = Math.max(maxLength, termRef.length);
-        swapTempWithPrevious();
+        maxTermLength = Math.max(maxTermLength, termRef.length);
+
+        BytesRefBuilder temp = this.tempTerm;
+        this.tempTerm = this.prevTerm;
+        this.prevTerm = temp;
+
         pointId++;
-    }
-
-    private void writeTermToTrie(ByteComparable term) throws IOException
-    {
-        trieWriter.add(term, pointId);
     }
 
     private void writeTermData(BytesRef term) throws IOException
     {
-        if ((pointId & TERMS_DICT_BLOCK_MASK) == 0)
+        if ((pointId & blockMask) == 0)
         {
             offsetsWriter.add(termsOutput.getFilePointer() - bytesStartFP);
 
@@ -179,17 +161,15 @@ public class SortedTermsWriter implements Closeable
     {
         try (IndexOutput output = metadataWriter.builder(componentName))
         {
-            long trieFilePointer = this.trieWriter.complete();
-            SAICodecUtils.writeFooter(trieOutput);
             SAICodecUtils.writeFooter(termsOutput);
-            SortedTermsMeta.write(output, trieFilePointer, pointId, maxLength);
+            SortedTermsMeta.write(output, pointId, maxTermLength);
             // Don't close the offsets writer quietly because of the work it does
             // during its close. We need to propagate the error.
             offsetsWriter.close();
         }
         finally
         {
-            FileUtils.closeQuietly(Arrays.asList(trieWriter, trieOutput, termsOutput));
+            FileUtils.closeQuietly(termsOutput);
         }
     }
 
@@ -199,16 +179,5 @@ public class SortedTermsWriter implements Closeable
         int val;
         while ((val = byteSource.next()) != ByteSource.END_OF_STREAM)
             dest.append((byte) val);
-    }
-
-    /**
-     * Swaps {@link #tempTerm} with {@link #prevTerm}.
-     * It is faster to swap the pointers instead of copying the data.
-     */
-    private void swapTempWithPrevious()
-    {
-        BytesRefBuilder temp = this.tempTerm;
-        this.tempTerm = this.prevTerm;
-        this.prevTerm = temp;
     }
 }

@@ -68,9 +68,9 @@ public enum IndexComponent
     TOKEN_VALUES("TokenValues"),
 
     /**
-     * An on-disk trie containing the primary keys used for looking up the rowId from a partition key
+     * An on-disk block packed index containing the starting and ending rowIds for each partition.
      */
-    PRIMARY_KEY_TRIE("PrimaryKeyTrie"),
+    PARTITION_SIZES("PartitionSizes"),
 
     /**
      * Prefix-compressed blocks of primary keys used for rowId to partition key lookups

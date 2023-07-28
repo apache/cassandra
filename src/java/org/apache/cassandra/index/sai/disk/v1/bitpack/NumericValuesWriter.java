@@ -22,6 +22,8 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
@@ -29,72 +31,89 @@ import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.lucene.store.IndexOutput;
 
 @NotThreadSafe
-public class NumericValuesWriter implements Closeable
+public interface NumericValuesWriter extends Closeable
 {
-    public static final int MONOTONIC_BLOCK_SIZE = 16384;
-    public static final int BLOCK_SIZE = 128;
-
-    private final IndexOutput output;
-    private final AbstractBlockPackedWriter writer;
-    private final MetadataWriter metadataWriter;
-    private final String componentName;
-    private final int blockSize;
-    private long count = 0;
-
-    public NumericValuesWriter(String componentName,
-                               IndexOutput indexOutput,
-                               MetadataWriter metadataWriter,
-                               boolean monotonic) throws IOException
+    NumericValuesWriter NOOP_WRITER = new NumericValuesWriter()
     {
-        this(componentName, indexOutput, metadataWriter, monotonic, monotonic ? MONOTONIC_BLOCK_SIZE : BLOCK_SIZE);
+        @Override
+        public void add(long value) {}
+
+        @Override
+        public void close() {}
+    };
+
+    static NumericValuesWriter create(IndexDescriptor indexDescriptor, IndexComponent indexComponent,
+                                      MetadataWriter metadataWriter, boolean monotonic) throws IOException
+    {
+        return new NumericValuesWriterImpl(indexDescriptor, indexComponent, metadataWriter, monotonic);
     }
 
-    public NumericValuesWriter(IndexDescriptor indexDescriptor,
-                               IndexComponent component,
-                               MetadataWriter metadataWriter,
-                               boolean monotonic,
-                               int blockSize) throws IOException
+    @VisibleForTesting
+    static NumericValuesWriter create(IndexDescriptor indexDescriptor, IndexComponent indexComponent,
+                                      MetadataWriter metadataWriter, boolean monotonic, int blockSize) throws IOException
     {
-        this(indexDescriptor.componentName(component),
-             indexDescriptor.openPerSSTableOutput(component),
-             metadataWriter,
-             monotonic,
-             blockSize);
+        return new NumericValuesWriterImpl(indexDescriptor, indexComponent, metadataWriter, monotonic, blockSize);
     }
 
-    private NumericValuesWriter(String componentName,
-                                IndexOutput indexOutput,
+    void add(long value) throws IOException;
+
+    @NotThreadSafe
+    class NumericValuesWriterImpl implements NumericValuesWriter
+    {
+        public static final int MONOTONIC_BLOCK_SIZE = 16384;
+        public static final int BLOCK_SIZE = 128;
+
+        private final IndexOutput indexOutput;
+        private final AbstractBlockPackedWriter writer;
+        private final MetadataWriter metadataWriter;
+        private final String componentName;
+        private final int blockSize;
+        private long count = 0;
+
+        NumericValuesWriterImpl(IndexDescriptor indexDescriptor,
+                                IndexComponent indexComponent,
                                 MetadataWriter metadataWriter,
-                                boolean monotonic, int blockSize) throws IOException
-    {
-        SAICodecUtils.writeHeader(indexOutput);
-        this.writer = monotonic ? new MonotonicBlockPackedWriter(indexOutput, blockSize)
-                                : new BlockPackedWriter(indexOutput, blockSize);
-        this.output = indexOutput;
-        this.componentName = componentName;
-        this.metadataWriter = metadataWriter;
-        this.blockSize = blockSize;
-    }
-
-    @Override
-    public void close() throws IOException
-    {
-        try (IndexOutput o = metadataWriter.builder(componentName))
+                                boolean monotonic) throws IOException
         {
-            long fp = writer.finish();
-            SAICodecUtils.writeFooter(output);
-
-            NumericValuesMeta.write(o, count, blockSize, fp);
+            this(indexDescriptor, indexComponent, metadataWriter, monotonic, monotonic ? MONOTONIC_BLOCK_SIZE : BLOCK_SIZE);
         }
-        finally
+
+        NumericValuesWriterImpl(IndexDescriptor indexDescriptor,
+                                IndexComponent indexComponent,
+                                MetadataWriter metadataWriter,
+                                boolean monotonic,
+                                int blockSize) throws IOException
         {
-            output.close();
+            this.componentName = indexDescriptor.componentName(indexComponent);
+            this.indexOutput = indexDescriptor.openPerSSTableOutput(indexComponent);
+            SAICodecUtils.writeHeader(indexOutput);
+            this.writer = monotonic ? new MonotonicBlockPackedWriter(indexOutput, blockSize)
+                                    : new BlockPackedWriter(indexOutput, blockSize);
+            this.metadataWriter = metadataWriter;
+            this.blockSize = blockSize;
         }
-    }
 
-    public void add(long value) throws IOException
-    {
-        writer.add(value);
-        count++;
+        @Override
+        public void close() throws IOException
+        {
+            try (IndexOutput o = metadataWriter.builder(componentName))
+            {
+                long fp = writer.finish();
+                SAICodecUtils.writeFooter(indexOutput);
+
+                NumericValuesMeta.write(o, count, blockSize, fp);
+            }
+            finally
+            {
+                indexOutput.close();
+            }
+        }
+
+        @Override
+        public void add(long value) throws IOException
+        {
+            writer.add(value);
+            count++;
+        }
     }
 }

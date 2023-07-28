@@ -106,11 +106,11 @@ public class NumericValuesTest extends SAIRandomizedTester
 
         long current = 0;
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
-             final NumericValuesWriter numericWriter = new NumericValuesWriter(indexDescriptor,
-                                                                               IndexComponent.TOKEN_VALUES,
-                                                                               metadataWriter,
-                                                                               monotonic,
-                                                                               blockSize))
+             final NumericValuesWriter numericWriter = NumericValuesWriter.create(indexDescriptor,
+                                                                                  IndexComponent.TOKEN_VALUES,
+                                                                                  metadataWriter,
+                                                                                  monotonic,
+                                                                                  blockSize))
         {
             for (int x = 0; x < array.length; x++)
             {

@@ -39,20 +39,14 @@
  * <p>
  * The data structure comprises the following components, each stored in a separate file:
  * <ul>
- *     <li>terms data, organized as a sequence of prefix-compressed blocks each storing
- *     {@link org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter#TERMS_DICT_BLOCK_SIZE} terms</li>
+ *     <li>terms data, organized as a sequence of prefix-compressed blocks each storing a number of terms calculated
+ *     from {@code org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter#blockShift}</li>
  *     <li>a monotonic list of file offsets of the blocks; this component allows to quickly locate the block
  *     that contains the term with a given point id</li>
- *     <li>a trie indexed by terms, with a long payload for the point id,
- *     to quickly locate the point id of a term by the term contents
- *     </li>
  * </ul>
  * </p>
- *
- * The implementation has been based on code from Lucene version 7.5 {@link org.apache.lucene.index.SortedDocValues}.
- * Prefix compression and bitpacking are used extensively to save space.
  * <p>
  * The sorted terms data structure is used for the storage and reading of {@link org.apache.cassandra.index.sai.utils.PrimaryKey}s
- * by the {@link org.apache.cassandra.index.sai.disk.v1.RowAwarePrimaryKeyMap}.
+ * by the {@link org.apache.cassandra.index.sai.disk.v1.SkinnyRowAwarePrimaryKeyMap} and {@link org.apache.cassandra.index.sai.disk.v1.WideRowAwarePrimaryKeyMap}.
  */
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;

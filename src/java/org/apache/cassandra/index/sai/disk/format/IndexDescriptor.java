@@ -104,6 +104,11 @@ public class IndexDescriptor
                                    sstable.metadata().comparator);
     }
 
+    public boolean hasClustering()
+    {
+        return clusteringComparator.size() > 0;
+    }
+
     public String componentName(IndexComponent indexComponent)
     {
         return version.fileNameFormatter().format(indexComponent, null);
@@ -280,7 +285,7 @@ public class IndexDescriptor
     public Set<Component> getLivePerSSTableComponents()
     {
         return version.onDiskFormat()
-                      .perSSTableIndexComponents()
+                      .perSSTableIndexComponents(hasClustering())
                       .stream()
                       .filter(c -> fileFor(c).exists())
                       .map(version::makePerSSTableComponent)
@@ -300,7 +305,7 @@ public class IndexDescriptor
     public long sizeOnDiskOfPerSSTableComponents()
     {
         return version.onDiskFormat()
-                      .perSSTableIndexComponents()
+                      .perSSTableIndexComponents(hasClustering())
                       .stream()
                       .map(this::fileFor)
                       .filter(File::exists)
@@ -380,7 +385,7 @@ public class IndexDescriptor
     public void deletePerSSTableIndexComponents()
     {
         version.onDiskFormat()
-               .perSSTableIndexComponents()
+               .perSSTableIndexComponents(hasClustering())
                .stream()
                .map(this::fileFor)
                .filter(File::exists)

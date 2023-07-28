@@ -30,11 +30,12 @@ import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.lucene.util.BytesRef;
-
-import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter.TERMS_DICT_BLOCK_MASK;
-import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter.TERMS_DICT_BLOCK_SHIFT;
+import org.apache.lucene.util.BytesRefBuilder;
 
 /**
  * Provides read access to a sorted on-disk sequence of terms written by {@link SortedTermsWriter}.
@@ -49,8 +50,6 @@ import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWrit
  * <p>
  * Because the blocks are prefix compressed, random access applies only to the locating the whole block.
  * In order to jump to a concrete term inside the block, the block terms are iterated from the block beginning.
- * Expect random access by {@link Cursor#seekToPointId(long)} to be slower
- * than just moving to the next term with {@link Cursor#advance()}.
  * <p>
  * For documentation of the underlying on-disk data structures, see the package documentation.
  *
@@ -60,8 +59,6 @@ import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWrit
 @NotThreadSafe
 public class SortedTermsReader
 {
-    private static final long BEFORE_START = -1;
-
     private final FileHandle termsData;
     private final SortedTermsMeta meta;
     private final LongArray.Factory blockOffsetsFactory;
@@ -89,8 +86,7 @@ public class SortedTermsReader
     /**
      * Opens a cursor over the terms stored in the terms file.
      * <p>
-     * This does not read any data yet.
-     * The cursor is initially positioned before the first item.
+     * This will read the first term into the term buffer and point to the first point in the terms file.
      * <p>
      * The cursor is to be used in a single thread.
      * The cursor is valid as long this object hasn't been closed.
@@ -112,43 +108,32 @@ public class SortedTermsReader
     public class Cursor implements AutoCloseable
     {
         private final IndexInputReader termsInput;
+        private final int blockShift;
+        private final int blockMask;
         private final long termsDataFp;
         private final LongArray blockOffsets;
 
         // The term the cursor currently points to. Initially empty.
         private final BytesRef currentTerm;
 
-        // The point id the cursor currently points to. BEFORE_START means before the first item.
-        private long pointId = BEFORE_START;
+        private final BytesRef nextBlockTerm;
+
+        // The point id the cursor currently points to.
+        private long currentPointId;
+        private long currentBlockIndex;
 
         Cursor(FileHandle termsFile, LongArray.Factory blockOffsetsFactory) throws IOException
         {
             this.termsInput = IndexInputReader.create(termsFile);
             SAICodecUtils.validate(this.termsInput);
+            this.blockShift = this.termsInput.readVInt();
+            this.blockMask = (1 << this.blockShift) - 1;
             this.termsDataFp = this.termsInput.getFilePointer();
             this.blockOffsets = new LongArray.DeferredLongArray(blockOffsetsFactory::open);
             this.currentTerm = new BytesRef(meta.maxTermLength);
-        }
-
-        /**
-         * Returns the current position of the cursor.
-         * Initially, before the first call to {@link #advance}, the cursor is positioned at -1.
-         * After reading all the items, the cursor is positioned at index one
-         * greater than the position of the last item.
-         */
-        public long pointId()
-        {
-            return pointId;
-        }
-
-        /**
-         * Returns the current term data as {@link ByteComparable} referencing the internal term buffer.
-         * The term data stored behind that reference is valid only until the next call to
-         * {@link #advance} or {@link #seekToPointId(long)}.
-         */
-        public @Nonnull ByteComparable term()
-        {
-            return ByteComparable.fixedLength(currentTerm.bytes, currentTerm.offset, currentTerm.length);
+            this.nextBlockTerm = new BytesRef(meta.maxTermLength);
+            termsInput.seek(termsDataFp);
+            readTerm(currentPointId, currentTerm);
         }
 
         /**
@@ -156,24 +141,119 @@ public class SortedTermsReader
          * <p>
          * It is allowed to position the cursor before the first item or after the last item;
          * in these cases the internal buffer is cleared.
-         * <p>
-         * This method has constant complexity.
          *
-         * @param pointId point id to lookup
-         * @throws IOException if a seek and read from the terms file fails
+         * @param nextPointId point id to lookup
+         * @return The {@link ByteComparable} containing the term
          * @throws IndexOutOfBoundsException if the target point id is less than -1 or greater than the number of terms
          */
-        public void seekToPointId(long pointId) throws IOException
+        public @Nonnull ByteComparable seekForwardToPointId(long nextPointId)
         {
-            if (pointId < 0 || pointId > meta.termCount)
+            if (nextPointId < 0 || nextPointId > meta.termCount)
                 throw new IndexOutOfBoundsException(String.format("The target point id [%s] cannot be less than 0 or " +
-                                                                  "greater than the term count [%s]", pointId, meta.termCount));
-            long blockIndex = pointId >>> TERMS_DICT_BLOCK_SHIFT;
-            long blockAddress = blockOffsets.get(blockIndex);
-            termsInput.seek(blockAddress + termsDataFp);
-            this.pointId = (blockIndex << TERMS_DICT_BLOCK_SHIFT) - 1;
-            while (this.pointId < pointId && advance());
+                                                                  "greater than the term count [%s]", nextPointId, meta.termCount));
+            assert nextPointId >= currentPointId : "Attempt to seek backwards in seekForwardsToPointId. Next pointId was "
+                                                   + nextPointId + " while current pointId is " + currentPointId;
+            if (nextPointId != currentPointId)
+            {
+                long blockIndex = nextPointId >>> blockShift;
+                if (blockIndex != currentBlockIndex)
+                {
+                    currentBlockIndex = blockIndex;
+                    resetPosition();
+                }
+            }
+            while (currentPointId < nextPointId)
+            {
+                readTerm(++currentPointId, currentTerm);
+                currentBlockIndex = currentPointId >>> blockShift;
+            }
+
+            return ByteComparable.fixedLength(currentTerm.bytes, currentTerm.offset, currentTerm.length);
         }
+
+        /**
+         * Finds the pointId for a term within a range of pointIds. The start and end of the range must not
+         * exceed the number of terms available.
+         * <p>
+         * If the term is not in the block containing the start of the range a binary search is done to find
+         * the block containing the search. That block is then searched to return the pointId that corresponds
+         * to the term that either equal to or next highest to the term.
+         */
+        public long partitionedSeekToTerm(ByteComparable term, long startingPointId, long endingPointId)
+        {
+            BytesRef skipTerm = readBytes(term);
+
+            currentBlockIndex = startingPointId >>> blockShift;
+            resetPosition();
+
+            if (compareTerms(currentTerm, skipTerm) == 0)
+                return startingPointId;
+
+            if (notInCurrentBlock(startingPointId, skipTerm))
+            {
+                long split = (endingPointId - startingPointId) >>> blockShift;
+                long splitPointId = startingPointId;
+                while (split > 0)
+                {
+                    currentBlockIndex = Math.min((splitPointId >>> blockShift) + split, blockOffsets.length() - 1);
+                    resetPosition();
+
+                    if (currentPointId >= endingPointId)
+                    {
+                        currentBlockIndex = (endingPointId - 1) >>> blockShift;
+                        resetPosition();
+                    }
+
+                    int cmp = compareTerms(currentTerm, skipTerm);
+
+                    if (cmp == 0)
+                        return currentPointId;
+
+                    if (cmp < 0)
+                        splitPointId = currentPointId;
+
+                    split /= 2;
+                }
+                // After we finish the binary search we need to move the block back till we hit a block that has
+                // a starting term that is less than or equals to the skip term
+                while (currentBlockIndex > 0 && compareTerms(currentTerm, skipTerm) > 0)
+                {
+                    currentBlockIndex--;
+                    resetPosition();
+                }
+            }
+
+            // Depending on where we are in the block we may need to move forwards to the starting point ID
+            while (currentPointId < startingPointId)
+            {
+                currentPointId++;
+                readTerm(currentPointId, currentTerm);
+                currentBlockIndex = currentPointId >>> blockShift;
+            }
+
+            // Move forward to the ending point ID, returning the point ID if we find our term
+            while (currentPointId < endingPointId)
+            {
+                if (compareTerms(currentTerm, skipTerm) >= 0)
+                    return currentPointId;
+                currentPointId++;
+                if (currentPointId == meta.termCount)
+                    return -1;
+                readTerm(currentPointId, currentTerm);
+                currentBlockIndex = currentPointId >>> blockShift;
+            }
+            return endingPointId < meta.termCount ? endingPointId : -1;
+        }
+
+        @VisibleForTesting
+        public void reset() throws IOException
+        {
+            currentPointId = 0;
+            currentBlockIndex = 0;
+            termsInput.seek(termsDataFp);
+            readTerm(currentPointId, currentTerm);
+        }
+
 
         @Override
         public void close()
@@ -181,54 +261,103 @@ public class SortedTermsReader
             termsInput.close();
         }
 
-        /**
-         * Advances the cursor to the next term and reads it into the current term buffer.
-         * <p>
-         * If there are no more available terms, clears the term buffer and the cursor's position will point to the
-         * one behind the last item.
-         * <p>
-         * This method has constant time complexity.
-         *
-         * @return true if the cursor was advanced successfully, false if the end of file was reached
-         * @throws IOException if a read from the terms file fails
-         */
-        @VisibleForTesting
-        protected boolean advance() throws IOException
+        private boolean notInCurrentBlock(long pointId, BytesRef term)
         {
-            if (pointId >= meta.termCount || ++pointId >= meta.termCount)
-            {
-                currentTerm.length = 0;
+            if (inLastBlock(pointId) || !peekNextBlock(pointId))
                 return false;
-            }
 
-            int prefixLength;
-            int suffixLength;
-            if ((pointId & TERMS_DICT_BLOCK_MASK) == 0L)
-            {
-                prefixLength = 0;
-                suffixLength = termsInput.readVInt();
-            }
-            else
-            {
-                // Read the prefix and suffix lengths following the compression mechanism described
-                // in the SortedTermsWriter. If the lengths contained in the starting byte are less
-                // than the 4 bit maximum then nothing further is read. Otherwise, the lengths in the
-                // following vints are added.
-                int compressedLengths = Byte.toUnsignedInt(termsInput.readByte());
-                prefixLength = compressedLengths & 0x0F;
-                suffixLength = 1 + (compressedLengths >>> 4);
-                if (prefixLength == 15)
-                    prefixLength += termsInput.readVInt();
-                if (suffixLength == 16)
-                    suffixLength += termsInput.readVInt();
-            }
+            resetPosition();
 
-            assert prefixLength + suffixLength <= meta.maxTermLength;
-            currentTerm.length = prefixLength + suffixLength;
-            // The currentTerm is appended to as the suffix for the current term is
-            // added to the existing prefix.
-            termsInput.readBytes(currentTerm.bytes, prefixLength, suffixLength);
+            return compareTerms(term, nextBlockTerm) >= 0;
+        }
+
+        private boolean inLastBlock(long pointId)
+        {
+            return pointId >>> blockShift == blockOffsets.length() - 1;
+        }
+
+        // Tries to load the starting value of the next block into nextBlockTerm. This will return false
+        // if the pointId is in the last block.
+        private boolean peekNextBlock(long pointId)
+        {
+            long blockIndex = (pointId >>> blockShift) + 1;
+
+            if (blockIndex >= blockOffsets.length())
+                return false;
+
+            termsInput.seek(blockOffsets.get(blockIndex) + termsDataFp);
+            readTerm(blockIndex << blockShift, nextBlockTerm);
+
             return true;
+        }
+
+        // Reset currentPointId and currentTerm to be at the start of the block
+        // pointed to by currentBlockIndex.
+        private void resetPosition()
+        {
+            termsInput.seek(blockOffsets.get(currentBlockIndex) + termsDataFp);
+            currentPointId = currentBlockIndex << blockShift;
+            readTerm(currentPointId, currentTerm);
+        }
+
+        // Read the next term indicated by pointId.
+        //
+        // Note: pointId is only used to determine whether we are at the start of a block. It is
+        // important that resetPosition is called prior to multiple calls to readTerm. It is
+        // easy to get out of position.
+        private void readTerm(long pointId, BytesRef term)
+        {
+            try
+            {
+                int prefixLength;
+                int suffixLength;
+                if ((pointId & blockMask) == 0L)
+                {
+                    prefixLength = 0;
+                    suffixLength = termsInput.readVInt();
+                }
+                else
+                {
+                    // Read the prefix and suffix lengths following the compression mechanism described
+                    // in the SortedTermsWriter. If the lengths contained in the starting byte are less
+                    // than the 4 bit maximum then nothing further is read. Otherwise, the lengths in the
+                    // following vints are added.
+                    int compressedLengths = Byte.toUnsignedInt(termsInput.readByte());
+                    prefixLength = compressedLengths & 0x0F;
+                    suffixLength = 1 + (compressedLengths >>> 4);
+                    if (prefixLength == 15)
+                        prefixLength += termsInput.readVInt();
+                    if (suffixLength == 16)
+                        suffixLength += termsInput.readVInt();
+                }
+
+                assert prefixLength + suffixLength <= meta.maxTermLength;
+                term.length = prefixLength + suffixLength;
+                // The currentTerm is appended to as the suffix for the current term is
+                // added to the existing prefix.
+                termsInput.readBytes(term.bytes, prefixLength, suffixLength);
+            }
+            catch (IOException e)
+            {
+                throw Throwables.cleaned(e);
+            }
+        }
+
+        private int compareTerms(BytesRef left, BytesRef right)
+        {
+            return FastByteOperations.compareUnsigned(left.bytes, left.offset, left.offset + left.length,
+                                                      right.bytes, right.offset, right.offset + right.length);
+        }
+
+        private BytesRef readBytes(ByteComparable source)
+        {
+            BytesRefBuilder builder = new BytesRefBuilder();
+
+            ByteSource byteSource = source.asComparableBytes(ByteComparable.Version.OSS50);
+            int val;
+            while ((val = byteSource.next()) != ByteSource.END_OF_STREAM)
+                builder.append((byte) val);
+            return builder.get();
         }
     }
 }

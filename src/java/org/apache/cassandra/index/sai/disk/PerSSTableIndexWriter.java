@@ -28,6 +28,9 @@ public interface PerSSTableIndexWriter
 {
     PerSSTableIndexWriter NONE = (key) -> {};
 
+    default void startPartition()
+    {}
+
     void nextRow(PrimaryKey primaryKey) throws IOException;
 
     default void complete() throws IOException

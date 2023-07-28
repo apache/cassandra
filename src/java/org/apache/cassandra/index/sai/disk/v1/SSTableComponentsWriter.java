@@ -38,34 +38,39 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
 
     private final IndexDescriptor indexDescriptor;
     private final MetadataWriter metadataWriter;
+    private final NumericValuesWriter partitionWriter;
     private final NumericValuesWriter tokenWriter;
     private final SortedTermsWriter sortedTermsWriter;
+    private long partitionId = -1;
 
     @SuppressWarnings({"resource", "RedundantSuppression"})
     public SSTableComponentsWriter(IndexDescriptor indexDescriptor) throws IOException
     {
         this.indexDescriptor = indexDescriptor;
         this.metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
-        this.tokenWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES),
-                                                   indexDescriptor.openPerSSTableOutput(IndexComponent.TOKEN_VALUES),
-                                                   metadataWriter, false);
-        IndexOutputWriter primaryKeyTrieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
+        this.tokenWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.TOKEN_VALUES, metadataWriter, false);
+        this.partitionWriter = indexDescriptor.hasClustering() ? NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true)
+                                                               : NumericValuesWriter.NOOP_WRITER;
         IndexOutputWriter primaryKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
-        NumericValuesWriter primaryKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                     indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
-                                                     metadataWriter, true);
+        NumericValuesWriter primaryKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS, metadataWriter, true);
         this.sortedTermsWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
                                                        metadataWriter,
                                                        primaryKeyBlocksWriter,
-                                                       primaryKeyBlockOffsetWriter,
-                                                       primaryKeyTrieWriter);
+                                                       primaryKeyBlockOffsetWriter);
+    }
+
+    @Override
+    public void startPartition()
+    {
+        partitionId++;
     }
 
     @Override
     public void nextRow(PrimaryKey primaryKey) throws IOException
     {
         tokenWriter.add(primaryKey.token().getLongValue());
-        sortedTermsWriter.add(primaryKey::asComparableBytes);
+        sortedTermsWriter.add(primaryKey);
+        partitionWriter.add(partitionId);
     }
 
     @Override
@@ -77,7 +82,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         }
         finally
         {
-            IOUtils.close(tokenWriter, sortedTermsWriter, metadataWriter);
+            IOUtils.close(tokenWriter, partitionWriter, sortedTermsWriter, metadataWriter);
         }
     }
 
