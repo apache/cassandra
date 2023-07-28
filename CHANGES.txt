@@ -1,4 +1,5 @@
 4.1.4
+ * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
  * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
  * Migrate Python optparse to argparse (CASSANDRA-17914)
