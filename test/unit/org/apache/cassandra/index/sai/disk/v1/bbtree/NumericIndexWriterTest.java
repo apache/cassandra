@@ -84,8 +84,8 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                                                            rowCount);
         indexMetas = writer.writeCompleteSegment(ramBuffer.iterator());
 
-        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
-        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
+        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null);
+        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
 
         try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
                                                                           treeHandle,
@@ -130,8 +130,8 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
                                                            maxSegmentRowId);
         indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, Int32Type.instance));
 
-        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
-        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
+        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null);
+        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
 
         try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
                                                                           treeHandle,

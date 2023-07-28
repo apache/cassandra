@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class KeyRangeConcatIterator extends KeyRangeIterator
 {
+    public static final String MUST_BE_SORTED_ERROR = "RangeIterator must be sorted, previous max: %s, next min: %s";
     private final PriorityQueue<KeyRangeIterator> ranges;
     private final List<KeyRangeIterator> toRelease;
 
@@ -166,7 +167,7 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
                 }
                 else if (count > 0 && max.compareTo(range.getMinimum()) > 0)
                 {
-                    throw new IllegalArgumentException("RangeIterator must be sorted, previous max: " + max + ", next min: " + range.getMinimum());
+                    throw new IllegalArgumentException(String.format(MUST_BE_SORTED_ERROR, max, range.getMinimum()));
                 }
 
                 max = range.getMaximum();

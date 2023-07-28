@@ -148,6 +148,12 @@ public class PostingsReader implements OrdinalPostingList
             {
                 return length;
             }
+
+            @Override
+            public long indexOf(long value)
+            {
+                throw new UnsupportedOperationException();
+            }
         }
     }
 

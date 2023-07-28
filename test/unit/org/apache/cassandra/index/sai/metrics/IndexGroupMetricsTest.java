@@ -60,7 +60,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
 
         // with 10 sstable
         int indexopenFileCountWithOnlyNumeric = getOpenIndexFiles();
-        assertEquals(sstables * (Version.LATEST.onDiskFormat().openFilesPerSSTableIndex() +
+        assertEquals(sstables * (Version.LATEST.onDiskFormat().openFilesPerSSTableIndex(false) +
                                  Version.LATEST.onDiskFormat().openFilesPerColumnIndex(v1IndexContext)),
                      indexopenFileCountWithOnlyNumeric);
 
@@ -70,7 +70,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         // compaction should reduce open files
         compact();
 
-        assertEquals(Version.LATEST.onDiskFormat().openFilesPerSSTableIndex() +
+        assertEquals(Version.LATEST.onDiskFormat().openFilesPerSSTableIndex(false) +
                      Version.LATEST.onDiskFormat().openFilesPerColumnIndex(v1IndexContext),
                      getOpenIndexFiles());
 

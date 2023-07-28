@@ -34,44 +34,32 @@ public class NumericValuesWriter implements Closeable
     public static final int MONOTONIC_BLOCK_SIZE = 16384;
     public static final int BLOCK_SIZE = 128;
 
-    private final IndexOutput output;
+    private final IndexOutput indexOutput;
     private final AbstractBlockPackedWriter writer;
     private final MetadataWriter metadataWriter;
     private final String componentName;
     private final int blockSize;
     private long count = 0;
 
-    public NumericValuesWriter(String componentName,
-                               IndexOutput indexOutput,
+    public NumericValuesWriter(IndexDescriptor indexDescriptor,
+                               IndexComponent indexComponent,
                                MetadataWriter metadataWriter,
                                boolean monotonic) throws IOException
     {
-        this(componentName, indexOutput, metadataWriter, monotonic, monotonic ? MONOTONIC_BLOCK_SIZE : BLOCK_SIZE);
+        this(indexDescriptor, indexComponent, metadataWriter, monotonic, monotonic ? MONOTONIC_BLOCK_SIZE : BLOCK_SIZE);
     }
 
     public NumericValuesWriter(IndexDescriptor indexDescriptor,
-                               IndexComponent component,
+                               IndexComponent indexComponent,
                                MetadataWriter metadataWriter,
                                boolean monotonic,
                                int blockSize) throws IOException
     {
-        this(indexDescriptor.componentName(component),
-             indexDescriptor.openPerSSTableOutput(component),
-             metadataWriter,
-             monotonic,
-             blockSize);
-    }
-
-    private NumericValuesWriter(String componentName,
-                                IndexOutput indexOutput,
-                                MetadataWriter metadataWriter,
-                                boolean monotonic, int blockSize) throws IOException
-    {
+        this.componentName = indexDescriptor.componentName(indexComponent);
+        this.indexOutput = indexDescriptor.openPerSSTableOutput(indexComponent);
         SAICodecUtils.writeHeader(indexOutput);
         this.writer = monotonic ? new MonotonicBlockPackedWriter(indexOutput, blockSize)
                                 : new BlockPackedWriter(indexOutput, blockSize);
-        this.output = indexOutput;
-        this.componentName = componentName;
         this.metadataWriter = metadataWriter;
         this.blockSize = blockSize;
     }
@@ -82,13 +70,13 @@ public class NumericValuesWriter implements Closeable
         try (IndexOutput o = metadataWriter.builder(componentName))
         {
             long fp = writer.finish();
-            SAICodecUtils.writeFooter(output);
+            SAICodecUtils.writeFooter(indexOutput);
 
             NumericValuesMeta.write(o, count, blockSize, fp);
         }
         finally
         {
-            output.close();
+            indexOutput.close();
         }
     }
 
