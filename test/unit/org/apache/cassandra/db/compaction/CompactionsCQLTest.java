@@ -40,6 +40,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -55,6 +56,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.LegacySSTableTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.CompactionParams;
@@ -206,6 +208,18 @@ public class CompactionsCQLTest extends CQLTester
     public void testSetLocalCompactionStrategy() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        testSetLocalCompactionStrategy(SizeTieredCompactionStrategy.class);
+    }
+
+    @Test
+    public void testSetLocalCompactionStrategyUCS() throws Throwable
+    {
+        testSetLocalCompactionStrategy(UnifiedCompactionStrategy.class);
+    }
+
+    private void testSetLocalCompactionStrategy(Class<? extends AbstractCompactionStrategy> strategy) throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (id text PRIMARY KEY) with compaction = {'class': '%s'}", strategy.getSimpleName()));
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "SizeTieredCompactionStrategy");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
@@ -346,7 +360,7 @@ public class CompactionsCQLTest extends CQLTester
 //        PartitionUpdate pu = PartitionUpdate.simpleBuilder(cfs.metadata(), 22).nowInSec(-1).delete().build();
 //        new Mutation(pu).apply();
 //        flush();
-//        
+//
 //        // Store sstables for later use
 //        StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), ColumnFamilyStore.FlushReason.UNIT_TESTS);
 //        File ksDir = new File("test/data/negative-ldts-invalid-deletions-test/");
@@ -618,12 +632,14 @@ public class CompactionsCQLTest extends CQLTester
             return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, 1 << 20, 1)
             {
                 int switchCount = 0;
-                public void switchCompactionLocation(Directories.DataDirectory directory)
+
+                @Override
+                public SSTableWriter sstableWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
                 {
                     switchCount++;
                     if (switchCount > 5)
                         throw new RuntimeException("Throw after a few sstables have had their starts moved");
-                    super.switchCompactionLocation(directory);
+                    return super.sstableWriter(directory, nextKey);
                 }
             };
         }
@@ -677,7 +693,7 @@ public class CompactionsCQLTest extends CQLTester
 
     private void readAndValidate(boolean asc, ColumnFamilyStore cfs) throws Throwable
     {
-        String kscf = cfs.keyspace.getName() + "." + cfs.name;
+        String kscf = cfs.getKeyspaceName() + "." + cfs.name;
         executeFormattedQuery("select * from " + kscf + " where id = 0 order by id2 "+(asc ? "ASC" : "DESC"));
 
         boolean gotException = false;
@@ -912,7 +928,7 @@ public class CompactionsCQLTest extends CQLTester
 
     private void loadTestSStables(ColumnFamilyStore cfs, File ksDir) throws IOException
     {
-        Keyspace.open(cfs.keyspace.getName()).getColumnFamilyStore(cfs.name).truncateBlocking();
+        Keyspace.open(cfs.getKeyspaceName()).getColumnFamilyStore(cfs.name).truncateBlocking();
         for (File cfDir : cfs.getDirectories().getCFDirectories())
         {
             File tableDir = new File(ksDir, cfs.name);

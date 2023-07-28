@@ -195,7 +195,7 @@ public class TableMetricTables
                 Metric metric = func.apply(cfs.metric);
 
                 // set new partition for this table
-                result.row(cfs.keyspace.getName(), cfs.name);
+                result.row(cfs.getKeyspaceName(), cfs.name);
 
                 // extract information by metric type and put it in row based on implementation of `add`
                 if (metric instanceof Counting)

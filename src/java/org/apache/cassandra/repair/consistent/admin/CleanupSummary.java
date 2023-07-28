@@ -76,7 +76,7 @@ public class CleanupSummary
 
     public CleanupSummary(ColumnFamilyStore cfs, Set<TimeUUID> successful, Set<TimeUUID> unsuccessful)
     {
-        this(cfs.keyspace.getName(), cfs.name, successful, unsuccessful);
+        this(cfs.getKeyspaceName(), cfs.name, successful, unsuccessful);
     }
 
     public static CleanupSummary add(CleanupSummary l, CleanupSummary r)

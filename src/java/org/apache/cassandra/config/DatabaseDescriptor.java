@@ -98,7 +98,9 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -123,10 +125,11 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SEARCH_CON
 import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_STORAGE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_DIR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_PORT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SKIP_CRYPTO_PROVIDER_INSTALLATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYSTEM;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
@@ -174,6 +177,7 @@ public class DatabaseDescriptor
 
     private static Config.DiskAccessMode indexAccessMode;
 
+    private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
@@ -425,6 +429,8 @@ public class DatabaseDescriptor
     {
         //InetAddressAndPort cares that applySimpleConfig runs first
         applySSTableFormats();
+
+        applyCryptoProvider();
 
         applySimpleConfig();
 
@@ -967,6 +973,8 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        conf.sai_options.validate();
     }
 
     @VisibleForTesting
@@ -1214,6 +1222,42 @@ public class DatabaseDescriptor
         catch (IOException e)
         {
             throw new ConfigurationException("Failed to initialize SSL", e);
+        }
+    }
+
+    public static void applyCryptoProvider()
+    {
+        if (TEST_SKIP_CRYPTO_PROVIDER_INSTALLATION.getBoolean())
+            return;
+
+        if (conf.crypto_provider == null)
+            conf.crypto_provider = new ParameterizedClass(JREProvider.class.getName(), null);
+
+        // properties beat configuration
+        String classNameFromSystemProperties = CassandraRelevantProperties.CRYPTO_PROVIDER_CLASS_NAME.getString();
+        if (classNameFromSystemProperties != null)
+            conf.crypto_provider.class_name = classNameFromSystemProperties;
+
+        if (conf.crypto_provider.class_name == null)
+            throw new ConfigurationException("Failed to initialize crypto provider, class_name cannot be null");
+
+        if (conf.crypto_provider.parameters == null)
+            conf.crypto_provider.parameters = new HashMap<>();
+
+        Map<String, String> cryptoProviderParameters = new HashMap<>(conf.crypto_provider.parameters);
+        cryptoProviderParameters.putIfAbsent(AbstractCryptoProvider.FAIL_ON_MISSING_PROVIDER_KEY, "false");
+
+        try
+        {
+            cryptoProvider = FBUtilities.newCryptoProvider(conf.crypto_provider.class_name, cryptoProviderParameters);
+            cryptoProvider.install();
+        }
+        catch (Exception e)
+        {
+            if (e instanceof ConfigurationException)
+                throw (ConfigurationException) e;
+            else
+                throw new ConfigurationException(String.format("Failed to initialize crypto provider %s", conf.crypto_provider.class_name), e);
         }
     }
 
@@ -1500,6 +1544,15 @@ public class DatabaseDescriptor
         return detector;
     }
 
+    public static AbstractCryptoProvider getCryptoProvider()
+    {
+        return cryptoProvider;
+    }
+
+    public static void setCryptoProvider(AbstractCryptoProvider cryptoProvider)
+    {
+        DatabaseDescriptor.cryptoProvider = cryptoProvider;
+    }
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
@@ -3550,6 +3603,12 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
+    @VisibleForTesting
+    public static boolean setStreamEntireSSTables(boolean value)
+    {
+        return conf.stream_entire_sstables = value;
+    }
+
     public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
     {
         return conf.stream_transfer_task_timeout;
@@ -3761,6 +3820,26 @@ public class DatabaseDescriptor
     public static void setSASIIndexesEnabled(boolean enableSASIIndexes)
     {
         conf.sasi_indexes_enabled = enableSASIIndexes;
+    }
+
+    public static String getDefaultSecondaryIndex()
+    {
+        return conf.default_secondary_index;
+    }
+
+    public static void setDefaultSecondaryIndex(String name)
+    {
+        conf.default_secondary_index = name;
+    }
+
+    public static boolean getDefaultSecondaryIndexEnabled()
+    {
+        return conf.default_secondary_index_enabled;
+    }
+
+    public static void setDefaultSecondaryIndexEnabled(boolean enabled)
+    {
+        conf.default_secondary_index_enabled = enabled;
     }
 
     public static boolean isTransientReplicationEnabled()
@@ -4750,5 +4829,15 @@ public class DatabaseDescriptor
             return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
         else
             return conf.storage_compatibility_mode;
+    }
+
+    public static ParameterizedClass getDefaultCompaction()
+    {
+        return conf != null ? conf.default_compaction : null;
+    }
+
+    public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
+    {
+        return conf.sai_options.segment_write_buffer_size;
     }
 }

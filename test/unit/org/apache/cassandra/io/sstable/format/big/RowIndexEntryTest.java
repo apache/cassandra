@@ -135,7 +135,13 @@ public class RowIndexEntryTest extends CQLTester
             doubleSerializer.build(null, partitionKey(42L),
                                    Arrays.asList(cn(42), cn(43), cn(44)),
                                    0L);
-            assertEquals(doubleSerializer.rieOldSerialized, doubleSerializer.rieNewSerialized);
+
+            RowIndexEntry newRie = doubleSerializer.rieSerializer.deserialize(new DataInputBuffer(doubleSerializer.rieNewSerialized, false), 0);
+            Pre_C_11206_RowIndexEntry oldRie = doubleSerializer.oldSerializer.deserialize(new DataInputBuffer(doubleSerializer.rieOldSerialized, false));
+
+            assertEquals(oldRie.position, newRie.getPosition());
+            assertEquals(oldRie.deletionTime(), newRie.deletionTime());
+            assertEquals(oldRie.columnsIndex().size(), newRie.blockCount());
         }
 
         // partition with multiple IndexInfo
@@ -144,7 +150,13 @@ public class RowIndexEntryTest extends CQLTester
             doubleSerializer.build(null, partitionKey(42L),
                                    Arrays.asList(cn(42), cn(43), cn(44), cn(45), cn(46), cn(47), cn(48), cn(49), cn(50), cn(51)),
                                    0L);
-            assertEquals(doubleSerializer.rieOldSerialized, doubleSerializer.rieNewSerialized);
+
+            RowIndexEntry newRie = doubleSerializer.rieSerializer.deserialize(new DataInputBuffer(doubleSerializer.rieNewSerialized, false), 0);
+            Pre_C_11206_RowIndexEntry oldRie = doubleSerializer.oldSerializer.deserialize(new DataInputBuffer(doubleSerializer.rieOldSerialized, false));
+
+            assertEquals(oldRie.position, newRie.getPosition());
+            assertEquals(oldRie.deletionTime(), newRie.deletionTime());
+            assertEquals(oldRie.columnsIndex().size(), newRie.blockCount());
         }
     }
 

@@ -41,21 +41,21 @@ public class SSTablePartitionsTest extends OfflineToolUtils
 {
     private static final String SSTABLE_1 = sstable("legacy_ma_simple");
     private static final String SSTABLE_2 = sstable("legacy_ma_clust");
-    private static final String HEADER_1 = "\nProcessing  #1 (big-ma) (0.169 KiB uncompressed, 0.086 KiB on disk)\n";
+    private static final String HEADER_1 = "\nProcessing  #1 (big-ma) (173 B uncompressed, 88 B on disk)\n";
     private static final String HEADER_2 = "\nProcessing  #1 (big-ma) (328.145 KiB uncompressed, 5.096 KiB on disk)\n";
-    private static final String BACKUPS_HEADER_1 = "\nProcessing Backup:backups  #1 (big-ma) (0.169 KiB uncompressed, 0.086 KiB on disk)\n";
+    private static final String BACKUPS_HEADER_1 = "\nProcessing Backup:backups  #1 (big-ma) (173 B uncompressed, 88 B on disk)\n";
     private static final String BACKUPS_HEADER_2 = "\nProcessing Backup:backups  #1 (big-ma) (328.145 KiB uncompressed, 5.096 KiB on disk)\n";
-    private static final String SNAPSHOTS_HEADER_1 = "\nProcessing Snapshot:snapshot-1  #1 (big-ma) (0.169 KiB uncompressed, 0.086 KiB on disk)\n";
+    private static final String SNAPSHOTS_HEADER_1 = "\nProcessing Snapshot:snapshot-1  #1 (big-ma) (173 B uncompressed, 88 B on disk)\n";
     private static final String SNAPSHOTS_HEADER_2 = "\nProcessing Snapshot:snapshot-1  #1 (big-ma) (328.145 KiB uncompressed, 5.096 KiB on disk)\n";
     private static final String SUMMARY_1 = "               Partition size            Row count           Cell count      Tombstone count\n" +
-                                            "  ~p50              0.034 KiB                    1                    1                    0\n" +
-                                            "  ~p75              0.034 KiB                    1                    1                    0\n" +
-                                            "  ~p90              0.034 KiB                    1                    1                    0\n" +
-                                            "  ~p95              0.034 KiB                    1                    1                    0\n" +
-                                            "  ~p99              0.034 KiB                    1                    1                    0\n" +
-                                            "  ~p999             0.034 KiB                    1                    1                    0\n" +
-                                            "  min               0.032 KiB                    1                    1                    0\n" +
-                                            "  max               0.034 KiB                    1                    1                    0\n" +
+                                            "  ~p50                   35 B                    1                    1                    0\n" +
+                                            "  ~p75                   35 B                    1                    1                    0\n" +
+                                            "  ~p90                   35 B                    1                    1                    0\n" +
+                                            "  ~p95                   35 B                    1                    1                    0\n" +
+                                            "  ~p99                   35 B                    1                    1                    0\n" +
+                                            "  ~p999                  35 B                    1                    1                    0\n" +
+                                            "  min                    33 B                    1                    1                    0\n" +
+                                            "  max                    35 B                    1                    1                    0\n" +
                                             "  count                     5\n";
     private static final String SUMMARY_2 = "               Partition size            Row count           Cell count      Tombstone count\n" +
                                             "  ~p50             71.735 KiB                   50                   50                    0\n" +
@@ -208,14 +208,14 @@ public class SSTablePartitionsTest extends OfflineToolUtils
         assertThatToolSucceds(SSTABLE_1, option)
                 .isEqualTo(HEADER_1 +
                            "               Partition size\n" +
-                           "  ~p50              0.034 KiB\n" +
-                           "  ~p75              0.034 KiB\n" +
-                           "  ~p90              0.034 KiB\n" +
-                           "  ~p95              0.034 KiB\n" +
-                           "  ~p99              0.034 KiB\n" +
-                           "  ~p999             0.034 KiB\n" +
-                           "  min               0.032 KiB\n" +
-                           "  max               0.034 KiB\n" +
+                           "  ~p50                   35 B\n" +
+                           "  ~p75                   35 B\n" +
+                           "  ~p90                   35 B\n" +
+                           "  ~p95                   35 B\n" +
+                           "  ~p99                   35 B\n" +
+                           "  ~p999                  35 B\n" +
+                           "  min                    33 B\n" +
+                           "  max                    35 B\n" +
                            "  count                     5\n");
 
         assertThatToolSucceds(SSTABLE_2, "--partitions-only")
@@ -257,10 +257,10 @@ public class SSTablePartitionsTest extends OfflineToolUtils
                            "  Keys: 0 1 2 3 4\n" +
                            SUMMARY_2 +
                            HEADER_1 +
-                           "  Partition: '1' (31) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '2' (32) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '3' (33) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '4' (34) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '1' (31) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '2' (32) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '3' (33) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '4' (34) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  4 partitions match\n" +
@@ -343,11 +343,11 @@ public class SSTablePartitionsTest extends OfflineToolUtils
                            "  Keys: 0 1 2 3 4\n" +
                            SUMMARY_2 +
                            HEADER_1 +
-                           "  Partition: '0' (30) live, size: 0.032 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '1' (31) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '2' (32) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '3' (33) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '4' (34) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '0' (30) live, size: 33 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '1' (31) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '2' (32) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '3' (33) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '4' (34) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  5 partitions match\n" +
@@ -397,11 +397,11 @@ public class SSTablePartitionsTest extends OfflineToolUtils
                            "  Keys: 0 1 2 3 4\n" +
                            SUMMARY_2 +
                            HEADER_1 +
-                           "  Partition: '0' (30) live, size: 0.032 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '1' (31) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '2' (32) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '3' (33) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '4' (34) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '0' (30) live, size: 33 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '1' (31) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '2' (32) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '3' (33) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '4' (34) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  5 partitions match\n" +
@@ -451,11 +451,11 @@ public class SSTablePartitionsTest extends OfflineToolUtils
                            "  Keys: 0 1 2 3 4\n" +
                            SUMMARY_2 +
                            HEADER_1 +
-                           "  Partition: '0' (30) live, size: 0.032 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '1' (31) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '2' (32) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '3' (33) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '4' (34) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '0' (30) live, size: 33 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '1' (31) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '2' (32) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '3' (33) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '4' (34) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  5 partitions match\n" +
@@ -534,8 +534,8 @@ public class SSTablePartitionsTest extends OfflineToolUtils
     {
         assertThatToolSucceds(SSTABLE_1, "--min-size", "0", option, "1", option, "3")
                 .contains(HEADER_1 +
-                           "  Partition: '1' (31) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '3' (33) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '1' (31) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '3' (33) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  2 partitions match\n" +
@@ -544,9 +544,9 @@ public class SSTablePartitionsTest extends OfflineToolUtils
 
         assertThatToolSucceds(SSTABLE_1, "--min-size", "0", option, "0", option, "2", option, "4")
                 .contains(HEADER_1 +
-                          "  Partition: '0' (30) live, size: 0.032 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                          "  Partition: '2' (32) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                          "  Partition: '4' (34) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                          "  Partition: '0' (30) live, size: 33 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                          "  Partition: '2' (32) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                          "  Partition: '4' (34) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                           "Summary of  #1 (big-ma):\n" +
                           "  File: " + SSTABLE_1 + "\n" +
                           "  3 partitions match\n" +
@@ -555,9 +555,9 @@ public class SSTablePartitionsTest extends OfflineToolUtils
 
         assertThatToolSucceds(SSTABLE_1, "-y","--min-size", "0", option, "0", option, "2", option, "4")
                 .contains(HEADER_1 +
-                          "  Partition: '0' (30) live, size: 0.032 KiB\n" +
-                          "  Partition: '2' (32) live, size: 0.034 KiB\n" +
-                          "  Partition: '4' (34) live, size: 0.034 KiB\n" +
+                          "  Partition: '0' (30) live, size: 33 B\n" +
+                          "  Partition: '2' (32) live, size: 35 B\n" +
+                          "  Partition: '4' (34) live, size: 35 B\n" +
                           "Summary of  #1 (big-ma):\n" +
                           "  File: " + SSTABLE_1 + "\n" +
                           "  3 partitions match\n" +
@@ -579,9 +579,9 @@ public class SSTablePartitionsTest extends OfflineToolUtils
     {
         assertThatToolSucceds(SSTABLE_1, "--min-size", "0", option, "1", option, "3")
                 .contains(HEADER_1 +
-                           "  Partition: '0' (30) live, size: 0.032 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '2' (32) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '4' (34) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '0' (30) live, size: 33 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '2' (32) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '4' (34) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  3 partitions match\n" +
@@ -590,8 +590,8 @@ public class SSTablePartitionsTest extends OfflineToolUtils
 
         assertThatToolSucceds(SSTABLE_1, "--min-size", "0", option, "0", option, "2", option, "4")
                 .contains(HEADER_1 +
-                           "  Partition: '1' (31) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
-                           "  Partition: '3' (33) live, size: 0.034 KiB, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '1' (31) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
+                           "  Partition: '3' (33) live, size: 35 B, rows: 1, cells: 1, tombstones: 0 (row:0, range:0, complex:0, cell:0, row-TTLd:0, cell-TTLd:0)\n" +
                            "Summary of  #1 (big-ma):\n" +
                            "  File: " + SSTABLE_1 + "\n" +
                            "  2 partitions match\n" +

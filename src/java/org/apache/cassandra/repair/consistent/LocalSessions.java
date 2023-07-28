@@ -301,7 +301,7 @@ public class LocalSessions
             }
         }
 
-        return new PendingStats(cfs.keyspace.getName(), cfs.name, pending.build(), finalized.build(), failed.build());
+        return new PendingStats(cfs.getKeyspaceName(), cfs.name, pending.build(), finalized.build(), failed.build());
     }
 
     public CleanupSummary cleanup(TableId tid, Collection<Range<Token>> ranges, boolean force)

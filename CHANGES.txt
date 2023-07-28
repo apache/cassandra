@@ -1,4 +1,16 @@
 5.0
+ * Introduce pluggable crypto providers and default to AmazonCorrettoCryptoProvider (CASSANDRA-18624)
+ * Improved DeletionTime serialization (CASSANDRA-18648)
+ * CEP-7: Storage Attached Indexes (CASSANDRA-16052)
+ * Add equals/hashCode override for ServerEncryptionOptions (CASSANDRA-18428)
+ * Upgrade ECJ to version 3.33.0 (CASSANDRA-18190)
+ * Fix ClassCastException  from jdk GaloisCounterMode when using JDK17 provider (CASSANDRA-18180)
+ * Drop JDK8, add JDK17 (CASSANDRA-18255)
+ * Remove WaitingOnFreeMemtableSpace and DroppedMutations metrics (CASSANDRA-18298)
+ * Upgrade Jamm version to 0.4.0  (CASSANDRA-17884, CASSANDRA-16304, CASSANDRA-18329)
+ * Remove legacy 3.0/3.11 buffer pool metrics (CASSANDRA-18313)
+ * Add AzureSnitch (CASSANDRA-18646)
+ * Implementation of the Unified Compaction Strategy as described in CEP-26 (CASSANDRA-18397)
  * Upgrade commons cli to 1.5.0 (CASSANDRA-18659)
  * Disable the deprecated keyspace/table thresholds and convert them to guardrails (CASSANDRA-18617)
  * Deprecate CloudstackSnitch and remove duplicate code in snitches (CASSANDRA-18438)
@@ -158,6 +170,13 @@
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
+
+
+4.1.4
+Merged from 4.0:
+ * Migrate Python optparse to argparse (CASSANDRA-17914)
+Merged from 3.11:
+Merged from 3.0:
 
 
 4.1.3

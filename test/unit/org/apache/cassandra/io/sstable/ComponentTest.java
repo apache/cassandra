@@ -57,18 +57,18 @@ public class ComponentTest
         Function<Type, Component> componentFactory = Mockito.mock(Function.class);
 
         // do not allow to define a type with the same name or repr as the existing type for this or parent format
-        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name, Components.Types.TOC.repr + "x", Format1.class));
-        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name + "x", Components.Types.TOC.repr, Format2.class));
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name, Components.Types.TOC.repr + "x", true, Format1.class));
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name + "x", Components.Types.TOC.repr, true, Format2.class));
 
         // allow to define a format with other name and repr
-        Type t1 = Type.createSingleton("ONE", "One.db", Format1.class);
+        Type t1 = Type.createSingleton("ONE", "One.db", true, Format1.class);
 
         // allow to define a format with the same name and repr for two different formats
-        Type t2f1 = Type.createSingleton("TWO", "Two.db", Format1.class);
-        Type t2f2 = Type.createSingleton("TWO", "Two.db", Format2.class);
+        Type t2f1 = Type.createSingleton("TWO", "Two.db", true, Format1.class);
+        Type t2f2 = Type.createSingleton("TWO", "Two.db", true, Format2.class);
         assertThat(t2f1).isNotEqualTo(t2f2);
 
-        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> Type.createSingleton(null, "-Three.db", Format1.class));
+        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> Type.createSingleton(null, "-Three.db", true, Format1.class));
 
         assertThat(Type.fromRepresentation("should be custom", BigFormat.getInstance())).isSameAs(Components.Types.CUSTOM);
         assertThat(Type.fromRepresentation(Components.Types.TOC.repr, BigFormat.getInstance())).isSameAs(Components.Types.TOC);
@@ -80,10 +80,10 @@ public class ComponentTest
     @Test
     public void testComponents()
     {
-        Type t3f1 = Type.createSingleton("THREE", "Three.db", Format1.class);
-        Type t3f2 = Type.createSingleton("THREE", "Three.db", Format2.class);
-        Type t4f1 = Type.create("FOUR", ".*-Four.db", Format1.class);
-        Type t4f2 = Type.create("FOUR", ".*-Four.db", Format2.class);
+        Type t3f1 = Type.createSingleton("THREE", "Three.db", true, Format1.class);
+        Type t3f2 = Type.createSingleton("THREE", "Three.db", true, Format2.class);
+        Type t4f1 = Type.create("FOUR", ".*-Four.db", true, Format1.class);
+        Type t4f2 = Type.create("FOUR", ".*-Four.db", true, Format2.class);
 
         Component c1 = t3f1.getSingleton();
         Component c2 = t3f2.getSingleton();

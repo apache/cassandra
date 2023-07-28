@@ -78,19 +78,28 @@ chmod -R ag+rwx ${build_dir}
 #
 ################################
 
+# git worktrees need their original working directory (in its original path)
+if [ -f ${cassandra_dir}/.git ] ; then
+    git_location="$(cat ${cassandra_dir}/.git | awk -F".git" '{print $1}' | awk '{print $2}')"
+    docker_volume_opt="${docker_volume_opt} -v${git_location}:${git_location}"
+fi
+
 pushd ${cassandra_dir}/.build >/dev/null
 
 image_tag="$(md5sum docker/${dockerfile} | cut -d' ' -f1)"
 image_name="apache/cassandra-${dockerfile/.docker/}:${image_tag}"
 
 # Look for existing docker image, otherwise build
-timeout -k 5 5 docker login >/dev/null
-if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] || docker pull -q ${image_name} ) ; then
+if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
+  # try docker login to increase dockerhub rate limits
+  timeout -k 5 5 docker login >/dev/null
+  if ! ( docker pull -q ${image_name} >/dev/null 2>/dev/null ) ; then
     # Create build images containing the build tool-chain, Java and an Apache Cassandra git working directory, with retry
     until docker build -t ${image_name} -f docker/${dockerfile} .  ; do
         echo "docker build failed… trying again in 10s… "
         sleep 10
     done
+  fi
 fi
 
 # Run build script through docker
@@ -110,7 +119,7 @@ docker_command="export ANT_OPTS=\"-Dbuild.dir=\${DIST_DIR} ${CASSANDRA_DOCKER_AN
 # re-use the host's maven repository
 container_id=$(docker run --name ${container_name} -d --security-opt seccomp=unconfined --rm \
     -v "${cassandra_dir}":/home/build/cassandra -v ~/.m2/repository/:/home/build/.m2/repository/ -v "${build_dir}":/dist \
-    ${build_volume_opt} \
+    ${docker_volume_opt} \
     ${image_name} sleep 1h)
 
 echo "Running container ${container_name} ${container_id}"

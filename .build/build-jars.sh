@@ -26,5 +26,5 @@ command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
 
 # execute
-ant -f "${CASSANDRA_DIR}/build.xml" jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true -Dno-javadoc=true
+ant -f "${CASSANDRA_DIR}/build.xml" jar
 exit $?

@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.*;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -42,17 +44,12 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     /**
      * The composite type.
      */
-    protected final ClusteringComparator comparator;
+    private final ClusteringComparator comparator;
 
     /**
      * <code>true</code> if filtering is allowed for this restriction, <code>false</code> otherwise
      */
     private final boolean allowFiltering;
-
-    public ClusteringColumnRestrictions(TableMetadata table)
-    {
-        this(table, false);
-    }
 
     public ClusteringColumnRestrictions(TableMetadata table, boolean allowFiltering)
     {
@@ -68,14 +65,16 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         this.allowFiltering = allowFiltering;
     }
 
-    public ClusteringColumnRestrictions mergeWith(Restriction restriction) throws InvalidRequestException
+    public ClusteringColumnRestrictions mergeWith(Restriction restriction, @Nullable IndexRegistry indexRegistry) throws InvalidRequestException
     {
         SingleRestriction newRestriction = (SingleRestriction) restriction;
         RestrictionSet newRestrictionSet = restrictions.addRestriction(newRestriction);
 
-        if (!isEmpty() && !allowFiltering)
+        if (!isEmpty() && !allowFiltering && (indexRegistry == null || !newRestriction.hasSupportingIndex(indexRegistry)))
         {
             SingleRestriction lastRestriction = restrictions.lastRestriction();
+            assert lastRestriction != null;
+
             ColumnMetadata lastRestrictionStart = lastRestriction.getFirstColumn();
             ColumnMetadata newRestrictionStart = restriction.getFirstColumn();
 
@@ -156,7 +155,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      * @return <code>true</code> if any of the underlying restriction is a CONTAINS or CONTAINS KEY,
      * <code>false</code> otherwise
      */
-    public final boolean hasContains()
+    public boolean hasContains()
     {
         for (SingleRestriction restriction : restrictions)
         {
@@ -172,7 +171,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      * @return <code>true</code> if any of the underlying restriction is a slice restrictions,
      * <code>false</code> otherwise
      */
-    public final boolean hasSlice()
+    public boolean hasSlice()
     {
         for (SingleRestriction restriction : restrictions)
         {
@@ -188,7 +187,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      * @return <code>true</code> if any underlying restrictions require filtering, <code>false</code>
      * otherwise
      */
-    public final boolean needFiltering()
+    public boolean needFiltering()
     {
         int position = 0;
 
@@ -204,7 +203,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     }
 
     @Override
-    public void addRowFilterTo(RowFilter filter,
+    public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options) throws InvalidRequestException
     {
@@ -215,7 +214,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             // We ignore all the clustering columns that can be handled by slices.
             if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexRegistry))
             {
-                restriction.addRowFilterTo(filter, indexRegistry, options);
+                restriction.addToRowFilter(filter, indexRegistry, options);
                 continue;
             }
 

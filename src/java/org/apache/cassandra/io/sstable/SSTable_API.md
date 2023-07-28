@@ -77,19 +77,19 @@ Apart from the generic components, each sstable format implementation may descri
 For example, the _big table_ format describes additionally `PRIMARY_INDEX` and `SUMMARY` singleton types and 
 the corresponding singleton components (see [`BigFormat.Components`](format/big/BigFormat.java)).
 
-Custom types can be created with one of the `Component.Type.create(name, repr, formatClass)`,
-`Component.Type.createSingleton(name, repr, formatClass)` methods. Each created type is registered in a global types'
-registry. Types registry is hierarchical which means that an sstable implementation may use types defined for its
-format class and for all parent format classes (for example, the types defined for the `BigFormat` class extend the set
-of types defined for the `SSTableFormat` interface).
+Custom types can be created with one of the `Component.Type.create(name, repr, streamable, formatClass)`,
+`Component.Type.createSingleton(name, repr, streamable, formatClass)` methods. Each created type is registered in 
+a global types' registry. Types registry is hierarchical which means that an sstable implementation may use types 
+defined for its format class and for all parent format classes (for example, the types defined for the `BigFormat` class
+extend the set of types defined for the `SSTableFormat` interface).
 
 For example, types defined for `BigFormat`:
 
 ```java
 public static class Types extends SSTableFormat.Components.Types
 {
-    public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", BigFormat.class);
-    public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", BigFormat.class);
+    public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", true, BigFormat.class);
+    public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", true, BigFormat.class);
 }
 ```
 

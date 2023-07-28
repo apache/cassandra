@@ -23,6 +23,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import org.slf4j.Logger;
@@ -63,7 +65,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
-    public static final RowFilter NONE = new CQLFilter(Collections.emptyList());
 
     protected final List<Expression> expressions;
 
@@ -80,6 +81,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public static RowFilter create(int capacity)
     {
         return new CQLFilter(new ArrayList<>(capacity));
+    }
+
+    public static RowFilter none()
+    {
+        return CQLFilter.NONE;
     }
 
     public SimpleExpression add(ColumnMetadata def, Operator op, ByteBuffer value)
@@ -229,7 +235,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         assert expressions.contains(expression);
         if (expressions.size() == 1)
-            return RowFilter.NONE;
+            return RowFilter.none();
 
         List<Expression> newExpressions = new ArrayList<>(expressions.size() - 1);
         for (Expression e : expressions)
@@ -259,6 +265,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public RowFilter withoutExpressions()
     {
         return withNewExpressions(Collections.emptyList());
+    }
+
+    public RowFilter restrict(Predicate<Expression> filter)
+    {
+        return withNewExpressions(expressions.stream().filter(filter).collect(Collectors.toList()));
     }
 
     protected abstract RowFilter withNewExpressions(List<Expression> expressions);
@@ -303,6 +314,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     private static class CQLFilter extends RowFilter
     {
+        static CQLFilter NONE = new CQLFilter(Collections.emptyList());
+
         private CQLFilter(List<Expression> expressions)
         {
             super(expressions);

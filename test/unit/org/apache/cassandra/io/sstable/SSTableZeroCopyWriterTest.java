@@ -168,7 +168,7 @@ public class SSTableZeroCopyWriterTest
 
                 try
                 {
-                    btzcw.writeComponent(component.type, pair.left, pair.right);
+                    btzcw.writeComponent(component, pair.left, pair.right);
                 }
                 catch (ClosedChannelException e)
                 {

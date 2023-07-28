@@ -210,19 +210,19 @@
                 <package-root>${project.dir}/src/java</package-root>
                 <classpath mode="compile">${cassandra.classpath.jars}</classpath>
                 <built-to>${project.dir}/build/classes/main</built-to>
-                <source-level>1.8</source-level>
+                <source-level>11</source-level>
             </compilation-unit>
             <compilation-unit>
                 <package-root>${project.dir}/tools/fqltool/src</package-root>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main</classpath>
                 <built-to>${project.dir}/build/classes/fqltool</built-to>
-                <source-level>1.8</source-level>
+                <source-level>11</source-level>
             </compilation-unit>
             <compilation-unit>
                 <package-root>${project.dir}/tools/stress/src</package-root>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main</classpath>
                 <built-to>${project.dir}/build/classes/stress</built-to>
-                <source-level>1.8</source-level>
+                <source-level>11</source-level>
             </compilation-unit>
             <compilation-unit>
                 <package-root>${project.dir}/test/unit</package-root>
@@ -233,21 +233,21 @@
                 <unit-tests/>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/:${project.dir}/build/classes/stress/</classpath>
                 <built-to>${project.dir}/build/test/classes</built-to>
-                <source-level>1.8</source-level>
+                <source-level>11</source-level>
             </compilation-unit>
             <compilation-unit>
                 <package-root>${project.dir}/tools/fqltool/test/unit</package-root>
                 <unit-tests/>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/</classpath>
                 <built-to>${project.dir}/build/test/fqltool-classes</built-to>
-                <source-level>1.8</source-level>
+                <source-level>11</source-level>
             </compilation-unit>
             <compilation-unit>
                 <package-root>${project.dir}/tools/stress/test/unit</package-root>
                 <unit-tests/>
                 <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/stress/</classpath>
                 <built-to>${project.dir}/build/test/stress-classes</built-to>
-                <source-level>1.8</source-level>
+                <source-level>11</source-level>
             </compilation-unit>
         </java-data>
     </configuration>

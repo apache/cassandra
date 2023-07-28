@@ -15,7 +15,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." name="apache-cassandra--resolver-tasks"
+<project basedir="." name="apache-cassandra-resolver-tasks"
          xmlns:resolver="antlib:org.apache.maven.resolver.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
@@ -64,7 +64,7 @@
 
         <macrodef name="resolve">
             <!--
-              maven-resolver-ant-tasks's resolve logic doesn't have retry logic and does not respect settings.xml, 
+              maven-resolver-ant-tasks's resolve logic doesn't have retry logic and does not respect settings.xml,
               this causes issues when overriding maven central is required (such as when behind a corporate firewall);
               it is critical to always provide the 'all' remoterepos to override resolve's default hard coded logic.
 
@@ -74,7 +74,7 @@
             <element name="elements" implicit="yes"/>
             <sequential>
                 <retry retrycount="3">
-                  <resolver:resolve failonmissingattachments="@{failonmissingattachments}">
+                    <resolver:resolve failonmissingattachments="@{failonmissingattachments}">
                         <resolver:remoterepos refid="all"/>
                         <elements/>
                     </resolver:resolve>
@@ -88,8 +88,8 @@
             <sequential>
                 <retry retrycount="3">
                     <resolver:pom file="@{file}" id="@{id}">
-                          <remoterepos refid="all"/>
-                          <elements/>
+                        <remoterepos refid="all"/>
+                        <elements/>
                     </resolver:pom>
                 </retry>
             </sequential>
@@ -127,12 +127,6 @@
                 <dependency groupId="de.jflex" artifactId="jflex" version="${jflex.version}" />
             </dependencies>
             <path refid="jflex.classpath" classpath="runtime"/>
-        </resolve>
-        <resolve>
-            <dependencies>
-                <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="${checkstyle.version}" />
-            </dependencies>
-            <path refid="checkstyle.classpath" classpath="runtime"/>
         </resolve>
 
         <macrodef name="install">
@@ -212,6 +206,26 @@
         </retry>
         <mkdir dir="${local.repository}/org/apache/cassandra/deps/sigar-bin"/>
         <mkdir dir="${build.lib}/sigar-bin"/>
+        <mkdir dir="${build.lib}/x86_64"/>
+        <mkdir dir="${build.lib}/aarch64"/> <!-- uname -m on arm prints aarch64 instead of aarch_64 -->
+
+        <!-- artifacts needs AmazonCorrettoCryptoProvider for multiple archs -->
+        <retry retrycount="3" retrydelay="10" >
+            <resolve>
+                <dependencies>
+                    <dependency groupId="software.amazon.cryptools" artifactId="AmazonCorrettoCryptoProvider" version="2.2.0" classifier="linux-x86_64" />
+                </dependencies>
+                <files dir="${build.lib}/x86_64" layout="{artifactId}-{version}-{classifier}.{extension}" />
+            </resolve>
+        </retry>
+        <retry retrycount="3" retrydelay="10" >
+            <resolve>
+                <dependencies>
+                    <dependency groupId="software.amazon.cryptools" artifactId="AmazonCorrettoCryptoProvider" version="2.2.0" classifier="linux-aarch_64" />
+                </dependencies>
+                <files dir="${build.lib}/aarch64" layout="{artifactId}-{version}-{classifier}.{extension}" />
+            </resolve>
+        </retry>
 
         <retry retrycount="3" retrydelay="10" >
             <antcall target="_resolver-dist-lib_get_files"/>
@@ -246,6 +260,10 @@
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-linux.so"/>
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
         </copy>
+
+        <!-- as resolver will copy all dependencies into lib dir, and we are copying jars to lib/{x86_64|aarch64} as well, we would have duplicities -->
+        <delete file="${build.lib}/AmazonCorrettoCryptoProvider-2.2.0-linux-x86_64.jar" failonerror="false"/>
+        <delete file="${build.lib}/AmazonCorrettoCryptoProvider-2.2.0-linux-aarch_64.jar" failonerror="false"/>
     </target>
 
     <target name="_resolver-dist-lib_get_files">

@@ -196,9 +196,9 @@ public class ValidatorTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TimeUUID repairSessionId = nextTimeUUID();
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
-                                                     cfs.getTableName(), singletonList(new Range<>(sstable.first.getToken(),
-                                                                                                               sstable.last.getToken())));
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.getKeyspaceName(),
+                                                     cfs.getTableName(), singletonList(new Range<>(sstable.getFirst().getToken(),
+                                                                                                   sstable.getLast().getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
 
@@ -253,9 +253,9 @@ public class ValidatorTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TimeUUID repairSessionId = nextTimeUUID();
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
-                                                     cfs.getTableName(), singletonList(new Range<>(sstable.first.getToken(),
-                                                                                                               sstable.last.getToken())));
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.getKeyspaceName(),
+                                                     cfs.getTableName(), singletonList(new Range<>(sstable.getFirst().getToken(),
+                                                                                                   sstable.getLast().getToken())));
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
 
@@ -313,10 +313,10 @@ public class ValidatorTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         TimeUUID repairSessionId = nextTimeUUID();
 
-        List<Range<Token>> ranges = splitHelper(new Range<>(sstable.first.getToken(), sstable.last.getToken()), 2);
+        List<Range<Token>> ranges = splitHelper(new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken()), 2);
 
 
-        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.keyspace.getName(),
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, nextTimeUUID(), cfs.getKeyspaceName(),
                                                      cfs.getTableName(), ranges);
 
         InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");

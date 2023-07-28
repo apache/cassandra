@@ -228,7 +228,7 @@ public class CompactionLogger
         ColumnFamilyStore cfs = cfsRef.get();
         if (cfs == null)
             return;
-        node.put("keyspace", cfs.keyspace.getName());
+        node.put("keyspace", cfs.getKeyspaceName());
         node.put("table", cfs.getTableName());
         node.put("time", currentTimeMillis());
     }

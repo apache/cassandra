@@ -190,10 +190,6 @@ public class StatsTableComparator implements Comparator<StatsTable>
                                           sty.compressionMetadataOffHeapMemoryUsed);
             }
         }
-        else if (sortKey.equals("dropped_mutations"))
-        {
-            result = compareFileSizes(stx.droppedMutations, sty.droppedMutations);
-        }
         else if (sortKey.equals("full_name"))
         {
             return sign * stx.fullName.compareTo(sty.fullName);

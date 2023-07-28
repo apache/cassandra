@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -44,8 +45,9 @@ public class ComponentContext implements AutoCloseable
         this.manifest = manifest;
     }
 
-    public static ComponentContext create(Descriptor descriptor)
+    public static ComponentContext create(SSTable sstable)
     {
+        Descriptor descriptor = sstable.descriptor;
         Map<Component, File> hardLinks = new HashMap<>(1);
 
         for (Component component : descriptor.getFormat().mutableComponents())
@@ -59,7 +61,7 @@ public class ComponentContext implements AutoCloseable
             hardLinks.put(component, hardlink);
         }
 
-        return new ComponentContext(hardLinks, ComponentManifest.create(descriptor));
+        return new ComponentContext(hardLinks, ComponentManifest.create(sstable));
     }
 
     public ComponentManifest manifest()

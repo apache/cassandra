@@ -35,6 +35,21 @@ import static org.junit.Assert.assertNotEquals;
  */
 public class EncryptionOptionsEqualityTest
 {
+    private EncryptionOptions.ServerEncryptionOptions createServerEncryptionOptions()
+    {
+        return new EncryptionOptions.ServerEncryptionOptions()
+               .withStoreType("JKS")
+               .withKeyStore("test/conf/cassandra.keystore")
+               .withKeyStorePassword("cassandra")
+               .withTrustStore("test/conf/cassandra_ssl_test.truststore")
+               .withTrustStorePassword("cassandra")
+               .withOutboundKeystore("test/conf/cassandra_outbound.keystore")
+               .withOutboundKeystorePassword("cassandra")
+               .withProtocol("TLSv1.1")
+               .withRequireClientAuth(true)
+               .withRequireEndpointVerification(false);
+    }
+
     @Test
     public void testKeystoreOptions() {
         EncryptionOptions encryptionOptions1 =
@@ -135,6 +150,52 @@ public class EncryptionOptionsEqualityTest
         new EncryptionOptions()
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
         .withProtocol("TLSv1.1");
+
+        assertNotEquals(encryptionOptions1, encryptionOptions2);
+        assertNotEquals(encryptionOptions1.hashCode(), encryptionOptions2.hashCode());
+    }
+
+    @Test
+    public void testServerEncryptionOptions()
+    {
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions1 = createServerEncryptionOptions();
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions2 = createServerEncryptionOptions();
+
+        assertEquals(encryptionOptions1, encryptionOptions2);
+        assertEquals(encryptionOptions1.hashCode(), encryptionOptions2.hashCode());
+    }
+
+    @Test
+    public void testServerEncryptionOptionsMismatchForOutboundKeystore()
+    {
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions1 = createServerEncryptionOptions();
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions2 = createServerEncryptionOptions();
+
+        encryptionOptions1 = encryptionOptions1
+                             .withOutboundKeystore("test/conf/cassandra_outbound1.keystore")
+                             .withOutboundKeystorePassword("cassandra1");
+
+        encryptionOptions2 = encryptionOptions2
+                             .withOutboundKeystore("test/conf/cassandra_outbound2.keystore")
+                             .withOutboundKeystorePassword("cassandra2");
+
+        assertNotEquals(encryptionOptions1, encryptionOptions2);
+        assertNotEquals(encryptionOptions1.hashCode(), encryptionOptions2.hashCode());
+    }
+
+    @Test
+    public void testServerEncryptionOptionsMismatchForInboundKeystore()
+    {
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions1 = createServerEncryptionOptions();
+        EncryptionOptions.ServerEncryptionOptions encryptionOptions2 = createServerEncryptionOptions();
+
+        encryptionOptions1 = encryptionOptions1
+                             .withKeyStore("test/conf/cassandra1.keystore")
+                             .withKeyStorePassword("cassandra1");
+
+        encryptionOptions2 = encryptionOptions2
+                             .withKeyStore("test/conf/cassandra2.keystore")
+                             .withKeyStorePassword("cassandra2");
 
         assertNotEquals(encryptionOptions1, encryptionOptions2);
         assertNotEquals(encryptionOptions1.hashCode(), encryptionOptions2.hashCode());

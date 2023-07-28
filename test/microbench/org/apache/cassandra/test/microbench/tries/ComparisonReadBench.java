@@ -43,6 +43,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.github.jamm.MemoryMeter;
+import org.github.jamm.MemoryMeter.Guess;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -66,10 +67,11 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Benchmark)
 public class ComparisonReadBench
 {
-    // Note: To see a printout of the usage for each object, add .enableDebug() here (most useful with smaller number of
+    // Note: To see a printout of the usage for each object, add .printVisitedTree() here (most useful with smaller number of
     // partitions).
-    static MemoryMeter meter = new MemoryMeter().ignoreKnownSingletons()
-                                                .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE);
+    static MemoryMeter meter = MemoryMeter.builder()
+                                          .withGuessing(Guess.INSTRUMENTATION_AND_SPECIFICATION, Guess.UNSAFE)
+                                          .build();
 
     @Param({"ON_HEAP"})
     BufferType bufferType = BufferType.OFF_HEAP;

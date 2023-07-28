@@ -298,7 +298,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
         StringBuilder cfsb = new StringBuilder();
         for (ColumnFamilyStore cfs : columnFamilyStores)
-            cfsb.append(", ").append(cfs.keyspace.getName()).append(".").append(cfs.name);
+            cfsb.append(", ").append(cfs.getKeyspaceName()).append(".").append(cfs.name);
 
         TimeUUID sessionId = Tracing.instance.newSession(Tracing.TraceType.REPAIR);
         TraceState traceState = Tracing.instance.begin("repair", ImmutableMap.of("keyspace", state.keyspace, "columnFamilies",

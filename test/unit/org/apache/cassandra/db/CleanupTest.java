@@ -312,8 +312,8 @@ public class CleanupTest
         cfs.forceCleanup(2);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            assertEquals(sstable.first, sstable.last); // single-token sstables
-            assertTrue(sstable.first.getToken().compareTo(token(new byte[]{ 50 })) <= 0);
+            assertEquals(sstable.getFirst(), sstable.getLast()); // single-token sstables
+            assertTrue(sstable.getFirst().getToken().compareTo(token(new byte[]{ 50 })) <= 0);
             // with single-token sstables they should all either be skipped or dropped:
             assertTrue(beforeFirstCleanup.contains(sstable));
         }
@@ -358,8 +358,8 @@ public class CleanupTest
 
         // prepare SSTable and some useful tokens
         SSTableReader ssTable = cfs.getLiveSSTables().iterator().next();
-        final Token ssTableMin = ssTable.first.getToken();
-        final Token ssTableMax = ssTable.last.getToken();
+        final Token ssTableMin = ssTable.getFirst().getToken();
+        final Token ssTableMax = ssTable.getLast().getToken();
 
         final Token min = token((byte) 0);
         final Token before1 = token((byte) 2);

@@ -27,11 +27,11 @@ import java.util.regex.Pattern;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
+import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
-import static org.apache.cassandra.locator.CloudstackSnitch.CloudstackConnector.ZONE_NAME_QUERY_URI;
 
 /**
  * A snitch that assumes a Cloudstack Zone follows the typical convention
@@ -43,6 +43,8 @@ import static org.apache.cassandra.locator.CloudstackSnitch.CloudstackConnector.
 @Deprecated
 public class CloudstackSnitch extends AbstractCloudMetadataServiceSnitch
 {
+    static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";
+
     private static final String[] LEASE_FILES =
     {
     "file:///var/lib/dhcp/dhclient.eth0.leases",
@@ -56,24 +58,14 @@ public class CloudstackSnitch extends AbstractCloudMetadataServiceSnitch
 
     public CloudstackSnitch(SnitchProperties snitchProperties) throws IOException
     {
-        this(snitchProperties, new CloudstackConnector(snitchProperties.putIfAbsent(METADATA_URL_PROPERTY, csMetadataEndpoint())));
+        this(new DefaultCloudMetadataServiceConnector(snitchProperties.putIfAbsent(METADATA_URL_PROPERTY, csMetadataEndpoint())));
     }
 
-    public CloudstackSnitch(SnitchProperties properties, AbstractCloudMetadataServiceConnector connector) throws IOException
+    public CloudstackSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, properties, resolveDcAndRack(connector));
+        super(connector, resolveDcAndRack(connector));
         logger.warn("{} is deprecated and not actively maintained. It will be removed in the next " +
                     "major version of Cassandra.", CloudstackSnitch.class.getName());
-    }
-
-    static class CloudstackConnector extends AbstractCloudMetadataServiceConnector
-    {
-        static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";
-
-        protected CloudstackConnector(SnitchProperties properties)
-        {
-            super(properties);
-        }
     }
 
     private static Pair<String, String> resolveDcAndRack(AbstractCloudMetadataServiceConnector connector) throws IOException

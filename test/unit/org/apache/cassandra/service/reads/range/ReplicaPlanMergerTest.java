@@ -392,7 +392,7 @@ public class ReplicaPlanMergerTest
                                   AbstractBounds<PartitionPosition> queryRange,
                                   AbstractBounds<PartitionPosition>... expected)
     {
-        try (ReplicaPlanIterator originals = new ReplicaPlanIterator(queryRange, keyspace, ANY); // ANY avoids endpoint erros
+        try (ReplicaPlanIterator originals = new ReplicaPlanIterator(queryRange, null, keyspace, ANY); // ANY avoids endpoint erros
              ReplicaPlanMerger merger = new ReplicaPlanMerger(originals, keyspace, consistencyLevel))
         {
             // collect the merged ranges

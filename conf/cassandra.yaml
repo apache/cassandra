@@ -1002,6 +1002,20 @@ snapshot_links_per_second: 0
 # Min unit: KiB
 column_index_cache_size: 2KiB
 
+# Default compaction strategy, applied when a table's parameters do not
+# specify compaction.
+# The selected compaction strategy will also apply to system tables.
+#
+# The default is to use SizeTieredCompactionStrategy, with its default
+# compaction parameters.
+#
+# default_compaction:
+#   class_name: UnifiedCompactionStrategy
+#   parameters:
+#     scaling_parameters: T4
+#     target_sstable_size: 1GiB
+
+
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
 # compactions can help preserve read performance in a mixed read/write
@@ -1302,6 +1316,11 @@ slow_query_log_timeout: 500ms
 #    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
 #    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
 #
+# AzureSnitch:
+#    Gets datacenter from 'location' and rack from 'zone' fields of 'compute' object
+#    from instance metadata service. If the availability zone is not enabled, it will use the fault
+#    domain and get its respective value.
+#
 # CloudstackSnitch:
 #    A snitch that assumes a Cloudstack Zone follows the typical convention 
 #    country-location-az and uses a country/location tuple as a datacenter
@@ -1355,6 +1374,21 @@ dynamic_snitch_reset_interval: 600000ms
 # 0.2 means Cassandra would continue to prefer the static snitch values
 # until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 1.0
+
+# Configures Java crypto provider. By default, it will use DefaultCryptoProvider
+# which will install Amazon Correto Crypto Provider.
+#
+# Amazon Correto Crypto Provider works currently for x86_64 and aarch_64 platforms.
+# If this provider fails it will fall back to the default crypto provider in the JRE.
+#
+# To force failure when the provider was not installed properly, set the property "fail_on_missing_provider" to "true".
+#
+# To bypass the installation of a crypto provider use class 'org.apache.cassandra.security.JREProvider'
+#
+crypto_provider:
+  - class_name: org.apache.cassandra.security.DefaultCryptoProvider
+    parameters:
+      - fail_on_missing_provider: "false"
 
 # Configure server-to-server internode encryption
 #
@@ -1526,6 +1560,12 @@ transparent_data_encryption_options:
           store_type: JCEKS
           key_password: cassandra
 
+# Storage Attached Indexing options.
+# sai_options:
+  ## Total permitted memory allowed for writing SAI index segments. This memory
+  ## is split between all SAI indexes being built so more indexes will mean smaller
+  ## segment sizes.
+  # segment_write_buffer_size: 1024MiB
 
 #####################
 # SAFETY THRESHOLDS #
@@ -1949,6 +1989,15 @@ drop_compact_storage_enabled: false
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it. Defaults to true.
 # if zero_ttl_on_twcs_enabled is set to false, this property is irrelevant as such statements will fail.
 #zero_ttl_on_twcs_warned: true
+
+# The default secondary index implementation when CREATE INDEX does not specify one via USING.
+# ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table
+# ex. "sai" - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+#default_secondary_index: legacy_local_table
+
+# Whether a default secondary index implementation is allowed. If this is "false", CREATE INDEX must
+# specify an index implementation via USING.
+#default_secondary_index_enabled: true
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

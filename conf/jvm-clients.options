@@ -1,7 +1,7 @@
 ###########################################################################
 #                         jvm-clients.options                             #
 #                                                                         #
-# See jvm8-clients.options and jvm11-clients.options for Java version     #
+# See jvm11-clients.options and jvm17-clients.options for Java version     #
 # specific options.                                                       #
 ###########################################################################
 

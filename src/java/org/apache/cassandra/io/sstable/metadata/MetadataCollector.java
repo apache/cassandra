@@ -95,6 +95,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
                                  -1,
+                                 Double.NaN,
                                  null,
                                  null,
                                  false,
@@ -128,13 +129,14 @@ public class MetadataCollector implements PartitionStatisticsCollector
      * be a corresponding end bound that is bigger).
      */
     private ClusteringPrefix<?> maxClustering = ClusteringBound.MIN_END;
-    private boolean clusteringInitialized = false;
 
     protected boolean hasLegacyCounterShards = false;
     private boolean hasPartitionLevelDeletions = false;
     protected long totalColumnsSet;
     protected long totalRows;
     public int totalTombstones;
+
+    protected double tokenSpaceCoverage = Double.NaN;
 
     /**
      * Default cardinality estimation method is to use HyperLogLog++.
@@ -159,7 +161,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.originatingHostId = originatingHostId;
     }
 
-    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator)
     {
         this(comparator);
 
@@ -173,7 +175,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
             }
         }
         commitLogIntervals(intervals.build());
-        sstableLevel(level);
     }
 
     public MetadataCollector addKey(ByteBuffer key)
@@ -292,6 +293,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
+    public MetadataCollector tokenSpaceCoverage(double coverage)
+    {
+        tokenSpaceCoverage = coverage;
+        return this;
+    }
+
     public void updateClusteringValues(Clustering<?> clustering)
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
@@ -372,6 +379,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows,
+                                                             tokenSpaceCoverage,
                                                              originatingHostId,
                                                              pendingRepair,
                                                              isTransient,

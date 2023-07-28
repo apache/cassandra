@@ -24,6 +24,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.primitives.Ints;
+
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
@@ -164,11 +166,14 @@ public interface DataOutputPlus extends DataOutput
     }
 
     /**
-     * Pad this page with 0s to move on to the next.
+     * Pad this with zeroes until the next page boundary. If the destination position
+     * is already at a page boundary, do not do anything.
      */
     default void padToPageBoundary() throws IOException
     {
-        throw new UnsupportedOperationException();
+        long position = position();
+        long bytesLeft = PageAware.padded(position) - position;
+        write(PageAware.EmptyPage.EMPTY_PAGE, 0, Ints.checkedCast(bytesLeft));
     }
 
     /**

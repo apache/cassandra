@@ -27,7 +27,7 @@
 # help
 if [ "$#" -lt 1 ] || [ "$#" -gt 3 ] || [ "$1" == "-h" ]; then
     echo ""
-    echo "Usage: run-tests.sh target [split_chunk|test_regexp] [java_version]"
+    echo "Usage: run-tests.sh test_type [split_chunk|test_regexp] [java_version]"
     echo ""
     echo "        default split_chunk is 1/1"
     echo "        default java_version is what 'java.default' specifies in build.xml"
@@ -84,13 +84,16 @@ image_name="apache/cassandra-${dockerfile/.docker/}:${image_tag}"
 docker_mounts="-v ${cassandra_dir}:/home/cassandra/cassandra -v "${build_dir}":/home/cassandra/cassandra/build -v ${HOME}/.m2/repository:/home/cassandra/.m2/repository"
 
 # Look for existing docker image, otherwise build
-timeout -k 5 5 docker login >/dev/null 2>/dev/null
-if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] || docker pull -q ${image_name} ) >/dev/null 2>/dev/null ; then
+if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
+  # try docker login to increase dockerhub rate limits
+  timeout -k 5 5 docker login >/dev/null 2>/dev/null
+  if ! ( docker pull -q ${image_name} >/dev/null 2>/dev/null ) ; then
     # Create build images containing the build tool-chain, Java and an Apache Cassandra git working directory, with retry
     until docker build -t ${image_name} -f docker/${dockerfile} .  ; do
         echo "docker build failed… trying again in 10s… "
         sleep 10
     done
+  fi
 fi
 
 pushd ${cassandra_dir} >/dev/null
@@ -118,7 +121,7 @@ case ${target} in
     "stress-test" | "fqltool-test" | "microbench" | "test-burn" | "long-test" | "cqlsh-test" )
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "tests require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
     ;;
-    "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" )
+    "dtest" | "dtest-novnode" | "dtest-offheap" | "dtest-large" | "dtest-large-novnode" | "dtest-upgrade" | "dtest-upgrade-large" )
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py must exist"; exit 1; }
         [[ ${mem} -gt $((15 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "dtests require minimum docker memory 16g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
         test_script="run-python-dtests.sh"
@@ -126,13 +129,13 @@ case ${target} in
         # check that ${cassandra_dtest_dir} is valid
         [ -f "${cassandra_dtest_dir}/dtest.py" ] || { echo >&2 "${cassandra_dtest_dir}/dtest.py not found. please specify 'cassandra_dtest_dir' to point to the local cassandra-dtest source"; exit 1; }
     ;;
-    "test"| "test-cdc" | "test-compression" | "jvm-dtest" | "jvm-dtest-upgrade")
+    "test"| "test-cdc" | "test-compression" | "test-oa" | "test-system-keyspace-directory" | "test-tries" | "jvm-dtest" | "jvm-dtest-upgrade")
         [[ ${mem} -gt $((5 * 1024 * 1024 * 1024 * ${jenkins_executors})) ]] || { echo >&2 "tests require minimum docker memory 6g (per jenkins executor (${jenkins_executors})), found ${mem}"; exit 1; }
         max_docker_runs_by_cores=$( echo "sqrt( ${cores} / ${jenkins_executors} )" | bc )
         max_docker_runs_by_mem=$(( ${mem} / ( 5 * 1024 * 1024 * 1024 * ${jenkins_executors} ) ))
     ;;
     *)
-    echo "unrecognized \"${target}\""
+    echo "unrecognized test type \"${target}\""
     exit 1
     ;;
 esac
@@ -177,6 +180,12 @@ if [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]]; then
     split_str="${split_chunk/\//_}"
 fi
 
+# git worktrees need their original working directory (in its original path)
+if [ -f ${cassandra_dir}/.git ] ; then
+    git_location="$(cat ${cassandra_dir}/.git | awk -F".git" '{print $1}' | awk '{print $2}')"
+    docker_volume_opt="${docker_volume_opt} -v${git_location}:${git_location}"
+fi
+
 random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
 
 container_name="cassandra_${dockerfile/.docker/}_${target}_jdk${java_version/./-}_arch-$(arch)_python${python_version/./-}_${split_str}__${random_string}"
@@ -190,7 +199,7 @@ docker_command="source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_versi
             \${CASSANDRA_DIR}/.build/docker/_docker_init_tests.sh ${target} ${split_chunk} ; exit \$?"
 
 # start the container, timeout after 4 hours
-docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_mounts} ${image_name} sleep 4h)
+docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_mounts} ${docker_volume_opt} ${image_name} sleep 4h)
 
 echo "Running container ${container_name} ${docker_id}"
 

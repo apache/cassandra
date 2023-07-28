@@ -35,7 +35,6 @@ import static org.quicktheories.generators.SourceDSL.longs;
 
 public class SizedIntsTest
 {
-
     @Test
     public void nonZeroSize()
     {

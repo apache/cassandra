@@ -33,7 +33,7 @@ print_help()
   echo "Usage: $0 [-f|-p|-a|-e|-i|-b|-s]"
   echo "   -a Generate the config.yml, config.yml.FREE and config.yml.PAID expanded configuration"
   echo "      files from the main config_template.yml reusable configuration file."
-  echo "      Use this for permanent changes in config that will be committed to the main repo."
+  echo "      Use this for permanent changes in config.yml that will be committed to the main repo."
   echo "   -f Generate config.yml for tests compatible with the CircleCI free tier resources"
   echo "   -p Generate config.yml for tests compatible with the CircleCI paid tier resources"
   echo "   -b Specify the base git branch for comparison when determining changed tests to"
@@ -271,65 +271,64 @@ delete_job()
 delete_repeated_jobs()
 {
   if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
-    delete_job "$1" "j8_unit_tests_repeat"
     delete_job "$1" "j11_unit_tests_repeat"
-    delete_job "$1" "j8_utests_cdc_repeat"
+    delete_job "$1" "j17_unit_tests_repeat"
     delete_job "$1" "j11_utests_cdc_repeat"
-    delete_job "$1" "j8_utests_compression_repeat"
+    delete_job "$1" "j17_utests_cdc_repeat"
     delete_job "$1" "j11_utests_compression_repeat"
-    delete_job "$1" "j8_utests_trie_repeat"
+    delete_job "$1" "j17_utests_compression_repeat"
     delete_job "$1" "j11_utests_trie_repeat"
-    delete_job "$1" "j8_utests_oa_repeat"
+    delete_job "$1" "j17_utests_trie_repeat"
     delete_job "$1" "j11_utests_oa_repeat"
-    delete_job "$1" "j8_utests_system_keyspace_directory_repeat"
+    delete_job "$1" "j17_utests_oa_repeat"
     delete_job "$1" "j11_utests_system_keyspace_directory_repeat"
+    delete_job "$1" "j17_utests_system_keyspace_directory_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then
-    delete_job "$1" "j8_utests_long_repeat"
     delete_job "$1" "j11_utests_long_repeat"
+    delete_job "$1" "j17_utests_long_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_STRESS=")); then
-    delete_job "$1" "j8_utests_stress_repeat"
     delete_job "$1" "j11_utests_stress_repeat"
+    delete_job "$1" "j17_utests_stress_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_FQLTOOL=")); then
-    delete_job "$1" "j8_utests_fqltool_repeat"
     delete_job "$1" "j11_utests_fqltool_repeat"
+    delete_job "$1" "j17_utests_fqltool_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_SIMULATOR_DTESTS=")); then
-    delete_job "$1" "j8_simulator_dtests_repeat"
     delete_job "$1" "j11_simulator_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_JVM_DTESTS=")); then
-    delete_job "$1" "j8_jvm_dtests_repeat"
-    delete_job "$1" "j8_jvm_dtests_vnode_repeat"
     delete_job "$1" "j11_jvm_dtests_repeat"
     delete_job "$1" "j11_jvm_dtests_vnode_repeat"
+    delete_job "$1" "j17_jvm_dtests_repeat"
+    delete_job "$1" "j17_jvm_dtests_vnode_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_JVM_UPGRADE_DTESTS=")); then
     delete_job "$1" "start_jvm_upgrade_dtests_repeat"
     delete_job "$1" "j11_jvm_upgrade_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_DTESTS=")); then
-    delete_job "$1" "j8_dtests_repeat"
-    delete_job "$1" "j8_dtests_vnode_repeat"
-    delete_job "$1" "j8_dtests_offheap_repeat"
     delete_job "$1" "j11_dtests_repeat"
     delete_job "$1" "j11_dtests_vnode_repeat"
     delete_job "$1" "j11_dtests_offheap_repeat"
+    delete_job "$1" "j17_dtests_repeat"
+    delete_job "$1" "j17_dtests_vnode_repeat"
+    delete_job "$1" "j17_dtests_offheap_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_LARGE_DTESTS=")); then
-    delete_job "$1" "j8_dtests_large_repeat"
-    delete_job "$1" "j8_dtests_large_vnode_repeat"
     delete_job "$1" "j11_dtests_large_repeat"
     delete_job "$1" "j11_dtests_large_vnode_repeat"
+    delete_job "$1" "j17_dtests_large_repeat"
+    delete_job "$1" "j17_dtests_large_vnode_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
     delete_job "$1" "j11_upgrade_dtests_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_ANT_TEST_CLASS=")); then
-    delete_job "$1" "j8_repeated_ant_test"
     delete_job "$1" "j11_repeated_ant_test"
+    delete_job "$1" "j17_repeated_ant_test"
   fi
 }
 

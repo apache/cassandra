@@ -94,7 +94,7 @@ public class GuardrailTablesTest extends ThresholdTester
     @Override
     protected void dropTable(String tableName)
     {
-        dropFormattedTable(format("DROP TABLE %s.%s", KEYSPACE_PER_TEST, tableName));
+        super.dropTable(format("DROP TABLE %s.%s", KEYSPACE_PER_TEST, tableName));
     }
 
     private String assertCreateTableValid() throws Throwable

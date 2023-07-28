@@ -1,9 +1,0 @@
-###########################################################################
-#                         jvm8-clients.options                            #
-#                                                                         #
-# See jvm-clients.options. This file is specific for Java 8 and newer.    #
-###########################################################################
-
-# intentionally left empty
-
-# The newline in the end of file is intentional

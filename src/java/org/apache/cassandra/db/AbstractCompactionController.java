@@ -44,7 +44,7 @@ public abstract class AbstractCompactionController implements AutoCloseable
 
     public String getKeyspace()
     {
-        return cfs.keyspace.getName();
+        return cfs.getKeyspaceName();
     }
 
     public String getColumnFamily()

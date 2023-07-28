@@ -73,7 +73,7 @@ public class SSTableImporter
     synchronized List<String> importNewSSTables(Options options)
     {
         UUID importID = UUID.randomUUID();
-        logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.keyspace.getName(), cfs.getTableName(), options);
+        logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
 
         List<Pair<Directories.SSTableLister, String>> listers = getSSTableListers(options.srcPaths);
 
@@ -175,17 +175,22 @@ public class SSTableImporter
 
         if (newSSTables.isEmpty())
         {
-            logger.info("[{}] No new SSTables were found for {}/{}", importID, cfs.keyspace.getName(), cfs.getTableName());
+            logger.info("[{}] No new SSTables were found for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
             return failedDirectories;
         }
 
-        logger.info("[{}] Loading new SSTables and building secondary indexes for {}/{}: {}", importID, cfs.keyspace.getName(), cfs.getTableName(), newSSTables);
+        logger.info("[{}] Loading new SSTables and building secondary indexes for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), newSSTables);
         if (logger.isTraceEnabled())
             logLeveling(importID, newSSTables);
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
             abortIfDraining();
+
+            // Validate existing SSTable-attached indexes, and then build any that are missing:
+            if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false))
+                cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
+
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
@@ -199,7 +204,7 @@ public class SSTableImporter
             throw new RuntimeException("Failed adding SSTables", t);
         }
 
-        logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.keyspace.getName(), cfs.getTableName());
+        logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
         return failedDirectories;
     }
 

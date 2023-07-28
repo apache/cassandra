@@ -1,5 +1,6 @@
 create_index_statement::= CREATE [ CUSTOM ] INDEX [ IF NOT EXISTS ] [ index_name ] 
 	ON table_name '(' index_identifier ')' 
-	[ USING string [ WITH OPTIONS = map_literal ] ] 
+	[ USING index_type [ WITH OPTIONS = map_literal ] ] 
 index_identifier::= column_name 
 	| ( KEYS | VALUES | ENTRIES | FULL ) '(' column_name ')'
+index_type::= 'sai' | 'legacy_local_table' | fully_qualified_class_name

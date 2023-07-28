@@ -24,6 +24,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.codahale.metrics.Histogram;
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Cluster;
@@ -33,9 +34,12 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.service.reads.range.RangeCommandIterator;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 
 import static com.datastax.driver.core.Cluster.builder;
-import static org.junit.Assert.assertEquals;
 
 public class ClientRequestMetricsTest
 {
@@ -161,6 +165,23 @@ public class ClientRequestMetricsTest
         assertEquals(0, writeMetricsContainer.compareRemoteRequest());
     }
 
+    @Test
+    public void testRangeRead() throws Throwable
+    {
+        clearHistogram(RangeCommandIterator.rangeMetrics.roundTrips);
+        long latencyCount = RangeCommandIterator.rangeMetrics.latency.getCount();
+
+        session.execute("SELECT * FROM system.peers");
+
+        assertThat(RangeCommandIterator.rangeMetrics.roundTrips.getCount()).isGreaterThan(0);
+        assertThat(RangeCommandIterator.rangeMetrics.roundTrips.getSnapshot().getMax()).isEqualTo(1);
+        assertThat(RangeCommandIterator.rangeMetrics.latency.getCount()).isEqualTo(latencyCount + 1);
+    }
+
+    private void clearHistogram(Histogram histogram)
+    {
+        ((ClearableHistogram) histogram).clear();
+    }
 
     private static class ClientRequestMetricsContainer
     {

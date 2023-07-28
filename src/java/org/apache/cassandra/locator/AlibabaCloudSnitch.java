@@ -19,8 +19,6 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
@@ -44,14 +42,13 @@ public class AlibabaCloudSnitch extends AbstractCloudMetadataServiceSnitch
 
     public AlibabaCloudSnitch(SnitchProperties properties) throws IOException
     {
-        this(properties, new DefaultCloudMetadataServiceConnector(properties.putIfAbsent(METADATA_URL_PROPERTY,
-                                                                                         DEFAULT_METADATA_SERVICE_URL)));
+        this(new DefaultCloudMetadataServiceConnector(properties.putIfAbsent(METADATA_URL_PROPERTY,
+                                                                             DEFAULT_METADATA_SERVICE_URL)));
     }
 
-    public AlibabaCloudSnitch(SnitchProperties properties, AbstractCloudMetadataServiceConnector connector) throws IOException
+    public AlibabaCloudSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, properties, SnitchUtils.parseDcAndRack(connector.apiCall(ZONE_NAME_QUERY_URL,
-                                                                                  ImmutableMap.of()),
-                                                                properties.getDcSuffix()));
+        super(connector, SnitchUtils.parseDcAndRack(connector.apiCall(ZONE_NAME_QUERY_URL),
+                                                    connector.getProperties().getDcSuffix()));
     }
 }

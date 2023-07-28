@@ -163,7 +163,7 @@ public class ReplicaPlanIteratorTest
     @SafeVarargs
     private final void testRanges(Keyspace keyspace, AbstractBounds<PartitionPosition> queryRange, AbstractBounds<PartitionPosition>... expected)
     {
-        try (ReplicaPlanIterator iterator = new ReplicaPlanIterator(queryRange, keyspace, ConsistencyLevel.ANY))
+        try (ReplicaPlanIterator iterator = new ReplicaPlanIterator(queryRange, null, keyspace, ConsistencyLevel.ANY))
         {
             List<AbstractBounds<PartitionPosition>> restrictedRanges = new ArrayList<>(expected.length);
             while (iterator.hasNext())

@@ -54,7 +54,7 @@ public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTable
     {
         List<Interval<PartitionPosition, SSTableReader>> intervals = new ArrayList<>(Iterables.size(sstables));
         for (SSTableReader sstable : sstables)
-            intervals.add(Interval.<PartitionPosition, SSTableReader>create(sstable.first, sstable.last, sstable));
+            intervals.add(Interval.<PartitionPosition, SSTableReader>create(sstable.getFirst(), sstable.getLast(), sstable));
         return intervals;
     }
 }

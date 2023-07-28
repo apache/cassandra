@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
@@ -379,9 +381,9 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter>
         }
 
         @Override
-        public Builder addDefaultComponents()
+        public Builder addDefaultComponents(Collection<Index.Group> indexGroups)
         {
-            super.addDefaultComponents();
+            super.addDefaultComponents(indexGroups);
 
             addComponents(ImmutableSet.of(Components.PARTITION_INDEX, Components.ROW_INDEX));
 

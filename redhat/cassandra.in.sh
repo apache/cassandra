@@ -40,8 +40,14 @@ CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
 
 
 # set JVM javaagent opts to avoid warnings/errors
-JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.2.jar"
+JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
 
+platform=$(uname -m)
+if [ -d "$CASSANDRA_HOME"/lib/"$platform" ]; then
+    for jar in "$CASSANDRA_HOME"/lib/"$platform"/*.jar ; do
+        CLASSPATH="$CLASSPATH:${jar}"
+    done
+fi
 
 #
 # Java executable and per-Java version JVM settings

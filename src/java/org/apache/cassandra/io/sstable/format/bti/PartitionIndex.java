@@ -443,7 +443,7 @@ public class PartitionIndex implements SharedCloseable
         }
     }
 
-    private void dumpTrie(PrintStream out)
+    private void dumpTrie(PrintStream out) throws IOException
     {
         try (Reader rdr = openReader())
         {

@@ -19,7 +19,7 @@ import codecs
 import configparser
 import csv
 import getpass
-import optparse
+import argparse
 import os
 import re
 import subprocess
@@ -108,56 +108,56 @@ defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
 host (and optional port number) are given on the command line, they take
 precedence over any defaults.""" % globals()
 
-parser = optparse.OptionParser(description=description, epilog=epilog,
-                               usage="Usage: %prog [options] [host [port]]",
-                               version='cqlsh ' + version)
-parser.add_option("-C", "--color", action='store_true', dest='color',
-                  help='Always use color output')
-parser.add_option("--no-color", action='store_false', dest='color',
-                  help='Never use color output')
-parser.add_option("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
-                                                    - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
-                                                    - browser path followed by %s, example: /usr/bin/google-chrome-stable %s""")
-parser.add_option('--ssl', action='store_true', help='Use SSL', default=False)
-parser.add_option("-u", "--username", help="Authenticate as user.")
-parser.add_option("-p", "--password", help="Authenticate using password.")
-parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
-parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
-parser.add_option('--debug', action='store_true',
-                  help='Show additional debugging information')
-parser.add_option('--coverage', action='store_true',
-                  help='Collect coverage data')
-parser.add_option("--encoding", help="Specify a non-default encoding for output."
-                  + " (Default: %s)" % (UTF8,))
-parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
-parser.add_option("--credentials", help="Specify an alternative credentials file location.")
-parser.add_option('--cqlversion', default=None,
-                  help='Specify a particular CQL version, '
-                       'by default the highest version supported by the server will be used.'
-                       ' Examples: "3.0.3", "3.1.0"')
-parser.add_option("--protocol-version", type="int", default=None,
-                  help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
 
-parser.add_option("-e", "--execute", help='Execute the statement and quit.')
-parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
-                  help='Specify the connection timeout in seconds (default: %default seconds).')
-parser.add_option("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
-                  help='Specify the default request timeout in seconds (default: %default seconds).')
-parser.add_option("-t", "--tty", action='store_true', dest='tty',
-                  help='Force tty mode (command prompt).')
-parser.add_option('-v', action="version", help='Print the current version of cqlsh.')
+parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                 usage="Usage: %(prog)s [options] [host [port]]",
+                                 prog='cqlsh')
+parser.add_argument('-v', '--version', action='version', version='cqlsh ' + version)
+parser.add_argument("-C", "--color", action='store_true', dest='color',
+                                            help='Always use color output')
+parser.add_argument("--no-color", action='store_false', dest='color', help='Never use color output')
+parser.add_argument("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
+                                                    - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
+                                                    - browser path followed by %%s, example: /usr/bin/google-chrome-stable %%s""")
+
+parser.add_argument('--ssl', action='store_true', help='Use SSL', default=False)
+parser.add_argument("-u", "--username", help="Authenticate as user.")
+parser.add_argument("-p", "--password", help="Authenticate using password.")
+parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
+parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
+parser.add_argument('--debug', action='store_true',
+                    help='Show additional debugging information')
+parser.add_argument('--coverage', action='store_true',
+                    help='Collect coverage data')
+parser.add_argument("--encoding", help="Specify a non-default encoding for output."
+                    + " (Default: %s)" % (UTF8,))
+parser.add_argument("--cqlshrc", help="Specify an alternative cqlshrc file location.")
+parser.add_argument("--credentials", help="Specify an alternative credentials file location.")
+parser.add_argument('--cqlversion', default=None,
+                    help='Specify a particular CQL version, '
+                    'by default the highest version supported by the server will be used.'
+                    ' Examples: "3.0.3", "3.1.0"')
+parser.add_argument("--protocol-version", type=int, default=None,
+                    help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+
+parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
+parser.add_argument("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
+                    help='Specify the connection timeout in seconds (default: %(default)s seconds).')
+parser.add_argument("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
+                    help='Specify the default request timeout in seconds (default: %(default)s seconds).')
+parser.add_argument("-t", "--tty", action='store_true', dest='tty',
+                    help='Force tty mode (command prompt).')
 
 # This is a hidden option to suppress the warning when the -p/--password command line option is used.
 # Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
 # Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
 # The Cassandra distributed tests (dtests) also use this option in some tests when a well-known password is supplied via the command line.
-parser.add_option("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
-                  help=optparse.SUPPRESS_HELP)
+parser.add_argument("--insecure-password-without-warning", action='store_true', dest='insecure_password_without_warning',
+                    help=argparse.SUPPRESS)
 
-# use cfoptions for config file
+# use cfarguments for config file
 
-opt_values = optparse.Values()
-(cfoptions, arguments) = parser.parse_args(sys.argv[1:], values=opt_values)
+cfarguments, args = parser.parse_known_args()
 
 # BEGIN history config
 
@@ -191,11 +191,10 @@ except OSError:
 
 # END history config
 
-
 DEFAULT_CQLSHRC = os.path.expanduser(os.path.join('~', '.cassandra', 'cqlshrc'))
 
-if hasattr(cfoptions, 'cqlshrc'):
-    CONFIG_FILE = os.path.expanduser(cfoptions.cqlshrc)
+if cfarguments.cqlshrc is not None:
+    CONFIG_FILE = os.path.expanduser(cfarguments.cqlshrc)
     if not os.path.exists(CONFIG_FILE):
         print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, DEFAULT_CQLSHRC))
         CONFIG_FILE = DEFAULT_CQLSHRC
@@ -2066,80 +2065,85 @@ def read_options(cmdlineargs, environment=os.environ):
         print("\nNotice: Credentials in the cqlshrc file is deprecated and will be ignored in the future."
               "\nPlease use a credentials file to specify the username and password.\n", file=sys.stderr)
 
-    optvalues = optparse.Values()
+    argvalues = argparse.Namespace()
 
-    optvalues.username = None
-    optvalues.password = None
-    optvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
+    argvalues.username = None
+    argvalues.password = None
+    argvalues.credentials = os.path.expanduser(option_with_default(configs.get, 'authentication', 'credentials',
                                                                    os.path.join(CQL_DIR, 'credentials')))
-    optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
-    optvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
-    optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
+    argvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
+    argvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
+    argvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
                                                 DEFAULT_COMPLETEKEY)
-    optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
-    optvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
+    argvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
+    argvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
                                                     DEFAULT_TIMESTAMP_FORMAT)
-    optvalues.nanotime_format = raw_option_with_default(configs, 'ui', 'nanotime_format',
+    argvalues.nanotime_format = raw_option_with_default(configs, 'ui', 'nanotime_format',
                                                         DEFAULT_NANOTIME_FORMAT)
-    optvalues.date_format = raw_option_with_default(configs, 'ui', 'date_format',
+    argvalues.date_format = raw_option_with_default(configs, 'ui', 'date_format',
                                                     DEFAULT_DATE_FORMAT)
-    optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
+    argvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
                                                     DEFAULT_FLOAT_PRECISION)
-    optvalues.double_precision = option_with_default(configs.getint, 'ui', 'double_precision',
+    argvalues.double_precision = option_with_default(configs.getint, 'ui', 'double_precision',
                                                      DEFAULT_DOUBLE_PRECISION)
-    optvalues.field_size_limit = option_with_default(configs.getint, 'csv', 'field_size_limit', csv.field_size_limit())
-    optvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
+    argvalues.field_size_limit = option_with_default(configs.getint, 'csv', 'field_size_limit', csv.field_size_limit())
+    argvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
                                                    DEFAULT_MAX_TRACE_WAIT)
-    optvalues.timezone = option_with_default(configs.get, 'ui', 'timezone', None)
+    argvalues.timezone = option_with_default(configs.get, 'ui', 'timezone', None)
 
-    optvalues.debug = False
+    argvalues.debug = False
 
-    optvalues.coverage = False
+    argvalues.coverage = False
     if 'CQLSH_COVERAGE' in environment.keys():
-        optvalues.coverage = True
+        argvalues.coverage = True
 
-    optvalues.file = None
-    optvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
-    optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
+    argvalues.file = None
+    argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
+    argvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
-    optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
-    optvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
-    optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
-    optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
-    optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
-    optvalues.execute = None
-    optvalues.insecure_password_without_warning = False
+    argvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
+    argvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
+    argvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
+    argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
+    argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
+    argvalues.execute = None
+    argvalues.insecure_password_without_warning = False
 
-    (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
+    options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
 
     # Credentials from cqlshrc will be expanded,
     # credentials from the command line are also expanded if there is a space...
     # we need the following so that these two scenarios will work
     #   cqlsh --credentials=~/.cassandra/creds
     #   cqlsh --credentials ~/.cassandra/creds
-    options.credentials = os.path.expanduser(options.credentials)
 
-    if not is_file_secure(options.credentials):
-        print("\nWarning: Credentials file '{0}' exists but is not used, because:"
-              "\n  a. the file owner is not the current user; or"
-              "\n  b. the file is readable by group or other."
-              "\nPlease ensure the file is owned by the current user and is not readable by group or other."
-              "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
-              "\n  chown YOUR_USERNAME credentials"
-              "\n  chmod 600 credentials\n".format(options.credentials),
-              file=sys.stderr)
-        options.credentials = ''  # ConfigParser.read() will ignore unreadable files
+    if options.credentials is not None:
+        options.credentials = os.path.expanduser(options.credentials)
+
+    if options.credentials is not None:
+        if not is_file_secure(options.credentials):
+            print("\nWarning: Credentials file '{0}' exists but is not used, because:"
+                  "\n  a. the file owner is not the current user; or"
+                  "\n  b. the file is readable by group or other."
+                  "\nPlease ensure the file is owned by the current user and is not readable by group or other."
+                  "\nOn a Linux or UNIX-like system, you often can do this by using the `chown` and `chmod` commands:"
+                  "\n  chown YOUR_USERNAME credentials"
+                  "\n  chmod 600 credentials\n".format(options.credentials),
+                  file=sys.stderr)
+            options.credentials = ''  # ConfigParser.read() will ignore unreadable files
 
     if not options.username:
         credentials = configparser.ConfigParser()
-        credentials.read(options.credentials)
+        if options.credentials is not None:
+            credentials.read(options.credentials)
 
         # use the username from credentials file but fallback to cqlshrc if username is absent from the command line parameters
         options.username = username_from_cqlshrc
 
     if not options.password:
         rawcredentials = configparser.RawConfigParser()
-        rawcredentials.read(options.credentials)
+        if options.credentials is not None:
+            rawcredentials.read(options.credentials)
 
         # handling password in the same way as username, priority cli > credentials > cqlshrc
         options.password = option_with_default(rawcredentials.get, 'plain_text_auth', 'password', password_from_cqlshrc)
@@ -2183,8 +2187,8 @@ def read_options(cmdlineargs, environment=os.environ):
     if options.execute and not options.execute.endswith(';'):
         options.execute += ';'
 
-    if optvalues.color in (True, False):
-        options.color = optvalues.color
+    if argvalues.color in (True, False):
+        options.color = argvalues.color
     else:
         if options.file is not None:
             options.color = False

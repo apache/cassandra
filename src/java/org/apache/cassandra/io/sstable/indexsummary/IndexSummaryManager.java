@@ -73,7 +73,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
 
     private final Supplier<List<T>> indexSummariesProvider;
 
-    private static <T extends SSTableReader & IndexSummarySupport> List<T> getAllSupportedReaders() {
+    private static <T extends SSTableReader & IndexSummarySupport<T>> List<T> getAllSupportedReaders() {
         List<T> readers = new ArrayList<>();
         for (Keyspace keyspace : Keyspace.all())
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
@@ -85,8 +85,13 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
 
     static
     {
-        instance = new IndexSummaryManager<>(IndexSummaryManager::getAllSupportedReaders);
+        instance = newInstance();
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
+    }
+
+    private static <T extends SSTableReader & IndexSummarySupport<T>> IndexSummaryManager<T> newInstance()
+    {
+        return new IndexSummaryManager<>(IndexSummaryManager::getAllSupportedReaders);
     }
 
     private IndexSummaryManager(Supplier<List<T>> indexSummariesProvider)
@@ -281,7 +286,7 @@ public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport<T
     @VisibleForTesting
     public static <T extends SSTableReader & IndexSummarySupport> List<T> redistributeSummaries(IndexSummaryRedistribution redistribution) throws IOException
     {
-        return CompactionManager.instance.runAsActiveCompaction(redistribution, redistribution::redistributeSummaries);
+        return (List<T>) CompactionManager.instance.runAsActiveCompaction(redistribution, redistribution::redistributeSummaries);
     }
 
     @VisibleForTesting

@@ -140,7 +140,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         {
             for (SSTableReader sstable : sstableCandidates.sstables)
             {
-                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges) && predicate.apply(sstable))
+                if (new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges) && predicate.apply(sstable))
                 {
                     sstablesToValidate.add(sstable);
                 }
@@ -213,7 +213,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
                     prs.previewKind.logPrefix(sessionID),
                     parentId,
                     sstables.size(),
-                    cfs.keyspace.getName(),
+                    cfs.getKeyspaceName(),
                     cfs.getTableName());
 
         controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));

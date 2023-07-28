@@ -279,12 +279,6 @@ public class StatsTableComparatorTest extends TableStatsTestBase
                        "table2 > table4 > table6 > table1 > table3 > table5",
                        humanReadable,
                        ascending);
-        // dropped mutations: 6 > 3 > 4 > 2 > 1 = 5
-        runCompareTest(testTables,
-                       "dropped_mutations",
-                       "table6 > table3 > table4 > table2 > table1 > table5",
-                       humanReadable,
-                       ascending);
         // space used by snapshots: 5 > 1 > 2 > 4 > 3 = 6
         runCompareTest(testTables,
                        "space_used_by_snapshots_total",

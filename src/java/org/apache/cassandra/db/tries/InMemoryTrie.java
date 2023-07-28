@@ -32,7 +32,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.github.jamm.MemoryLayoutSpecification;
+
+import org.github.jamm.MemoryMeterStrategy;
 
 /**
  * In-memory trie built for fast modification and reads executing concurrently with writes from a single mutator thread.
@@ -973,7 +974,7 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
     /** Returns the on heap size of the memtable trie itself, not counting any space taken by referenced content. */
     public long sizeOnHeap()
     {
-        return contentCount * MemoryLayoutSpecification.SPEC.getReferenceSize() +
+        return contentCount * MemoryMeterStrategy.MEMORY_LAYOUT.getReferenceSize() +
                REFERENCE_ARRAY_ON_HEAP_SIZE * getChunkIdx(contentCount, CONTENTS_START_SHIFT, CONTENTS_START_SIZE) +
                (bufferType == BufferType.ON_HEAP ? allocatedPos + EMPTY_SIZE_ON_HEAP : EMPTY_SIZE_OFF_HEAP) +
                REFERENCE_ARRAY_ON_HEAP_SIZE * getChunkIdx(allocatedPos, BUF_START_SHIFT, BUF_START_SIZE);
@@ -1021,7 +1022,7 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
         int leadBit = getChunkIdx(index, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
         int ofs = inChunkPointer(index, leadBit, CONTENTS_START_SIZE);
         AtomicReferenceArray<T> contentArray = contentArrays[leadBit];
-        int contentOverhead = ((contentArray != null ? contentArray.length() : 0) - ofs) * MemoryLayoutSpecification.SPEC.getReferenceSize();
+        int contentOverhead = ((contentArray != null ? contentArray.length() : 0) - ofs) * MemoryMeterStrategy.MEMORY_LAYOUT.getReferenceSize();
 
         return bufferOverhead + contentOverhead;
     }

@@ -41,14 +41,14 @@ public class GoogleCloudSnitch extends AbstractCloudMetadataServiceSnitch
 
     public GoogleCloudSnitch(SnitchProperties properties) throws IOException
     {
-        this(properties, new DefaultCloudMetadataServiceConnector(properties.putIfAbsent(METADATA_URL_PROPERTY,
-                                                                                         DEFAULT_METADATA_SERVICE_URL)));
+        this(new DefaultCloudMetadataServiceConnector(properties.putIfAbsent(METADATA_URL_PROPERTY,
+                                                                             DEFAULT_METADATA_SERVICE_URL)));
     }
 
-    public GoogleCloudSnitch(SnitchProperties properties, AbstractCloudMetadataServiceConnector connector) throws IOException
+    public GoogleCloudSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, properties, SnitchUtils.parseDcAndRack(connector.apiCall(ZONE_NAME_QUERY_URL,
-                                                                                  ImmutableMap.of("Metadata-Flavor", "Google")),
-                                                                properties.getDcSuffix()));
+        super(connector, SnitchUtils.parseDcAndRack(connector.apiCall(ZONE_NAME_QUERY_URL,
+                                                                      ImmutableMap.of("Metadata-Flavor", "Google")),
+                                                    connector.getProperties().getDcSuffix()));
     }
 }

@@ -923,6 +923,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             
             error = parallelRun(error, executor, this::stopJmx);
 
+            error = parallelRun(error, executor, () -> DatabaseDescriptor.getCryptoProvider().uninstall());
+
             // Make sure any shutdown hooks registered for DeleteOnExit are released to prevent
             // references to the instance class loaders from being held
             if (graceful)

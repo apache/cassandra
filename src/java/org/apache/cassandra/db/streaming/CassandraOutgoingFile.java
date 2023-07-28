@@ -65,7 +65,7 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         this.filename = sstable.getFilename();
         this.shouldStreamEntireSSTable = computeShouldStreamEntireSSTables();
-        ComponentManifest manifest = ComponentManifest.create(sstable.descriptor);
+        ComponentManifest manifest = ComponentManifest.create(sstable);
         this.header = makeHeader(sstable, operation, sections, estimatedKeys, shouldStreamEntireSSTable, manifest);
     }
 
@@ -89,7 +89,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                                     .withSerializationHeader(sstable.header.toComponent())
                                     .isEntireSSTable(shouldStreamEntireSSTable)
                                     .withComponentManifest(manifest)
-                                    .withFirstKey(sstable.first)
+                                    .withFirstKey(sstable.getFirst())
                                     .withTableId(sstable.metadata().id)
                                     .build();
     }
@@ -154,7 +154,7 @@ public class CassandraOutgoingFile implements OutgoingStream
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
             // file sizes.
             // Recreate the latest manifest and hard links for mutatable components in case they are modified.
-            try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable.descriptor)))
+            try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable)))
             {
                 CassandraStreamHeader current = makeHeader(sstable, operation, sections, estimatedKeys, true, context.manifest());
                 CassandraStreamHeader.serializer.serialize(current, out, version);
