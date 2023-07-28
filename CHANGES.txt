@@ -1,4 +1,5 @@
 5.0
+ * Remove commitlog_sync_batch_window_in_ms (CASSANDRA-17161)
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
  * Add guardrail for vector dimensions (CASSANDRA-18730)
  * Upgraded Netty to 4.1.96, added BouncyCastle dependency (CASSANDRA-17992)

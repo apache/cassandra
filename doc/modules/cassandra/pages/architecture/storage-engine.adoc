@@ -37,14 +37,8 @@ If `max_mutation_size` is set explicitly then
 
 * `commitlog_sync`: may be either _periodic_ or _batch_.
 ** `batch`: In batch mode, Cassandra won’t ack writes until the commit
-log has been fsynced to disk. It will wait
-"commitlog_sync_batch_window_in_ms" milliseconds between fsyncs. This
-window should be kept short because the writer threads will be unable to
-do extra work while waiting. You may need to increase concurrent_writes
-for the same reason.
+log has been fsynced to disk.
 +
-- `commitlog_sync_batch_window_in_ms`: Time to wait between "batch"
-fsyncs _Default Value:_ 2
 ** `periodic`: In periodic mode, writes are immediately ack'ed, and the
 CommitLog is simply synced every "commitlog_sync_period"
 milliseconds.
