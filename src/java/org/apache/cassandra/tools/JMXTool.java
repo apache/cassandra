@@ -18,23 +18,8 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.io.*;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
@@ -56,8 +41,10 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import com.github.rvesse.airline.model.*;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
@@ -78,11 +65,6 @@ import com.github.rvesse.airline.help.cli.CliCommandUsageGenerator;
 import com.github.rvesse.airline.help.cli.CliGlobalUsageGenerator;
 import com.github.rvesse.airline.help.cli.CliGlobalUsageSummaryGenerator;
 import com.github.rvesse.airline.io.printers.UsagePrinter;
-import com.github.rvesse.airline.model.CommandGroupMetadata;
-import com.github.rvesse.airline.model.CommandMetadata;
-import com.github.rvesse.airline.model.GlobalMetadata;
-import com.github.rvesse.airline.model.OptionMetadata;
-import com.github.rvesse.airline.model.ParserMetadata;
 import com.github.rvesse.airline.utils.predicates.parser.AbbreviatedCommandFinder;
 import com.github.rvesse.airline.utils.predicates.parser.AbbreviatedGroupFinder;
 import com.github.rvesse.airline.utils.predicates.parser.CommandFinder;
@@ -97,6 +79,10 @@ import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
 import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.representer.Representer;
+
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.util.stream.Collectors.toList;
 
 public class JMXTool
 {
@@ -907,6 +893,51 @@ public class JMXTool
         parser.parse(args).run();
     }
 
+    public static String toUsage(OptionMetadata option) {
+        Set<String> options = option.getOptions();
+        boolean required = option.isRequired();
+        StringBuilder stringBuilder = new StringBuilder();
+        if (!required) {
+            stringBuilder.append("[");
+        }
+
+        if (options.size() > 1) {
+            stringBuilder.append('{');
+        }
+
+        boolean first = true;
+
+        String name;
+        for(Iterator var6 = options.iterator(); var6.hasNext(); stringBuilder.append(name)) {
+            name = (String)var6.next();
+            if (!first) {
+                stringBuilder.append(" | ");
+            } else {
+                first = false;
+            }
+        }
+
+        if (options.size() > 1) {
+            stringBuilder.append('}');
+        }
+
+        if (option.getArity() > 0) {
+            for(int i = 0; i < option.getArity(); ++i) {
+                stringBuilder.append(" <").append(option.getTitle(i)).append('>');
+            }
+        }
+
+        if (option.isMultiValued()) {
+            stringBuilder.append("...");
+        }
+
+        if (!required) {
+            stringBuilder.append("]");
+        }
+
+        return stringBuilder.toString();
+    }
+
     @Command(name = "help", description = "Display help information")
     public static class LegacyToolHelp<T> implements Runnable, Callable<Void>
     {
@@ -1050,7 +1081,7 @@ public class JMXTool
                     if (option.isHidden() && !includeHidden())
                         continue;
 
-                    commandArguments.add(toUsage(option));
+                    commandArguments.add(LegacyUsageHelper.toUsage(option));
                 }
                 //@formatter:off
                 out.newPrinterWithHangingIndent(8)
@@ -1077,30 +1108,21 @@ public class JMXTool
             }
 
             @Override
-            protected List<OptionMetadata> outputSynopsis(UsagePrinter out, String programName, String[] groupNames, String commandName, CommandMetadata command) throws IOException {
-                out.append("SYNOPSIS").newline();
-                UsagePrinter synopsis = out.newIndentedPrinter(8).newPrinterWithHangingIndent(8);
-                List<OptionMetadata> options = new ArrayList();
-                if (programName != null) {
-                    synopsis.append(programName).appendWords(this.toSynopsisUsage(this.sortOptions(command.getGlobalOptions())));
-                    options.addAll(command.getGlobalOptions());
-                }
+            protected String toUsage(OptionMetadata option)
+            {
+                return JMXTool.toUsage(option);
+            }
 
-                if (groupNames != null) {
-                    synopsis.appendWords(groupNames);
-                    synopsis.appendWords(this.toSynopsisUsage(this.sortOptions(command.getGroupOptions())));
-                    options.addAll(command.getGroupOptions());
-                }
+            @Override
+            protected String toUsage(ArgumentsMetadata arguments)
+            {
+                return LegacyUsageHelper.toUsage(arguments);
+            }
 
-                synopsis.append(commandName).appendWords(this.toSynopsisUsage(this.sortOptions(command.getCommandOptions())));
-                options.addAll(command.getCommandOptions());
-                if (command.getArguments() != null) {
-                    synopsis.append("[--]").append(this.toUsage(command.getArguments()));
-                }
-
-                synopsis.newline();
-                synopsis.newline();
-                return options;
+            @Override
+            protected List<String> toSynopsisUsage(List<OptionMetadata> options)
+            {
+                return LegacyUsageHelper.toSynopsisUsage(options);
             }
         }
     }
