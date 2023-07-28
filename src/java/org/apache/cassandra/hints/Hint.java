@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Ints;
 
@@ -35,7 +36,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.vint.VIntCoding;
-import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_MAX_HINT_TTL;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
