@@ -2702,7 +2702,7 @@ commands:
           cd ~/cassandra
           mkdir ~/dtest_jars
           git remote add apache https://github.com/apache/cassandra.git
-          for branch in cassandra-2.2 cassandra-3.0 cassandra-3.11 cassandra-4.0 cassandra-4.1 trunk; do
+          for branch in cassandra-2.2 cassandra-3.0 cassandra-3.11 cassandra-4.0 cassandra-4.1; do
             # check out the correct cassandra version:
             git remote set-branches --add apache '$branch'
             git fetch --depth 1 apache $branch
