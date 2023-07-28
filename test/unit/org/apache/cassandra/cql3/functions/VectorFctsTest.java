@@ -53,7 +53,7 @@ public class VectorFctsTest extends CQLTester
     @Test
     public void testVectorSimilarityFunction()
     {
-        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key,  value vector<float, 2>, " +
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int PRIMARY KEY, value vector<float, 2>, " +
                               "l list<float>, " + // lists shouldn't be accepted by the functions
                               "fl frozen<list<float>>, " + // frozen lists shouldn't be accepted by the functions
                               "v1 vector<float, 1>, " + // 1-dimension vector to test missmatching dimensions
