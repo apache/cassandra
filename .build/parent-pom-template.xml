@@ -259,6 +259,7 @@
           <artifactId>AmazonCorrettoCryptoProvider</artifactId>
           <classifier>linux-x86_64</classifier>
           <version>2.2.0</version>
+          <scope>provided</scope>
         </dependency>
       </dependencies>
     </profile>
@@ -275,6 +276,7 @@
           <artifactId>AmazonCorrettoCryptoProvider</artifactId>
           <classifier>linux-aarch_64</classifier>
           <version>2.2.0</version>
+          <scope>provided</scope>
         </dependency>
       </dependencies>
     </profile>
