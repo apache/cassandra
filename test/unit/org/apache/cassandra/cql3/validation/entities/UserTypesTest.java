@@ -477,6 +477,20 @@ public class UserTypesTest extends CQLTester
         execute("SELECT addresses FROM %s WHERE id = ? ", userID_1);
     }
 
+    @Test
+    public void testCreateTypeWithUndesiredFieldType() throws Throwable
+    {
+        String typeName = createTypeName();
+        assertInvalidMessage("A user type cannot contain counters", "CREATE TYPE " + typeWithKs(typeName) + " (f counter)");
+    }
+
+    @Test
+    public void testAlterTypeWithUndesiredFieldType() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (a int)");
+        assertInvalidMessage("A user type cannot contain counters", "ALTER TYPE " + typeWithKs(typeName) + " ADD f counter");
+    }
+
     /**
      * Test user type test that does a little more nesting,
      * migrated from cql_tests.py:TestCQL.more_user_types_test()
