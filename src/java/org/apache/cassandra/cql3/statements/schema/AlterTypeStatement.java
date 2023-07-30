@@ -127,6 +127,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
         {
+            if (type.isCounter())
+                throw ire("A user type cannot contain counters");
+
             if (userType.fieldPosition(fieldName) >= 0)
             {
                 if (!ifFieldNotExists)
