@@ -78,6 +78,7 @@
                  <exclude name="**/test/data/config/version=3.0.0-alpha1.yml"/>
                  <exclude name="**/test/data/config/version=3.11.0.yml"/>
                  <exclude name="**/test/data/config/version=4.0-alpha1.yml"/>
+                 <exclude name="**/test/data/config/version=4.1-alpha1.yml"/>
                  <exclude name="**/test/resources/data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml"/>
                  <exclude name="**/tools/cqlstress-counter-example.yaml"/>
                  <exclude name="**/tools/cqlstress-example.yaml"/>
