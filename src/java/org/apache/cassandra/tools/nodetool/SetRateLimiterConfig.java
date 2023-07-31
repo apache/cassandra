@@ -32,7 +32,11 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
 {
     @Arguments(title = "<ratelimiterparam> <value>", usage = "<ratelimiterparam> <value>",
             description = "ratelimiter param and value.\nPossible ratelimiter parameters are as following: " +
-                    "[var1|var2noop]",
+                    "[enabled|cputhresholdcur|cputhresholdoneminute|nrthrottlingthresholdcur|" +
+                    "nrthrottlingthresholdoneminute|pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
+                    "pendingmutationsthresholdcur|pendingmutationsthresholdoneminute|" +
+                    "percentageoftrafficetothrottling|moreaggressivethrottlingafterinsec|" +
+                    "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -43,14 +47,61 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         String paramType = args.get(0);
         String paramVal = args.get(1);
 
-
-        if (paramType.equals("var1"))
+        if (paramType.equals("enabled"))
         {
-            probe.setRatLimiterVar1(Integer.parseInt(paramVal));
+            probe.setThrottlingOptionsEnabled(Boolean.parseBoolean(paramVal));
         }
-        else if (paramType.equals("var2noop"))
+        else if (paramType.equals("cputhresholdcur"))
         {
-            System.out.println("var2 no-op");
+            probe.setThrottlingOptionsCpuThresholdCur(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("cputhresholdoneminute"))
+        {
+            probe.setThrottlingOptionsCpuThresholdOneMinute(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("nrthrottlingthresholdcur"))
+        {
+            probe.setThrottlingOptionsNrThrottlingThresholdCur(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("nrthrottlingthresholdoneminute"))
+        {
+            probe.setThrottlingOptionsNrThrottlingThresholdOneMinute(Long.parseLong(paramVal));
+        }
+        else if (paramType.equals("pendingreadsthresholdcur"))
+        {
+            probe.setThrottlingOptionsPendingReadsThresholdCur(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("pendingreadsthresholdoneminute"))
+        {
+            probe.setThrottlingOptionsPendingReadsThresholdOneMinute(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("pendingmutationsthresholdcur"))
+        {
+            probe.setThrottlingOptionsPendingMutationsThresholdCur(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("pendingmutationsthresholdoneminute"))
+        {
+            probe.setThrottlingOptionsPendingMutationsThresholdOneMinute(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("percentageoftrafficetothrottling"))
+        {
+            probe.setThrottlingOptionsPercentageOfTrafficeToThrottling(Double.parseDouble(paramVal));
+        }
+        else if (paramType.equals("moreaggressivethrottlingafterinsec"))
+        {
+            probe.setThrottlingOptionsMoreAggressiveThrottlingAfterInSec(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("resetafternothrottlingseeninsec"))
+        {
+            probe.setThrottlingOptionsResetAfterNoThrottlingSeenInSec(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("aggressivethrottlingqpsratio"))
+        {
+            probe.setThrottlingOptionsAggressiveThrottlingQpsRatio(Double.parseDouble(paramVal));
+        }
+        else
+        {
+            System.out.println("unrecognized paramemter: " + paramType);
         }
     }
 }

@@ -54,6 +54,7 @@ import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
+import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -4976,14 +4977,14 @@ public class DatabaseDescriptor
         return conf.auto_repair_mv_repair_enabled;
     }
 
-    public static Integer getRateLimiterVar1()
+    public static ThrottlingOptions getThrottlingOptions()
     {
-        return conf.rate_limiter_var1;
+        return conf.throttling_options;
     }
 
-    public static void setRateLimiterVar1(int var1)
+    public static void setThrottlingOptions(ThrottlingOptions throttlingOptions)
     {
-        conf.rate_limiter_var1 = var1;
+        conf.throttling_options = throttlingOptions;
     }
 
 

@@ -111,6 +111,7 @@ import org.apache.cassandra.service.RateLimiterServiceMBean;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -2353,14 +2354,74 @@ public class NodeProbe implements AutoCloseable
         return autoRepairProxy.getRepairThreads();
     }
 
-    public void setRatLimiterVar1(int var1)
+    public void setThrottlingOptionsEnabled(boolean enabled)
     {
-        rateLimiterProxy.setRateLimiterVar1(var1);
+        rateLimiterProxy.setEnabled(enabled);
+    }
+    
+    public void setThrottlingOptionsCpuThresholdCur(long cpu_threshold_cur)
+    {
+        rateLimiterProxy.setCpuThresholdCur(cpu_threshold_cur);
     }
 
-    public int getRatLimiterVar1()
+    public void setThrottlingOptionsCpuThresholdOneMinute(long cpu_threshold_one_minute)
     {
-        return rateLimiterProxy.getRateLimiterVar1();
+        rateLimiterProxy.setCpuThresholdOneMinute(cpu_threshold_one_minute);
+    }
+
+    public void setThrottlingOptionsNrThrottlingThresholdCur(long nr_throttling_threshold_cur)
+    {
+        rateLimiterProxy.setNrThrottlingThresholdCur(nr_throttling_threshold_cur);
+    }
+
+    public void setThrottlingOptionsNrThrottlingThresholdOneMinute(long nr_throttling_threshold_one_minute)
+    {
+        rateLimiterProxy.setNrThrottlingThresholdOneMinute(nr_throttling_threshold_one_minute);
+    }
+
+    public void setThrottlingOptionsPendingReadsThresholdCur(int pending_reads_threshold_cur)
+    {
+        rateLimiterProxy.setPendingReadsThresholdCur(pending_reads_threshold_cur);
+    }
+
+    public void setThrottlingOptionsPendingReadsThresholdOneMinute(int pending_reads_threshold_one_minute)
+    {
+        rateLimiterProxy.setPendingReadsThresholdOneMinute(pending_reads_threshold_one_minute);
+    }
+
+    public void setThrottlingOptionsPendingMutationsThresholdCur(int pending_mutations_threshold_cur)
+    {
+        rateLimiterProxy.setPendingMutationsThresholdCur(pending_mutations_threshold_cur);
+    }
+
+    public void setThrottlingOptionsPendingMutationsThresholdOneMinute(int pending_mutations_threshold_one_minute)
+    {
+        rateLimiterProxy.setPendingMutationsThresholdOneMinute(pending_mutations_threshold_one_minute);
+    }
+
+    public void setThrottlingOptionsPercentageOfTrafficeToThrottling(double percentage_of_traffice_to_throttling)
+    {
+        rateLimiterProxy.setPercentageOfTrafficeToThrottling(percentage_of_traffice_to_throttling);
+    }
+
+    public void setThrottlingOptionsMoreAggressiveThrottlingAfterInSec(int more_aggressive_throttling_after_in_sec)
+    {
+        rateLimiterProxy.setMoreAggressiveThrottlingAfterInSec(more_aggressive_throttling_after_in_sec);
+    }
+
+    public void setThrottlingOptionsResetAfterNoThrottlingSeenInSec(int reset_after_no_throttling_seen_in_sec)
+    {
+        rateLimiterProxy.setResetAfterNoThrottlingSeenInSec(reset_after_no_throttling_seen_in_sec);
+    }
+
+    public void setThrottlingOptionsAggressiveThrottlingQpsRatio(double aggressive_throttling_qps_ratio)
+    {
+        rateLimiterProxy.setAggressiveThrottlingQpsRatio(aggressive_throttling_qps_ratio);
+    }
+    
+    public ThrottlingOptions getThrottlingOptions()
+    {
+        return rateLimiterProxy.getThrottlingOptions();
     }
 
     public void setRepairPriorityForHosts(Set<InetAddressAndPort> hosts)

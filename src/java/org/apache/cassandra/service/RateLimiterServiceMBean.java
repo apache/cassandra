@@ -17,15 +17,82 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
+
 public interface RateLimiterServiceMBean
 {
     /**
-     * Set rate limiter var1
+     * Set throttling options
      */
-    public void setRateLimiterVar1(int var1);
+    public void setThrottlingOptions(ThrottlingOptions throttlingOptions);
 
     /**
-     * Get rate limiter var1
+     * Get throttling options
      */
-    public int getRateLimiterVar1();
+    public ThrottlingOptions getThrottlingOptions();
+
+    /**
+     * Set enabled
+     */
+    public void setEnabled(boolean enabled);
+
+    /**
+     * Set cpu_threshold_cur
+     */
+    public void setCpuThresholdCur(long cpu_threshold_cur);
+
+    /**
+     * Set cpu_threshold_one_minute
+     */
+    public void setCpuThresholdOneMinute(long cpu_threshold_one_minute);
+
+    /**
+     * Set nr_throttling_threshold_cur
+     */
+    public void setNrThrottlingThresholdCur(long nr_throttling_threshold_cur);
+
+    /**
+     * Set nr_throttling_threshold_one_minute
+     */
+    public void setNrThrottlingThresholdOneMinute(long nr_throttling_threshold_one_minute);
+
+    /**
+     * Set pending_reads_threshold_cur
+     */
+    public void setPendingReadsThresholdCur(int pending_reads_threshold_cur);
+
+    /**
+     * Set pending_reads_threshold_one_minute
+     */
+    public void setPendingReadsThresholdOneMinute(int pending_reads_threshold_one_minute);
+
+    /**
+     * Set pending_mutations_threshold_cur
+     */
+    public void setPendingMutationsThresholdCur(int pending_mutations_threshold_cur);
+
+    /**
+     * Set pending_mutations_threshold_one_minute
+     */
+    public void setPendingMutationsThresholdOneMinute(int pending_mutations_threshold_one_minute);
+
+    /**
+     * Set percentage_of_traffice_to_throttling
+     */
+    public void setPercentageOfTrafficeToThrottling(double percentage_of_traffice_to_throttling);
+
+    /**
+     * Set more_aggressive_throttling_after_in_sec
+     */
+    public void setMoreAggressiveThrottlingAfterInSec(int more_aggressive_throttling_after_in_sec);
+
+    /**
+     * Set reset_after_no_throttling_seen_in_sec
+     */
+    public void setResetAfterNoThrottlingSeenInSec(int reset_after_no_throttling_seen_in_sec);
+
+    /**
+     * Set aggressive_throttling_qps_ratio
+     */
+    public void setAggressiveThrottlingQpsRatio(double aggressive_throttling_qps_ratio);
 }

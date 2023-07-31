@@ -1492,7 +1492,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void doRateLimiterSetup()
     {
-        RateLimiterService.instance.setRateLimiterVar1(DatabaseDescriptor.getRateLimiterVar1());
+        RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
         logger.info("RateLimiter setup complete!");
     }
 

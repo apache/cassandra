@@ -27,7 +27,7 @@ public class GetRateLimiterConfig extends NodeTool.NodeToolCmd {
     public void execute(NodeProbe probe)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("ratelimiter var1: " + probe.getRatLimiterVar1());
+        sb.append("throttling options: " + probe.getThrottlingOptions());
 
         System.out.println(sb);
     }

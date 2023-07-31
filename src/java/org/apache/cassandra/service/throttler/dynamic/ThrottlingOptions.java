@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-public class ThrottlingOptions
+import java.io.Serializable;
+
+public class ThrottlingOptions implements Serializable
 {
-    // TODO: need to have the hardcoded values to configurable in cassandra.yaml
     // Also, adjust the default values based on the POC
     public boolean enabled = true;
     public long cpu_threshold_cur = 35;
@@ -35,4 +36,23 @@ public class ThrottlingOptions
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 4;
+
+    public String toString()
+    {
+        return "ThrottlingOptions{" +
+                "enabled='" + enabled + '\'' +
+                ", cpu_threshold_cur='" + cpu_threshold_cur + '\'' +
+                ", cpu_threshold_one_minute='" + cpu_threshold_one_minute + '\'' +
+                ", nr_throttling_threshold_cur='" + nr_throttling_threshold_cur + '\'' +
+                ", nr_throttling_threshold_one_minute='" + nr_throttling_threshold_one_minute + '\'' +
+                ", pending_reads_threshold_cur='" + pending_reads_threshold_cur + '\'' +
+                ", pending_reads_threshold_one_minute='" + pending_reads_threshold_one_minute + '\'' +
+                ", pending_mutations_threshold_cur='" + pending_mutations_threshold_cur + '\'' +
+                ", pending_mutations_threshold_one_minute='" + pending_mutations_threshold_one_minute + '\'' +
+                ", percentage_of_traffice_to_throttling='" + percentage_of_traffice_to_throttling + '\'' +
+                ", more_aggressive_throttling_after_in_sec='" + more_aggressive_throttling_after_in_sec + '\'' +
+                ", reset_after_no_throttling_seen_in_sec='" + reset_after_no_throttling_seen_in_sec + '\'' +
+                ", aggressive_throttling_qps_ratio='" + aggressive_throttling_qps_ratio + '\'' +
+                '}';
+    }
 }

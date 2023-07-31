@@ -41,6 +41,7 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.service.throttler.dynamic.ThrottlingOptions;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -764,7 +765,7 @@ public class Config
     public volatile Integer gossip_and_storage_service_cache_mismatch_conviction_threshold = 5;
 
     // rate limiter related variables:
-    public Integer rate_limiter_var1 = 3;
+    public volatile ThrottlingOptions throttling_options = new ThrottlingOptions();
 
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
