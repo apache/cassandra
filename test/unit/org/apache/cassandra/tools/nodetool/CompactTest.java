@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.Arrays;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -26,7 +27,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 

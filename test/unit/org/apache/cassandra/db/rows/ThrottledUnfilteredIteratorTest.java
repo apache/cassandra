@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.db.rows;
 
-import static org.apache.cassandra.SchemaLoader.standardCFMD;
-import static org.junit.Assert.*;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -31,6 +28,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.Iterators;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -65,6 +63,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ThrottledUnfilteredIteratorTest extends CQLTester
 {

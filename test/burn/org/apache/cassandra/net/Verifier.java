@@ -28,18 +28,21 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 
+import com.carrotsearch.hppc.LongObjectHashMap;
+import com.carrotsearch.hppc.procedures.LongObjectProcedure;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.procedures.LongObjectProcedure;
 import org.apache.cassandra.net.Verifier.ExpiredMessageEvent.ExpirationType;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.current_version;
-import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.OutboundConnection.LargeMessageDelivery.DEFAULT_BUFFER_SIZE;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 import static org.apache.cassandra.net.Verifier.EventCategory.OTHER;
@@ -51,8 +54,8 @@ import static org.apache.cassandra.net.Verifier.EventType.DESERIALIZE;
 import static org.apache.cassandra.net.Verifier.EventType.ENQUEUE;
 import static org.apache.cassandra.net.Verifier.EventType.FAILED_CLOSING;
 import static org.apache.cassandra.net.Verifier.EventType.FAILED_DESERIALIZE;
-import static org.apache.cassandra.net.Verifier.EventType.FAILED_EXPIRED_ON_SEND;
 import static org.apache.cassandra.net.Verifier.EventType.FAILED_EXPIRED_ON_RECEIVE;
+import static org.apache.cassandra.net.Verifier.EventType.FAILED_EXPIRED_ON_SEND;
 import static org.apache.cassandra.net.Verifier.EventType.FAILED_FRAME;
 import static org.apache.cassandra.net.Verifier.EventType.FAILED_OVERLOADED;
 import static org.apache.cassandra.net.Verifier.EventType.FAILED_SERIALIZE;

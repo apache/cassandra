@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "decommission", description = "Decommission the *node I am connecting to*")
 public class Decommission extends NodeToolCmd

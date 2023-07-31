@@ -20,14 +20,15 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Snapshot;
+import com.datastax.driver.core.ResultSet;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Snapshot;
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.metrics.BatchMetrics;

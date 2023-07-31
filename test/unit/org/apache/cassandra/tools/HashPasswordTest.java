@@ -27,10 +27,10 @@ import java.util.Collections;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mindrot.jbcrypt.BCrypt;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.mindrot.jbcrypt.BCrypt;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;

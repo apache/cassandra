@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.simulator.cluster;
 
-import static org.apache.cassandra.distributed.api.IIsolatedExecutor.*;
+import static org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 
 public class ClusterReliableAction extends ClusterAction

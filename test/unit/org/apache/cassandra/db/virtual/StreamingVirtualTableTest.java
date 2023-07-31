@@ -30,6 +30,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.util.Throwables;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,7 +54,6 @@ import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.util.Throwables;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 

@@ -25,19 +25,20 @@ import java.util.Map;
 
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.concurrent.Condition;
-
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.FAILED;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.valueOf;
 import static org.apache.cassandra.tools.NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.apache.cassandra.utils.progress.ProgressEventType.*;
+import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
+import static org.apache.cassandra.utils.progress.ProgressEventType.ERROR;
+import static org.apache.cassandra.utils.progress.ProgressEventType.PROGRESS;
 
 public class RepairRunner extends JMXNotificationProgressListener
 {

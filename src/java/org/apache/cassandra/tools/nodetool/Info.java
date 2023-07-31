@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
 import java.util.Iterator;
@@ -34,6 +31,9 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "info", description = "Print node information (uptime, load, ...)")
 public class Info extends NodeToolCmd

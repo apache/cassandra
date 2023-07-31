@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "resetlocalschema", description = "Reset node's local schema and resync")
 public class ResetLocalSchema extends NodeToolCmd

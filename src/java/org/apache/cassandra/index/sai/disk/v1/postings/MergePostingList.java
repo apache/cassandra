@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;

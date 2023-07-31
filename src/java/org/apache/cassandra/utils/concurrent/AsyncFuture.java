@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.concurrent;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Function;
+
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.AsyncFunction;

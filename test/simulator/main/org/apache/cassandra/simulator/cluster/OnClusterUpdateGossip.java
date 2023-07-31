@@ -19,8 +19,8 @@
 package org.apache.cassandra.simulator.cluster;
 
 import org.apache.cassandra.simulator.Action;
-import org.apache.cassandra.simulator.Actions.ReliableAction;
 import org.apache.cassandra.simulator.ActionList;
+import org.apache.cassandra.simulator.Actions.ReliableAction;
 import org.apache.cassandra.simulator.systems.SimulatedAction;
 
 import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;

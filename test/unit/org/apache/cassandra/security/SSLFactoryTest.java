@@ -30,6 +30,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.net.ssl.X509KeyManager;
 
 import org.apache.commons.io.FileUtils;
@@ -39,16 +40,17 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.handler.ssl.OpenSslClientContext;
-import io.netty.handler.ssl.OpenSslServerContext;
-import io.netty.handler.ssl.OpenSslSessionContext;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.io.util.File;
+
+import io.netty.handler.ssl.OpenSslClientContext;
+import io.netty.handler.ssl.OpenSslServerContext;
+import io.netty.handler.ssl.OpenSslSessionContext;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

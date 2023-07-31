@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Test;
 

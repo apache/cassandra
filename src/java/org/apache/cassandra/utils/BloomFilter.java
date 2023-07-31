@@ -21,12 +21,14 @@ import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {

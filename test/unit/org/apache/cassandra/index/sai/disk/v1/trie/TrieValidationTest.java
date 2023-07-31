@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.disk.v1.trie;
 
+import org.apache.lucene.store.IndexInput;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,7 +31,6 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryReader.trieSerializer;
 

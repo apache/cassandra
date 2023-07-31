@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.cql3;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.PreparedStatement;
@@ -30,6 +26,11 @@ import com.datastax.driver.core.QueryTrace;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
+
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.tracing.TraceStateImpl;
 
 import static org.junit.Assert.assertEquals;

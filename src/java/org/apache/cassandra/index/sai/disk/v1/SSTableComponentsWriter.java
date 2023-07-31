@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 
+import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,6 @@ import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.lucene.util.IOUtils;
 
 public class SSTableComponentsWriter implements PerSSTableIndexWriter
 {

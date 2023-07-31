@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertThat;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 public class KeepAliveMessageTest
 {

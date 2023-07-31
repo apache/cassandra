@@ -20,10 +20,11 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.Collections;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "enableauditlog", description = "Enable the audit log")
 public class EnableAuditLog extends NodeToolCmd

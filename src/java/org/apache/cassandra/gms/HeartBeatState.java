@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.*;
+import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 

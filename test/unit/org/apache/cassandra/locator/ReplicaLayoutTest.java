@@ -18,12 +18,17 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Token;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.cassandra.locator.ReplicaUtils.*;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
+
+import static org.apache.cassandra.locator.ReplicaUtils.EP1;
+import static org.apache.cassandra.locator.ReplicaUtils.EP2;
+import static org.apache.cassandra.locator.ReplicaUtils.EP3;
+import static org.apache.cassandra.locator.ReplicaUtils.EP4;
+import static org.apache.cassandra.locator.ReplicaUtils.R1;
 
 public class ReplicaLayoutTest
 {

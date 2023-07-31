@@ -20,14 +20,14 @@ package org.apache.cassandra.index.sasi.sa;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 
+import com.google.common.base.Charsets;
+
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.disk.DynamicTokenTreeBuilder;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.LongTimSort;
 import org.apache.cassandra.utils.Pair;
-
-import com.google.common.base.Charsets;
 
 public class SuffixSA extends SA<CharBuffer>
 {

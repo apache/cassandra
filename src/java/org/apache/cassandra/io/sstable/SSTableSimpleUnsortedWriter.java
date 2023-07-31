@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
@@ -38,6 +37,8 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 

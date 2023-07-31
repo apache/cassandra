@@ -22,10 +22,16 @@ import java.util.List;
 
 import com.google.common.base.Predicate;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelConfig;
@@ -37,11 +43,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
-import org.apache.cassandra.exceptions.OverloadedException;
-import org.apache.cassandra.metrics.ClientMetrics;
-import org.apache.cassandra.net.ResourceLimits;
-import org.apache.cassandra.transport.messages.ErrorMessage;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.transport.CQLMessageHandler.RATE_LIMITER_DELAY_UNIT;
 import static org.apache.cassandra.transport.ClientResourceLimits.GLOBAL_REQUEST_LIMITER;

@@ -28,8 +28,19 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.SimpleStatement;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import net.bytebuddy.implementation.bind.annotation.This;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.Condition;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -38,13 +49,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.SimpleStatement;
-import net.bytebuddy.ByteBuddy;
-import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
-import net.bytebuddy.implementation.MethodDelegation;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import net.bytebuddy.implementation.bind.annotation.This;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -65,8 +69,6 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.utils.Shared;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Condition;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.assertj.core.api.Assertions.assertThat;

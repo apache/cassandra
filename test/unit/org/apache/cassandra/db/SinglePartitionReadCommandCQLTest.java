@@ -22,6 +22,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+
 import static org.junit.Assert.assertTrue;
 
 public class SinglePartitionReadCommandCQLTest extends CQLTester

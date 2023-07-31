@@ -23,10 +23,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Task;
+import org.junit.Test;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;

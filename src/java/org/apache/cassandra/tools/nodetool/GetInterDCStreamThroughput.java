@@ -19,10 +19,11 @@ package org.apache.cassandra.tools.nodetool;
 
 import com.google.common.math.DoubleMath;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "getinterdcstreamthroughput", description = "Print the throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system" +
                                                             "in rounded megabits. For precise number, please, use option -d")

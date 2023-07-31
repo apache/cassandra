@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.transport.messages;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 public abstract class EncodeAndDecodeTestBase<T extends Message>
 {

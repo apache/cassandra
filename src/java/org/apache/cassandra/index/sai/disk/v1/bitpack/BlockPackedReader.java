@@ -19,6 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
+import org.apache.lucene.store.IndexInput;
+
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
@@ -26,7 +28,6 @@ import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.checkBlockSize;
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.numBlocks;

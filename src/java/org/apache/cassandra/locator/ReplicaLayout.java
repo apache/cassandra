@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Set;
+import java.util.function.Predicate;
+
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -26,9 +30,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.utils.FBUtilities;
-
-import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * The relevant replicas for an operation over a given range or token.

@@ -22,6 +22,11 @@ import java.util.List;
 
 import com.google.common.base.Throwables;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.fqltool.commands.Compare;
+import org.apache.cassandra.fqltool.commands.Dump;
+import org.apache.cassandra.fqltool.commands.Replay;
+
 import io.airlift.airline.Cli;
 import io.airlift.airline.Help;
 import io.airlift.airline.ParseArgumentsMissingException;
@@ -31,10 +36,6 @@ import io.airlift.airline.ParseCommandUnrecognizedException;
 import io.airlift.airline.ParseOptionConversionException;
 import io.airlift.airline.ParseOptionMissingException;
 import io.airlift.airline.ParseOptionMissingValueException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.fqltool.commands.Compare;
-import org.apache.cassandra.fqltool.commands.Dump;
-import org.apache.cassandra.fqltool.commands.Replay;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static com.google.common.collect.Lists.newArrayList;

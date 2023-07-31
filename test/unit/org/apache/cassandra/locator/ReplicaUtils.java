@@ -18,17 +18,19 @@
 
 package org.apache.cassandra.locator;
 
+import java.net.UnknownHostException;
+import java.util.List;
+
 import com.google.common.collect.ImmutableList;
+
+import org.junit.Assert;
+
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Assert;
-
-import java.net.UnknownHostException;
-import java.util.List;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;

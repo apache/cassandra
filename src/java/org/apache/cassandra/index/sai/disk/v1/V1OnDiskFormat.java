@@ -23,12 +23,13 @@ import java.io.UncheckedIOException;
 import java.util.EnumSet;
 import java.util.Set;
 
+import com.codahale.metrics.Gauge;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.utils.Throwables;
+
+import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -49,7 +50,7 @@ import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.lucene.store.IndexInput;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 

@@ -20,20 +20,19 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableList;
-
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.google.common.collect.ImmutableList;
 
-import static org.junit.Assert.assertEquals;
-
-import org.junit.Test;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.metrics.CQLMetrics;
+
+import static org.junit.Assert.assertEquals;
 
 public class CQLMetricsTableTest extends CQLTester
 {

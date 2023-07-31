@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryHolder;
 import org.apache.cassandra.tools.nodetool.stats.CompactionHistoryPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "compactionhistory", description = "Print history of compaction")
 public class CompactionHistory extends NodeToolCmd

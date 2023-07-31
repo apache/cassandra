@@ -20,10 +20,9 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-import org.junit.Test;
-
 import org.github.jamm.MemoryMeter;
 import org.github.jamm.MemoryMeter.Guess;
+import org.junit.Test;
 
 import static org.github.jamm.MemoryMeter.ByteBufferMode.SLAB_ALLOCATION_NO_SLICE;
 import static org.junit.Assert.assertEquals;

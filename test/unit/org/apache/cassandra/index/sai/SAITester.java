@@ -39,10 +39,18 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
 import javax.management.AttributeNotFoundException;
 import javax.management.ObjectName;
 
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import com.datastax.driver.core.QueryTrace;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Session;
 import com.google.common.collect.Sets;
+
+import org.apache.lucene.codecs.CodecUtil;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -53,11 +61,6 @@ import org.junit.runner.Description;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.datastax.driver.core.QueryTrace;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
@@ -96,7 +99,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.lucene.codecs.CodecUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;

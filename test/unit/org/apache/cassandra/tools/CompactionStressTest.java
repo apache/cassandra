@@ -19,9 +19,9 @@
 package org.apache.cassandra.tools;
 
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 public class CompactionStressTest extends OfflineToolUtils

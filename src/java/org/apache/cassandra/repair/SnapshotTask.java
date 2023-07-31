@@ -21,9 +21,9 @@ import java.util.concurrent.RunnableFuture;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.repair.messages.SnapshotMessage;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 

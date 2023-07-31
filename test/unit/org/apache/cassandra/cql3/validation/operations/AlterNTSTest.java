@@ -21,9 +21,11 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.util.List;
 import java.util.UUID;
 
+import com.datastax.driver.core.PreparedStatement;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-import com.datastax.driver.core.PreparedStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -34,7 +36,6 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

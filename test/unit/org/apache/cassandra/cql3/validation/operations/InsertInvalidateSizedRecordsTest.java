@@ -27,15 +27,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.UUID;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.google.common.base.StandardSystemProperty;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 

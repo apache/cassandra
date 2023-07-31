@@ -34,21 +34,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.EventLoop;
-import io.netty.channel.unix.Errors;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
-import io.netty.util.concurrent.Promise; //checkstyle: permit this import
-import io.netty.util.concurrent.PromiseNotifier;
-import io.netty.util.concurrent.SucceededFuture;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
@@ -56,18 +44,38 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.EventLoop;
+import io.netty.channel.unix.Errors;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+import io.netty.util.concurrent.Promise; // checkstyle: permit this import
+import io.netty.util.concurrent.PromiseNotifier;
+import io.netty.util.concurrent.SucceededFuture;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.net.InternodeConnectionUtils.isSSLError;
 import static org.apache.cassandra.net.MessagingService.current_version;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.Result;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateMessaging;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
-import static org.apache.cassandra.net.ResourceLimits.*;
-import static org.apache.cassandra.net.ResourceLimits.Outcome.*;
-import static org.apache.cassandra.net.SocketFactory.*;
+import static org.apache.cassandra.net.ResourceLimits.EndpointAndGlobal;
+import static org.apache.cassandra.net.ResourceLimits.Limit;
+import static org.apache.cassandra.net.ResourceLimits.Outcome;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.SUCCESS;
+import static org.apache.cassandra.net.SocketFactory.encryptionConnectionSummary;
+import static org.apache.cassandra.net.SocketFactory.isCausedByConnectionReset;
+import static org.apache.cassandra.net.SocketFactory.isConnectionReset;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;

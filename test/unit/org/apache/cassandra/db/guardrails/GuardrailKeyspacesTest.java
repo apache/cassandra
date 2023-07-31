@@ -21,12 +21,12 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.schema.Schema;
-import org.awaitility.Awaitility;
 
 import static java.lang.String.format;
 

@@ -32,8 +32,8 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.SIGNAL;
 import static org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.Global.captureWaitSite;
 import static org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.Global.ifIntercepted;

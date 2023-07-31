@@ -22,17 +22,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.trie.KeyAnalyzer;
 import org.apache.cassandra.index.sasi.utils.trie.PatriciaTrie;
 import org.apache.cassandra.index.sasi.utils.trie.Trie;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
-
-import com.google.common.collect.Sets;
 
 /**
  * This class is an extension over RangeTermTree for string terms,

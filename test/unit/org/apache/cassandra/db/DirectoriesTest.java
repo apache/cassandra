@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -54,16 +55,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-// Our version of Sfl4j seems to be missing the ListAppender class.
-// Future sfl4j versions have one. At that time the below imports can be
-// replaced with `org.slf4j.*` equivalents.
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthKeyspace;
@@ -96,6 +89,11 @@ import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.apache.cassandra.schema.MockSchema.sstableId;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;

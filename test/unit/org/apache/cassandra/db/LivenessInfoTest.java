@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.db;
 
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class LivenessInfoTest extends CQLTester
 {

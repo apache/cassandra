@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Objects;
 
 import com.google.common.collect.Iterators;
 

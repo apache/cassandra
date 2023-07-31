@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.trie;
 
 import java.io.Closeable;
 import java.io.IOException;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.mutable.MutableLong;

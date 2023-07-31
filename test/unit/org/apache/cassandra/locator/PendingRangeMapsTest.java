@@ -20,12 +20,13 @@
  */
 package org.apache.cassandra.locator;
 
+import java.net.UnknownHostException;
+
+import org.junit.Test;
+
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.junit.Test;
-
-import java.net.UnknownHostException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

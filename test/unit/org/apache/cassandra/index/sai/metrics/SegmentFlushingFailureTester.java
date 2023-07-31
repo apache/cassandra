@@ -24,13 +24,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.utils.FBUtilities;
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.config.StorageAttachedIndexOptions;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter;
@@ -39,6 +39,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.inject.Injections.newCounter;
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;

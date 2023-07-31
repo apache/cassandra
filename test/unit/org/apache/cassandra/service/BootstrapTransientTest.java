@@ -26,8 +26,6 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,6 +37,8 @@ import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;

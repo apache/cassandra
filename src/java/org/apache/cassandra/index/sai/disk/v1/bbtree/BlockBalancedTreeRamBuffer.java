@@ -18,14 +18,16 @@
 package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.util.concurrent.atomic.LongAdder;
+
 import javax.annotation.concurrent.NotThreadSafe;
+
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.PackedLongValues;
 
 /**
  * On-heap buffer for values that provides a sorted view of itself as a {@link BlockBalancedTreeIterator}.

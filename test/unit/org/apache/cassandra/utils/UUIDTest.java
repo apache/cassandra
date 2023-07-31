@@ -29,13 +29,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.collect.Sets;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.common.collect.Sets;
-
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;

@@ -31,6 +31,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
@@ -44,7 +46,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.InboundMessageHandlers;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.OutboundConnections;
-import org.awaitility.Awaitility;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.hamcrest.Matchers.containsString;

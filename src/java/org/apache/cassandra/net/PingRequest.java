@@ -25,9 +25,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-import static org.apache.cassandra.net.ConnectionType.URGENT_MESSAGES;
-import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
+import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
+import static org.apache.cassandra.net.ConnectionType.URGENT_MESSAGES;
 
 /**
  * Indicates to the recipient which {@link ConnectionType} should be used for the response.

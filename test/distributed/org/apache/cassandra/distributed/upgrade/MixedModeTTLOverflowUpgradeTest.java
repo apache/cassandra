@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.Attributes;
@@ -26,7 +27,6 @@ import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.utils.StorageCompatibilityMode.NONE;

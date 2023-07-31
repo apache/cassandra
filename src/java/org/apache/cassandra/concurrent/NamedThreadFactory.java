@@ -22,8 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This

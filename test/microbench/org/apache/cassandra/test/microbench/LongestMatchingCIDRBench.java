@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.auth.CIDRGroupsMappingTable;
-import org.apache.cassandra.cql3.CIDR;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -39,6 +37,9 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.auth.CIDRGroupsMappingTable;
+import org.apache.cassandra.cql3.CIDR;
 
 /**
  * Benchmark algorithm(s) of the Longest matching CIDR for given IP

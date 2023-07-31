@@ -18,13 +18,14 @@
 
 package org.apache.cassandra.transport;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Generators;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
 
 import static org.quicktheories.QuickTheory.qt;
 

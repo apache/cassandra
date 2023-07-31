@@ -26,7 +26,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.utils.concurrent.Condition;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -36,7 +36,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.net.Verb;
-
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;

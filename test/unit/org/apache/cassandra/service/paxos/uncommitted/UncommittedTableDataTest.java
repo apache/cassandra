@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,7 +48,12 @@ import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData.Flush
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData.Merge;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.ALL_RANGES;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.createBallots;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.dk;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.kl;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.r;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.tk;
 
 public class UncommittedTableDataTest
 {

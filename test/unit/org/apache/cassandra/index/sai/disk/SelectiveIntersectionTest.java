@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.index.sai.disk;
 
+import com.datastax.driver.core.Session;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;

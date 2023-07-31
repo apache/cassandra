@@ -20,9 +20,12 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.lucene.util.BytesRefBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,7 +40,6 @@ import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.apache.lucene.util.BytesRefBuilder;
 
 /**
  * Creates an on-heap index data structure to be flushed to an SSTable index.

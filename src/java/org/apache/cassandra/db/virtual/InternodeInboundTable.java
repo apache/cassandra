@@ -29,8 +29,8 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.InboundMessageHandlers;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 
 public final class InternodeInboundTable extends AbstractVirtualTable

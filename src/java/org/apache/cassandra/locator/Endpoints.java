@@ -18,14 +18,14 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
-import org.apache.cassandra.utils.FBUtilities;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A collection of Endpoints for a given ring position.  This will typically reside in a ReplicaLayout,

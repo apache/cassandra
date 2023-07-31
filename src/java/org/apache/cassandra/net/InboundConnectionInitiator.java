@@ -27,8 +27,22 @@ import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.OutboundConnectionSettings.Framing;
+import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.streaming.StreamDeserializingTask;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.async.NettyStreamingChannel;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -47,27 +61,18 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
-import org.apache.cassandra.auth.IInternodeAuthenticator;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.OutboundConnectionSettings.Framing;
-import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.streaming.StreamDeserializingTask;
-import org.apache.cassandra.streaming.StreamingChannel;
-import org.apache.cassandra.streaming.async.NettyStreamingChannel;
-import org.apache.cassandra.utils.memory.BufferPools;
 
-import static java.lang.Math.*;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.net.MessagingService.instance;
+import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.SocketFactory.WIRETRACE;
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 

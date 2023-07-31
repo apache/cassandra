@@ -21,9 +21,9 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 import java.util.EnumMap;
 
-import io.netty.util.concurrent.FastThreadLocal;
-
 import org.apache.cassandra.io.compress.BufferType;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Utility class that allow buffers to be reused by storing them in a thread local instance.

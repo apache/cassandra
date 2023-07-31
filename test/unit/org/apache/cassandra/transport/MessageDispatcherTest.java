@@ -23,16 +23,18 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.channel.Channel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.AuthResponse;
+
+import io.netty.channel.Channel;
 
 public class MessageDispatcherTest
 {

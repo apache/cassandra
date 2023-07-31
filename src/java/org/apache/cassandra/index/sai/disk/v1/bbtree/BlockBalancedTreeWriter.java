@@ -27,12 +27,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.MoreObjects;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
-import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
@@ -41,6 +35,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.Sorter;
 import org.apache.lucene.util.bkd.BKDWriter;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
+import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.index.sai.postings.PostingList.END_OF_STREAM;
 

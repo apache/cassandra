@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.sstable;
 
 import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 

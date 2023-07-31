@@ -17,11 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static java.lang.String.format;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
@@ -33,12 +28,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.google.common.collect.LinkedHashMultimap;
+
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-import com.google.common.collect.LinkedHashMultimap;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+
+import static java.lang.String.format;
 
 @Command(name = "ring", description = "Print information about the token ring")
 public class Ring extends NodeToolCmd

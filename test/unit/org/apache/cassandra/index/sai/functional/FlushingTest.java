@@ -20,9 +20,10 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;

@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.fuzz;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+
 import harry.core.Configuration;
 import harry.core.Run;
 import harry.model.Model;

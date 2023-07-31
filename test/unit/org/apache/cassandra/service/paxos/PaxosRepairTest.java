@@ -27,13 +27,15 @@ import java.util.Set;
 import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.apache.cassandra.service.paxos.PaxosRepair.validateVersionCompatibility;
-import static org.junit.Assert.*;
-
-import static org.apache.cassandra.service.paxos.PaxosRepairTest.Requirements.*;
+import static org.apache.cassandra.service.paxos.PaxosRepairTest.Requirements.NORMAL;
+import static org.apache.cassandra.service.paxos.PaxosRepairTest.Requirements.NO_DC_CHECKS;
+import static org.apache.cassandra.service.paxos.PaxosRepairTest.Requirements.STRICT_QUORUM;
+import static org.apache.cassandra.service.paxos.PaxosRepairTest.Requirements.STRICT_QUORUM_AND_NO_DC_CHECKS;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class PaxosRepairTest
 {

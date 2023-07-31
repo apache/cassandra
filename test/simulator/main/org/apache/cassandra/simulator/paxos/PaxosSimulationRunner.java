@@ -22,12 +22,13 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.simulator.SimulationRunner;
+
+import io.airlift.airline.Cli;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 public class PaxosSimulationRunner extends SimulationRunner
 {

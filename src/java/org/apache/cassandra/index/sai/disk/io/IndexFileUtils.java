@@ -24,6 +24,8 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.lucene.store.IndexInput;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.File;
@@ -31,7 +33,6 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
-import org.apache.lucene.store.IndexInput;
 
 public class IndexFileUtils
 {

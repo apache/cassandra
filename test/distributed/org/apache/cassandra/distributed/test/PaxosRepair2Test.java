@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.distributed.shared.WithProperties;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
@@ -66,6 +65,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -90,6 +90,7 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker.Up
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -99,8 +100,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PA
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
-
-import org.apache.cassandra.utils.CloseableIterator;
 
 // quick workaround for metaspace ooms, will properly reuse clusters later
 public class PaxosRepair2Test extends TestBaseImpl

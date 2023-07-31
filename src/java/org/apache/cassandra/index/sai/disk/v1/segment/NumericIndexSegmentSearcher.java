@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 
 import com.google.common.base.MoreObjects;
+
+import org.apache.lucene.index.CorruptIndexException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +37,6 @@ import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.lucene.index.CorruptIndexException;
 
 import static org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeQueries.balancedTreeQueryFrom;
 

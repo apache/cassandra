@@ -18,13 +18,11 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import java.util.ArrayList;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-
 import com.vdurmont.semver4j.Semver;
-import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.tools.ToolRunner;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,7 +30,9 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import java.util.ArrayList;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.COMPACTION_TYPE_PROPERTY;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetoolJvmDtest;

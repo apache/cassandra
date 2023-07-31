@@ -24,7 +24,14 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.common.collect.Iterators;
+
 import org.junit.Test;
+
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.distributed.fuzz.FixedSchemaProviderConfiguration;
+import org.apache.cassandra.distributed.fuzz.HarryHelper;
+import org.apache.cassandra.distributed.fuzz.SSTableLoadingVisitor;
+import org.apache.cassandra.distributed.impl.RowUtil;
 
 import harry.core.Configuration;
 import harry.core.Run;
@@ -37,11 +44,6 @@ import harry.model.sut.SystemUnderTest;
 import harry.operations.Query;
 import harry.visitors.GeneratingVisitor;
 import harry.visitors.LtsVisitor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.distributed.fuzz.FixedSchemaProviderConfiguration;
-import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.SSTableLoadingVisitor;
-import org.apache.cassandra.distributed.impl.RowUtil;
 
 public class SSTableGeneratorTest extends CQLTester
 {

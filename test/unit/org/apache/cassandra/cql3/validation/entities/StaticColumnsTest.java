@@ -24,8 +24,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class StaticColumnsTest extends CQLTester

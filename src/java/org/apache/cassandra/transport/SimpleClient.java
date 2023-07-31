@@ -21,19 +21,63 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-import org.apache.cassandra.transport.ClientResourceLimits.Overload;
-import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.net.AbstractMessageHandler;
+import org.apache.cassandra.net.AsyncChannelPromise;
+import org.apache.cassandra.net.BufferPoolAllocator;
+import org.apache.cassandra.net.FrameDecoder;
+import org.apache.cassandra.net.FrameDecoderCrc;
+import org.apache.cassandra.net.FrameDecoderLZ4;
+import org.apache.cassandra.net.FrameEncoder;
+import org.apache.cassandra.net.FrameEncoderCrc;
+import org.apache.cassandra.net.FrameEncoderLZ4;
+import org.apache.cassandra.net.GlobalBufferPoolAllocator;
+import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
@@ -42,23 +86,13 @@ import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.net.*;
-import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
-import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
-
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
+import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 
 public class SimpleClient implements Closeable
 {

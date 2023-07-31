@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.locator;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

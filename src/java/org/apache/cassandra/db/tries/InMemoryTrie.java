@@ -26,14 +26,14 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.concurrent.UnsafeBuffer;
+import org.github.jamm.MemoryMeterStrategy;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.ObjectSizes;
-
-import org.github.jamm.MemoryMeterStrategy;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * In-memory trie built for fast modification and reads executing concurrently with writes from a single mutator thread.

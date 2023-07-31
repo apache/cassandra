@@ -19,10 +19,10 @@
 package org.apache.cassandra.distributed.test;
 
 import org.apache.commons.lang3.StringUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 

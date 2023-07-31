@@ -21,14 +21,17 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.zip.CRC32;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandler;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
+
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.net.Crc.*;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandler;
+
+import static org.apache.cassandra.net.Crc.crc24;
+import static org.apache.cassandra.net.Crc.crc32;
 
 /**
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.

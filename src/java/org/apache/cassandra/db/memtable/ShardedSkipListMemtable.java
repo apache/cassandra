@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
+
+import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +59,6 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
-import org.github.jamm.Unmetered;
 
 /**
  * A proof-of-concept sharded memtable implementation. This implementation splits the partition skip-list into several

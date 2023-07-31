@@ -34,8 +34,8 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.security.EncryptionContext;
 
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.junit.Assert.assertEquals;
 
 public class BatchCommitLogTest extends CommitLogTest
 {

@@ -24,11 +24,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.StorageService;
-
-import javax.annotation.Nullable;
 
 public interface IPartitioner
 {

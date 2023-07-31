@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 
 import static java.util.concurrent.TimeUnit.SECONDS;

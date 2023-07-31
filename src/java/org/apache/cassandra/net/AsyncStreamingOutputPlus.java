@@ -24,8 +24,16 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.net.SharedDefaultFileRegion.SharedFileChannel;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
+import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
@@ -33,12 +41,6 @@ import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.FileRegion;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.handler.ssl.SslHandler;
-import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.net.SharedDefaultFileRegion.SharedFileChannel;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
-import org.apache.cassandra.utils.memory.BufferPool;
-import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Math.min;
 

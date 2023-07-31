@@ -26,6 +26,7 @@ import org.apache.cassandra.utils.Architecture;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
 import sun.misc.Unsafe;
 
 /**

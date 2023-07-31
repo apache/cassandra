@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.cql3;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Assertions;
 
 public class CQLTesterTest extends CQLTester
 {

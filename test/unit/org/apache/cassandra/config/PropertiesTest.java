@@ -22,8 +22,8 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.junit.Test;
 
+import org.junit.Test;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static org.assertj.core.api.Assertions.assertThat;

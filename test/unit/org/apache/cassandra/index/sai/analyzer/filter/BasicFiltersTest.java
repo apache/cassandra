@@ -20,10 +20,10 @@ package org.apache.cassandra.index.sai.analyzer.filter;
 
 import java.text.Normalizer;
 
+import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 import static org.junit.Assert.assertEquals;
 

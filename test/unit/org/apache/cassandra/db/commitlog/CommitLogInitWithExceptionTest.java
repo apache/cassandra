@@ -19,16 +19,17 @@
 package org.apache.cassandra.db.commitlog;
 
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import org.apache.cassandra.CassandraIsolatedJunit4ClassRunner;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 
 @RunWith(CassandraIsolatedJunit4ClassRunner.class)

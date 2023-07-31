@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +40,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.validate;
 

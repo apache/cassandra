@@ -20,13 +20,13 @@ package org.apache.cassandra.db;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 

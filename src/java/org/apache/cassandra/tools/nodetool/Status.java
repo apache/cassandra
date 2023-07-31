@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
@@ -30,13 +26,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 
+import com.google.common.collect.ArrayListMultimap;
+
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
-import com.google.common.collect.ArrayListMultimap;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @SuppressWarnings("UseOfSystemOutOrSystemErr")
 @Command(name = "status", description = "Print cluster information (state, load, IDs, ...)")

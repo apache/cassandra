@@ -21,7 +21,7 @@ package org.apache.cassandra.distributed.test.thresholds;
 import java.io.IOException;
 import java.util.List;
 
-import org.junit.*;
+import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;

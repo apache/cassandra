@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
+
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;

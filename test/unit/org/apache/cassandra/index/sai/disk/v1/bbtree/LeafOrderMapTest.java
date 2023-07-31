@@ -20,17 +20,18 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 import java.nio.ByteBuffer;
 
 import com.google.common.collect.Lists;
-import org.junit.Test;
 
-import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
-import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
-import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
+import org.junit.Test;
+
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
+import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
+import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 
 import static org.junit.Assert.assertEquals;
 

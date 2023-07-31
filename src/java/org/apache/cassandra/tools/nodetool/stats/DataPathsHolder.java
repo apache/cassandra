@@ -22,10 +22,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.base.Throwables.getStackTraceAsString;
-
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.tools.NodeProbe;
+
+import static com.google.common.base.Throwables.getStackTraceAsString;
 
 public class DataPathsHolder implements StatsHolder
 {

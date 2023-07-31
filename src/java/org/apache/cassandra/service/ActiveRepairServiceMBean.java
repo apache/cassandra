@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 import java.util.Map;
+
 import javax.management.openmbean.CompositeData;
 
 public interface ActiveRepairServiceMBean

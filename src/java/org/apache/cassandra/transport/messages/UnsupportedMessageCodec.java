@@ -21,10 +21,11 @@ package org.apache.cassandra.transport.messages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Catch-all codec for any unsupported legacy messages.

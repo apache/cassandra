@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "getauthcacheconfig", description = "Get configuration of Auth cache")
 public class GetAuthCacheConfig extends NodeTool.NodeToolCmd

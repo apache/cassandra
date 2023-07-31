@@ -20,8 +20,8 @@ package org.apache.cassandra.distributed.mock.nodetool;
 
 import java.io.IOException;
 
-import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.INodeProbeFactory;
+import org.apache.cassandra.tools.NodeProbe;
 
 public class InternalNodeProbeFactory implements INodeProbeFactory
 {

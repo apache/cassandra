@@ -24,8 +24,8 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;

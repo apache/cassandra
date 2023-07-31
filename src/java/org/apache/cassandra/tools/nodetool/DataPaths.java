@@ -20,14 +20,15 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.DataPathsHolder;
 import org.apache.cassandra.tools.nodetool.stats.DataPathsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "datapaths", description = "Print all directories where data of tables are stored")
 public class DataPaths extends NodeToolCmd

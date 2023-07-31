@@ -65,8 +65,8 @@ import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDU
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedExecution.callable;
-import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToRelativeNanos;
 import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToGlobalNanos;
+import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.localToRelativeNanos;
 import static org.apache.cassandra.simulator.systems.SimulatedTime.Global.relativeToGlobalNanos;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;

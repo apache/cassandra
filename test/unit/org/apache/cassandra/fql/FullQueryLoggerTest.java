@@ -29,28 +29,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.io.util.File;
+import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+import net.openhft.chronicle.wire.ValueIn;
+import net.openhft.chronicle.wire.WireOut;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.buffer.Unpooled;
-import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
-import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.RollCycles;
-import net.openhft.chronicle.wire.ValueIn;
-import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.fql.FullQueryLogger.Query;
-import org.apache.cassandra.fql.FullQueryLogger.Batch;
 import org.apache.cassandra.cql3.statements.BatchStatement.Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.fql.FullQueryLogger.Batch;
+import org.apache.cassandra.fql.FullQueryLogger.Query;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -59,9 +59,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import io.netty.buffer.Unpooled;
 
 import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
 import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
@@ -76,6 +74,9 @@ import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
 import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
 import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class FullQueryLoggerTest extends CQLTester

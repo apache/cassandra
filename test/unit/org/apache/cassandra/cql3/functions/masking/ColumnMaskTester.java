@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.functions.masking;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+
 import javax.annotation.Nullable;
 
 import org.junit.Before;

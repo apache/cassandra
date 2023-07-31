@@ -29,14 +29,14 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToDecommission;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
-import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
+import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
+import static org.junit.Assert.assertEquals;
 
 public class CleanupFailureTest extends TestBaseImpl
 {

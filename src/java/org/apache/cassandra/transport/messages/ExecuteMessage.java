@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryEvents;
@@ -41,6 +40,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 

@@ -30,6 +30,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -40,8 +42,6 @@ import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
-import org.quicktheories.core.Gen;
-import org.quicktheories.generators.SourceDSL;
 
 import static org.apache.cassandra.db.SchemaCQLHelper.toCqlType;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;

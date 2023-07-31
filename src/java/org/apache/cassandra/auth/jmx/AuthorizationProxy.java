@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.auth.jmx;
 
-import java.lang.reflect.*;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Principal;
@@ -28,6 +30,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
@@ -36,10 +39,18 @@ import javax.security.auth.Subject;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.auth.AuthCacheMBean;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.PermissionDetails;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MBeanWrapper;

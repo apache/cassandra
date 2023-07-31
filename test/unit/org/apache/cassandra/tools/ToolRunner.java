@@ -39,6 +39,7 @@ import java.util.stream.Stream;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 
+import org.assertj.core.util.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +47,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.util.Lists;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;

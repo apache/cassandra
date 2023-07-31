@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -35,7 +36,6 @@ import org.junit.rules.TemporaryFolder;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.util.File;
-import org.assertj.core.util.Lists;
 
 import static org.apache.cassandra.service.snapshot.SnapshotLoader.SNAPSHOT_DIR_PATTERN;
 import static org.assertj.core.api.Assertions.assertThat;

@@ -22,17 +22,18 @@ import java.security.Provider;
 import java.security.Security;
 import java.util.HashMap;
 
+import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.MockedStatic;
 
-import com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
-import org.mockito.MockedStatic;
 
 import static com.google.common.collect.ImmutableMap.of;
 import static java.lang.String.format;

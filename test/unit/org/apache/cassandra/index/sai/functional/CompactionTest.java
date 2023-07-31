@@ -23,11 +23,12 @@ package org.apache.cassandra.index.sai.functional;
 import java.util.Collection;
 import java.util.Collections;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.ColumnFamilyStore;

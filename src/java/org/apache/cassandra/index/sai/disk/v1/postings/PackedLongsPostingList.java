@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.postings;
 
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.util.packed.PackedLongValues;
+
+import org.apache.cassandra.index.sai.postings.PostingList;
 
 /**
  * Adapter class for {@link PackedLongValues} to expose it as {@link PostingList}.

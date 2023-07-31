@@ -24,19 +24,21 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.datastax.driver.core.Row;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.spi.LoggingEvent;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.virtual.AbstractVirtualTable.DataSet;
 import org.apache.cassandra.db.virtual.AbstractVirtualTable.Partition;
 import org.apache.cassandra.dht.LocalPartitioner;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LOGS_VIRTUAL_TABLE_MAX_ROWS;
 import static org.junit.Assert.assertEquals;

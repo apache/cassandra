@@ -28,14 +28,16 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.SimpleStatement;
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Condition;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.Cluster;
@@ -52,7 +54,6 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
-import org.assertj.core.api.Condition;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

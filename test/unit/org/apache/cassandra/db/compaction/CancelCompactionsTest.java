@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;

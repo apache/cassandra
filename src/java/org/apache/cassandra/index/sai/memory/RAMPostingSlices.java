@@ -21,11 +21,12 @@ import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.mutable.MutableValueInt;
+
+import org.apache.cassandra.index.sai.postings.PostingList;
 
 /**
  * Encodes postings as variable integers into slices

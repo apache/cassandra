@@ -22,8 +22,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 
-import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class SchemaDisagreementTest extends TestBaseImpl
 {

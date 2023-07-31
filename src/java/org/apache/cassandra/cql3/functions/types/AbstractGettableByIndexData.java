@@ -21,12 +21,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.reflect.TypeToken;
 
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 abstract class AbstractGettableByIndexData implements GettableByIndexData
 {

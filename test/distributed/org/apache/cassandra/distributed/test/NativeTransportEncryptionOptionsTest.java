@@ -27,17 +27,18 @@ import java.util.Collections;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
+import com.datastax.driver.core.SSLOptions;
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
+import com.datastax.shaded.netty.handler.ssl.SslContext;
+import com.datastax.shaded.netty.handler.ssl.SslContextBuilder;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.datastax.driver.core.SSLOptions;
-import com.datastax.driver.core.exceptions.NoHostAvailableException;
-import com.datastax.shaded.netty.handler.ssl.SslContext;
-import com.datastax.shaded.netty.handler.ssl.SslContextBuilder;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 

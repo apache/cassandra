@@ -26,6 +26,9 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.io.Files;
+
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,8 +52,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.IOUtils;
 
 /**
  * The {@link IndexDescriptor} is an analog of the SSTable {@link Descriptor} and provides version

@@ -17,16 +17,17 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "getendpoints", description = "Print the end points that owns the key")
 public class GetEndpoints extends NodeToolCmd

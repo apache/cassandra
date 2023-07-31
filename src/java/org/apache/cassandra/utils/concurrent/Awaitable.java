@@ -23,13 +23,13 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Predicate;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.utils.Shared;
 
 import org.apache.cassandra.utils.Intercept;
+import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
  * A generic signal consumer, supporting all of the typical patterns used in Cassandra.

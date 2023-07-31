@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.Arrays;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.Attributes;
@@ -29,10 +30,9 @@ import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.assertj.core.api.Assertions;
 
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class UpdateTest extends CQLTester
 {

@@ -19,12 +19,14 @@ package org.apache.cassandra.auth;
 
 import java.lang.management.ManagementFactory;
 import java.util.Set;
+
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 
 public class JMXResource implements IResource

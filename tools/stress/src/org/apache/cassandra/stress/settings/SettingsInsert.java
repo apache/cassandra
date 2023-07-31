@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.datastax.driver.core.BatchStatement;
+
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.RatioDistributionFactory;
 import org.apache.cassandra.stress.util.ResultLogger;

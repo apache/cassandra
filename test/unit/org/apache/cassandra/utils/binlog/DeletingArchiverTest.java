@@ -25,8 +25,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.File;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

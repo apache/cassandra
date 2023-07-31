@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "rebuild", description = "Rebuild data by streaming from other nodes (similarly to bootstrap)")
 public class Rebuild extends NodeToolCmd

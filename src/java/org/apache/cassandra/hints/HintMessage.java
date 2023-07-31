@@ -23,9 +23,10 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.google.common.primitives.Ints;
 
-import javax.annotation.Nullable;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;

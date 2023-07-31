@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.index.sasi.utils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-
-import org.apache.cassandra.index.sasi.disk.Token;
-import org.apache.cassandra.io.util.FileUtils;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.index.sasi.utils.LongIterator.convert;
 

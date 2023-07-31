@@ -33,6 +33,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -52,11 +55,10 @@ import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
 
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class CasWriteTest extends TestBaseImpl

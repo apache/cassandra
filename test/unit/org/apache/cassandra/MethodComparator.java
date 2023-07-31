@@ -21,15 +21,15 @@ package org.apache.cassandra;
  */
 
 
-import org.junit.Ignore;
-import org.junit.runners.model.FrameworkMethod;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.lang.reflect.Method;
 import java.util.Comparator;
+
+import org.junit.Ignore;
+import org.junit.runners.model.FrameworkMethod;
 
 public class MethodComparator<T> implements Comparator<T>
 {

@@ -31,9 +31,9 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.antlr.runtime.RecognitionException;
 import org.apache.commons.lang3.ArrayUtils;
 
-import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CQLStatement;

@@ -17,8 +17,18 @@
  */
 package org.apache.cassandra.streaming.management;
 
-import java.util.*;
-import javax.management.openmbean.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+import javax.management.openmbean.ArrayType;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -26,8 +36,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.streaming.SessionInfo;
-import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**

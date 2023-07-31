@@ -29,17 +29,18 @@ import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static java.util.Arrays.asList;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.asString;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
-import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
 public class SlicedTrieTest

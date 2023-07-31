@@ -36,13 +36,14 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
-import org.apache.commons.io.IOUtils;
 
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.commons.io.IOUtils;
 import org.jboss.byteman.agent.install.Install;
 import org.jboss.byteman.agent.submit.Submit;
 import org.jboss.byteman.rule.helper.Helper;
+
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.expr;

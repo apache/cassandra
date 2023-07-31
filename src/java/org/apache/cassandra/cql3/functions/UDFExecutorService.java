@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import org.apache.cassandra.concurrent.ThreadPoolExecutorJMXAdapter;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ThreadPoolExecutorBase;
+import org.apache.cassandra.concurrent.ThreadPoolExecutorJMXAdapter;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.UDF_EXECUTOR_THREAD_KEEPALIVE_MS;

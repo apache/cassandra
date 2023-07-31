@@ -27,11 +27,11 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;

@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "getbatchlogreplaythrottle", description = "Print batchlog replay throttle in KB/s. " +
                                                            "This is reduced proportionally to the number of nodes in the cluster.")

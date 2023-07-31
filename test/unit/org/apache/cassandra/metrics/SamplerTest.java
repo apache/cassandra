@@ -25,18 +25,19 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FreeRunningClock;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 
 public class SamplerTest

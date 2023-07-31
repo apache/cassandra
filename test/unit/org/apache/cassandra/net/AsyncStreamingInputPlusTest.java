@@ -30,10 +30,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;

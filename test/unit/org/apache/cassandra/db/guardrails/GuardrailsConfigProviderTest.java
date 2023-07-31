@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
@@ -25,7 +26,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 

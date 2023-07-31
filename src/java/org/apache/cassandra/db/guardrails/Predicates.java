@@ -20,6 +20,7 @@ package org.apache.cassandra.db.guardrails;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.service.ClientState;

@@ -19,10 +19,11 @@ package org.apache.cassandra.tools.nodetool;
 
 import com.google.common.math.DoubleMath;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "getstreamthroughput", description = "Print the throughput cap for streaming and entire SSTable streaming in the system in rounded megabits. " +
                                                      "For precise number, please, use option -d")

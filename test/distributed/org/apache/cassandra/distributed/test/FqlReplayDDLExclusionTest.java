@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.distributed.test;
 
+import com.datastax.driver.core.Session;
+
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.QueryResults;

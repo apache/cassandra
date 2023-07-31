@@ -22,12 +22,12 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

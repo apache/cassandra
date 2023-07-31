@@ -23,9 +23,12 @@ package org.apache.cassandra.stress.settings;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
+
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.utils.ByteBufferUtil;

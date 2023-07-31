@@ -27,16 +27,12 @@ import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.text.StrBuilder;
 
-import org.apache.cassandra.cql3.functions.Arguments;
-import org.apache.cassandra.cql3.functions.FunctionResolver;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.FunctionResolver;
 import org.apache.cassandra.cql3.functions.PartialScalarFunction;
 import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.cql3.statements.RequestValidations;
@@ -46,6 +42,10 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.stream.Collectors.joining;
 

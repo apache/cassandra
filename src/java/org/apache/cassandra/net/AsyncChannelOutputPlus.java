@@ -21,10 +21,11 @@ import java.io.IOException;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.locks.LockSupport;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPromise;
 
 import static java.lang.Math.max;
 

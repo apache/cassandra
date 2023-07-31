@@ -17,12 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,13 +25,21 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.commons.lang3.StringUtils;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "repair", description = "Repair one or more tables")
 public class Repair extends NodeToolCmd

@@ -27,10 +27,14 @@ import java.util.function.Consumer;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
+
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -46,9 +50,6 @@ import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.disk.usage.DiskUsageState;
 import org.apache.cassandra.utils.FBUtilities;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
-import org.mockito.Mockito;
 
 import static org.apache.cassandra.service.disk.usage.DiskUsageState.FULL;
 import static org.apache.cassandra.service.disk.usage.DiskUsageState.NOT_AVAILABLE;

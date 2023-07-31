@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,9 +39,8 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.BatchMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
-import static org.junit.Assert.assertEquals;
-
 import static org.apache.cassandra.transport.ProtocolVersion.CURRENT;
+import static org.junit.Assert.assertEquals;
 
 public class ClientRequestRowAndColumnMetricsTest extends CQLTester
 {

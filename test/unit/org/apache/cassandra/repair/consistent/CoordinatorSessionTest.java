@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -55,7 +56,6 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.FIN
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARED;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARING;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.REPAIRING;
-
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CoordinatorSessionTest extends AbstractRepairTest

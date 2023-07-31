@@ -22,27 +22,26 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 
+import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
+import com.googlecode.concurrenttrees.radix.node.Node;
+import com.googlecode.concurrenttrees.radix.node.concrete.SmartArrayBasedNodeFactory;
+import com.googlecode.concurrenttrees.suffix.ConcurrentSuffixTree;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
-import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
-import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
-
-import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
-import com.googlecode.concurrenttrees.suffix.ConcurrentSuffixTree;
-import com.googlecode.concurrenttrees.radix.node.concrete.SmartArrayBasedNodeFactory;
-import com.googlecode.concurrenttrees.radix.node.Node;
+import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.index.sasi.memory.SkipListMemIndex.CSLM_OVERHEAD;
 

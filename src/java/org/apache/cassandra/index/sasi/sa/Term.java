@@ -20,8 +20,8 @@ package org.apache.cassandra.index.sasi.sa;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 
 public abstract class Term<T extends Buffer>
 {

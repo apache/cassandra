@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.google.common.base.Joiner;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;

@@ -30,9 +30,12 @@ import org.junit.Test;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.TimeSerializer;
 
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_HOUR;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_MICRO;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_MILLI;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_MINUTE;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_SECOND;
 import static org.junit.Assert.assertEquals;
-
-import static org.apache.cassandra.cql3.Duration.*;
 
 public class DurationTest
 {

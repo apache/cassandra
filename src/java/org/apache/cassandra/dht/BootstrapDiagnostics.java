@@ -19,6 +19,7 @@
 package org.apache.cassandra.dht;
 
 import java.util.Collection;
+
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.dht.BootstrapEvent.BootstrapEventType;

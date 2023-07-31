@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import com.datastax.driver.core.ProtocolVersion;
+
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;

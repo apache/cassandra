@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.virtual;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 

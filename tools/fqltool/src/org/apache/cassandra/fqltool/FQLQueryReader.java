@@ -24,29 +24,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.datastax.driver.core.BatchStatement;
-import io.netty.buffer.Unpooled;
+
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
 
+import io.netty.buffer.Unpooled;
+
+import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
+import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.CURRENT_VERSION;
 import static org.apache.cassandra.fql.FullQueryLogger.GENERATED_NOW_IN_SECONDS;
 import static org.apache.cassandra.fql.FullQueryLogger.GENERATED_TIMESTAMP;
 import static org.apache.cassandra.fql.FullQueryLogger.KEYSPACE;
 import static org.apache.cassandra.fql.FullQueryLogger.PROTOCOL_VERSION;
-import static org.apache.cassandra.fql.FullQueryLogger.QUERY_OPTIONS;
-import static org.apache.cassandra.fql.FullQueryLogger.QUERY_START_TIME;
-import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
-import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
-import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
-import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.QUERIES;
 import static org.apache.cassandra.fql.FullQueryLogger.QUERY;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY_OPTIONS;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY_START_TIME;
 import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
+import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
+import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
 
 public class FQLQueryReader implements ReadMarshallable
 {

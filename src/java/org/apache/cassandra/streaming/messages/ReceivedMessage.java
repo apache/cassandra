@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.*;
+import java.io.IOException;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class ReceivedMessage extends StreamMessage
 {

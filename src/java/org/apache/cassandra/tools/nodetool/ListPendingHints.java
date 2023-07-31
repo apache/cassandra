@@ -26,13 +26,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.hints.PendingHintsInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
+import io.airlift.airline.Command;
 
 @Command(name = "listpendinghints", description = "Print all pending hints that this node has")
 public class ListPendingHints extends NodeTool.NodeToolCmd

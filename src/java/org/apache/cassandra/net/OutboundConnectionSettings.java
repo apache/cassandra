@@ -21,7 +21,6 @@ package org.apache.cassandra.net;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
@@ -31,6 +30,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
+
+import io.netty.channel.WriteBufferWaterMark;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
 import static org.apache.cassandra.net.MessagingService.instance;

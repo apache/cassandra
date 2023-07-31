@@ -35,12 +35,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Clock;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
 import static org.apache.cassandra.net.Verb.HINT_RSP;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 final class HintsTestUtil
 {

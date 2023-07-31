@@ -21,15 +21,16 @@ package org.apache.cassandra.metrics;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Snapshot;
+import com.datastax.driver.core.QueryOptions;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Snapshot;
-import com.datastax.driver.core.QueryOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.Range;

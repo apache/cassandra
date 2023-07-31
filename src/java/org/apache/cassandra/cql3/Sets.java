@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
-
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Comparator;
@@ -49,6 +47,8 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for sets.

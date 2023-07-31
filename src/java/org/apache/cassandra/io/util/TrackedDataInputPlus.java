@@ -23,6 +23,7 @@ import java.io.EOFException;
 import java.io.IOException;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.TypeSizes;
 
 /**

@@ -19,10 +19,10 @@ package org.apache.cassandra.index.sasi.sa;
 
 import java.nio.ByteBuffer;
 
+import com.google.common.collect.AbstractIterator;
+
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.utils.Pair;
-
-import com.google.common.collect.AbstractIterator;
 
 public abstract class TermIterator extends AbstractIterator<Pair<IndexedTerm, TokenTreeBuilder>>
 {

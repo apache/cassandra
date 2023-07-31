@@ -21,9 +21,10 @@ package org.apache.cassandra.db;
 import java.util.EnumMap;
 import java.util.Map;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class MessageParams
 {

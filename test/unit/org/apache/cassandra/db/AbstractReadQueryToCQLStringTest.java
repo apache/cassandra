@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLStatement;

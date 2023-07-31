@@ -18,13 +18,12 @@
 
 package org.apache.cassandra.anttasks;
 
-import org.apache.cassandra.io.util.File;
-
 import org.apache.commons.io.FilenameUtils;
-
 import org.apache.tools.ant.Project;
 import org.apache.tools.ant.Task;
 import org.apache.tools.ant.taskdefs.Echo;
+
+import org.apache.cassandra.io.util.File;
 
 public class EchoEclipseProjectLibs extends Task
 {

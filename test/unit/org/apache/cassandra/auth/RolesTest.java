@@ -21,6 +21,7 @@ package org.apache.cassandra.auth;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;

@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 @Command(name = "setdefaultrf", description = "Sets default keyspace replication factor.")
 public class SetDefaultKeyspaceRF extends NodeTool.NodeToolCmd

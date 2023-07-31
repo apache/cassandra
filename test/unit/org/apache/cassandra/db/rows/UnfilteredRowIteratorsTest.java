@@ -21,9 +21,9 @@ package org.apache.cassandra.db.rows;
 import java.util.Arrays;
 import java.util.Iterator;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;

@@ -26,6 +26,12 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
+
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
@@ -34,11 +40,6 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
 
 /**
  * Base reader for a block balanced tree previously written with {@link BlockBalancedTreeWriter}.

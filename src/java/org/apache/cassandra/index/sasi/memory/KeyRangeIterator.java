@@ -23,16 +23,15 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
+import com.google.common.collect.PeekingIterator;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
-
-import com.google.common.collect.PeekingIterator;
 
 public class KeyRangeIterator extends RangeIterator<Long, Token>
 {

@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.serializers.TimeSerializer;
 
 public class TimeTypeTest extends CQLTester

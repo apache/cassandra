@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "enablefullquerylog", description = "Enable full query logging, defaults for the options are configured in cassandra.yaml")
 public class EnableFullQueryLog extends NodeToolCmd

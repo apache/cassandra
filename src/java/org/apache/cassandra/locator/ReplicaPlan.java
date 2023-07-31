@@ -18,14 +18,15 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
 import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
 {

@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "setconcurrentcompactors", description = "Set number of concurrent compactors in the system.")
 public class SetConcurrentCompactors extends NodeTool.NodeToolCmd

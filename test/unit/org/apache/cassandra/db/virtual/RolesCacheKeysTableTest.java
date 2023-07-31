@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

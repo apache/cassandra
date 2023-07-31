@@ -23,11 +23,11 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 

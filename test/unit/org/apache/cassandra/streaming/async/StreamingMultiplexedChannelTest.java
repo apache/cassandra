@@ -29,7 +29,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.TestChannel;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -39,6 +38,8 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.messages.CompleteMessage;
 import org.apache.cassandra.utils.TimeUUID;
+
+import io.netty.channel.ChannelPromise;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.TestChannel.REMOTE_ADDR;

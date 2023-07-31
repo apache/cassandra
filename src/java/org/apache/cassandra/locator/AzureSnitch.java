@@ -20,9 +20,9 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableMap;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;

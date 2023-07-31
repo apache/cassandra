@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.config;
 
-import org.junit.Test;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import org.junit.Test;
 import org.yaml.snakeyaml.introspector.FieldProperty;
 import org.yaml.snakeyaml.introspector.MethodProperty;
 import org.yaml.snakeyaml.introspector.Property;

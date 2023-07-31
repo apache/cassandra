@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.locator;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 

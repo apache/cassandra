@@ -29,10 +29,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.apache.cassandra.net.MockMessagingService.all;
 import static org.apache.cassandra.net.MockMessagingService.to;
 import static org.apache.cassandra.net.MockMessagingService.verb;
+import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 

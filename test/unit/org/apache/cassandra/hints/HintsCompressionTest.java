@@ -19,6 +19,7 @@
 package org.apache.cassandra.hints;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;

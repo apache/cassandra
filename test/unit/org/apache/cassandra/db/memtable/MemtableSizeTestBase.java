@@ -22,11 +22,13 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+
+import org.github.jamm.MemoryMeter;
+import org.github.jamm.MemoryMeter.Guess;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,8 +40,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
-import org.github.jamm.MemoryMeter;
-import org.github.jamm.MemoryMeter.Guess;
 
 // Note: This test can be run in idea with the allocation type configured in the test yaml and memtable using the
 // value memtableClass is initialized with.

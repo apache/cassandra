@@ -17,7 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import javax.management.openmbean.*;
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
+import javax.management.openmbean.TabularDataSupport;
+import javax.management.openmbean.TabularType;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.snapshot.TableSnapshot;

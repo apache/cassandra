@@ -19,8 +19,9 @@ package org.apache.cassandra.net;
 
 import java.nio.ByteBuffer;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.utils.memory.BufferPool;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Primary {@link ByteBuf} / {@link ByteBuffer} allocator - using the global {@link BufferPool}.

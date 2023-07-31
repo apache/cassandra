@@ -24,12 +24,14 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Index;
+
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Index;
 
 public class QueryResultUtil
 {

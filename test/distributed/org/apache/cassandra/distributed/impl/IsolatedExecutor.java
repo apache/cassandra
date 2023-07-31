@@ -43,12 +43,13 @@ import java.util.function.Supplier;
 
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.LoggerContext;
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Throwables;
+
+import ch.qos.logback.classic.LoggerContext;
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 

@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 import java.util.Locale;
 
 import org.junit.Test;
-
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
@@ -29,7 +28,8 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.GIBIBY
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.quicktheories.QuickTheory.qt;
 
 public class DataStorageSpecTest

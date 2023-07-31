@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,9 +49,10 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
-
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;

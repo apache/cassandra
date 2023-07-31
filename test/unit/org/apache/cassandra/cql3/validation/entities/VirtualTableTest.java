@@ -21,24 +21,22 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.NavigableMap;
-
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
@@ -56,7 +54,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.triggers.ITrigger;
-
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;

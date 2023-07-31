@@ -21,6 +21,7 @@ package org.apache.cassandra.schema;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Test;
 

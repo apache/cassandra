@@ -20,10 +20,10 @@ package org.apache.cassandra.tools.nodetool;
 import java.io.PrintStream;
 import java.util.List;
 
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "reloadseeds", description = "Reload the seed node list from the seed node provider")
 public class ReloadSeeds extends NodeToolCmd

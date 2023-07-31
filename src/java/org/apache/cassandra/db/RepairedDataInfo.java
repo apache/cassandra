@@ -19,8 +19,8 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.function.LongPredicate;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongPredicate;
 
 import javax.annotation.concurrent.NotThreadSafe;
 

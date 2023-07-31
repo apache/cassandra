@@ -20,7 +20,6 @@ package org.apache.cassandra.tools;
 
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;

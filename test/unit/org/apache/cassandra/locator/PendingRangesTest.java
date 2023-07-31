@@ -19,19 +19,26 @@
 package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.Generate;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.quicktheories.core.Gen;
-import org.quicktheories.generators.Generate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

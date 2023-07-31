@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.io.util.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -40,10 +39,15 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.security.CipherFactory;
-import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SegmentReaderTest

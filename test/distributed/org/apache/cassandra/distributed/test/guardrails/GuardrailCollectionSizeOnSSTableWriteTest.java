@@ -20,12 +20,13 @@ package org.apache.cassandra.distributed.test.guardrails;
 
 import java.io.IOException;
 
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;

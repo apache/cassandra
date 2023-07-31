@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.utils.concurrent;
 
-import com.google.common.base.Ticker;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.base.Ticker;
+
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

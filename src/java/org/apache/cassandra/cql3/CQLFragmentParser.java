@@ -23,6 +23,7 @@ import org.antlr.runtime.CharStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.RecognitionException;
 import org.antlr.runtime.TokenStream;
+
 import org.apache.cassandra.exceptions.SyntaxException;
 
 /**

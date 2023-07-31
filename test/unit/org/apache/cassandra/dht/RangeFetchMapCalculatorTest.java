@@ -26,13 +26,14 @@ import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.locator.EndpointsByRange;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
+import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 

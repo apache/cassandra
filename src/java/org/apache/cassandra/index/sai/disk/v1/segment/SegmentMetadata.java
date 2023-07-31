@@ -30,14 +30,15 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.IndexOutput;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.IndexOutput;
 
 /**
  * Multiple {@link SegmentMetadata} are stored in {@link IndexComponent#META} file, each corresponds to an on-disk

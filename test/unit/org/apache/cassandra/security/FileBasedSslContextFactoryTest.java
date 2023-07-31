@@ -20,6 +20,7 @@ package org.apache.cassandra.security;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.net.ssl.SSLException;
 
 import org.junit.AfterClass;

@@ -22,16 +22,19 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 
 import com.google.common.util.concurrent.FutureCallback;
 
-import io.netty.util.concurrent.EventExecutor;
-import io.netty.util.concurrent.GenericFutureListener;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.concurrent.ExecutionFailure;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+
+import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import static org.apache.cassandra.utils.concurrent.ListenerList.Notifying.NOTIFYING;
 

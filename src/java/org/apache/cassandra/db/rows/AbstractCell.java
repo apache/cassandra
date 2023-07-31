@@ -20,8 +20,8 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;

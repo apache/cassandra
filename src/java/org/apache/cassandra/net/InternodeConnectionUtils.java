@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 
 import java.nio.channels.ClosedChannelException;
 import java.security.cert.Certificate;
+
 import javax.net.ssl.SSLPeerUnverifiedException;
 
 import org.slf4j.Logger;

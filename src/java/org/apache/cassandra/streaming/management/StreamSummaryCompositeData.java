@@ -19,7 +19,13 @@ package org.apache.cassandra.streaming.management;
 
 import java.util.HashMap;
 import java.util.Map;
-import javax.management.openmbean.*;
+
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
 
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.StreamSummary;

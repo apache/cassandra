@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test.guardrails;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.ListAssert;
 import org.junit.After;
 import org.junit.Before;
 
@@ -28,8 +30,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.ListAssert;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;

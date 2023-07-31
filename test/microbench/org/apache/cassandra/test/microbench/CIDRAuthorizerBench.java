@@ -31,11 +31,6 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.auth.AuthTestUtils;
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.cql3.CIDR;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -49,6 +44,12 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.auth.AuthTestUtils;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.cql3.CIDR;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 
 /**
  * Benchmark CIDR authorizer (enforce mode)

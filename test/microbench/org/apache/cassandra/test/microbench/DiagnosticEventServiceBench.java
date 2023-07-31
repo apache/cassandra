@@ -23,10 +23,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.OverrideConfigurationLoader;
-import org.apache.cassandra.diag.DiagnosticEvent;
-import org.apache.cassandra.diag.DiagnosticEventService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -39,6 +35,11 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.OverrideConfigurationLoader;
+import org.apache.cassandra.diag.DiagnosticEvent;
+import org.apache.cassandra.diag.DiagnosticEventService;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

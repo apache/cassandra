@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.serializers;
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import java.nio.ByteBuffer;
 
 public class BytesSerializer extends TypeSerializer<ByteBuffer>
 {
