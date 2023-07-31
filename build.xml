@@ -335,7 +335,7 @@
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="--frames">
+        maxmemory="256m" additionalparam="${jdk11plus-javac-exports}">
         <filesets/>
       </javadoc>
       <fail message="javadoc failed">
