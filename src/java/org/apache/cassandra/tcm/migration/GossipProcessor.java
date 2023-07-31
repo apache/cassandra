@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.migration;
 
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Processor;
+import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -28,13 +29,13 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 public class GossipProcessor implements Processor
 {
     @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
+    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
     {
         throw new IllegalStateException("Can't commit transformations when running in gossip mode. Enable the ClusterMetadataService with `nodetool addtocms`.");
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait()
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
     {
         return ClusterMetadata.current();
     }

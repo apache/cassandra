@@ -45,7 +45,7 @@ public class Sealed implements Comparable<Sealed>
         Sealed sealed = index.get().lookupPeriodForReplication(since);
         if (sealed.equals(EMPTY))
         {
-            logger.info("No sealed period found in index for epoch {}, querying system table", since);
+            logger.trace("No sealed period found in index for epoch {}, querying system table", since);
             sealed = SystemKeyspace.findSealedPeriodForEpochScan(since);
         }
         return sealed;
@@ -56,7 +56,7 @@ public class Sealed implements Comparable<Sealed>
         Sealed sealed = index.get().lookupEpochForSnapshot(since);
         if (sealed.equals(EMPTY))
         {
-            logger.info("No sealed period for snapshot found in index for epoch {}, querying system table", since);
+            logger.trace("No sealed period for snapshot found in index for epoch {}, querying system table", since);
             sealed = SystemKeyspace.getLastSealedPeriod();
         }
         return sealed;

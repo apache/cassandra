@@ -46,11 +46,6 @@ public abstract class Retry
         this.retryMeter = retryMeter;
     }
 
-    public int maxTries()
-    {
-        return maxTries;
-    }
-
     public int currentTries()
     {
         return tries;
@@ -105,7 +100,7 @@ public abstract class Retry
             this(MAX_TRIES, RETRY_BACKOFF_MS, retryMeter);
         }
 
-        private Backoff(int maxTries, int backoffMs, Meter retryMeter)
+        public Backoff(int maxTries, int backoffMs, Meter retryMeter)
         {
             super(maxTries, retryMeter);
             this.backoffMs = backoffMs;
@@ -129,36 +124,53 @@ public abstract class Retry
 
     public static class Deadline extends Retry
     {
-        protected final long backoffMs;
-        protected final long deadlineNanos;
+        public final long deadlineNanos;
+        protected final Retry delegate;
 
-        public Deadline(long backoffMs, long deadlineNanos, Meter retryMeter)
+        private Deadline(long deadlineNanos, Retry delegate)
         {
-            super(Integer.MAX_VALUE, retryMeter);
-            this.backoffMs = backoffMs;
+            super(delegate.maxTries, delegate.retryMeter);
+            assert deadlineNanos > 0;
             this.deadlineNanos = deadlineNanos;
+            this.delegate = delegate;
+        }
+
+        public static Deadline at(long deadlineNanos, Retry delegate)
+        {
+            return new Deadline(deadlineNanos, delegate);
+        }
+
+        public static Deadline after(long timeoutNanos, Retry delegate)
+        {
+            return new Deadline(Clock.Global.nanoTime() + timeoutNanos, delegate);
         }
 
         @Override
         public boolean reachedMax()
         {
-            return Clock.Global.nanoTime() > deadlineNanos;
+            return delegate.reachedMax() || Clock.Global.nanoTime() > deadlineNanos;
+        }
+
+        public long remainingNanos()
+        {
+            return Math.max(0, deadlineNanos - Clock.Global.nanoTime());
+        }
+
+        @Override
+        public int currentTries()
+        {
+            return delegate.currentTries();
         }
 
         @Override
         public long sleepFor()
         {
-            return backoffMs;
+            return delegate.sleepFor();
         }
 
-        @Override
         public String toString()
         {
-            return "Backoff{" +
-                   "backoffMs=" + backoffMs +
-                   ", maxTries=" + maxTries +
-                   ", tries=" + tries +
-                   '}';
+            return String.format("Deadline{remainingMs=%d, tries=%d/%d}", TimeUnit.NANOSECONDS.toMillis(remainingNanos()), currentTries(), delegate.maxTries);
         }
     }
 

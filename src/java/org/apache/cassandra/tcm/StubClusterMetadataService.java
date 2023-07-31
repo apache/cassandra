@@ -56,7 +56,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
     }
 
     @Override
-    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
+    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onFailure)
     {
         Transformation.Result result = transform.execute(metadata);
         if (result.isSuccess())
@@ -64,11 +64,11 @@ public class StubClusterMetadataService extends ClusterMetadataService
             metadata = result.success().metadata;
             return  onSuccess.accept(result.success().metadata);
         }
-        return onReject.accept(metadata, result.rejected().code, result.rejected().reason);
+        return onFailure.accept(metadata, result.rejected().code, result.rejected().reason);
     }
 
     @Override
-    public ClusterMetadata fetchLogFromCMS()
+    public ClusterMetadata fetchLogFromCMS(Epoch awaitAtLeast)
     {
         return metadata;
     }
@@ -90,13 +90,13 @@ public class StubClusterMetadataService extends ClusterMetadataService
         private StubProcessor() {}
 
         @Override
-        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
+        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public ClusterMetadata fetchLogAndWait()
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
         {
             throw new UnsupportedOperationException();
         }

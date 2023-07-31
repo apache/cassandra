@@ -392,7 +392,7 @@ public class CassandraDaemon
             exitOrFail(1, "Fatal configuration error", e);
         }
 
-        ScheduledExecutors.nonPeriodicTasks.execute(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+        ScheduledExecutors.optionalTasks.execute(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
 
         // TODO: (TM/alexp), this can be made time-dependent
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which

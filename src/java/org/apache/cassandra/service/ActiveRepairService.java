@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +39,7 @@ import javax.management.openmbean.CompositeData;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1083,20 +1085,31 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public Future<?> repairPaxosForTopologyChange(String ksName, Collection<Range<Token>> ranges, String reason)
     {
+        List<Supplier<Future<?>>> work = repairPaxosForTopologyChangeAsync(ksName,ranges, reason);
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (Supplier<Future<?>> futureSupplier : work)
+            futures.add(futureSupplier.get());
+
+        return FutureCombiner.allOf(futures);
+    }
+
+    public List<Supplier<Future<?>>> repairPaxosForTopologyChangeAsync(String ksName, Collection<Range<Token>> ranges, String reason)
+    {
         if (!paxosRepairEnabled())
         {
             logger.warn("Not running paxos repair for topology change because paxos repair has been disabled");
-            return ImmediateFuture.success(null);
+            return Arrays.asList(() -> ImmediateFuture.success(null));
         }
 
         if (ranges.isEmpty())
         {
             logger.warn("Not running paxos repair for topology change because there are no ranges to repair");
-            return ImmediateFuture.success(null);
+            return Arrays.asList(() -> ImmediateFuture.success(null));
         }
         ClusterMetadata metadata = ClusterMetadata.current();
         List<TableMetadata> tables = Lists.newArrayList(metadata.schema.getKeyspaces().getNullable(ksName).tables);
-        List<Future<Void>> futures = new ArrayList<>(ranges.size() * tables.size());
+        List<Supplier<Future<?>>> futures = new ArrayList<>(ranges.size() * tables.size());
         Keyspace keyspace = Keyspace.open(ksName);
 
         for (Range<Token> range: ranges)
@@ -1137,12 +1150,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              range, table.keyspace, table.name, ClusterMetadata.current(), PAXOS_REPAIR_ALLOW_MULTIPLE_PENDING_UNSAFE.getKey()));
 
                 }
-                Future<Void> future = PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor());
-                futures.add(future);
+                futures.add(() -> PaxosCleanup.cleanup(endpoints, table, Collections.singleton(range), false, repairCommandExecutor()));
             }
         }
 
-        return FutureCombiner.allOf(futures);
+        return futures;
     }
 
     public int getPaxosRepairParallelism()

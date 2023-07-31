@@ -239,6 +239,7 @@ public abstract class LocalLog implements Closeable
     }
 
     public abstract ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException;
+
     /**
      * Makes sure that the pending queue is processed _at least once_.
      */

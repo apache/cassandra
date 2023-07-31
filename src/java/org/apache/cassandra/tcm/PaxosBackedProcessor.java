@@ -18,10 +18,13 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.List;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,17 +32,24 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.exceptions.ReadTimeoutException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.LogStorage;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.tryCommit;
 
@@ -61,53 +71,146 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    protected ClusterMetadata tryReplayAndWait()
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
     {
         ClusterMetadata metadata = log.waitForHighestConsecutive();
 
-        Set<Replica> replicas = metadata.fullCMSMembersAsReplicas();
-
-        // We can not use Paxos to catch-up a member of CMS ownership group, since that'd reduce availability,
-        // so instead we allow CMS owners to catch up via inconsistent replay. In other words, from local log
-        // of the majority of the CMS replicas.
-        int blockFor = replicas.size() == 1 ? 1 : (replicas.size() / 2) + 1;
-        CountDownLatch latch = CountDownLatch.newCountDownLatch(blockFor);
-        List<Epoch> fetched = new CopyOnWriteArrayList<>();
-
-        for (Replica replica : replicas)
-        {
-            // TODO: test applying LogStates from multiple responses
-            if (replica.isSelf())
-            {
-                log.append(LogStorage.SystemKeyspace.getLogState(metadata.epoch));
-                latch.decrement();
-            }
-            else
-            {
-                Message<FetchCMSLog> request = Message.out(Verb.TCM_FETCH_CMS_LOG_REQ,
-                                                           new FetchCMSLog(metadata.epoch, false));
-
-                MessagingService.instance().sendWithCallback(request, replica.endpoint(),
-                                                             (RequestCallback<LogState>) msg -> {
-                                                                 fetched.add(msg.payload.latestEpoch());
-                                                                 log.append(msg.payload);
-                                                                 latch.decrement();
-                                                             });
-            }
-        }
-
         try
         {
-            if (latch.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
-                return log.waitForHighestConsecutive();
-            else
-                throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - latch.count(), blockFor, false);
+            // Attempt to perform a consistent fetch
+            log.append(DistributedMetadataLogKeyspace.getLogState(metadata.epoch, true));
+            return log.waitForHighestConsecutive();
         }
-        finally
+        catch (Throwable t)
         {
-            fetched.stream()
-                   .max(Epoch::compareTo)
-                   .ifPresent(max -> TCMMetrics.instance.cmsLogEntriesFetched(metadata.epoch, max));
+            JVMStabilityInspector.inspectThrowable(t);
+            TCMMetrics.instance.fetchCMSLogConsistencyDowngrade.mark();
+            logger.warn("Could not perform consistent fetch, downgrading to fetching from CMS peers: " + t.getMessage());
+        }
+
+        Set<Replica> replicas = metadata.fullCMSMembersAsReplicas();
+
+        // We prefer to always perform a consistent fetch (i.e. Paxos read of the distributed log state table).
+        // However, in some cases (specifically, during CMS membership changes) this may not be possible, as Paxos
+        // relies on matching Participants, and there might be a mismatch during the membership change. In such
+        // case, we allow inconsistent fetch. In other words, replay from local log of the majority of the CMS replicas.
+        int blockFor = replicas.size() == 1 ? 1 : (replicas.size() / 2) + 1;
+
+        Set<InetAddressAndPort> collected = new HashSet<>(blockFor);
+        Set<FetchLogRequest> requests = new HashSet<>();
+        AtomicReference<Epoch> highestSeen = new AtomicReference<>(metadata.epoch);
+
+        for (Replica peer : replicas)
+            requests.add(new FetchLogRequest(peer, MessagingService.instance(), metadata.epoch));
+
+        while (!retryPolicy.reachedMax())
+        {
+            Iterator<FetchLogRequest> iter = requests.iterator();
+            boolean hasRequestToSelf = false;
+            while (iter.hasNext())
+            {
+                FetchLogRequest request = iter.next();
+                if (request.to.isSelf())
+                {
+                    hasRequestToSelf = true;
+                    iter.remove();
+                }
+                else
+                {
+                    request.retry();
+                }
+            }
+
+            // Fire off a blocking request to self only after dispatching requests to other participants
+            if (hasRequestToSelf)
+            {
+                log.append(DistributedMetadataLogKeyspace.getLogState(metadata.epoch, false));
+                collected.add(FBUtilities.getBroadcastAddressAndPort());
+            }
+
+            iter = requests.iterator();
+            long nextTimeout = Math.min(retryPolicy.deadlineNanos, Clock.Global.nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS));
+            while (iter.hasNext())
+            {
+                FetchLogRequest request = iter.next();
+                if (request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
+                    request.condition.isSuccess())
+                {
+                    collected.add(request.to.endpoint());
+                    LogState logState = unwrap(request.condition);
+                    log.append(logState);
+                    highestSeen.getAndUpdate(o -> {
+                        if (o == null || logState.latestEpoch().isAfter(o))
+                            return logState.latestEpoch();
+                        return o;
+                    });
+                    iter.remove();
+                }
+            }
+
+            if (collected.size() < blockFor)
+            {
+                retryPolicy.maybeSleep();
+                continue;
+            }
+
+            Epoch highest = highestSeen.get();
+            TCMMetrics.instance.cmsLogEntriesFetched(metadata.epoch, highest);
+            assert waitFor == null || highest.isEqualOrAfter(waitFor) : String.format("%s should have been higher than waited for epoch %s", highestSeen, waitFor);
+            return log.waitForHighestConsecutive();
+        }
+
+        TCMMetrics.instance.cmsLogEntriesFetched(metadata.epoch, highestSeen.get());
+        throw new ReadTimeoutException(ConsistencyLevel.QUORUM, blockFor - collected.size(), blockFor, false);
+    }
+
+    private static <T> T unwrap(Promise<T> promise)
+    {
+        if (!promise.isDone() || !promise.isSuccess())
+            throw new IllegalStateException("Can only unwrap an already done promise.");
+        try
+        {
+            return promise.get();
+        }
+        catch (InterruptedException | ExecutionException e)
+        {
+            throw new IllegalStateException("Promise shoulde not have thrown", e);
         }
     }
+
+    private static class FetchLogRequest implements RequestCallbackWithFailure<LogState>
+    {
+        private AsyncPromise<LogState> condition = null;
+        private final Replica to;
+        private final MessageDelivery messagingService;
+        private final FetchCMSLog request;
+
+        public FetchLogRequest(Replica to, MessageDelivery messagingService, Epoch lowerBound)
+        {
+            this.to = to;
+            this.messagingService = messagingService;
+            this.request = new FetchCMSLog(lowerBound, false);
+        }
+
+        @Override
+        public void onResponse(Message<LogState> msg)
+        {
+            condition.trySuccess(msg.payload);
+        }
+
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        {
+            logger.debug("Error response from {} with {}", from, failureReason);
+            condition.tryFailure(new TimeoutException(failureReason.toString()));
+        }
+
+        public void retry()
+        {
+            condition = new AsyncPromise<>();
+            messagingService.sendWithCallback(Message.out(Verb.TCM_FETCH_CMS_LOG_REQ, request), to.endpoint(), this);
+        }
+    }
+
+
 }

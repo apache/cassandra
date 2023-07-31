@@ -61,7 +61,7 @@ public class FixedLossNetworkScheduler implements FutureActionScheduler
                                               new LongRange(2, 20, TimeUnit.MILLISECONDS, TimeUnit.NANOSECONDS),
                                               random);
         this.delayLatency = kind.linkLatency(nodes,
-                                             new LongRange(20, 100, TimeUnit.MILLISECONDS, TimeUnit.NANOSECONDS),
+                                             new LongRange(20, 40, TimeUnit.MILLISECONDS, TimeUnit.NANOSECONDS),
                                              random);
 
         this.dropMessage = kind.networkDecision(nodes,
@@ -111,7 +111,7 @@ public class FixedLossNetworkScheduler implements FutureActionScheduler
     }
 
     private Map<DeliveryPair, Integer> pairs = new HashMap<>();
-    private static final int TIMEOUTS_IN_A_ROW = 5;
+    private static final int TIMEOUTS_IN_A_ROW = 1;
     public Deliver shouldDeliver(int from, int to)
     {
         DeliveryPair pair = new DeliveryPair(from, to);

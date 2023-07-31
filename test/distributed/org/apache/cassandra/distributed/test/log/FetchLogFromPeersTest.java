@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.log;
 
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
@@ -32,6 +33,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -172,15 +174,19 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("alter keyspace %s with replication = {'class':'SimpleStrategy', 'replication_factor':3}"));
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
             cluster.filters().inbound().from(1).to(2).drop();
-
+            AtomicInteger fetchedFromPeer = new AtomicInteger();
+            cluster.filters().inbound().from(2).to(4).messagesMatching((from, to, msg) -> {
+                if (msg.verb() == Verb.TCM_FETCH_PEER_LOG_REQ.id)
+                    fetchedFromPeer.getAndIncrement();
+                return false;
+            }).drop().on();
             cluster.get(3).shutdown().get();
             cluster.get(4).nodetoolResult("assassinate", "127.0.0.3").asserts().success();
 
             cluster.get(1).shutdown().get();
-            // node4 is ahead - node2 should catch up and allow the write
-            long mark = cluster.get(2).logs().mark();
+            int before = fetchedFromPeer.get();
             cluster.coordinator(4).execute(withKeyspace("select * from %s.tbl where id = 6"), ConsistencyLevel.QUORUM);
-            assertTrue(cluster.get(2).logs().grep(mark, "Fetched log from /127.0.0.4:7012").getResult().size() > 0);
+            assertTrue(fetchedFromPeer.get() > before);
         }
     }
 
@@ -194,15 +200,21 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
             cluster.schemaChange(withKeyspace("create table %s.tbl2 (id int primary key)"));
             cluster.filters().inbound().from(1).to(2).drop();
+            AtomicInteger fetchedFromPeer = new AtomicInteger();
+            cluster.filters().inbound().from(2).to(4).messagesMatching((from, to, msg) -> {
+                if (msg.verb() == Verb.TCM_FETCH_PEER_LOG_REQ.id)
+                    fetchedFromPeer.getAndIncrement();
+                return false;
+            }).drop().on();
 
             cluster.get(3).shutdown().get();
             cluster.get(4).nodetoolResult("assassinate", "127.0.0.3").asserts().success();
 
             cluster.get(1).shutdown().get();
             // node4 is ahead - node2 should catch up and allow the write
-            long mark = cluster.get(2).logs().mark();
+            int before = fetchedFromPeer.get();
             cluster.coordinator(4).execute(withKeyspace("insert into %s.tbl (id) values (6)"), ConsistencyLevel.QUORUM);
-            assertTrue(cluster.get(2).logs().grep(mark, "Fetched log from /127.0.0.4:7012").getResult().size() > 0);
+            assertTrue(fetchedFromPeer.get() > before);
         }
     }
 
@@ -219,6 +231,13 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             // isolate node2 from the other CMS members to ensure it's behind
             cluster.filters().inbound().from(1).to(2).drop();
             cluster.filters().inbound().from(3).to(2).drop();
+            AtomicInteger fetchedFromPeer = new AtomicInteger();
+            cluster.filters().inbound().from(2).to(4).messagesMatching((from, to, msg) -> {
+                if (msg.verb() == Verb.TCM_FETCH_PEER_LOG_REQ.id)
+                    fetchedFromPeer.getAndIncrement();
+                return false;
+            }).drop().on();
+
             long mark = cluster.get(4).logs().mark();
             cluster.coordinator(1).execute(withKeyspace("alter table %s.tbl with comment='test 123'"), ConsistencyLevel.ONE);
             cluster.get(4).logs().watchFor(mark, "AlterOptions");
@@ -227,9 +246,9 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             cluster.get(2).logs().watchFor(mark, "/127.0.0.1:7012 is now DOWN");
             // node2, a CMS member, is now behind and node1 is shut down.
             // Try reading at QUORUM from node4, node2 should detect it's behind and catch up from node4
-            mark = cluster.get(2).logs().mark();
+            int before = fetchedFromPeer.get();
             cluster.coordinator(4).execute(withKeyspace("select * from %s.tbl where id = 55"), ConsistencyLevel.QUORUM);
-            cluster.get(2).logs().watchFor(mark, "Fetching log from /127.0.0.4:7012");
+            assertTrue(fetchedFromPeer.get() > before);
         }
     }
 }

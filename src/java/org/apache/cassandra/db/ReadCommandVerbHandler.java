@@ -123,7 +123,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             localComparisonEpoch = cfs.metadata().epoch;
 
         if (localComparisonEpoch.isBefore(readCommand.serializedAtEpoch()))
-            metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
         else if (localComparisonEpoch.isAfter(readCommand.serializedAtEpoch()))
             throw new CoordinatorBehindException(String.format("Coordinator schema for %s.%s with epoch %s is behind our schema %s",
                                                                message.payload.metadata().keyspace,
@@ -148,7 +148,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Replica localReplica = getLocalReplica(metadata, token, command.metadata().keyspace);
             if (localReplica == null)
             {
-                metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
                 localReplica = getLocalReplica(metadata, token, command.metadata().keyspace);
             }
             if (localReplica == null)
@@ -175,7 +175,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Replica maxTokenLocalReplica = getLocalReplica(metadata, range.right.getToken(), command.metadata().keyspace);
             if (maxTokenLocalReplica == null)
             {
-                metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
                 maxTokenLocalReplica = getLocalReplica(metadata, range.right.getToken(), command.metadata().keyspace);
             }
             if (maxTokenLocalReplica == null)

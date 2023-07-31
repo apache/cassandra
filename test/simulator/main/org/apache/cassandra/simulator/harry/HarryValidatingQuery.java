@@ -34,6 +34,7 @@ import harry.operations.CompiledStatement;
 import harry.operations.Query;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
+import org.apache.cassandra.simulator.SimulatorUtils;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.SimulatedAction;
@@ -114,7 +115,7 @@ public class HarryValidatingQuery extends SimulatedAction
                             if (!throwables.isEmpty())
                             {
                                 logger.error(String.format("Could not validate %d out of %d replicas %s", throwables.size(), replicas.size(), replicas), throwables.get(0));
-                                System.exit(1);
+                                SimulatorUtils.failWithOOM();
                             }
                         }
 

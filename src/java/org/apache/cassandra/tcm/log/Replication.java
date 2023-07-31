@@ -224,7 +224,7 @@ public class Replication
                 if (highestPending.isPresent())
                 {
                     // We should not call maybeCatchup fom this stage
-                    ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().maybeFetchLog(highestPending.get()));
+                    ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().fetchLogFromCMS(highestPending.get()));
                 }
                 else if (ClusterMetadata.current().epoch.isBefore(message.payload.transformations.latestEpoch()))
                 {

@@ -38,6 +38,7 @@ import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class LogState
 {
@@ -134,14 +135,15 @@ public class LogState
             }
             else
             {
-                    logger.info("Loaded snapshot of epoch {} from sealed period {} which follows requested start epoch, including in LogState since {}",
-                                snapshot.epoch, snapshot.period, since.getEpoch());
-                    return new LogState(snapshot, reader.getReplication(snapshot.nextPeriod(), snapshot.epoch));
+                logger.info("Loaded snapshot of epoch {} from sealed period {} which follows requested start epoch, including in LogState since {}",
+                            snapshot.epoch, snapshot.period, since.getEpoch());
+                return new LogState(snapshot, reader.getReplication(snapshot.nextPeriod(), snapshot.epoch));
             }
         }
         catch (Throwable t)
         {
-            logger.error("Could not restore the state.", t);
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.error("Could not restore the state: ", t.getMessage());
             throw new RuntimeException(t);
         }
     }

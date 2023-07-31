@@ -227,8 +227,8 @@ public enum Verb
     // transactional cluster metadata
     TCM_COMMIT_RSP         (801, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Result.serializer,                            () -> ResponseVerbHandler.instance                                 ),
     TCM_COMMIT_REQ         (802, P1, rpcTimeout,      INTERNAL_METADATA,    () -> org.apache.cassandra.tcm.Commit.serializer,   () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
-    TCM_FETCH_CMS_LOG_RSP  (803, P1, rpcTimeout,      INTERNAL_METADATA,    () -> LogState.serializer,                          () -> ResponseVerbHandler.instance                                 ),
-    TCM_FETCH_CMS_LOG_REQ  (804, P1, rpcTimeout,      INTERNAL_METADATA,    () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
+    TCM_FETCH_CMS_LOG_RSP  (803, P1, rpcTimeout,      FETCH_LOG,            () -> LogState.serializer,                          () -> ResponseVerbHandler.instance                                 ),
+    TCM_FETCH_CMS_LOG_REQ  (804, P1, rpcTimeout,      FETCH_LOG,            () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
     TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Replication.messageSerializer,                () -> replicationHandler()                                         ),
     TCM_NOTIFY_RSP         (806, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> ResponseVerbHandler.instance                                 ),
     TCM_NOTIFY_REQ         (807, P1, rpcTimeout,      INTERNAL_METADATA,    () -> LogState.serializer,                          () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
@@ -238,8 +238,8 @@ public enum Verb
     TCM_ABORT_MIG          (811, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
     TCM_DISCOVER_RSP       (812, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                                 ),
     TCM_DISCOVER_REQ       (813, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
-    TCM_FETCH_PEER_LOG_RSP (818, P1, rpcTimeout,      INTERNAL_METADATA,    () -> LogState.serializer,                          () -> ResponseVerbHandler.instance                                 ),
-    TCM_FETCH_PEER_LOG_REQ (819, P1, rpcTimeout,      INTERNAL_METADATA,    () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
+    TCM_FETCH_PEER_LOG_RSP (818, P1, rpcTimeout,      FETCH_LOG,            () -> LogState.serializer,                          () -> ResponseVerbHandler.instance                                 ),
+    TCM_FETCH_PEER_LOG_REQ (819, P1, rpcTimeout,      FETCH_LOG,            () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),

@@ -1240,7 +1240,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String dumpClusterMetadata() throws IOException;
     public void unsafeLoadClusterMetadata(String file) throws IOException;
 
-    public void replayAndWait();
     public void setCommitsPaused(boolean paused);
     public boolean getCommitsPaused();
 }

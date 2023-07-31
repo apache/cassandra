@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.concurrent.TimeUnit;
+
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
@@ -41,6 +43,7 @@ public class TCMMetrics
     public final Histogram fetchedCMSLogEntries;
     public final Timer fetchPeerLogLatency;
     public final Timer fetchCMSLogLatency;
+    public final Meter fetchCMSLogConsistencyDowngrade;
     public final Histogram servedPeerLogEntries;
     public final Histogram servedCMSLogEntries;
     public final Meter logEntryFetchRate;
@@ -50,6 +53,8 @@ public class TCMMetrics
     public final Meter commitRetries;
     public final Meter fetchLogRetries;
     public final Meter progressBarrierRetries;
+    // TODO: we eventually want to rely on (currently non-existing) metric that tracks paxos topology retries for all Paxos.
+    public final Meter repairPaxosTopologyRetries;
     public final Timer progressBarrierLatency;
     public final Meter progressBarrierCLRelax;
 
@@ -80,9 +85,11 @@ public class TCMMetrics
         fetchPeerLogLatency = Metrics.timer(factory.createMetricName("FetchPeerLogLatency"));
         fetchedCMSLogEntries = Metrics.histogram(factory.createMetricName("FetchedCMSLogEntries"), false);
         fetchCMSLogLatency = Metrics.timer(factory.createMetricName("FetchCMSLogLatency"));
+        fetchCMSLogConsistencyDowngrade = Metrics.meter(factory.createMetricName("FetchCMSLogConsistencyDowngradeRelax"));
         servedPeerLogEntries = Metrics.histogram(factory.createMetricName("ServedPeerLogEntries"), false);
         servedCMSLogEntries = Metrics.histogram(factory.createMetricName("ServedCMSLogEntries"), false);
         fetchLogRetries = Metrics.meter(factory.createMetricName("FetchLogRetries"));
+        repairPaxosTopologyRetries = Metrics.meter(factory.createMetricName("RepairCMSPaxosTopologyRetries"));
         logEntryFetchRate = Metrics.meter(factory.createMetricName("LogEntryFetchRate"));
 
         commitRejectionLatency = Metrics.timer(factory.createMetricName("CommitRejectionLatency"));
@@ -94,6 +101,14 @@ public class TCMMetrics
         progressBarrierLatency = Metrics.timer(factory.createMetricName("ProgressBarrierLatency"));
         progressBarrierCLRelax = Metrics.meter(factory.createMetricName("ProgressBarrierCLRelaxed"));
 
+    }
+
+    public void recordCommitFailureLatency(long latency, TimeUnit timeUnit, boolean isRejection)
+    {
+        if (isRejection)
+            commitRejectionLatency.update(latency, timeUnit);
+        else
+            commitFailureLatency.update(latency, timeUnit);
     }
 
     public void peerLogEntriesFetched(Epoch before, Epoch after)

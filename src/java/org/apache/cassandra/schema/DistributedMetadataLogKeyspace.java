@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.log.LogReader;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.tcm.Epoch.FIRST;
 
@@ -150,7 +151,7 @@ public final class DistributedMetadataLogKeyspace
         }
         catch (CasWriteTimeoutException t)
         {
-            logger.warn("Timed out wile trying to CAS", t);
+            logger.warn("Timed out wile trying to append item to the log: ", t.getMessage());
             return false;
         }
         catch (Throwable t)
@@ -166,16 +167,17 @@ public final class DistributedMetadataLogKeyspace
         QueryProcessor.execute(String.format("TRUNCATE %s.%s", SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME), ConsistencyLevel.QUORUM);
     }
 
-    // supplies Replication for LogState and catchup
-    public static final LogReader logReader = new DistributedLogReader();
 
-    public static LogState getLogState(Epoch since)
+    private static final LogReader localLogReader = new DistributedTableLogReader(ConsistencyLevel.NODE_LOCAL);
+    private static final LogReader serialLogReader = new DistributedTableLogReader(ConsistencyLevel.SERIAL);
+
+    public static LogState getLogState(Epoch since, boolean consistentFetch)
     {
-        return getLogState(since, ClusterMetadataService.instance().snapshotManager());
+        return LogState.getLogState(since, ClusterMetadataService.instance().snapshotManager(), consistentFetch ? serialLogReader : localLogReader);
     }
 
     @VisibleForTesting
-    public static LogState getLogState(Epoch since, MetadataSnapshots snapshots)
+    public static LogState getLogState(Epoch since, LogReader logReader, MetadataSnapshots snapshots)
     {
         Retry retry = new Retry.Jitter(TCMMetrics.instance.fetchLogRetries);
         while (!retry.reachedMax())
@@ -190,11 +192,18 @@ public final class DistributedMetadataLogKeyspace
             }
         }
 
-        throw new IllegalStateException(String.format("Could not suceed retrieving log state after %s tries.", retry.currentTries()));
+        throw new IllegalStateException(String.format("Could not retrieve log state after %s tries.", retry.currentTries()));
     }
 
-    private static class DistributedLogReader implements LogReader
+    public static class DistributedTableLogReader implements LogReader
     {
+        private final ConsistencyLevel consistencyLevel;
+
+        public DistributedTableLogReader(ConsistencyLevel consistencyLevel)
+        {
+            this.consistencyLevel = consistencyLevel;
+        }
+
         @Override
         public Replication getReplication(long startPeriod, Epoch since)
         {
@@ -203,6 +212,7 @@ public final class DistributedMetadataLogKeyspace
                 if (startPeriod == Period.EMPTY)
                 {
                     startPeriod = Period.scanLogForPeriod(Log, since);
+                    // There shouldn't be any entries in period 0, the pre-init transform would bump it to period 1.
                     if (startPeriod == Period.EMPTY)
                         return Replication.EMPTY;
                 }
@@ -217,10 +227,9 @@ public final class DistributedMetadataLogKeyspace
                 {
                     boolean empty = true;
                     UntypedResultSet resultSet = execute(String.format("SELECT current_epoch, period, epoch, kind, transformation, entry_id, sealed FROM %s.%s WHERE period = ? AND epoch > ?",
-                                                          SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
-                                                         ConsistencyLevel.SERIAL, period, since.getEpoch());
+                                                                       SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
+                                                         consistencyLevel, period, since.getEpoch());
 
-                    // TODO: timeout here causes cluster to stall
                     for (UntypedResultSet.Row row : resultSet)
                     {
                         currentEpoch = row.getLong("current_epoch");
@@ -244,9 +253,9 @@ public final class DistributedMetadataLogKeyspace
                 assert currentEpoch == lastEpoch;
                 return new Replication(entries.build());
             }
-            catch (Throwable t)
+            catch (IOException t)
             {
-                logger.error("Was not able to query the cluster metadata state", t);
+                JVMStabilityInspector.inspectThrowable(t);
                 throw new RuntimeException(t);
             }
         }
@@ -254,6 +263,8 @@ public final class DistributedMetadataLogKeyspace
 
     private static UntypedResultSet execute(String query, ConsistencyLevel cl, Object ... params)
     {
+        if (cl == ConsistencyLevel.NODE_LOCAL)
+            return QueryProcessor.executeInternal(query, params);
         return QueryProcessor.execute(query, cl, params);
     }
 

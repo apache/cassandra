@@ -80,7 +80,7 @@ public abstract class InProgressSequence<T extends InProgressSequence<T>>
                           // an actual op. Since MID_JOIN is also what we expect after committing START_JOIN,
                           // we assume that we have successfully committed it.
                           if (expectedNextOp != actual)
-                              throw new IllegalStateException(reason);
+                              throw new IllegalStateException(String.format("Expected next operation to be %s, but got %s: %s", expectedNextOp, actual, reason));
 
                           // Suceeded after retry
                           return metadata;

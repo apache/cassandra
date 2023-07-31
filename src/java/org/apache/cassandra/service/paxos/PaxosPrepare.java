@@ -45,7 +45,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -54,6 +53,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -1007,7 +1007,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().fetchLogWithFallback(ClusterMetadata.current(), message.from(), message.epoch());
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), message.from(), message.epoch());
 
             Response response = execute(message.payload, message.from());
             if (response == null)

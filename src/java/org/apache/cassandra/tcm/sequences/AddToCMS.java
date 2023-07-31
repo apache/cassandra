@@ -21,11 +21,14 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +38,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.metrics.PaxosMetrics;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -54,6 +57,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.cms.FinishAddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.StartAddToCMS;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.Kind.JOIN_OWNERSHIP_GROUP;
@@ -152,26 +156,40 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
 
     private static void repairPaxosTopology()
     {
-        Retry.Backoff retry = new Retry.Backoff(PaxosMetrics.repairPaxosTopologyRetries);
+        Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
+        List<Supplier<Future<?>>> remaining = ActiveRepairService.instance.repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                                                                             Collections.singletonList(entireRange),
+                                                                                                             "bootstrap");
+
         while (!retry.reachedMax())
         {
-            try
+            Map<Supplier<Future<?>>, Future<?>> tasks = new HashMap<>();
+            for (Supplier<Future<?>> supplier : remaining)
+                tasks.put(supplier, supplier.get());
+            remaining.clear();
+            logger.info("Performing paxos topology repair on:", remaining);
+
+            for (Map.Entry<Supplier<Future<?>>, Future<?>> e : tasks.entrySet())
             {
-                ActiveRepairService.instance.repairPaxosForTopologyChange(SchemaConstants.METADATA_KEYSPACE_NAME,
-                                                                          Collections.singletonList(entireRange),
-                                                                          "bootstrap")
-                                            .get();
+                try
+                {
+                    e.getValue().get();
+                }
+                catch (ExecutionException t)
+                {
+                    logger.error("Caught an exception while repairing paxos topology.", e);
+                    remaining.add(e.getKey());
+                }
+                catch (InterruptedException t)
+                {
+                    return;
+                }
+            }
+
+            if (remaining.isEmpty())
                 return;
-            }
-            catch (ExecutionException e)
-            {
-                logger.error("Caught an exception while repairing paxos topology.", e);
-                retry.maybeSleep();
-            }
-            catch (InterruptedException e)
-            {
-                return;
-            }
+
+            retry.maybeSleep();
         }
         logger.error(String.format("Added node as a CMS, but failed to repair paxos topology after this operation."));
     }
@@ -202,10 +220,18 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
     @Override
     protected Transformation.Kind stepFollowing(Transformation.Kind kind)
     {
-        if (kind == null || kind == Transformation.Kind.FINISH_ADD_TO_CMS)
+        if (kind == null)
             return null;
 
-        throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+        switch (kind)
+        {
+            case START_ADD_TO_CMS:
+                return Transformation.Kind.FINISH_ADD_TO_CMS;
+            case FINISH_ADD_TO_CMS:
+                return null;
+            default:
+                throw new IllegalStateException(String.format("Step %s is not a part of %s sequence", kind, kind()));
+        }
     }
 
     @Override

@@ -20,7 +20,9 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -30,12 +32,12 @@ import org.apache.cassandra.net.NoPayload;
 // two peers via a pair of empty messages
 public class CurrentEpochRequestHandler implements IVerbHandler<NoPayload>
 {
+    private static final Logger logger = LoggerFactory.getLogger(CurrentEpochRequestHandler.class);
     public void doVerb(Message<NoPayload> message) throws IOException
     {
-        // TODO maintain a cache of peers' watermarks.
         Message<NoPayload> response = message.emptyResponse();
         MessagingService.instance().send(response, message.from());
         // We try to catch up after responding, as watermark request is going to get retried
-        ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().maybeFetchLog(message.epoch()));
+        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), message.from(), message.epoch());
     }
 }

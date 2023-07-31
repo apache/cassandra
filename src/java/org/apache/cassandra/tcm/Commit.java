@@ -32,6 +32,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.*;
@@ -153,6 +154,15 @@ public class Commit
             // but it was rejected by the internal logic of the transformation.
             public final boolean rejected;
 
+            public Failure(Transformation.Rejected rejection)
+            {
+                this(rejection.code, rejection.reason, true);
+            }
+
+            public Failure(ExceptionCode code, String message)
+            {
+                this(code, message, false);
+            }
             public Failure(ExceptionCode code, String message, boolean rejected)
             {
                 this.code = code;
@@ -278,7 +288,8 @@ public class Commit
         {
             checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
-            Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown);
+            Retry.Deadline retryPolicy = Retry.Deadline.at(message.expiresAtNanos(), new Retry.Jitter(TCMMetrics.instance.commitRetries));
+            Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown, retryPolicy);
             if (result.isSuccess())
             {
                 Result.Success success = result.success();

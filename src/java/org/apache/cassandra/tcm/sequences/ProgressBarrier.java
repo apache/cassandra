@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -56,7 +57,7 @@ import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 /**
  * ProgressBarrier is responsible for ensuring that epoch visibility plays together with quorum consistency.
@@ -194,21 +195,21 @@ public class ProgressBarrier
         for (InetAddressAndPort peer : superset)
             requests.add(new WatermarkRequest(peer, messagingService, waitFor));
 
-        long start = Clock.Global.nanoTime();
-        long deadline = start + TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS);
-        Retry.Deadline backoff = new Retry.Deadline(BACKOFF_MILLIS, deadline, TCMMetrics.instance.progressBarrierRetries);
-        while (!backoff.reachedMax())
+        Retry.Deadline deadline = Retry.Deadline.after(TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS),
+                                                      new Retry.Backoff(DatabaseDescriptor.getCmsDefaultRetryMaxTries(),
+                                                                        (int) BACKOFF_MILLIS,
+                                                                        TCMMetrics.instance.fetchLogRetries));
+        while (!deadline.reachedMax())
         {
             for (WatermarkRequest request : requests)
                 request.retry();
-
             long nextTimeout = Clock.Global.nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS);
             Iterator<WatermarkRequest> iter = requests.iterator();
             while (iter.hasNext())
             {
                 WatermarkRequest request = iter.next();
-                if (request.condition.isSignalled() ||
-                    request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS))
+                if (request.condition.awaitUninterruptibly(Math.max(0, nextTimeout - Clock.Global.nanoTime()), TimeUnit.NANOSECONDS) &&
+                    request.condition.isSuccess())
                 {
                     collected.add(request.to);
                     iter.remove();
@@ -218,7 +219,7 @@ public class ProgressBarrier
             // No need to try processing until we collect enough nodes to pass all conditions
             if (collected.size() < maxWaitFor)
             {
-                backoff.maybeSleep();
+                deadline.maybeSleep();
                 continue;
             }
 
@@ -242,7 +243,7 @@ public class ProgressBarrier
         Set<InetAddressAndPort> remaining = new HashSet<>(superset);
         remaining.removeAll(collected);
         logger.warn("Could not collect {} of nodes for a progress barrier for epoch {} to finish within {}ms. Nodes that have not responded: {}",
-                    cl, waitFor, TimeUnit.NANOSECONDS.toMillis(Clock.Global.nanoTime() - start), remaining);
+                    cl, waitFor, TimeUnit.NANOSECONDS.toMillis(Clock.Global.nanoTime() - deadline.deadlineNanos), remaining);
         return false;
     }
 
@@ -515,7 +516,7 @@ public class ProgressBarrier
 
     private static class WatermarkRequest implements RequestCallbackWithFailure<NoPayload>
     {
-        private final Condition condition = Condition.newOneTimeCondition();
+        private AsyncPromise<Void> condition = null;
         private final InetAddressAndPort to;
         private final MessageDelivery messagingService;
         private final Epoch waitFor;
@@ -535,25 +536,27 @@ public class ProgressBarrier
             if (remote.isEqualOrAfter(waitFor))
             {
                 logger.debug("Received watermark response from {} with epoch {}", msg.from(), remote);
-                condition.signalAll();
-                return;
+                condition.trySuccess(null);
             }
-
-            retry();
+            else
+            {
+                condition.tryFailure(new TimeoutException(String.format("Watermark request did returned epoch %s while least %s was expected.", remote, waitFor)));
+            }
         }
 
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
             logger.debug("Error response from {} with {}", from, failureReason);
+            condition.tryFailure(new TimeoutException(String.format("Watermark request did returned %s.", failureReason)));
         }
 
         public void retry()
         {
+            condition = new AsyncPromise<>();
             messagingService.sendWithCallback(Message.out(Verb.TCM_CURRENT_EPOCH_REQ, NoPayload.noPayload), to, this);
         }
     }
-
 
     @Override
     public String toString()

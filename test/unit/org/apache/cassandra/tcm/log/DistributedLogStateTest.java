@@ -28,6 +28,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
@@ -128,7 +129,7 @@ public class DistributedLogStateTest extends LogStateTestBase
             @Override
             public LogState getLogState(Epoch since)
             {
-                return DistributedMetadataLogKeyspace.getLogState(since, snapshots);
+                return DistributedMetadataLogKeyspace.getLogState(since, new DistributedMetadataLogKeyspace.DistributedTableLogReader(ConsistencyLevel.SERIAL), snapshots);
             }
 
             @Override

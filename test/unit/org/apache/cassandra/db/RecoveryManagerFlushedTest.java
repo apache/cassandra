@@ -44,6 +44,7 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
@@ -85,8 +86,6 @@ public class RecoveryManagerFlushedTest
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
-//        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
-
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
@@ -97,12 +96,9 @@ public class RecoveryManagerFlushedTest
     /* test that commit logs do not replay flushed data */
     public void testWithFlush() throws Exception
     {
-        // Flush everything that may be in the commit log now to start fresh
-        Util.flushKeyspace(SchemaConstants.SYSTEM_KEYSPACE_NAME);
-        Util.flushKeyspace(SchemaConstants.SCHEMA_KEYSPACE_NAME);
-
-
         CompactionManager.instance.disableAutoCompaction();
+        for (String ks : Schema.instance.getKeyspaces())
+            Util.flush(Keyspace.open(ks));
 
         // add a row to another CF so we test skipping mutations within a not-entirely-flushed CF
         insertRow("Standard2", "key");
@@ -116,7 +112,10 @@ public class RecoveryManagerFlushedTest
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore("Standard1");
         logger.debug("forcing flush");
+        // Flush everything that may be in the commit log now to start fresh
         Util.flush(cfs);
+        // Flush system keyspace again because of sstable activity mutation called by the tidier
+        Util.flushKeyspace(SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
         logger.debug("begin manual replay");
         // replay the commit log (nothing on Standard1 should be replayed since everything was flushed, so only the row on Standard2

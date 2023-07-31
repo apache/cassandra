@@ -19,7 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,19 +34,18 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class FetchCMSLog
 {
     public static final Serializer serializer = new Serializer();
 
-    public final Epoch start;
+    public final Epoch lowerBound;
     public final boolean consistentFetch;
 
-    public FetchCMSLog(Epoch start, boolean consistentFetch)
+    public FetchCMSLog(Epoch lowerBound, boolean consistentFetch)
     {
-        this.start = start;
+        this.lowerBound = lowerBound;
         this.consistentFetch = consistentFetch;
     }
 
@@ -54,7 +53,7 @@ public class FetchCMSLog
     {
         return "FetchCMSLog{" +
                "consistentFetch=" + consistentFetch +
-               ", start=" + start +
+               ", lowerBound=" + lowerBound +
                '}';
     }
 
@@ -63,7 +62,7 @@ public class FetchCMSLog
 
         public void serialize(FetchCMSLog t, DataOutputPlus out, int version) throws IOException
         {
-            Epoch.serializer.serialize(t.start, out);
+            Epoch.serializer.serialize(t.lowerBound, out);
             out.writeBoolean(t.consistentFetch);
         }
 
@@ -76,7 +75,7 @@ public class FetchCMSLog
 
         public long serializedSize(FetchCMSLog t, int version)
         {
-            return Epoch.serializer.serializedSize(t.start)
+            return Epoch.serializer.serializedSize(t.lowerBound)
                    + TypeSizes.BOOL_SIZE;
         }
     }
@@ -85,14 +84,19 @@ public class FetchCMSLog
     {
         private static final Logger logger = LoggerFactory.getLogger(Handler.class);
 
-        private final Function<Epoch, LogState> logStateSupplier;
+        /**
+         * Receives epoch we need to fetch state up to, and a boolean specifying whether the consistency can be downgraded
+         * to node-local (which only relevant in cases of CMS expansions/shrinks, and can only be requested by the
+         * CMS node that collects the highest epoch from the quorum of peers).
+         */
+        private final BiFunction<Epoch, Boolean, LogState> logStateSupplier;
 
         public Handler()
         {
             this(DistributedMetadataLogKeyspace::getLogState);
         }
 
-        public Handler(Function<Epoch, LogState> logStateSupplier)
+        public Handler(BiFunction<Epoch, Boolean, LogState> logStateSupplier)
         {
             this.logStateSupplier = logStateSupplier;
         }
@@ -101,17 +105,16 @@ public class FetchCMSLog
         {
             FetchCMSLog request = message.payload;
 
-            logger.info("Received log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.start, ClusterMetadata.current().epoch);
+            logger.trace("Received log fetch request {} from {}: start = {}, current = {}", request, message.from(), message.payload.lowerBound, ClusterMetadata.current().epoch);
             if (request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(FBUtilities.getBroadcastAddressAndPort()))
                 throw new NotCMSException("This node is not in the CMS, can't generate a consistent log fetch response to " + message.from());
 
             // If both we and the other node believe it should be caught up with a linearizable read
             boolean consistentFetch = request.consistentFetch && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
-            LogState delta = consistentFetch ? logStateSupplier.apply(message.payload.start)
-                                              : LogStorage.SystemKeyspace.getLogState(message.payload.start);
-            TCMMetrics.instance.cmsLogEntriesServed(message.payload.start, delta.latestEpoch());
-            logger.info("Responding with log delta: {}", delta);
+            LogState delta = logStateSupplier.apply(message.payload.lowerBound, consistentFetch);
+            TCMMetrics.instance.cmsLogEntriesServed(message.payload.lowerBound, delta.latestEpoch());
+            logger.info("Responding to {}({}) with log delta: {}", message.from(), request, delta);
             MessagingService.instance().send(message.responseWith(delta), message.from());
         }
     }

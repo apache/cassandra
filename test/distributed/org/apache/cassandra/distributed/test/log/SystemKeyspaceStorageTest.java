@@ -68,7 +68,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                     if (periodSize == 0)
                     {
                         cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
-                        ClusterMetadata metadata = ClusterMetadataService.instance().fetchLogFromCMS();
+                        ClusterMetadata metadata = ClusterMetadataService.instance().processor().fetchLogAndWait();
                         epochToPeriod.put(metadata.epoch, metadata.period);
                         periodSize = rng.nextInt(10);
                     }
@@ -85,7 +85,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
                 }
             }
 
-            ClusterMetadataService.instance().fetchLogFromCMS();
+            ClusterMetadataService.instance().processor().fetchLogAndWait();
 
             List<Epoch> allEpochs = new ArrayList<>(epochToPeriod.keySet());
             List<Long> allPeriods = cluster.get(1).callOnInstance(() -> getAllSnapshots());

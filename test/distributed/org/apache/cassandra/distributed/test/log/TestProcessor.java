@@ -29,6 +29,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Processor;
+import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -53,19 +54,19 @@ public class TestProcessor implements Processor
     }
 
     @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
+    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
     {
         maybePause(transform);
         waitIfPaused();
-        Commit.Result commited = delegate.commit(entryId, transform, lastKnown);
+        Commit.Result commited = delegate.commit(entryId, transform, lastKnown, retryPolicy);
         testCommitPredicates(transform, commited);
         return commited;
     }
 
     @Override
-    public ClusterMetadata fetchLogAndWait()
+    public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
     {
-        return delegate.fetchLogAndWait();
+        return delegate.fetchLogAndWait(waitFor, retryPolicy);
     }
 
     protected void waitIfPaused()

@@ -47,6 +47,7 @@ import static org.apache.cassandra.distributed.Constants.KEY_DTEST_FULL_STARTUP;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
 import static org.apache.cassandra.net.Verb.TCM_REPLICATION;
+import static org.apache.cassandra.net.Verb.TCM_FETCH_PEER_LOG_RSP;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.BLOCKED;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.CONTINUING;
 
@@ -90,8 +91,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Remove the partition between nodes 2 & 3 and the CMS and have them catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
-            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
 
             // Unpause the joining node and have it retry the bootstrap sequence from MidJoin, this time the
             // expectation is that it will succeed, so we can just clear out the listener.
@@ -118,7 +119,6 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
         {
-
             IInvokableInstance cmsInstance = cluster.get(1);
             ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
 
@@ -129,23 +129,23 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             // ensure that they do not receive the leave events for the new instance. They will then not be able to ack
             // them as the leaving node attempts to progress its leave sequence, which should consequently fail.
             cluster.filters().allVerbs().from(1).to(2,3).drop();
-            cluster.filters().verbs(TCM_REPLICATION.id).from(4).to(2, 3).drop();
+            cluster.filters().verbs(TCM_FETCH_PEER_LOG_RSP.id).from(4).to(2, 3).drop();
 
             // Have the joining node pause when the StartLeave event fails due to ack timeout.
             IInvokableInstance leavingInstance = cluster.get(4);
             Callable<Void> progressBlocked = waitForListener(leavingInstance, BLOCKED);
-            new Thread(() -> leavingInstance.runOnInstance(() -> StorageService.instance.decommission(true))).start();
+            Thread t = new Thread(() -> leavingInstance.runOnInstance(() -> StorageService.instance.decommission(true)));
+            t.start();
             progressBlocked.call();
-
             // Remove the partition between nodes 2 & 3 and the CMS and have them catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
-            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
 
             // Now re-partition nodes 2 & 3 so that the MidLeave event cannot be submitted by node 1 as 2 & 3 won't
             // receive/ack the StartLeave.
             cluster.filters().allVerbs().from(1).to(2,3).drop();
-            cluster.filters().verbs(TCM_REPLICATION.id).from(4).to(2, 3).drop();
+            cluster.filters().verbs(TCM_FETCH_PEER_LOG_RSP.id).from(4).to(2, 3).drop();
 
             // Unpause the leaving node and have it retry the StartLeave, which should now be able to proceed as 2 & 3
             // will ack the PrepareJoin. Its progress should be blocked as it comes to submit the next event, its
@@ -159,8 +159,8 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Heal the partition again and force a catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
-            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
 
             // Unpause the leaving node and have it retry the MidLeave, which will now be able to proceed as 2 & 3 will
             // ack the StartJoin. This time the expectation is that the remaining events will be successfully acked, so
@@ -223,7 +223,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Remove the partition between node 2 and the CMS and have it catch up.
             cluster.filters().reset();
-            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
 
             // Unpause the joining node and have it retry the bootstrap sequence from StartReplace, this time the
             // expectation is that it will succeed, so we can just clear out the listener.

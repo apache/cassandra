@@ -66,7 +66,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
 
         if (message.epoch().isAfter(metadata.epoch))
         {
-            metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
             if (StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken()))
                 return metadata;
         }
@@ -94,7 +94,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                     {
                         // the partition update was serialized after the epoch we currently know, catch up and
                         // make sure we've seen the epoch it has seen, otherwise fail request.
-                        metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+                        metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
                         if (pu.serializedAtEpoch.isAfter(metadata.epoch))
                             throw new IllegalStateException(String.format("Coordinator %s is still ahead after fetching log, our epoch = %s, their epoch = %s",
                                                                           message.from(),
@@ -139,7 +139,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             }
             else
             {
-                metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
             }
         }
 

@@ -799,8 +799,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                              // We might have discovered a startup sequence we ourselves committed but got no response for
                                                              if (sequence == null || !InProgressSequences.STARTUP_SEQUENCE_KINDS.contains(sequence.kind()))
                                                              {
-                                                                 throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting startup sequence.",
-                                                                                                               reason));
+                                                                 throw new IllegalStateException(String.format("Can not commit event to metadata service: \"%s\"(%s). Interrupting startup sequence.",
+                                                                                                               code, reason));
                                                              }
                                                              return null;
                                                          });
@@ -1103,7 +1103,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isJoined()
     {
-        return ClusterMetadata.current().directory.allAddresses().contains(getBroadcastAddressAndPort()) && !isSurveyMode;
+        return ClusterMetadata.current().myNodeState() == JOINED && !isSurveyMode;
     }
 
     public void rebuild(String sourceDc)
@@ -3604,7 +3604,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 throw new IllegalStateException(String.format("Could not nominate an alternative CMS node. Tried:%s", tried));
 
             // We can force removal from the CMS as it doesn't alter the size of the service
-            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(toRemove, true)).epoch;
+            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(toRemove, true),
+                                                                   latest -> latest,
+                                                                   (latest, code, message) -> {
+                                                                       if (!ClusterMetadata.current().isCMSMember(toRemove))
+                                                                           return latest;
+                                                                       throw new IllegalStateException("Could not remove the current node from CMS: " + message);
+                                                                   }).epoch;
             // Awaiting on the progress barrier will leave a log message in case it could not collect a majority. But we do not
             // want to block the operation at that point, since for the purpose of executing CMS operations, we have already
             // stopped being a CMS node, and for the purpose of either continuing or starting a leave sequence, we will not
@@ -5827,12 +5833,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!DatabaseDescriptor.getUnsafeTCMMode())
             throw new IllegalStateException("Cluster is not running unsafe TCM mode, can't load cluster metadata " + file);
         ClusterMetadataService.instance().loadClusterMetadata(file);
-    }
-
-    @Override
-    public void replayAndWait()
-    {
-        ClusterMetadataService.instance().fetchLogFromCMS();
     }
 
     @Override

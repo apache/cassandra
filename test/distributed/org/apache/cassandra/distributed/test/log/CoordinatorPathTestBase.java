@@ -366,7 +366,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                             sendFrom(node.idx(), payload);
                                             try
                                             {
-                                                return resFuture.get(10, TimeUnit.SECONDS);
+                                                return resFuture.get(1, TimeUnit.MINUTES);
                                             }
                                             catch (Throwable e)
                                             {
@@ -689,7 +689,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                             case TCM_FETCH_CMS_LOG_REQ:
                             {
                                 FetchCMSLog request = (FetchCMSLog) message.payload;
-                                LogState logState = logStorage.getLogState(request.start);
+                                LogState logState = logStorage.getLogState(request.lowerBound);
                                 realCluster.deliverMessage(message.from(),
                                                            Instance.serializeMessage(cms.addr(), message.from(), message.responseWith(logState)));
                                 return;
@@ -724,7 +724,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                        log,
                                        new Processor()
                                        {
-                                           public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown)
+                                           public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown, Retry.Deadline retryPolicy)
                                            {
                                                if (lastKnown == null)
                                                    lastKnown = log.waitForHighestConsecutive().epoch;
@@ -737,7 +737,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                return result;
                                            }
 
-                                           public ClusterMetadata fetchLogAndWait()
+                                           public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
                                            {
                                                Epoch since = log.waitForHighestConsecutive().epoch;
                                                LogState logState = driver.requestResponse(new FetchCMSLog(since, true));

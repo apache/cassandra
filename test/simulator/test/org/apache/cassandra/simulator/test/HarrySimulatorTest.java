@@ -50,7 +50,6 @@ import harry.model.sut.TokenPlacementModel;
 import harry.operations.Query;
 import harry.runner.DefaultDataTracker;
 import harry.visitors.GeneratingVisitor;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -77,6 +76,7 @@ import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -128,6 +128,10 @@ public class HarrySimulatorTest
                             .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(2, 1))
                             .setClusteringDescriptorSelector(HarryHelper.singleRowPerModification().setMaxPartitionSize(100).build()),
                  (simulation) -> {
+                     simulation.cluster.stream().forEach((IInvokableInstance i) -> {
+                         simulation.simulated.failureDetector.markUp(i.config().broadcastAddress());
+                     });
+
                      List<ActionSchedule.Work> work = new ArrayList<>();
                      work.add(work(run(() -> {
                          for (Map.Entry<String, List<TokenPlacementModel.Node>> e : simulation.nodeState.nodesByDc.entrySet())
@@ -141,13 +145,19 @@ public class HarrySimulatorTest
                          }
                      })));
                      work.add(work(lazy(() -> simulation.clusterActions.initializeCluster(new ClusterActions.InitialConfiguration(simulation.nodeState.joined(), new int[0])))));
-                     work.add(work(lazy(simulation.clusterActions, simulation.cluster.get(1), () -> DatabaseDescriptor.setCmsDefaultRetryMaxTries(2))));
+                     work.add(work(addToCMS(simulation.simulated, simulation.cluster, 5),
+                                   addToCMS(simulation.simulated, simulation.cluster, 9)));
                      work.add(work(simulation.clusterActions.schemaChange(1,
                                                                           String.format("CREATE KEYSPACE %s WITH replication = {'class': 'NetworkTopologyStrategy', " + rfString + "};",
                                                                                         simulation.harryRun.schemaSpec.keyspace))));
                      work.add(work(simulation.clusterActions.schemaChange(1,
                                                                           simulation.harryRun.schemaSpec.compile().cql())));
                      work.add(work(HarrySimulatorTest.generate(rowsPerPhase, simulation, cl)));
+
+
+                     simulation.cluster.stream().forEach(i -> {
+                         work.add(work(lazy(simulation.simulated, i, () -> logger.info(ClusterMetadata.current().epoch.toString()))));
+                     });
                      work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
 
                      List<Integer> registeredNodes = new ArrayList<>(Arrays.asList(bootstrapNode1, bootstrapNode2, bootstrapNode3));
@@ -164,9 +174,15 @@ public class HarrySimulatorTest
                          {
                              int node = registeredNodes.remove(0);
                              long token = simulation.simulated.random.uniform(Long.MIN_VALUE, Long.MAX_VALUE);
+                             work.add(work(addToCMS(simulation.simulated, simulation.cluster, node)));
                              work.add(work(ActionList.of(bootstrap(simulation.simulated, simulation.cluster, token, node)),
-                                           generate(rowsPerPhase, simulation, cl)));
+                                           generate(rowsPerPhase, simulation, cl)
+                             ));
+                             simulation.cluster.stream().forEach(i -> {
+                                 work.add(work(lazy(simulation.simulated, i, () -> logger.info(ClusterMetadata.current().epoch.toString()))));
+                             });
                              work.add(work(run(() -> simulation.nodeState.bootstrap(node, token))));
+                             work.add(work(assertNodeState(simulation.simulated, simulation.cluster, node,NodeState.JOINED)));
                              work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
                              bootstrappedNodes.add(node);
                          }
@@ -175,19 +191,27 @@ public class HarrySimulatorTest
                              assert !bootstrappedNodes.isEmpty();
                              int node = bootstrappedNodes.remove(0);
                              work.add(work(ActionList.of(decommission(simulation.simulated, simulation.cluster, node)),
-                                           generate(rowsPerPhase, simulation, cl)));
+                                           generate(rowsPerPhase, simulation, cl)
+                             ));
+                             simulation.cluster.stream().forEach(i -> {
+                                 work.add(work(lazy(simulation.simulated, i, () -> logger.info(ClusterMetadata.current().epoch.toString()))));
+                             });
                              work.add(work(run(() -> simulation.nodeState.decommission(node))));
+                             work.add(work(assertNodeState(simulation.simulated, simulation.cluster, node,NodeState.LEFT)));
                              work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
                          }
+                         work.add(work(run(() -> System.out.println("Finished!"))));
                      }
 
                      return arr(work.toArray(new ActionSchedule.Work[0]));
                  },
-                 (config) -> config.set("cms_default_max_retries", Integer.MAX_VALUE)
+                 (config) -> config.set("cms_default_max_retries", 10)
                                    .set("progress_barrier_min_consistency_level", ALL)
                                    .set("progress_barrier_default_consistency_level", ALL)
-                                   .set("progress_barrier_timeout", Integer.MAX_VALUE + "ms")
-                                   .set("cms_await_timeout", "2000ms"),
+                                   .set("progress_barrier_timeout", "600000ms")
+                                   // Backoff should be larger than read timeout, since otherwise we will simply saturate the stage with retries
+                                   .set("progress_barrier_backoff", "11000ms")
+                                   .set("cms_await_timeout", "20000ms"),
                  arr(),
                  (config) -> config
                              .failures(new HaltOnError())
@@ -327,26 +351,22 @@ public class HarrySimulatorTest
      */
     public static Map<Verb, FutureActionScheduler> networkSchedulers(int nodes, SimulatedTime time, RandomSource random)
     {
-        Set<Verb> extremelyLossy = new HashSet<>(Arrays.asList(TCM_COMMIT_RSP, TCM_COMMIT_REQ, TCM_REPLICATION, TCM_NOTIFY_RSP, TCM_NOTIFY_REQ,
-                                                               TCM_CURRENT_EPOCH_REQ, TCM_FETCH_CMS_LOG_REQ, TCM_FETCH_CMS_LOG_RSP,
+        Set<Verb> extremelyLossy = new HashSet<>(Arrays.asList(TCM_COMMIT_REQ, TCM_REPLICATION, TCM_NOTIFY_REQ,
+                                                               TCM_CURRENT_EPOCH_REQ, TCM_FETCH_CMS_LOG_REQ, TCM_FETCH_PEER_LOG_REQ,
                                                                TCM_INIT_MIG_RSP, TCM_INIT_MIG_REQ, TCM_ABORT_MIG,
                                                                TCM_DISCOVER_RSP, TCM_DISCOVER_REQ));
 
         Set<Verb> somewhatSlow = new HashSet<>(Arrays.asList(BATCH_STORE_REQ, BATCH_STORE_RSP));
 
-        Set<Verb> somewhatLossy = new HashSet<>(Arrays.asList(PAXOS2_COMMIT_REMOTE_REQ, PAXOS2_COMMIT_REMOTE_RSP, PAXOS2_PREPARE_RSP, PAXOS2_PREPARE_REQ,
-                                                              PAXOS2_PREPARE_REFRESH_RSP, PAXOS2_PREPARE_REFRESH_REQ, PAXOS2_PROPOSE_RSP, PAXOS2_PROPOSE_REQ,
-                                                              PAXOS2_COMMIT_AND_PREPARE_RSP, PAXOS2_COMMIT_AND_PREPARE_REQ, PAXOS2_REPAIR_RSP, PAXOS2_REPAIR_REQ,
-                                                              PAXOS2_CLEANUP_START_PREPARE_RSP, PAXOS2_CLEANUP_START_PREPARE_REQ, PAXOS2_CLEANUP_RSP, PAXOS2_CLEANUP_REQ,
-                                                              PAXOS2_CLEANUP_RSP2, PAXOS2_CLEANUP_FINISH_PREPARE_RSP, PAXOS2_CLEANUP_FINISH_PREPARE_REQ,
-                                                              PAXOS2_CLEANUP_COMPLETE_RSP, PAXOS2_CLEANUP_COMPLETE_REQ,
-                                                              PAXOS_PREPARE_RSP, PAXOS_PREPARE_REQ, PAXOS_PROPOSE_RSP, PAXOS_PROPOSE_REQ, PAXOS_COMMIT_RSP, PAXOS_COMMIT_REQ));
+        Set<Verb> somewhatLossy = new HashSet<>(Arrays.asList(PAXOS2_COMMIT_REMOTE_REQ, PAXOS2_COMMIT_REMOTE_RSP, PAXOS2_PREPARE_RSP, PAXOS2_PREPARE_REQ, PAXOS2_PROPOSE_RSP, PAXOS2_PROPOSE_REQ,
+                                                              PAXOS_PREPARE_RSP, PAXOS_PREPARE_REQ, PAXOS_PROPOSE_RSP, PAXOS_PROPOSE_REQ, PAXOS_COMMIT_RSP, PAXOS_COMMIT_REQ,
+                                                              TCM_NOTIFY_RSP, TCM_FETCH_CMS_LOG_RSP, TCM_FETCH_PEER_LOG_RSP, TCM_COMMIT_RSP));
 
         Map<Verb, FutureActionScheduler> schedulers = new HashMap<>();
         for (Verb verb : Verb.values())
         {
             if (extremelyLossy.contains(verb))
-                schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .2f, .5f));
+                schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .2f, .3f));
             else if (somewhatLossy.contains(verb))
                 schedulers.put(verb, new FixedLossNetworkScheduler(nodes, random, time, KindOfSequence.UNIFORM, .1f, .15f));
             else if (somewhatSlow.contains(verb))
@@ -369,12 +389,20 @@ public class HarrySimulatorTest
     public static Action bootstrap(SimulatedSystems simulated, Cluster cluster, long token, int node)
     {
         IIsolatedExecutor.SerializableRunnable runnable = () -> {
-            StorageService.instance.startup(() -> new PrepareJoin(ClusterMetadata.current().myNodeId(),
-                                                                 Collections.singleton(new Murmur3Partitioner.LongToken(token)),
-                                                                 ClusterMetadataService.instance().placementProvider(),
-                                                                 true,
-                                                                 true),
-                                           true);
+            try
+            {
+                StorageService.instance.startup(() -> new PrepareJoin(ClusterMetadata.current().myNodeId(),
+                                                                      Collections.singleton(new Murmur3Partitioner.LongToken(token)),
+                                                                      ClusterMetadataService.instance().placementProvider(),
+                                                                      true,
+                                                                      true),
+                                                true);
+            }
+            catch (Throwable t)
+            {
+                logger.error("Could not bootstrap. Interrupting simulation.", t);
+                SimulatorUtils.failWithOOM();
+            }
         };
 
         return new SimulatedActionTask("Bootstrap Node",
@@ -389,7 +417,15 @@ public class HarrySimulatorTest
     public Action decommission(SimulatedSystems simulated, Cluster cluster, int node)
     {
         IIsolatedExecutor.SerializableRunnable runnable = () -> {
+            try
+            {
             StorageService.instance.decommission(false, false);
+            }
+            catch (Throwable t)
+            {
+                logger.error("Could not decommission. Interrupting simulation.", t);
+                SimulatorUtils.failWithOOM();
+            }
         };
 
         return new SimulatedActionTask("Decomission Node",
@@ -420,13 +456,26 @@ public class HarrySimulatorTest
         return new Actions.LambdaAction("", Action.Modifiers.RELIABLE_NO_TIMEOUTS, () -> ActionList.of(run.get()));
     }
 
+    private static Action assertNodeState(SimulatedSystems simulated, Cluster cluster, int i, NodeState expected)
+    {
+        return lazy(simulated, cluster.get(i),
+                    () -> {
+                        NodeState actual = ClusterMetadata.current().myNodeState();
+                        if (!actual.toString().equals(expected.toString()))
+                        {
+                            logger.info("Node {} state ({}) is not as expected {}", i, actual, expected);
+                            SimulatorUtils.failWithOOM();
+                        }
+                    });
+    }
+
     /**
      * Creates an action list with a fixed number of data-generating operations that conform to the given Harry configuration.
      */
     public static ActionList generate(int ops, HarrySimulation simulation, ConsistencyLevel cl)
     {
         Action[] actions = new Action[ops];
-        OrderOn orderOn =  new OrderOn.Strict(actions, 2);
+        OrderOn orderOn = new OrderOn.Strict(actions, 2);
         generate(ops, simulation, new Consumer<Action>()
                  {
                      int i = 0;
@@ -463,7 +512,6 @@ public class HarrySimulatorTest
      */
     public static Supplier<Action> generate(HarrySimulation simulation, org.apache.cassandra.distributed.api.ConsistencyLevel cl)
     {
-        //
         SimulatedVisitExectuor visitExectuor = new SimulatedVisitExectuor(simulation,
                                                                           simulation.harryRun,
                                                                           cl);
@@ -500,7 +548,6 @@ public class HarrySimulatorTest
      */
     public static Action validateAllLocal(HarrySimulation simulation, List<TokenPlacementModel.Node> owernship, TokenPlacementModel.ReplicationFactor rf)
     {
-        // todo: change to just lazy
         return new Actions.LambdaAction("Validate", Action.Modifiers.RELIABLE_NO_TIMEOUTS,
                                         () -> {
                                             if (!simulation.harryRun.tracker.isFinished(simulation.harryRun.tracker.maxStarted()))

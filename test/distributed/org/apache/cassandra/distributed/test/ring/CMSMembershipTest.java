@@ -80,7 +80,7 @@ public class CMSMembershipTest extends FuzzTestBase
             for (int idx : new int[]{ 1, 2, 3 })
             {
                 cluster.get(idx).runOnInstance(() -> {
-                    ClusterMetadataService.instance().fetchLogFromCMS();
+                    ClusterMetadataService.instance().processor().fetchLogAndWait();
                     ClusterMetadata metadata = ClusterMetadata.current();
                     Assert.assertTrue(metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()));
                 });
@@ -107,7 +107,7 @@ public class CMSMembershipTest extends FuzzTestBase
             Assert.assertEquals(3, initialCMS.size());
             for (int i=2; i<=3; i++)
             {
-                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
                 Assert.assertEquals(initialCMS, getCMSMembers(cluster.get(i)));
             }
 
@@ -136,7 +136,7 @@ public class CMSMembershipTest extends FuzzTestBase
             // expect no changes to the CMS membership yet
             for (int i=1; i<=3; i++)
             {
-                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
                 Assert.assertEquals(initialCMS, getCMSMembers(cluster.get(i)));
             }
 
@@ -157,7 +157,7 @@ public class CMSMembershipTest extends FuzzTestBase
             Set<String> updatedCMS = initialCMS.stream().filter(s -> !s.contains("127.0.0.3")).collect(Collectors.toSet());
             for (int i=1; i<=3; i++)
             {
-                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS());
+                cluster.get(i).runOnInstance(() -> ClusterMetadataService.instance().processor().fetchLogAndWait());
                 Assert.assertEquals(updatedCMS, getCMSMembers(cluster.get(i)));
             }
 

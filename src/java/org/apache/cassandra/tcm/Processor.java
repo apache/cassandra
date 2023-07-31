@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.tcm;
 
+import java.util.concurrent.TimeUnit;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
 
 public interface Processor
@@ -26,12 +30,33 @@ public interface Processor
      * Method is _only_ responsible to commit the transformation to the cluster metadata. Implementers _have to ensure_
      * local visibility and enactment of the metadata!
      */
-    Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown);
+    default Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
+    {
+        return commit(entryId, transform, lastKnown,
+                      Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                           new Retry.Jitter(TCMMetrics.instance.commitRetries)));
+    }
+    Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy);
 
     /**
      * Fetches log from CMS up to the highest currently known epoch.
      * <p>
      * After fetching, all items _at least_ up to returned epoch will be visible.
+     *
+     * This method deliberately does not necessitate passing an epoch, since it guarantees catching up to the _latest_
+     * epoch. Users that require catching up to _at least_ some epoch need to guard this call with a check of whether
+     * local epoch is already at that point.
      */
-    ClusterMetadata fetchLogAndWait();
+    default ClusterMetadata fetchLogAndWait()
+    {
+        return fetchLogAndWait(null); // wait for the highest possible epoch
+    }
+;
+    default ClusterMetadata fetchLogAndWait(Epoch waitFor)
+    {
+        return fetchLogAndWait(waitFor,
+                               Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                    new Retry.Jitter(TCMMetrics.instance.fetchLogRetries)));
+    }
+    ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
 }

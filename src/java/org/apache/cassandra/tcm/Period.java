@@ -117,8 +117,8 @@ public class Period
                 }
             }
         }
-        logger.info("Performed partial local scan of {}.{}, started at period {}, {} partitions scanned",
-                    logTable.keyspace, logTable.name, startPeriod, partitionsScanned);
+        logger.trace("Performed partial local scan of {}.{}, started at period {}, {} partitions scanned",
+                     logTable.keyspace, logTable.name, startPeriod, partitionsScanned);
     }
 
     private static abstract class Visitor implements LongConsumer

@@ -21,10 +21,10 @@ package org.apache.cassandra.tcm;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -36,6 +36,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -64,13 +66,18 @@ import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.tcm.ClusterMetadataService.State.*;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.GOSSIP;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.RESET;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
@@ -154,12 +161,11 @@ public class ClusterMetadataService
         {
             LogStorage logStorage = LogStorage.SystemKeyspace;
             log = LocalLog.sync(initial, logStorage, true, isReset);
-            localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log));
-            fetchLogHandler = new FetchCMSLog.Handler(logStorage::getLogState);
+            localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, isReset));
+            fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logStorage.getLogState(e));
         }
         else
         {
-
             log = LocalLog.async(initial, isReset);
             localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
             fetchLogHandler = new FetchCMSLog.Handler();
@@ -179,6 +185,7 @@ public class ClusterMetadataService
                                             gossipProcessor,
                                             replicator,
                                             cmsStateSupplier);
+
 
         replicationHandler = new Replication.ReplicationHandler(log);
         logNotifyHandler = new Replication.LogNotifyHandler(log);
@@ -476,60 +483,36 @@ public class ClusterMetadataService
         T accept(ClusterMetadata latest, ExceptionCode code, String message);
     }
 
-    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
+    public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onFailure)
     {
         if (commitsPaused.get())
             throw new IllegalStateException("Commits are paused, not trying to commit " + transform);
-        long startTime = nanoTime();
-        Retry.Backoff backoff = new Retry.Backoff(TCMMetrics.instance.commitRetries);
-        while (!backoff.reachedMax())
-        {
-            Commit.Result result = processor.commit(entryIdGen.get(), transform, null);
 
+        long startTime = nanoTime();
+        Commit.Result result = processor.commit(entryIdGen.get(), transform, null);
+
+        try
+        {
             if (result.isSuccess())
             {
-                while (!backoff.reachedMax())
-                {
-                    try
-                    {
-                        T1 res = onSuccess.accept(awaitAtLeast(result.success().epoch));
-                        TCMMetrics.instance.commitSuccessLatency.update(nanoTime() - startTime, NANOSECONDS);
-                        return res;
-                    }
-                    catch (TimeoutException t)
-                    {
-                        logger.error("Timed out while waiting for the follower to enact the epoch {}", result.success().epoch, t);
-                        backoff.maybeSleep();
-                    }
-                    catch (InterruptedException e)
-                    {
-                        TCMMetrics.instance.commitFailureLatency.update(nanoTime() - startTime, NANOSECONDS);
-                        throw new IllegalStateException("Couldn't commit the transformation. Is the node shutting down?", e);
-                    }
-                }
+                TCMMetrics.instance.commitSuccessLatency.update(nanoTime() - startTime, NANOSECONDS);
+                return onSuccess.accept(awaitAtLeast(result.success().epoch));
             }
             else
             {
-                ClusterMetadata metadata = fetchLogFromCMS();
-
-                // For now, we retry unconditionally on non-rejection cases. We might need a better solution (for example, using EntryId).
-                // If we have decided _not_ to retry, there is a chance we got a rejection, in which case we need to find if we have discovered commit of the current transformation.
-                if (result.failure().rejected)
-                {
-                    TCMMetrics.instance.commitRejectionLatency.update(nanoTime() - startTime, NANOSECONDS);
-                    return onReject.accept(metadata, result.failure().code, result.failure().message);
-                }
-
-                logger.info("Couldn't commit the transformation due to \"{}\". Retrying again in {}ms.", result.failure().message, backoff.backoffMs);
-                // Back-off and retry
-                backoff.maybeSleep();
+                TCMMetrics.instance.recordCommitFailureLatency(nanoTime() - startTime, NANOSECONDS, result.failure().rejected);
+                ClusterMetadata metadata = processor.fetchLogAndWait();
+                return onFailure.accept(metadata, result.failure().code, result.failure().message);
             }
         }
-        TCMMetrics.instance.commitFailureLatency.update(nanoTime() - startTime, NANOSECONDS);
-        if (backoff.reachedMax())
-            throw new IllegalStateException(String.format("Couldn't commit the transformation %s after %d tries", transform, backoff.maxTries()));
-
-        throw new IllegalStateException(String.format("Could not succeed committing %s after %d tries", transform, backoff.maxTries));
+        catch (TimeoutException t)
+        {
+            throw new IllegalStateException(String.format("Timed out while waiting for the follower to enact the epoch %s", result.success().epoch), t);
+        }
+        catch (InterruptedException e)
+        {
+            throw new IllegalStateException("Couldn't commit the transformation. Is the node shutting down?", e);
+        }
     }
 
     /**
@@ -603,46 +586,34 @@ public class ClusterMetadataService
         return log.metadata();
     }
 
-    public boolean maybeFetchLog(Epoch theirEpoch)
-    {
-        if (theirEpoch.isBefore(Epoch.FIRST))
-            return false;
-
-        Epoch ourEpoch = ClusterMetadata.current().epoch;
-
-        if (ourEpoch.isEqualOrAfter(theirEpoch))
-            return true;
-
-        for (int i = 0; i < 2; i++)
-        {
-            State state = state();
-            if (EnumSet.of(GOSSIP, RESET).contains(state))
-            {
-                //TODO we have seen a message with epoch > EMPTY, we are probably racing with migration,
-                //     or we missed the finish migration message, handle!
-                logger.warn("Cannot fetch log while in {} mode (target epoch = {})", state, theirEpoch);
-                return false;
-            }
-
-            fetchLogFromCMS();
-            ourEpoch = ClusterMetadata.current().epoch;
-            if (ourEpoch.isEqualOrAfter(theirEpoch))
-                return true;
-        }
-
-        throw new IllegalStateException(String.format("Could not catch up to epoch %s even after fetching log from CMS. Highest seen after fetching is %s.",
-                                                      theirEpoch, ourEpoch));
-    }
-
     /**
-     * Fetches log entries from directly from CMS, up to the highest currently known epoch.
+     * Fetches log entries from directly from CMS, at least to the specified epoch.
+     *
      * This operation is blocking and also waits for all retrieved log entries to be
      * enacted, so on return all transformations to ClusterMetadata will be visible.
      * @return metadata with all currently committed entries enacted.
      */
-    public ClusterMetadata fetchLogFromCMS()
+    public ClusterMetadata fetchLogFromCMS(Epoch awaitAtLeast)
     {
-        return processor.fetchLogAndWait();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (awaitAtLeast.isBefore(Epoch.FIRST))
+            return metadata;
+
+        Epoch ourEpoch = metadata.epoch;
+
+        if (ourEpoch.isEqualOrAfter(awaitAtLeast))
+            return metadata;
+
+        Retry.Deadline deadline = Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                       new Retry.Jitter(TCMMetrics.instance.fetchLogRetries));
+        // responses for ALL withhout knowing we have pending
+        metadata = processor.fetchLogAndWait(awaitAtLeast, deadline);
+        if (metadata.epoch.isBefore(awaitAtLeast))
+        {
+            throw new IllegalStateException(String.format("Could not catch up to epoch %s even after fetching log from CMS. Highest seen after fetching is %s.",
+                                                          awaitAtLeast, ourEpoch));
+        }
+        return metadata;
     }
 
     /**
@@ -663,14 +634,18 @@ public class ClusterMetadataService
     public Future<ClusterMetadata> fetchLogFromPeerAsync(InetAddressAndPort from, Epoch awaitAtLeast)
     {
         ClusterMetadata current = ClusterMetadata.current();
-        if (awaitAtLeast.isBefore(Epoch.FIRST) || current.epoch.isEqualOrAfter(awaitAtLeast))
+        if (FBUtilities.getBroadcastAddressAndPort().equals(from) ||
+            current.epoch.isEqualOrAfter(awaitAtLeast) ||
+            awaitAtLeast.isBefore(Epoch.FIRST))
             return ImmediateFuture.success(current);
 
-        logger.info("Fetching log async from {}, at least = {}", from, awaitAtLeast);
         return peerLogFetcher.asyncFetchLog(from, awaitAtLeast);
     }
 
     /**
+     *
+     * IMPORTANT: this call can return _without_ catching us up, so should only be used privately.
+     *
      * Attempts to synchronously retrieve log entries from a non-CMS peer.
      * Fetches the log state representing the delta between the current local epoch and the one supplied.
      * This is to be used when a message from a peer contains an epoch higher than the current local epoch. As
@@ -685,17 +660,34 @@ public class ClusterMetadataService
      *                     least this epoch.
      * @return The current ClusterMetadata at the time of completion
      */
-    public ClusterMetadata fetchLogFromPeer(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
+    private ClusterMetadata fetchLogFromPeer(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
     {
         if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
             return ClusterMetadata.current();
-        logger.info("Fetching log from {}, at least {}", from, awaitAtLeast);
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
             return metadata;
+        logger.info("Fetching log from {}, at least {}", from, awaitAtLeast);
         return peerLogFetcher.fetchLogEntriesAndWait(from, awaitAtLeast);
     }
 
+    public Future<ClusterMetadata> fetchLogFromPeerOrCMSAsync(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
+    {
+        AsyncPromise<ClusterMetadata> future = new AsyncPromise<>();
+        ScheduledExecutors.optionalTasks.submit(() -> {
+            try
+            {
+                future.setSuccess(ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, from, awaitAtLeast));
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.warn(String.format("Learned about epoch %s from %s, but could not fetch log.", awaitAtLeast, from), t);
+                future.setFailure(t);
+            }
+        });
+        return future;
+    }
     /**
      * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
      * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
@@ -712,23 +704,23 @@ public class ClusterMetadataService
      * @return A published ClusterMetadata with all entries up to (at least) the requested epoch enacted.
      * @throws IllegalStateException if the requested epoch could not be reached, even after falling back to CMS catchup
      */
-    public ClusterMetadata fetchLogWithFallback(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
+    public ClusterMetadata fetchLogFromPeerOrCMS(ClusterMetadata metadata, InetAddressAndPort from, Epoch awaitAtLeast)
     {
         if (awaitAtLeast.isBefore(Epoch.FIRST) || FBUtilities.getBroadcastAddressAndPort().equals(from))
             return metadata;
 
         Epoch before = metadata.epoch;
+        if (before.isEqualOrAfter(awaitAtLeast))
+            return metadata;
+
         metadata = fetchLogFromPeer(metadata, from, awaitAtLeast);
-        if (!metadata.epoch.isEqualOrAfter(awaitAtLeast))
-        {
-            logger.info("Fetching log from peer didn't reach expected epoch, falling back to CMS");
-            ClusterMetadata cmsFetchedMetadata = fetchLogFromCMS();
-            if (cmsFetchedMetadata.epoch.isBefore(awaitAtLeast))
-                throw new IllegalStateException("Still behind after fetching log from CMS");
-            logger.debug("Fetched log from CMS - caught up from epoch {} to epoch {}", before, metadata.epoch);
-            return cmsFetchedMetadata;
-        }
-        logger.debug("Fetched log from {} - caught up from epoch {} to epoch {}", from, before, metadata.epoch);
+        if (metadata.epoch.isEqualOrAfter(awaitAtLeast))
+            return metadata;
+
+        metadata = fetchLogFromCMS(awaitAtLeast);
+        if (metadata.epoch.isBefore(awaitAtLeast))
+            throw new IllegalStateException("Still behind after fetching log from CMS");
+        logger.debug("Fetched log from CMS - caught up from epoch {} to epoch {}", before, metadata.epoch);
         return metadata;
     }
 
@@ -830,18 +822,19 @@ public class ClusterMetadataService
         }
 
         @Override
-        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
+        public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
         {
             Pair<State, Processor> delegate = delegateInternal();
-            Commit.Result result = delegate.right.commit(entryId, transform, lastKnown);
+            Commit.Result result = delegate.right.commit(entryId, transform, lastKnown, retryPolicy);
             if (delegate.left == LOCAL || delegate.left == RESET)
                 replicator.send(result, null);
             return result;
         }
 
-        public ClusterMetadata fetchLogAndWait()
+        @Override
+        public ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy)
         {
-            return delegate().fetchLogAndWait();
+            return delegate().fetchLogAndWait(waitFor, retryPolicy);
         }
 
         public String toString()

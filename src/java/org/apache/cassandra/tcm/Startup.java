@@ -171,7 +171,8 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointSt
         {
             if (candidates.kind() == Discovery.DiscoveredNodes.Kind.CMS_ONLY)
             {
-                ClusterMetadataService.instance().fetchLogFromCMS();
+                RemoteProcessor.fetchLogAndWait(new RemoteProcessor.CandidateIterator(candidates.nodes(), false),
+                                                ClusterMetadataService.instance().log());
             }
             else
             {

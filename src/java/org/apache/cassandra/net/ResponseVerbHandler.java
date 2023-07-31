@@ -28,10 +28,9 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
-import static org.apache.cassandra.exceptions.RequestFailureReason.INVALID_ROUTING;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 class ResponseVerbHandler implements IVerbHandler
@@ -47,6 +46,13 @@ class ResponseVerbHandler implements IVerbHandler
                                                                  Verb.TCM_DISCOVER_RSP,
                                                                  Verb.TCM_INIT_MIG_RSP);
 
+    // We skip epoch catchup for PaxosV2 verbs, since we are using PaxosV2 to serially read the log.
+    private static final Set<Verb> CMS_SKIP_CATCHUP_FOR = EnumSet.of(Verb.PAXOS2_COMMIT_REMOTE_REQ, Verb.PAXOS2_COMMIT_REMOTE_RSP, Verb.PAXOS2_PREPARE_RSP, Verb.PAXOS2_PREPARE_REQ,
+                                                                     Verb.PAXOS2_PREPARE_REFRESH_RSP, Verb.PAXOS2_PREPARE_REFRESH_REQ, Verb.PAXOS2_PROPOSE_RSP, Verb.PAXOS2_PROPOSE_REQ,
+                                                                     Verb.PAXOS2_COMMIT_AND_PREPARE_RSP, Verb.PAXOS2_COMMIT_AND_PREPARE_REQ, Verb.PAXOS2_REPAIR_RSP, Verb.PAXOS2_REPAIR_REQ,
+                                                                     Verb.PAXOS2_CLEANUP_START_PREPARE_RSP, Verb.PAXOS2_CLEANUP_START_PREPARE_REQ, Verb.PAXOS2_CLEANUP_RSP, Verb.PAXOS2_CLEANUP_REQ,
+                                                                     Verb.PAXOS2_CLEANUP_RSP2, Verb.PAXOS2_CLEANUP_FINISH_PREPARE_RSP, Verb.PAXOS2_CLEANUP_FINISH_PREPARE_REQ,
+                                                                     Verb.PAXOS2_CLEANUP_COMPLETE_RSP, Verb.PAXOS2_CLEANUP_COMPLETE_REQ);
     @Override
     public void doVerb(Message message)
     {
@@ -77,23 +83,29 @@ class ResponseVerbHandler implements IVerbHandler
     private void maybeFetchLogs(Message<?> message)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        if (!SKIP_CATCHUP_FOR.contains(message.verb()) && message.epoch().isAfter(metadata.epoch))
-        {
-            if (message.isFailureResponse() &&
-                (message.payload == COORDINATOR_BEHIND || message.payload == INVALID_ROUTING) &&
-                // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
-                // that executes something on the gossip stage as well.
-                !Stage.GOSSIP.executor().inExecutor())
-            {
-                metadata = ClusterMetadataService.instance().fetchLogWithFallback(metadata, message.from(), message.epoch());
+        if (!message.epoch().isAfter(metadata.epoch))
+            return;
 
-                if (metadata.epoch.isEqualOrAfter(message.epoch()))
-                    logger.debug("Learned about next epoch {} from {} in {}", message.epoch(), message.from(), message.verb());
-            }
-            else
-            {
-                ClusterMetadataService.instance().fetchLogFromPeerAsync(message.from(), message.epoch());
-            }
+        if (SKIP_CATCHUP_FOR.contains(message.verb()))
+            return;
+
+        if (metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()) && CMS_SKIP_CATCHUP_FOR.contains(message.verb()))
+            return;
+
+        // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
+        // that executes something on the gossip stage as well.
+        if (Stage.GOSSIP.executor().inExecutor())
+        {
+            ClusterMetadataService.instance().fetchLogFromPeerAsync(message.from(), message.epoch());
+            return;
         }
+
+        // We have to perform this operation in a blocking way, since otherwise we can violate consistency. For example, by
+        // missing a write to pending replica.
+        // TODO: check if we can relax it again, via COORDINATOR_BEHIND
+        metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+
+        if (metadata.epoch.isEqualOrAfter(message.epoch()))
+            logger.debug("Learned about next epoch {} from {} in {}", message.epoch(), message.from(), message.verb());
     }
 }

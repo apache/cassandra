@@ -48,7 +48,7 @@ public class Quiesce extends ClusterReliableAction
     private static IIsolatedExecutor.SerializableRunnable invokableQuiesce()
     {
         return () -> {
-            ClusterMetadataService.instance().fetchLogFromCMS();
+            ClusterMetadataService.instance().processor().fetchLogAndWait();
             ClusterMetadataService.instance().log().waitForHighestConsecutive();
         };
     }
